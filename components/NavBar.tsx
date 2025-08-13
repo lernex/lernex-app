@@ -14,8 +14,13 @@ export default function NavBar() {
           <Link href="/profile" className="px-2 py-1 rounded-xl bg-neutral-800 border border-neutral-700 hover:bg-neutral-700">
             Profile
           </Link>
+          <Link href="/generate" className="px-2 py-1 rounded-xl bg-neutral-800 border border-neutral-700 hover:bg-neutral-700">
+            Generate
+          </Link>
+
         </div>
       </div>
     </nav>
+
   );
 }
