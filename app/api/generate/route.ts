@@ -1,13 +1,27 @@
 import { NextRequest } from "next/server";
 import OpenAI from "openai";
 import { LessonSchema } from "@/lib/schema";
-
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 import { take } from "@/lib/rate";
+
+// Optional but nice: ensure this is never prerendered
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
+  // simple in-memory rate limit
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
-  if (!take(ip)) return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429 });
+  if (!take(ip)) {
+    return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429 });
+  }
+
+  // ✅ Only read & create the client *inside* the handler
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    // During local dev, put this in .env.local
+    // On Vercel, add it in Project → Settings → Environment Variables
+    return new Response(JSON.stringify({ error: "Server misconfigured: missing OPENAI_API_KEY" }), { status: 500 });
+  }
+  const client = new OpenAI({ apiKey });
+
   try {
     const body = await req.json().catch(() => ({}));
     const { text, subject = "General" } = body ?? {};
@@ -17,23 +31,20 @@ export async function POST(req: NextRequest) {
     }
 
     const system = `
-You generate ONE micro-lesson (30–80 words) from the user's study text,
-then a single multiple-choice question (2–6 choices) with exactly one correct answer.
-Return STRICT JSON matching this TypeScript type (no code fencing):
-
+Return STRICT JSON:
 {
   "id": string,
   "subject": string,
   "title": string,
   "content": string,     // 30–100 words
-  "questions": [         // exactly 3 MCQs
+  "questions": [
     { "prompt": string, "choices": string[], "correctIndex": number },
     { "prompt": string, "choices": string[], "correctIndex": number },
     { "prompt": string, "choices": string[], "correctIndex": number }
   ]
 }
-Rules: factual, concise, 1 correct choice per question, no commentary.
-    `.trim();
+Rules: concise, factual, no markdown or commentary.
+`.trim();
 
     const userPrompt = `
 Subject: ${subject}
@@ -41,9 +52,8 @@ Source text:
 """
 ${text}
 """
-    `.trim();
+`.trim();
 
-    // Use a small, fast model; adjust as desired
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.3,
