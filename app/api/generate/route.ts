@@ -71,8 +71,9 @@ ${text}
       headers: { "content-type": "application/json" },
       status: 200,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error(err);
-    return new Response(JSON.stringify({ error: "Server error" }), { status: 500 });
+    const msg = err instanceof Error ? err.message : "Server error";
+    return new Response(JSON.stringify({ error: msg }), { status: 500 });
   }
 }
