@@ -18,6 +18,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.className} bg-neutral-950 text-white`}>
         <NavBar />
         {children}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

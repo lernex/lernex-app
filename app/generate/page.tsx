@@ -24,7 +24,7 @@ export default function Generate() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to generate");
       setLesson(data);
-    } catch (e: unknown) {
+    } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error";
       setErr(message);
     } finally {
