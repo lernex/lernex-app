@@ -55,7 +55,7 @@ ${text}
 `.trim();
 
     const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5-nano",
       temperature: 0.3,
       messages: [
         { role: "system", content: system },
