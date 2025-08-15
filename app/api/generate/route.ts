@@ -4,7 +4,10 @@ import { LessonSchema } from "@/lib/schema";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+import { take } from "@/lib/rate";
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+  if (!take(ip)) return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429 });
   try {
     const body = await req.json().catch(() => ({}));
     const { text, subject = "General" } = body ?? {};
@@ -19,17 +22,17 @@ then a single multiple-choice question (2–6 choices) with exactly one correct 
 Return STRICT JSON matching this TypeScript type (no code fencing):
 
 {
-  "id": string, // a short stable id (slug-like)
-  "subject": string, // short, e.g. "Algebra"
-  "title": string,   // catchy, 2–6 words max
-  "content": string, // 30–80 words, clear and friendly
-  "question": {
-    "prompt": string,
-    "choices": string[], // 2–6 items
-    "correctIndex": number // index into choices
-  }
+  "id": string,
+  "subject": string,
+  "title": string,
+  "content": string,     // 30–100 words
+  "questions": [         // exactly 3 MCQs
+    { "prompt": string, "choices": string[], "correctIndex": number },
+    { "prompt": string, "choices": string[], "correctIndex": number },
+    { "prompt": string, "choices": string[], "correctIndex": number }
+  ]
 }
-Rules: do not add commentary. do not include markdown. keep JSON compact. keep terms accurate.
+Rules: factual, concise, 1 correct choice per question, no commentary.
     `.trim();
 
     const userPrompt = `
