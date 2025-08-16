@@ -17,7 +17,9 @@ export default function NavBar() {
           <Link href="/generate" className="px-2 py-1 rounded-xl bg-neutral-800 border border-neutral-700 hover:bg-neutral-700">
             Generate
           </Link>
-
+          <Link href="/login" className="px-2 py-1 rounded-xl bg-neutral-800 border border-neutral-700 hover:bg-neutral-700">
+            Login
+          </Link>
         </div>
       </div>
     </nav>

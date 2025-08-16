@@ -2,8 +2,10 @@ import { NextRequest } from "next/server";
 import OpenAI from "openai";
 import { LessonSchema } from "@/lib/schema";
 import { take } from "@/lib/rate";
+import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
 
-// Optional but nice: ensure this is never prerendered
+// Never prerender this route
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
@@ -13,11 +15,9 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429 });
   }
 
-  // ✅ Only read & create the client *inside* the handler
+  // Create OpenAI client *inside* handler
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    // During local dev, put this in .env.local
-    // On Vercel, add it in Project → Settings → Environment Variables
     return new Response(JSON.stringify({ error: "Server misconfigured: missing OPENAI_API_KEY" }), { status: 500 });
   }
   const client = new OpenAI({ apiKey });
@@ -55,8 +55,8 @@ ${text}
 `.trim();
 
     const completion = await client.chat.completions.create({
-      model: "gpt-5-nano",
-      temperature: 1,
+      model: "gpt-5-nano",       // you can A/B with an env later
+      temperature: 0.3,          // structured/consistent
       messages: [
         { role: "system", content: system },
         { role: "user", content: userPrompt },
@@ -76,6 +76,41 @@ ${text}
     if (!validated.success) {
       return new Response(JSON.stringify({ error: "Validation failed", details: validated.error.flatten() }), { status: 422 });
     }
+
+    // ---------- BEST-EFFORT: persist lesson if the user is logged in ----------
+    try {
+      // ⬇️ inside your POST handler, before creating the Supabase client
+      const cookieStore = await cookies(); // ✅ Next 15 expects await here
+      const accessToken = cookieStore.get("sb-access-token")?.value ?? "";
+
+      // Create a Supabase client that forwards the user session via Authorization
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+      const sb = createClient(supabaseUrl, supabaseAnon, {
+        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      });
+
+      // who is the user?
+      const { data: auth } = await sb.auth.getUser();
+      const uid = auth?.user?.id;
+
+      if (uid) {
+        const { subject, title, content, questions } = validated.data as {
+          subject: string; title: string; content: string; questions: unknown;
+        };
+
+        await sb.from("lessons").insert({
+          user_id: uid,
+          subject,
+          title,
+          content,
+          questions, // jsonb
+        });
+      }
+    } catch {
+      // ignore persistence errors in MVP; generation still succeeds
+    }
+    // ------------------------------------------------------------------------
 
     return new Response(JSON.stringify(validated.data), {
       headers: { "content-type": "application/json" },

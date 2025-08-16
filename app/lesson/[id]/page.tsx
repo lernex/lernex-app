@@ -3,6 +3,7 @@ import { useParams, useRouter } from "next/navigation";
 import { lessons } from "@/data/lessons";
 import { useMemo, useState } from "react";
 import { useLernexStore } from "@/lib/store";
+import { bumpStreakAndPoints } from "@/lib/user";
 
 export default function LessonPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,7 +18,12 @@ export default function LessonPage() {
   const submit = (idx: number) => {
     setSelected(idx);
     bumpStreak();
-    if (idx === lesson.question.correctIndex) addPoints(10);
+    if (idx === lesson.question.correctIndex) {
+      addPoints(10);       // local
+      bumpStreakAndPoints(10).catch(() => {});
+    } else {
+      bumpStreakAndPoints(0).catch(() => {});
+    }
   };
 
   return (
