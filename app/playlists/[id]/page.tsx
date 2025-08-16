@@ -25,32 +25,29 @@ type PlaylistItemRow = {
 };
 
 /** Raw shapes coming back from Supabase for the join */
-type RawLesson =
-  | { id: unknown; title: unknown; subject: unknown }
-  | null;
-
+type RawLesson = { id: unknown; title: unknown; subject: unknown } | null;
 type RawItem = {
   id: unknown;
   position: unknown;
-  // Supabase can return the joined relation as a single object, an array, or null
   lessons: RawLesson | RawLesson[] | null;
 };
 
 function toStr(v: unknown): string {
   return typeof v === "string" ? v : String(v ?? "");
 }
-
 function toNumOrNull(v: unknown): number | null {
   return typeof v === "number" ? v : v == null ? null : Number(v);
 }
-
+function toBoolOrNull(v: unknown): boolean | null {
+  return v == null ? null : Boolean(v);
+}
 function normalizeLesson(l: RawLesson | RawLesson[] | null): LessonLite | null {
   const one: RawLesson | null = Array.isArray(l) ? (l[0] ?? null) : l;
   if (!one) return null;
   return {
-    id: toStr(one.id),
-    title: toStr(one.title),
-    subject: toStr(one.subject),
+    id: toStr((one as Record<string, unknown>).id),
+    title: toStr((one as Record<string, unknown>).title),
+    subject: toStr((one as Record<string, unknown>).subject),
   };
 }
 
@@ -63,7 +60,7 @@ export default function PlaylistDetail() {
   useEffect(() => {
     if (!id) return;
     void (async () => {
-      // load playlist
+      // load playlist header
       const { data: p } = await supabase
         .from("playlists")
         .select("id, name, description, is_public, created_at")
@@ -71,12 +68,13 @@ export default function PlaylistDetail() {
         .maybeSingle();
 
       if (p) {
+        const rec = p as unknown as Record<string, unknown>;
         const typed: PlaylistRow = {
-          id: toStr((p as any).id), // Supabase type inference isn’t strict here
-          name: toStr((p as any).name),
-          description: (p as any).description ?? null,
-          is_public: (p as any).is_public ?? null,
-          created_at: (p as any).created_at ?? null,
+          id: toStr(rec.id),
+          name: toStr(rec.name),
+          description: rec.description == null ? null : toStr(rec.description),
+          is_public: toBoolOrNull(rec.is_public),
+          created_at: rec.created_at == null ? null : toStr(rec.created_at),
         };
         setPl(typed);
       } else {
