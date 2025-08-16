@@ -56,7 +56,7 @@ ${text}
 
     const completion = await client.chat.completions.create({
       model: "gpt-5-nano",       // you can A/B with an env later
-      temperature: 0.3,          // structured/consistent
+      temperature: 1,          // structured/consistent
       messages: [
         { role: "system", content: system },
         { role: "user", content: userPrompt },
