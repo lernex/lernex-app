@@ -56,7 +56,7 @@ ${text}
 
     const completion = await client.chat.completions.create({
       model: "gpt-5-nano",
-      temperature: 0.3,
+      temperature: 1,
       messages: [
         { role: "system", content: system },
         { role: "user", content: userPrompt },
