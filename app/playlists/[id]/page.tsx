@@ -12,15 +12,47 @@ type PlaylistRow = {
   created_at: string | null;
 };
 
+type LessonLite = {
+  id: string;
+  title: string;
+  subject: string;
+};
+
 type PlaylistItemRow = {
   id: string;
   position: number | null;
-  lessons: {
-    id: string;
-    title: string;
-    subject: string;
-  } | null;
+  lessons: LessonLite | null;
 };
+
+/** Raw shapes coming back from Supabase for the join */
+type RawLesson =
+  | { id: unknown; title: unknown; subject: unknown }
+  | null;
+
+type RawItem = {
+  id: unknown;
+  position: unknown;
+  // Supabase can return the joined relation as a single object, an array, or null
+  lessons: RawLesson | RawLesson[] | null;
+};
+
+function toStr(v: unknown): string {
+  return typeof v === "string" ? v : String(v ?? "");
+}
+
+function toNumOrNull(v: unknown): number | null {
+  return typeof v === "number" ? v : v == null ? null : Number(v);
+}
+
+function normalizeLesson(l: RawLesson | RawLesson[] | null): LessonLite | null {
+  const one: RawLesson | null = Array.isArray(l) ? (l[0] ?? null) : l;
+  if (!one) return null;
+  return {
+    id: toStr(one.id),
+    title: toStr(one.title),
+    subject: toStr(one.subject),
+  };
+}
 
 export default function PlaylistDetail() {
   const { id } = useParams<{ id: string }>();
@@ -29,43 +61,45 @@ export default function PlaylistDetail() {
   const [savingPublic, setSavingPublic] = useState(false);
 
   useEffect(() => {
-  if (!id) return;
-  void (async () => {
-    // load playlist
-    const { data: p } = await supabase
-      .from("playlists")
-      .select("id, name, description, is_public, created_at")
-      .eq("id", id)
-      .maybeSingle();
-    setPl((p as PlaylistRow) ?? null);
+    if (!id) return;
+    void (async () => {
+      // load playlist
+      const { data: p } = await supabase
+        .from("playlists")
+        .select("id, name, description, is_public, created_at")
+        .eq("id", id)
+        .maybeSingle();
 
-    // load items with joined lesson fields
-    const { data: it } = await supabase
-      .from("playlist_items")
-      .select("id, position, lessons(id, title, subject)")
-      .eq("playlist_id", id)
-      .order("position", { ascending: true });
+      if (p) {
+        const typed: PlaylistRow = {
+          id: toStr((p as any).id), // Supabase type inference isn’t strict here
+          name: toStr((p as any).name),
+          description: (p as any).description ?? null,
+          is_public: (p as any).is_public ?? null,
+          created_at: (p as any).created_at ?? null,
+        };
+        setPl(typed);
+      } else {
+        setPl(null);
+      }
 
-    // Normalize: some drivers return lessons as an array; we want a single object
-    const normalized: PlaylistItemRow[] = (it ?? []).map((row: any) => {
-      const l = Array.isArray(row.lessons) ? row.lessons[0] ?? null : row.lessons ?? null;
-      return {
-        id: String(row.id),
-        position: typeof row.position === "number" ? row.position : (row.position ?? 0),
-        lessons: l
-          ? {
-              id: String(l.id),
-              title: String(l.title),
-              subject: String(l.subject),
-            }
-          : null,
-      };
-    });
+      // load items with joined lesson fields
+      const { data: it } = await supabase
+        .from("playlist_items")
+        .select("id, position, lessons(id, title, subject)")
+        .eq("playlist_id", id)
+        .order("position", { ascending: true });
 
-    setItems(normalized);
-  })();
- }, [id]);
+      const raw: RawItem[] = (it ?? []) as unknown as RawItem[];
+      const normalized: PlaylistItemRow[] = raw.map((row) => ({
+        id: toStr(row.id),
+        position: toNumOrNull(row.position),
+        lessons: normalizeLesson(row.lessons),
+      }));
 
+      setItems(normalized);
+    })();
+  }, [id]);
 
   const share = async () => {
     if (!id) return;
@@ -76,7 +110,6 @@ export default function PlaylistDetail() {
       await navigator.clipboard.writeText(window.location.href);
       alert("Public link copied to clipboard!");
     }
-    // reflect UI
     setPl((prev) => (prev ? { ...prev, is_public: true } : prev));
   };
 
@@ -86,7 +119,9 @@ export default function PlaylistDetail() {
     <main className="min-h-[calc(100vh-56px)] flex items-center justify-center">
       <div className="w-full max-w-md px-4 py-6 space-y-3 text-white">
         <h1 className="text-xl font-semibold">{pl.name}</h1>
-        <div className="text-sm text-neutral-400">{pl.is_public ? "Public" : "Private"}</div>
+        <div className="text-sm text-neutral-400">
+          {pl.is_public ? "Public" : "Private"}
+        </div>
 
         <button
           onClick={share}
