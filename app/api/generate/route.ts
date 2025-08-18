@@ -4,59 +4,158 @@ import { LessonSchema } from "@/lib/schema";
 import { take } from "@/lib/rate";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 
-// Never prerender this route
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+const BLOCKLIST = [
+  /suicide|self[-\s]?harm/i,
+  /explicit|porn|sexual/i,
+  /hate\s*speech|racial\s*slur/i,
+  /bomb|weapon|make\s+drugs/i,
+];
+
+function normalize(s: string) {
+  return s.replace(/\s+/g, " ").trim().toLowerCase();
+}
+function sha256(s: string) {
+  return crypto.createHash("sha256").update(s).digest("hex");
+}
 
 export async function POST(req: NextRequest) {
-  // simple in-memory rate limit
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
-  if (!take(ip)) {
-    return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429 });
+  if (!take(ip)) return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429 });
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return new Response(JSON.stringify({ error: "Server misconfigured: missing OPENAI_API_KEY" }), { status: 500 });
+
+  // Supabase (forward session if present)
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get("sb-access-token")?.value ?? "";
+  const sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
+  );
+  let uid: string | null = null;
+  try {
+    const { data: auth } = await sb.auth.getUser();
+    uid = auth?.user?.id ?? null;
+  } catch {
+    uid = null;
   }
 
-  // Create OpenAI client *inside* handler
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return new Response(JSON.stringify({ error: "Server misconfigured: missing OPENAI_API_KEY" }), { status: 500 });
-  }
-  const client = new OpenAI({ apiKey });
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { text, subject = "General" } = body ?? {};
+    const {
+      text,
+      subject = "Algebra 1",
+      // You can pass overrides; otherwise we infer difficulty from history
+      difficulty: difficultyOverride,
+    } = body ?? {};
 
-    if (!text || typeof text !== "string" || text.length < 40) {
+    // -------- Safety gates --------
+    if (!text || typeof text !== "string" || normalize(text).length < 40) {
       return new Response(JSON.stringify({ error: "Provide at least ~40 characters of study text." }), { status: 400 });
     }
+    if (BLOCKLIST.some((re) => re.test(text))) {
+      return new Response(JSON.stringify({ error: "Input contains unsafe content. Try a different passage." }), { status: 400 });
+    }
+    // ------------------------------
+
+    // -------- Cache check ----------
+    const key = sha256(`${uid ?? ip}|${subject}|${normalize(text)}`);
+    const { data: cachedRows } = await sb
+      .from("lesson_cache")
+      .select("lesson")
+      .eq("subject", subject)
+      .eq("input_hash", key)
+      .limit(1);
+    if (cachedRows && cachedRows[0]?.lesson) {
+      // Ensure schema validity before returning
+      const valid = LessonSchema.safeParse(cachedRows[0].lesson);
+      if (valid.success) {
+        return new Response(JSON.stringify(valid.data), { headers: { "content-type": "application/json" }, status: 200 });
+      }
+    }
+    // -------------------------------
+
+    // -------- Infer user difficulty from attempts/state ----------
+    let difficulty: "intro" | "easy" | "medium" | "hard" = "easy";
+    let nextTopicHint = "";
+
+    if (difficultyOverride) {
+      if (["intro","easy","medium","hard"].includes(difficultyOverride)) difficulty = difficultyOverride;
+    } else if (uid) {
+      // quick heuristic: look at last ~20 attempts for the subject
+      const { data: recent } = await sb
+        .from("attempts")
+        .select("correct_count, total, lessons(subject)")
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      const subjectAttempts = (recent ?? []).filter((r: any) => r.lessons?.subject === subject);
+      const correct = subjectAttempts.reduce((a: number, r: any) => a + (r.correct_count ?? 0), 0);
+      const total = subjectAttempts.reduce((a: number, r: any) => a + (r.total ?? 0), 0);
+      const acc = total > 0 ? correct / total : 0.6;
+
+      if (acc < 0.5) difficulty = "intro";
+      else if (acc < 0.65) difficulty = "easy";
+      else if (acc < 0.8) difficulty = "medium";
+      else difficulty = "hard";
+
+      // optional: read user_subject_state for next_topic
+      const { data: state } = await sb
+        .from("user_subject_state")
+        .select("next_topic")
+        .eq("user_id", uid)
+        .eq("subject", subject)
+        .maybeSingle();
+      nextTopicHint = state?.next_topic ?? "";
+    }
+    // ------------------------------------------------------------
+
+    const client = new OpenAI({ apiKey });
+    const model = process.env.OPENAI_MODEL || "gpt-5-nano";
+    const temperature = Number(process.env.OPENAI_TEMPERATURE ?? "1");
 
     const system = `
-Return STRICT JSON:
+You create ONE micro-lesson (30–80 words) and 1–3 MCQs with explanations.
+Audience: ${subject} student. Adapt to the indicated difficulty.
+
+Return STRICT JSON ONLY (no markdown) matching:
 {
-  "id": string,
-  "subject": string,
-  "title": string,
-  "content": string,     // 30–100 words
+  "id": string,                   // short slug
+  "subject": string,              // e.g., "Algebra 1"
+  "topic": string,                // atomic concept (e.g., "Slope of a line")
+  "title": string,                // 2–6 words
+  "content": string,              // 30–80 words, friendly, factual
+  "difficulty": "intro"|"easy"|"medium"|"hard",
   "questions": [
-    { "prompt": string, "choices": string[], "correctIndex": number },
-    { "prompt": string, "choices": string[], "correctIndex": number },
-    { "prompt": string, "choices": string[], "correctIndex": number }
+    { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }
   ]
 }
-Rules: concise, factual, no markdown or commentary.
+Rules:
+- factual and concise; align with the provided passage.
+- No extra commentary or code fences.
+- If passage is too advanced for the difficulty, simplify the content.
+- Prefer 2–3 choices for intro/easy; 3–4 for medium/hard.
 `.trim();
 
     const userPrompt = `
 Subject: ${subject}
-Source text:
+Target Difficulty: ${difficulty}
+${nextTopicHint ? `Next Topic Hint: ${nextTopicHint}\n` : ""}Source Text:
 """
 ${text}
 """
 `.trim();
 
     const completion = await client.chat.completions.create({
-      model: "gpt-5-nano",       // you can A/B with an env later
-      temperature: 1,          // structured/consistent
+      model,
+      temperature,
       messages: [
         { role: "system", content: system },
         { role: "user", content: userPrompt },
@@ -64,60 +163,51 @@ ${text}
       response_format: { type: "json_object" },
     });
 
-    const raw = completion.choices[0]?.message?.content ?? "{}";
-    let parsed: unknown;
+    // usage logging
     try {
-      parsed = JSON.parse(raw);
+      const usage = completion.usage ?? null;
+      if (usage) {
+        await sb.from("usage_logs").insert({
+          user_id: uid,
+          ip,
+          model,
+          input_tokens: usage.prompt_tokens ?? null,
+          output_tokens: usage.completion_tokens ?? null,
+        });
+      }
     } catch {
-      return new Response(JSON.stringify({ error: "Model returned invalid JSON." }), { status: 502 });
+      // ignore logging errors in MVP
     }
 
+
+    const raw = completion.choices[0]?.message?.content ?? "{}";
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch {
+      return new Response(JSON.stringify({ error: "Model returned invalid JSON." }), { status: 502 });
+    }
     const validated = LessonSchema.safeParse(parsed);
     if (!validated.success) {
       return new Response(JSON.stringify({ error: "Validation failed", details: validated.error.flatten() }), { status: 422 });
     }
 
-    // ---------- BEST-EFFORT: persist lesson if the user is logged in ----------
+    // write to cache (best-effort)
     try {
-      // ⬇️ inside your POST handler, before creating the Supabase client
-      const cookieStore = await cookies(); // ✅ Next 15 expects await here
-      const accessToken = cookieStore.get("sb-access-token")?.value ?? "";
-
-      // Create a Supabase client that forwards the user session via Authorization
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-      const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-      const sb = createClient(supabaseUrl, supabaseAnon, {
-        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      await sb.from("lesson_cache").insert({
+        user_id: uid,
+        subject,
+        input_hash: key,
+        lesson: validated.data,
       });
-
-      // who is the user?
-      const { data: auth } = await sb.auth.getUser();
-      const uid = auth?.user?.id;
-
-      if (uid) {
-        const { subject, title, content, questions } = validated.data as {
-          subject: string; title: string; content: string; questions: unknown;
-        };
-
-        await sb.from("lessons").insert({
-          user_id: uid,
-          subject,
-          title,
-          content,
-          questions, // jsonb
-        });
-      }
     } catch {
-      // ignore persistence errors in MVP; generation still succeeds
+      // ignore cache errors in MVP
     }
-    // ------------------------------------------------------------------------
+
 
     return new Response(JSON.stringify(validated.data), {
       headers: { "content-type": "application/json" },
       status: 200,
     });
   } catch (err) {
-    console.error(err);
     const msg = err instanceof Error ? err.message : "Server error";
     return new Response(JSON.stringify({ error: msg }), { status: 500 });
   }
