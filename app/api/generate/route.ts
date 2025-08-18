@@ -25,12 +25,16 @@ function sha256(s: string) {
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
-  if (!take(ip)) return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429 });
+  if (!take(ip)) {
+    return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429 });
+  }
 
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return new Response(JSON.stringify({ error: "Server misconfigured: missing OPENAI_API_KEY" }), { status: 500 });
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: "Server misconfigured: missing OPENAI_API_KEY" }), { status: 500 });
+  }
 
-  // Supabase (forward session if present)
+  // Supabase client (forward the user session for RLS)
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("sb-access-token")?.value ?? "";
   const sb = createClient(
@@ -38,6 +42,8 @@ export async function POST(req: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
   );
+
+  // get user id if signed in
   let uid: string | null = null;
   try {
     const { data: auth } = await sb.auth.getUser();
@@ -46,13 +52,11 @@ export async function POST(req: NextRequest) {
     uid = null;
   }
 
-
   try {
     const body = await req.json().catch(() => ({}));
     const {
       text,
       subject = "Algebra 1",
-      // You can pass overrides; otherwise we infer difficulty from history
       difficulty: difficultyOverride,
     } = body ?? {};
 
@@ -73,11 +77,14 @@ export async function POST(req: NextRequest) {
       .eq("subject", subject)
       .eq("input_hash", key)
       .limit(1);
+
     if (cachedRows && cachedRows[0]?.lesson) {
-      // Ensure schema validity before returning
       const valid = LessonSchema.safeParse(cachedRows[0].lesson);
       if (valid.success) {
-        return new Response(JSON.stringify(valid.data), { headers: { "content-type": "application/json" }, status: 200 });
+        return new Response(JSON.stringify(valid.data), {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        });
       }
     }
     // -------------------------------
@@ -86,19 +93,48 @@ export async function POST(req: NextRequest) {
     let difficulty: "intro" | "easy" | "medium" | "hard" = "easy";
     let nextTopicHint = "";
 
-    if (difficultyOverride) {
-      if (["intro","easy","medium","hard"].includes(difficultyOverride)) difficulty = difficultyOverride;
+    if (difficultyOverride && ["intro", "easy", "medium", "hard"].includes(difficultyOverride)) {
+      difficulty = difficultyOverride as typeof difficulty;
     } else if (uid) {
-      // quick heuristic: look at last ~20 attempts for the subject
+      // Normalize attempts join shape (object | array | null)
+      type RawAttempt = {
+        correct_count?: number | null;
+        total?: number | null;
+        lessons?: { subject?: unknown } | { subject?: unknown }[] | null;
+      };
+      type FlatAttempt = { correct_count: number; total: number; subject: string | null };
+
       const { data: recent } = await sb
         .from("attempts")
         .select("correct_count, total, lessons(subject)")
         .order("created_at", { ascending: false })
         .limit(20);
 
-      const subjectAttempts = (recent ?? []).filter((r: any) => r.lessons?.subject === subject);
-      const correct = subjectAttempts.reduce((a: number, r: any) => a + (r.correct_count ?? 0), 0);
-      const total = subjectAttempts.reduce((a: number, r: any) => a + (r.total ?? 0), 0);
+      const flat: FlatAttempt[] = (recent ?? []).map((r: unknown) => {
+        const row = r as RawAttempt;
+        let subj: string | null = null;
+        if (Array.isArray(row.lessons)) {
+          const first = row.lessons[0];
+          subj = (first?.subject as string | undefined) ?? null;
+        } else if (row.lessons && typeof row.lessons === "object") {
+          subj = (row.lessons.subject as string | undefined) ?? null;
+        }
+        return {
+          correct_count:
+            typeof row.correct_count === "number"
+              ? row.correct_count
+              : (row.correct_count ?? 0) || 0,
+          total:
+            typeof row.total === "number"
+              ? row.total
+              : (row.total ?? 0) || 0,
+          subject: subj,
+        };
+      });
+
+      const subjectAttempts = flat.filter((r) => r.subject === subject);
+      const correct = subjectAttempts.reduce((a, r) => a + r.correct_count, 0);
+      const total = subjectAttempts.reduce((a, r) => a + r.total, 0);
       const acc = total > 0 ? correct / total : 0.6;
 
       if (acc < 0.5) difficulty = "intro";
@@ -106,17 +142,18 @@ export async function POST(req: NextRequest) {
       else if (acc < 0.8) difficulty = "medium";
       else difficulty = "hard";
 
-      // optional: read user_subject_state for next_topic
+      // optional: user-specific next topic hint
       const { data: state } = await sb
         .from("user_subject_state")
         .select("next_topic")
         .eq("user_id", uid)
         .eq("subject", subject)
         .maybeSingle();
-      nextTopicHint = state?.next_topic ?? "";
+      nextTopicHint = (state?.next_topic as string | undefined) ?? "";
     }
     // ------------------------------------------------------------
 
+    // OpenAI call
     const client = new OpenAI({ apiKey });
     const model = process.env.OPENAI_MODEL || "gpt-5-nano";
     const temperature = Number(process.env.OPENAI_TEMPERATURE ?? "1");
@@ -163,7 +200,7 @@ ${text}
       response_format: { type: "json_object" },
     });
 
-    // usage logging
+    // usage logging (typed)
     try {
       const usage = completion.usage ?? null;
       if (usage) {
@@ -179,15 +216,20 @@ ${text}
       // ignore logging errors in MVP
     }
 
-
+    // parse + validate
     const raw = completion.choices[0]?.message?.content ?? "{}";
     let parsed: unknown;
-    try { parsed = JSON.parse(raw); } catch {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
       return new Response(JSON.stringify({ error: "Model returned invalid JSON." }), { status: 502 });
     }
     const validated = LessonSchema.safeParse(parsed);
     if (!validated.success) {
-      return new Response(JSON.stringify({ error: "Validation failed", details: validated.error.flatten() }), { status: 422 });
+      return new Response(
+        JSON.stringify({ error: "Validation failed", details: validated.error.flatten() }),
+        { status: 422 }
+      );
     }
 
     // write to cache (best-effort)
@@ -201,7 +243,6 @@ ${text}
     } catch {
       // ignore cache errors in MVP
     }
-
 
     return new Response(JSON.stringify(validated.data), {
       headers: { "content-type": "application/json" },
