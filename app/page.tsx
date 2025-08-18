@@ -1,31 +1,21 @@
 "use client";
 import { lessons } from "@/data/lessons";
-import LessonCard from "@/components/LessonCard";
+import Feed from "@/components/Feed";
 import StreakPoints from "@/components/StreakPoints";
-import { useState } from "react";
-import SwipeCard from "@/components/SwipeCard";
+import Link from "next/link";
+import { useLernexStore } from "@/lib/store";
 
 export default function Home() {
-  const [i, setI] = useState(0);
-  const current = lessons[i];
-  const next = () => setI((x) => (x + 1) % lessons.length);
-
+  const { selectedSubjects } = useLernexStore();
   return (
-    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center">
+    <main className="min-h-[calc(100vh-56px)]">
       <StreakPoints />
-      <div className="w-full max-w-md px-4 py-6 space-y-4">
-        {/* Swipe left or right to advance */}
-        <SwipeCard onSwipeLeft={next} onSwipeRight={next}>
-          <LessonCard lesson={current} />
-        </SwipeCard>
-
-        <button
-          onClick={next}
-          className="w-full py-3 rounded-2xl bg-neutral-800 border border-neutral-700 hover:bg-neutral-700 transition"
-        >
-          Next
-        </button>
-      </div>
+      {!selectedSubjects.length && (
+        <div className="max-w-md mx-auto px-4 pt-4 pb-1 text-center text-neutral-300 text-sm">
+          Personalize your feed → <Link href="/onboarding" className="underline">choose subjects</Link>.
+        </div>
+      )}
+      <Feed lessons={lessons} />
     </main>
   );
 }

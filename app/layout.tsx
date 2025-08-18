@@ -16,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${inter.className} bg-neutral-950 text-white`}>
+        <div className="fixed inset-0 -z-10 bg-[radial-gradient(60%_40%_at_50%_0%,rgba(47,128,237,0.12),transparent),radial-gradient(50%_35%_at_100%_100%,rgba(155,81,224,0.12),transparent)]"></div>
         <NavBar />
         {children}
         <Analytics />
