@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import LessonCard from "./LessonCard";
 import QuizBlock from "./QuizBlock";
@@ -20,15 +20,22 @@ function useKeyNav(onPrev: () => void, onNext: () => void) {
 export default function Feed({ lessons }: { lessons: Lesson[] }) {
   const { selectedSubjects, accuracyBySubject } = useLernexStore();
   const filtered = selectedSubjects.length
-    ? lessons.filter(l => selectedSubjects.includes(l.subject))
+    ? lessons.filter((l) => selectedSubjects.includes(l.subject))
     : lessons;
 
   const [i, setI] = useState(0);
   const cur = filtered[i];
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const prev = () => setI((x) => (x - 1 + filtered.length) % filtered.length);
-  const next = () => setI((x) => (x + 1) % filtered.length);
+  const prev = useCallback(
+    () => setI((x) => (x - 1 + filtered.length) % filtered.length),
+    [filtered.length]
+  );
+  const next = useCallback(
+    () => setI((x) => (x + 1) % filtered.length),
+    [filtered.length]
+  );
+
   useKeyNav(prev, next);
 
   // Mouse wheel: step when user scrolls a chunk
@@ -45,7 +52,7 @@ export default function Feed({ lessons }: { lessons: Lesson[] }) {
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, []);
+  }, [next, prev]);
 
   if (!cur) {
     return (
@@ -55,7 +62,6 @@ export default function Feed({ lessons }: { lessons: Lesson[] }) {
     );
   }
 
-  // accuracy snippet
   const acc = accuracyBySubject[cur.subject];
   const pct = acc?.total ? Math.round((acc.correct / acc.total) * 100) : null;
 
@@ -80,11 +86,6 @@ export default function Feed({ lessons }: { lessons: Lesson[] }) {
           <QuizBlock
             lesson={cur}
             onDone={() => {
-              // show quick feedback and auto-advance
-              if (pct !== null) {
-                // could toast here; keeping UI simple for now
-                console.log(`Feedback: ${pct}% accurate in ${cur.subject}`);
-              }
               setTimeout(next, 250);
             }}
           />
