@@ -1,36 +1,84 @@
 "use client";
-import { useState } from "react";
-import { supabase } from "@/lib/supabase";
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
-export default function Login() {
+export default function LoginPage() {
+  const router = useRouter();
+  const sp = useSearchParams();
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const supabase = supabaseBrowser();
 
-  const sendLink = async () => {
-    setErr(null);
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: typeof window !== "undefined" ? `${location.origin}/auth/callback` : undefined } });
-    if (error) setErr(error.message);
-    else setSent(true);
+  // If already logged in, go to app
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      if (data.session) router.replace("/app");
+    });
+    return () => { mounted = false; };
+  }, [router, supabase]);
+
+  // If redirected back with a `code` from email link or Google, exchange it
+  useEffect(() => {
+    const code = sp.get("code");
+    if (!code) return;
+    (async () => {
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (!error) router.replace("/post-auth");
+    })();
+  }, [sp, supabase, router]);
+
+  const signInWithGoogle = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/login`, // will return with ?code=
+      },
+    });
+  };
+
+  const signInWithEmail = async () => {
+    setSending(true);
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/login` },
+    });
+    setSending(false);
+    if (!error) alert("Check your email for a sign-in link!");
   };
 
   return (
-    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center">
-      <div className="w-full max-w-md px-4 py-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-3">
-        <h1 className="text-xl font-semibold">Log in to Lernex</h1>
-        <input
-          className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 outline-none"
-          placeholder="you@email.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <button onClick={sendLink} className="w-full py-3 rounded-2xl bg-lernex-blue hover:bg-blue-500 transition">
-          Send Magic Link
+    <main className="min-h-screen grid place-items-center text-white">
+      <div className="w-full max-w-md px-4 py-6 space-y-5 rounded-2xl bg-neutral-900 border border-neutral-800">
+        <h1 className="text-2xl font-bold">Sign in to Lernex</h1>
+
+        <button
+          onClick={signInWithGoogle}
+          className="w-full py-3 rounded-xl bg-white text-black hover:bg-neutral-200"
+        >
+          Continue with Google
         </button>
-        {sent && <div className="text-green-400 text-sm">Check your email!</div>}
-        {err && <div className="text-red-400 text-sm">{err}</div>}
-        <div className="text-sm text-neutral-400">No account? We’ll create it on first login. <Link href="/" className="underline">Back</Link></div>
+
+        <div className="text-center text-neutral-500 text-sm">— or —</div>
+
+        <div className="space-y-3">
+          <input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 outline-none"
+          />
+          <button
+            onClick={signInWithEmail}
+            disabled={sending || !email}
+            className="w-full py-3 rounded-xl bg-lernex-blue hover:bg-blue-500 disabled:opacity-60"
+          >
+            {sending ? "Sending link…" : "Send magic link"}
+          </button>
+        </div>
       </div>
     </main>
   );

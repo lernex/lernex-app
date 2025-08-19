@@ -77,7 +77,7 @@ export default function Generate() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={6}
-            placeholder="Paste study text here… (≥ 40 chars)"
+            placeholder="Paste study text here… (≥ 30 chars)"
             className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white outline-none"
           />
           <button
