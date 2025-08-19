@@ -5,7 +5,7 @@ import StreakPoints from "@/components/StreakPoints";
 import Link from "next/link";
 import { useLernexStore } from "@/lib/store";
 
-export default function Home() {
+export default function AppFeedClient() {
   const { selectedSubjects } = useLernexStore();
   return (
     <main className="min-h-[calc(100vh-56px)]">

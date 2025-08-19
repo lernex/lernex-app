@@ -12,6 +12,8 @@ export const metadata: Metadata = {
   description: "AI micro-lessons + instant quizzes",
 };
 
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
