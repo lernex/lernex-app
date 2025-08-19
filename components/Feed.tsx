@@ -27,14 +27,14 @@ export default function Feed({ lessons }: { lessons: Lesson[] }) {
   const cur = filtered[i];
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const prev = useCallback(
-    () => setI((x) => (x - 1 + filtered.length) % filtered.length),
-    [filtered.length]
-  );
-  const next = useCallback(
-    () => setI((x) => (x + 1) % filtered.length),
-    [filtered.length]
-  );
+  const prev = useCallback(() => {
+    if (filtered.length === 0) return;
+    setI((x) => (x - 1 + filtered.length) % filtered.length);
+  }, [filtered.length]);
+  const next = useCallback(() => {
+    if (filtered.length === 0) return;
+    setI((x) => (x + 1) % filtered.length);
+  }, [filtered.length]);
 
   useKeyNav(prev, next);
 

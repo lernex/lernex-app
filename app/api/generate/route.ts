@@ -23,6 +23,7 @@ function sha256(s: string) {
   return crypto.createHash("sha256").update(s).digest("hex");
 }
 
+
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
   if (!take(ip)) {
@@ -61,8 +62,8 @@ export async function POST(req: NextRequest) {
     } = body ?? {};
 
     // -------- Safety gates --------
-    if (!text || typeof text !== "string" || normalize(text).length < 40) {
-      return new Response(JSON.stringify({ error: "Provide at least ~40 characters of study text." }), { status: 400 });
+    if (!text || typeof text !== "string" || normalize(text).length < 30) {
+      return new Response(JSON.stringify({ error: "Provide at least ~30 characters of study text." }), { status: 400 });
     }
     if (BLOCKLIST.some((re) => re.test(text))) {
       return new Response(JSON.stringify({ error: "Input contains unsafe content. Try a different passage." }), { status: 400 });
