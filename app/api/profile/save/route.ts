@@ -13,7 +13,7 @@ export async function POST(req: Request) {
 
   const { error } = await sb
     .from("profiles")
-    .update({ username })
+    .update<{ username: string }>({ username })
     .eq("id", user.id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
