@@ -1,38 +1,69 @@
 "use client";
-import { useState } from "react";
+
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useLernexStore } from "@/lib/store";
+import { supabaseBrowser } from "@/lib/supabase-browser";
+import { DOMAINS } from "@/data/domains";
 
-const ALL = ["Algebra","Geometry","Biology","Chemistry","Physics","History","English","Spanish","CS"];
-
-export default function Onboarding() {
+export default function OnboardingDomains() {
   const router = useRouter();
-  const { selectedSubjects, setSelectedSubjects } = useLernexStore();
-  const [chosen, setChosen] = useState<string[]>(selectedSubjects);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
 
-  const toggle = (s: string) => setChosen((prev) => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+  useEffect(() => {
+    (async () => {
+      const sb = supabaseBrowser();
+      const { data } = await sb.auth.getSession();
+      if (!data.session) router.replace("/login");
+      // optional: fetch existing interests to prefill
+      const res = await fetch("/api/profile/me");
+      const me = await res.json();
+      if (me?.interests?.length) setChosen(me.interests);
+    })();
+  }, [router]);
 
-  const save = () => { setSelectedSubjects(chosen); router.replace("/"); };
+  const toggle = (d: string) =>
+    setChosen((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
+
+  const save = async () => {
+    if (!chosen.length) return;
+    setSaving(true);
+    const res = await fetch("/api/profile/interests/save", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ interests: chosen }),
+    });
+    setSaving(false);
+    if (res.ok) router.replace("/onboarding/levels");
+  };
 
   return (
-    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center">
-      <div className="w-full max-w-md px-4 py-6 space-y-4">
-        <h1 className="text-xl font-semibold">Pick your subjects</h1>
+    <main className="min-h-screen flex items-center justify-center text-white">
+      <div className="w-full max-w-lg px-4 py-6 space-y-5 rounded-2xl bg-neutral-900 border border-neutral-800">
+        <h1 className="text-2xl font-bold">What are you interested in?</h1>
+        <p className="text-neutral-400 text-sm">Pick a few to personalize your feed.</p>
         <div className="grid grid-cols-2 gap-2">
-          {ALL.map((s) => {
-            const on = chosen.includes(s);
+          {DOMAINS.map((d) => {
+            const on = chosen.includes(d);
             return (
-              <button key={s} onClick={() => toggle(s)}
+              <button
+                key={d}
+                onClick={() => toggle(d)}
                 className={`px-3 py-2 rounded-xl border text-left transition
                   ${on ? "bg-lernex-blue border-lernex-blue text-white"
-                       : "bg-neutral-900 border-neutral-800 hover:bg-neutral-800"}`}>
-                {s}
+                       : "bg-neutral-900 border-neutral-800 hover:bg-neutral-800"}`}
+              >
+                {d}
               </button>
             );
           })}
         </div>
-        <button onClick={save} className="w-full py-3 rounded-2xl bg-lernex-green hover:bg-green-600 transition">
-          Save
+        <button
+          onClick={save}
+          disabled={!chosen.length || saving}
+          className="w-full py-3 rounded-2xl bg-lernex-green hover:bg-green-600 disabled:opacity-60"
+        >
+          {saving ? "Saving…" : "Continue"}
         </button>
       </div>
     </main>

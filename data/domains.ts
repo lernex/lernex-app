@@ -1,0 +1,63 @@
+export const DOMAINS = [
+  "Math",
+  "Science",
+  "Computer Science",
+  "History",
+  "English",
+  "Languages",
+];
+
+export const LEVELS_BY_DOMAIN: Record<string, string[]> = {
+  Math: [
+    "Kindergarten Math",
+    "Grade 1 Math",
+    "Grade 2 Math",
+    "Pre-Algebra",
+    "Algebra 1",
+    "Geometry",
+    "Algebra 2",
+    "Precalculus",
+    "Calculus",
+    "Linear Algebra",
+    "Discrete Math",
+    "Differential Equations",
+    "Real Analysis",
+    "Complex Analysis",
+  ],
+  Science: [
+    "General Science",
+    "Biology",
+    "Chemistry",
+    "Physics",
+    "Environmental Science",
+    "Anatomy",
+  ],
+  "Computer Science": [
+    "Intro to CS",
+    "Python Basics",
+    "Data Structures",
+    "Algorithms",
+    "Databases",
+    "Operating Systems",
+  ],
+  History: [
+    "World History",
+    "US History",
+    "European History",
+    "Ancient Civilizations",
+  ],
+  English: [
+    "Grammar Basics",
+    "Writing & Composition",
+    "Literary Analysis",
+    "Vocabulary",
+  ],
+  Languages: [
+    "Spanish I",
+    "Spanish II",
+    "French I",
+    "French II",
+    "German I",
+    "Japanese I",
+  ],
+};
