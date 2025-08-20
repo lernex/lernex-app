@@ -9,39 +9,49 @@ export default function PostAuth() {
   useEffect(() => {
     (async () => {
       const supabase = supabaseBrowser();
-      const { data: session } = await supabase.auth.getSession();
-      if (!session.session) {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
         router.replace("/login");
         return;
       }
 
-      // Ensure profile exists; then redirect based on completion
+      // ensure profile row exists
       await fetch("/api/profile/init", { method: "POST" });
 
-      // Fetch profile to see what’s missing
+      // fetch current profile
       const res = await fetch("/api/profile/me");
       const me = await res.json();
-      if (!me?.username) {
-        router.replace("/welcome"); // ask username / avatar
+
+      // 1) username + DOB required
+      if (!me?.username || !me?.dob) {
+        router.replace("/welcome");
         return;
       }
+      // 2) interests required
       if (!me?.interests || me.interests.length === 0) {
-        router.replace("/onboarding"); // pick broad domains
+        router.replace("/onboarding");
         return;
       }
-      // if has interests but no level_map for a picked domain, go to level picker
+      // 3) level_map must cover each interest
       const needsLevel = me.interests.some((d: string) => !(me.level_map && me.level_map[d]));
       if (needsLevel) {
-        router.replace("/onboarding/levels"); // choose specific level per domain
+        router.replace("/onboarding/levels");
         return;
       }
+      // 4) run placement if flagged
+      if (me?.placement_ready) {
+        router.replace("/placement");
+        return;
+      }
+
+      // else → feed
       router.replace("/app");
     })();
   }, [router]);
 
   return (
     <main className="min-h-screen grid place-items-center text-white">
-      <div className="text-neutral-400">Checking your account…</div>
+      <div className="text-neutral-400">Setting up your account…</div>
     </main>
   );
 }

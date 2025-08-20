@@ -35,7 +35,7 @@ export default function LoginPage() {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/login`, // will return with ?code=
+        redirectTo: `${window.location.origin}//post-auth`, // will return with ?code=
       },
     });
   };

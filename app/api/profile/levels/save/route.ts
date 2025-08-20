@@ -14,7 +14,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid level_map" }, { status: 400 });
   }
 
-  const { error } = await sb.from("profiles").update({ level_map }).eq("id", user.id);
+  const { error } = await sb
+    .from("profiles")
+    .update({ level_map, placement_ready: true })  // 👈 flag for /placement
+    .eq("id", user.id);
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true });
