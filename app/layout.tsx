@@ -3,6 +3,7 @@ import "./globals.css";
 import { Inter } from "next/font/google";
 import NavBar from "@/components/NavBar";
 import { Analytics } from "@vercel/analytics/next";
+import Footer from "@/components/Footer";
 import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const inter = Inter({ subsets: ["latin"] });
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="fixed inset-0 -z-10 bg-[radial-gradient(60%_40%_at_50%_0%,rgba(47,128,237,0.12),transparent),radial-gradient(50%_35%_at_100%_100%,rgba(155,81,224,0.12),transparent)]"></div>
         <NavBar />
         {children}
+        <Footer />
         <Analytics />
         <SpeedInsights />
       </body>

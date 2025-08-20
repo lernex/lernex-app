@@ -4,20 +4,35 @@ import { useLernexStore } from "@/lib/store";
 
 export default function NavBar() {
   const { points, streak } = useLernexStore();
+
   return (
-    <nav className="sticky top-0 z-20 bg-[rgb(12,12,13,0.85)] backdrop-blur border-b border-neutral-800 text-white">
-      <div className="mx-auto max-w-md px-4 py-3 flex items-center justify-between">
-        <Link href="/" className="font-semibold">Lernex</Link>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="px-2 py-1 rounded-xl bg-lernex-blue/20 border border-lernex-blue/40">🔥 {streak}</span>
-          <span className="px-2 py-1 rounded-xl bg-lernex-green/20 border border-lernex-green/40">⭐ {points}</span>
-          <Link href="/profile" className="px-2 py-1 rounded-xl bg-neutral-800 border border-neutral-700 hover:bg-neutral-700">
+    <nav className="sticky top-0 z-20 backdrop-blur-lg bg-neutral-950/60 border-b border-white/10">
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4 text-sm text-white">
+        <Link
+          href="/"
+          className="text-xl font-bold bg-gradient-to-r from-lernex-blue to-purple-400 bg-clip-text text-transparent"
+        >
+          Lernex
+        </Link>
+        <div className="flex items-center gap-4">
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">🔥 {streak}</span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">⭐ {points}</span>
+          <Link
+            href="/profile"
+            className="rounded-full border border-white/10 bg-white/5 px-4 py-1 hover:bg-white/10"
+          >
             Profile
           </Link>
-          <Link href="/generate" className="px-2 py-1 rounded-xl bg-neutral-800 border border-neutral-700 hover:bg-neutral-700">
+          <Link
+            href="/generate"
+            className="rounded-full border border-white/10 bg-white/5 px-4 py-1 hover:bg-white/10"
+          >
             Generate
           </Link>
-          <Link href="/login" className="px-2 py-1 rounded-xl bg-neutral-800 border border-neutral-700 hover:bg-neutral-700">
+          <Link
+            href="/login"
+            className="rounded-full bg-lernex-blue px-4 py-1 text-white hover:bg-blue-500"
+          >
             Login
           </Link>
         </div>
