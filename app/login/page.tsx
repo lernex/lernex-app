@@ -15,24 +15,19 @@ export default function LoginPage() {
   const supabase = supabaseBrowser();
 
   // 1) Fresh server probe to avoid stale client state & loops
+  // at top of /login page
   useEffect(() => {
-    let cancelled = false;
     (async () => {
       try {
         const res = await fetch("/api/auth/me", { cache: "no-store" });
         const j = await res.json();
-        if (!cancelled && j?.authenticated) {
-          router.replace("/post-auth");
-          return;
-        }
-      } catch {
-        // ignore
+        if (j?.authenticated) router.replace("/post-auth");
       } finally {
-        if (!cancelled) setChecking(false);
+        setChecking(false);
       }
     })();
-    return () => { cancelled = true; };
   }, [router]);
+
 
   // 2) Handle legacy case: if some provider/magic link returns to /login with ?code=...
   useEffect(() => {
@@ -65,7 +60,7 @@ export default function LoginPage() {
   const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/post-auth` },
+      options: { redirectTo: `${window.location.origin}/api/auth/callback` },
     });
   };
 
@@ -73,7 +68,7 @@ export default function LoginPage() {
     setSending(true);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/post-auth` },
+      options: { emailRedirectTo: `${window.location.origin}/api/auth/callback` },
     });
     setSending(false);
     if (error) setErr(error.message);
