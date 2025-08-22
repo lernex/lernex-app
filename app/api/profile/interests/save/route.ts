@@ -15,10 +15,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Pick at least one subject" }, { status: 400 });
   }
 
-  // Save interests and clear level_map (so levels step must run)
+  // Ensure row exists (safety)
+  await sb.from("profiles").insert({ id: user.id }).select("id").maybeSingle();
+
   const { error } = await sb
     .from("profiles")
-    .update({ interests, level_map: null })
+    .update({ interests, level_map: null, updated_at: new Date().toISOString() })
     .eq("id", user.id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

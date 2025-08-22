@@ -1,7 +1,6 @@
 // app/api/profile/me/route.ts
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
-
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 

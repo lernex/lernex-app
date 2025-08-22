@@ -13,14 +13,20 @@ export async function POST(req: Request) {
   const level_map: Record<string, string> = {};
   for (const [k, v] of entries) {
     const domain = k.replace(/^lv_/, "");
-    level_map[domain] = v;
+    if (v) level_map[domain] = v;
   }
   if (!Object.keys(level_map).length) {
     return NextResponse.redirect(new URL("/onboarding", new URL(req.url).origin));
   }
 
-  // Save and set placement_ready = true so /post-auth sends to /placement
-  await sb.from("profiles").update({ level_map, placement_ready: true }).eq("id", user.id);
+  // Ensure row exists
+  await sb.from("profiles").insert({ id: user.id }).select("id").maybeSingle();
+
+  await sb.from("profiles").update({
+    level_map,
+    placement_ready: true,
+    updated_at: new Date().toISOString(),
+  }).eq("id", user.id);
 
   return NextResponse.redirect(new URL("/post-auth", new URL(req.url).origin));
 }
