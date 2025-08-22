@@ -5,7 +5,7 @@ export default function Landing() {
       <section className="mx-auto max-w-5xl px-6 py-24 text-white">
         <div className="grid items-center gap-16 md:grid-cols-2">
           <div>
-            <h1 className="text-5xl font-extrabold leading-tight bg-gradient-to-r from-lernex-blue to-purple-400 bg-clip-text text-transparent">
+            <h1 className="text-5xl font-extrabold leading-tight bg-gradient-to-r from-lernex-blue to-purple-300 bg-clip-text text-transparent">
               Learn 10x faster with AI-generated micro-lessons.
             </h1>
             <p className="mt-6 text-lg text-neutral-300">
