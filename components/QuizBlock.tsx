@@ -35,15 +35,19 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
   };
 
   const btnClass = (idx: number) =>
-    `text-left px-3 py-2 rounded-xl border transition
-     ${selected === null ? "bg-neutral-800 border-neutral-700 hover:bg-neutral-700"
-      : idx === q.correctIndex ? "bg-green-600/80 border-green-500"
-      : idx === selected ? "bg-red-600/80 border-red-500"
-      : "bg-neutral-800/60 border-neutral-700/60"}`;
+    `text-left px-3 py-2 rounded-xl border transition ${
+      selected === null
+        ? "bg-neutral-100 border-neutral-200 hover:bg-neutral-200 dark:bg-neutral-800 dark:border-neutral-700 dark:hover:bg-neutral-700"
+        : idx === q.correctIndex
+        ? "bg-green-600/80 border-green-500"
+        : idx === selected
+        ? "bg-red-600/80 border-red-500"
+        : "bg-neutral-100/60 border-neutral-200/60 dark:bg-neutral-800/60 dark:border-neutral-700/60"
+    }`;
 
   return (
-    <div className="rounded-[24px] bg-neutral-900/80 border border-neutral-800 p-5 mt-3">
-      <div className="text-sm text-neutral-300 mb-3">{q.prompt}</div>
+    <div className="rounded-[24px] bg-white/80 border border-neutral-200 p-5 mt-3 dark:bg-neutral-900/80 dark:border-neutral-800">
+      <div className="mb-3 text-sm text-neutral-700 dark:text-neutral-300">{q.prompt}</div>
       <div className="grid gap-2">
         {q.choices.map((choice, idx) => (
           <button key={idx} onClick={() => choose(idx)} disabled={selected !== null} className={btnClass(idx)}>
@@ -51,8 +55,8 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
           </button>
         ))}
       </div>
-      <div className="mt-4 flex justify-between items-center">
-        <div className="text-xs text-neutral-400">
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-xs text-neutral-500 dark:text-neutral-400">
           Question {qIndex + 1} / {lesson.questions.length}
         </div>
         <button onClick={next} className="px-4 py-2 rounded-xl bg-lernex-blue hover:bg-blue-500 transition">
