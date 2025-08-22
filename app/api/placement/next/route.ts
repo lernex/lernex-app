@@ -105,7 +105,7 @@ export async function POST(req: Request) {
     // ---------- Generate next question ----------
     const client = new OpenAI({ apiKey });
     const model = process.env.OPENAI_MODEL || "gpt-5-nano";
-    const temperature = Number(process.env.OPENAI_TEMPERATURE ?? "0.2");
+    const temperature = Number(process.env.OPENAI_TEMPERATURE ?? "1");
 
     const system = `
 You generate ONE adaptive placement MCQ.
