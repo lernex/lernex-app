@@ -1,3 +1,4 @@
+// app/login/page.tsx
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -9,34 +10,62 @@ export default function LoginPage() {
   const sp = useSearchParams();
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
   const supabase = supabaseBrowser();
 
-  // If already logged in, go to app
+  // 1) Fresh server probe to avoid stale client state & loops
   useEffect(() => {
-    let mounted = true;
-    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
-      if (!mounted) return;
-      if (data.session) router.replace("/app");
-    });
-    return () => { mounted = false; };
-  }, [router, supabase]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        const j = await res.json();
+        if (!cancelled && j?.authenticated) {
+          router.replace("/post-auth");
+          return;
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setChecking(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [router]);
 
-  // If redirected back with a `code` from email link or Google, exchange it
+  // 2) Handle legacy case: if some provider/magic link returns to /login with ?code=...
   useEffect(() => {
     const code = sp.get("code");
     if (!code) return;
     (async () => {
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
-      if (!error) router.replace("/post-auth");
+      try {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          setErr(error.message);
+          setChecking(false);
+          return;
+        }
+        router.replace("/post-auth");
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Sign-in failed");
+        setChecking(false);
+      }
     })();
-  }, [sp, supabase, router]);
+    // NOTE: do not set checking true here; we want to render errors if any
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sp, router]);
+
+  // Optional: surface provider errors
+  useEffect(() => {
+    const e = sp.get("error_description");
+    if (e) setErr(e);
+  }, [sp]);
 
   const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/post-auth`, // will return with ?code=
-      },
+      options: { redirectTo: `${window.location.origin}/post-auth` },
     });
   };
 
@@ -44,16 +73,27 @@ export default function LoginPage() {
     setSending(true);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/login` },
+      options: { emailRedirectTo: `${window.location.origin}/post-auth` },
     });
     setSending(false);
-    if (!error) alert("Check your email for a sign-in link!");
+    if (error) setErr(error.message);
+    else alert("Check your email for a sign-in link!");
   };
+
+  if (checking) {
+    return (
+      <main className="min-h-screen grid place-items-center text-white">
+        <div>Checking session…</div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen grid place-items-center text-white">
       <div className="w-full max-w-md px-4 py-6 space-y-5 rounded-2xl bg-neutral-900 border border-neutral-800">
         <h1 className="text-2xl font-bold">Sign in to Lernex</h1>
+
+        {err && <div className="text-sm text-red-400">{err}</div>}
 
         <button
           onClick={signInWithGoogle}
