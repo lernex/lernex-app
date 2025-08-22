@@ -8,6 +8,8 @@ export const QuestionSchema = z.object({
   explanation: z.string().min(3).max(280).optional(), // NEW
 });
 
+export type Question = z.infer<typeof QuestionSchema>;
+
 // Lesson includes 1–3 MCQs and metadata for adaptive learning
 export const LessonSchema = z.object({
   id: z.string().min(1),
@@ -21,5 +23,4 @@ export const LessonSchema = z.object({
   mediaUrl: z.string().url().optional(),
   mediaType: z.enum(["image","video"]).optional(),
 });
-
-export type LessonOut = z.infer<typeof LessonSchema>;
+export type Lesson = z.infer<typeof LessonSchema>;
