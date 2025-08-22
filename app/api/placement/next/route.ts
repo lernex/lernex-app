@@ -157,7 +157,15 @@ Create one question with choices and a short explanation.
 
     item.subject = state.subject;
     item.course = state.course;
-    item.difficulty = (item.difficulty as any) ?? state.difficulty;
+    type Diff = PlacementState["difficulty"];
+    const isDiff = (d: unknown): d is Diff =>
+        d === "intro" || d === "easy" || d === "medium" || d === "hard";
+
+    let finalDiff: Diff = state.difficulty;
+    if (isDiff(item.difficulty)) {
+        finalDiff = item.difficulty;
+    }
+    item.difficulty = finalDiff;
 
     return NextResponse.json({ state, item }, { headers: { "content-type": "application/json" } });
   } catch (e) {

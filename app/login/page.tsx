@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
-import type { Session } from "@supabase/supabase-js";
 
 export default function LoginPage() {
   const router = useRouter();
