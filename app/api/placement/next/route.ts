@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     lastItem?: PlacementItem;
   };
 
-  let { state, lastAnswer, lastItem } = body;
+  const { state, lastAnswer, lastItem } = body;
   if (!state) return NextResponse.json({ error: "Missing state" }, { status: 400 });
 
   // Apply last answer to state

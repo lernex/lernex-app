@@ -72,7 +72,7 @@ export default function SettingsPage() {
         <select
           className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 outline-none"
           value={me.theme_pref ?? "dark"}
-          onChange={(e)=>setMe((m)=>({...m, theme_pref: e.target.value as any}))}
+          onChange={(e)=>setMe((m)=>({...m, theme_pref: e.target.value as "light"|"dark"|"system"}))}
         >
           <option value="system">System</option>
           <option value="dark">Dark</option>
