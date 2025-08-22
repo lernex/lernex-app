@@ -1,3 +1,4 @@
+// app/api/placement/next/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { PlacementState, PlacementItem } from "@/types/placement";
@@ -9,56 +10,104 @@ export const runtime = "nodejs";
 const BLOCKLIST = [/suicide|self[-\s]?harm/i, /explicit|porn|sexual/i, /hate\s*speech|racial\s*slur/i, /bomb|weapon|make\s+drugs/i];
 const safe = (s: string) => !BLOCKLIST.some((re) => re.test(s));
 
+function up(d: "intro"|"easy"|"medium"|"hard"): PlacementState["difficulty"] {
+  if (d === "intro") return "easy";
+  if (d === "easy") return "medium";
+  return "hard";
+}
+function down(d: "intro"|"easy"|"medium"|"hard"): PlacementState["difficulty"] {
+  if (d === "hard") return "medium";
+  if (d === "medium") return "easy";
+  return "intro";
+}
+
 export async function POST(req: Request) {
-  const sb = supabaseServer();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  try {
+    const sb = supabaseServer();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "Missing OPENAI_API_KEY" }, { status: 500 });
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return NextResponse.json({ error: "Missing OPENAI_API_KEY" }, { status: 500 });
 
-  const body = await req.json().catch(() => ({})) as {
-    state: PlacementState;
-    lastAnswer?: number;
-    lastItem?: PlacementItem;
-  };
+    // Body can be empty on first call
+    const bodyText = await req.text();
+    let body: { state?: PlacementState; lastAnswer?: number; lastItem?: PlacementItem } = {};
+    if (bodyText) {
+      try { body = JSON.parse(bodyText); } catch { /* ignore; will init */ }
+    }
 
-  const { state, lastAnswer, lastItem } = body;
-  if (!state) return NextResponse.json({ error: "Missing state" }, { status: 400 });
+    let { state, lastAnswer, lastItem } = body;
 
-  // Apply last answer to state
-  if (typeof lastAnswer === "number" && lastItem) {
-    const correct = lastAnswer === lastItem.correctIndex;
+    // If no state provided, initialize from profile (FIRST CALL)
+    if (!state) {
+      const { data: prof, error: pe } = await sb
+        .from("profiles")
+        .select("interests, level_map")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (pe) return NextResponse.json({ error: pe.message }, { status: 500 });
 
-    // Advance step (no clamping here)
-    state.step = state.step + 1;
-
-    if (correct) {
-      state.correctStreak += 1;
-      if (state.correctStreak >= 2 && state.difficulty !== "hard") {
-        state.difficulty = nextUp(state.difficulty);
-        state.correctStreak = 0;
+      const interests: string[] = Array.isArray(prof?.interests) ? prof!.interests : [];
+      if (!interests.length) {
+        return NextResponse.json({ error: "No interests selected" }, { status: 400 });
       }
+
+      // choose first domain with a selected course level, fallback to first interest
+      const levelMap = (prof?.level_map || {}) as Record<string, string>;
+      const domainWithLevel = interests.find((d) => levelMap && levelMap[d]);
+      const subject = domainWithLevel ?? interests[0];
+      const course = levelMap[subject] ?? "General";
+
+      state = {
+        subject,
+        course,
+        step: 1,
+        maxSteps: 6,
+        difficulty: "easy",
+        mistakes: 0,
+        correctStreak: 0,
+        done: false,
+      };
+      lastAnswer = undefined;
+      lastItem = undefined;
+      // fall through to generation below
     } else {
-      state.mistakes += 1;
-      state.correctStreak = 0;
-      if (state.difficulty !== "intro") {
-        state.difficulty = nextDown(state.difficulty);
+      // APPLY last answer to existing state
+      if (typeof lastAnswer === "number" && lastItem) {
+        const correct = lastAnswer === lastItem.correctIndex;
+        state.step = state.step + 1;
+
+        if (correct) {
+          state.correctStreak += 1;
+          if (state.correctStreak >= 2 && state.difficulty !== "hard") {
+            state.difficulty = up(state.difficulty);
+            state.correctStreak = 0;
+          }
+        } else {
+          state.mistakes += 1;
+          state.correctStreak = 0;
+          if (state.difficulty !== "intro") {
+            state.difficulty = down(state.difficulty);
+          }
+        }
+
+        if (state.step > state.maxSteps || (state.mistakes >= 2 && state.difficulty === "hard")) {
+          state.done = true;
+        }
       }
     }
 
-    // Stop conditions
-    if (state.step > state.maxSteps || (state.mistakes >= 2 && state.difficulty === "hard")) {
-      state.done = true;
+    if (state.done) {
+      return NextResponse.json({ state, item: null }, { headers: { "content-type": "application/json" } });
     }
-  }
 
-  if (state.done) {
-    return NextResponse.json({ state, item: null });
-  }
+    // ---------- Generate next question ----------
+    const client = new OpenAI({ apiKey });
+    const model = process.env.OPENAI_MODEL || "gpt-5-nano";
+    const temperature = Number(process.env.OPENAI_TEMPERATURE ?? "0.2");
 
-  // Build prompt
-  const system = `
+    const system = `
 You generate ONE adaptive placement MCQ.
 Return JSON only with:
 {
@@ -71,55 +120,48 @@ Return JSON only with:
   "difficulty": "intro"|"easy"|"medium"|"hard"
 }
 Rules:
-- The question must quickly assess the student's level in the given course.
-- Keep it tight, factual, and 1 short step of reasoning.
-- Use 2–3 choices for intro/easy; 3–4 for medium/hard; exactly one correct answer.
-- Avoid external resources or code blocks.
-  `.trim();
+- Question should discriminate at the current level quickly.
+- 2–3 choices for intro/easy; 3–4 for medium/hard; exactly one correct.
+- Keep it concise and safe; no code blocks or external links.
+    `.trim();
 
-  const userPrompt = `
+    const userPrompt = `
 Subject: ${state.subject}
 Course: ${state.course}
 Target Difficulty: ${state.difficulty}
 Step: ${state.step} of ${state.maxSteps}
-Task: Create one good discriminator question at this level with choices and a short explanation.
-  `.trim();
+Create one question with choices and a short explanation.
+    `.trim();
 
-  const client = new OpenAI({ apiKey });
-  const model = process.env.OPENAI_MODEL || "gpt-5-nano";
-  const temperature = Number(process.env.OPENAI_TEMPERATURE ?? "1");
+    const completion = await client.chat.completions.create({
+      model,
+      temperature,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: userPrompt },
+      ],
+    });
 
-  const completion = await client.chat.completions.create({
-    model,
-    temperature,
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: userPrompt },
-    ],
-  });
+    const raw = completion.choices[0]?.message?.content ?? "{}";
+    let item: PlacementItem;
+    try {
+      item = JSON.parse(raw) as PlacementItem;
+    } catch {
+      return NextResponse.json({ error: "Model returned invalid JSON" }, { status: 502 });
+    }
 
-  const raw = completion.choices[0]?.message?.content ?? "{}";
-  const parsed = JSON.parse(raw) as PlacementItem;
+    if (!safe(item.prompt || "")) {
+      return NextResponse.json({ error: "Unsafe content generated" }, { status: 502 });
+    }
 
-  if (!safe(parsed.prompt)) {
-    return NextResponse.json({ error: "Unsafe content generated; try again" }, { status: 502 });
+    item.subject = state.subject;
+    item.course = state.course;
+    item.difficulty = (item.difficulty as any) ?? state.difficulty;
+
+    return NextResponse.json({ state, item }, { headers: { "content-type": "application/json" } });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-
-  parsed.subject = state.subject;
-  parsed.course = state.course;
-  parsed.difficulty = parsed.difficulty ?? state.difficulty;
-
-  return NextResponse.json({ state, item: parsed });
-}
-
-function nextUp(d: "intro"|"easy"|"medium"|"hard"): "intro"|"easy"|"medium"|"hard" {
-  if (d === "intro") return "easy";
-  if (d === "easy") return "medium";
-  return "hard";
-}
-function nextDown(d: "intro"|"easy"|"medium"|"hard"): "intro"|"easy"|"medium"|"hard" {
-  if (d === "hard") return "medium";
-  if (d === "medium") return "easy";
-  return "intro";
 }
