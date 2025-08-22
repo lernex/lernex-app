@@ -8,11 +8,23 @@ export async function POST(req: Request) {
 
   const { username, dob } = await req.json().catch(() => ({}));
 
-  if (!username || typeof username !== "string") {
+  if (!username || typeof username !== "string" || username.trim().length < 3) {
     return NextResponse.json({ error: "Invalid username" }, { status: 400 });
   }
   if (!dob || typeof dob !== "string") {
     return NextResponse.json({ error: "Invalid dob" }, { status: 400 });
+  }
+
+  // Check uniqueness (exclude current user)
+  const { data: taken } = await sb
+    .from("profiles")
+    .select("id")
+    .eq("username", username)
+    .neq("id", user.id)
+    .limit(1);
+
+  if (taken && taken.length > 0) {
+    return NextResponse.json({ error: "Username already taken" }, { status: 409 });
   }
 
   const { error } = await sb

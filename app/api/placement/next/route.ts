@@ -7,8 +7,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const BLOCKLIST = [/suicide|self[-\s]?harm/i, /explicit|porn|sexual/i, /hate\s*speech|racial\s*slur/i, /bomb|weapon|make\s+drugs/i];
-
-function safe(s: string) { return !BLOCKLIST.some((re) => re.test(s)); }
+const safe = (s: string) => !BLOCKLIST.some((re) => re.test(s));
 
 export async function POST(req: Request) {
   const sb = supabaseServer();
@@ -20,17 +19,20 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({})) as {
     state: PlacementState;
-    lastAnswer?: number; // index chosen by the user for the previous item
+    lastAnswer?: number;
     lastItem?: PlacementItem;
   };
 
-  const { state, lastAnswer, lastItem } = body;
+  let { state, lastAnswer, lastItem } = body;
   if (!state) return NextResponse.json({ error: "Missing state" }, { status: 400 });
 
-  // Update state with last answer (if any)
+  // Apply last answer to state
   if (typeof lastAnswer === "number" && lastItem) {
     const correct = lastAnswer === lastItem.correctIndex;
-    state.step = Math.min(state.step + 1, state.maxSteps);
+
+    // Advance step (no clamping here)
+    state.step = state.step + 1;
+
     if (correct) {
       state.correctStreak += 1;
       if (state.correctStreak >= 2 && state.difficulty !== "hard") {
@@ -51,7 +53,9 @@ export async function POST(req: Request) {
     }
   }
 
-  if (state.done) return NextResponse.json({ state, item: null });
+  if (state.done) {
+    return NextResponse.json({ state, item: null });
+  }
 
   // Build prompt
   const system = `
@@ -83,7 +87,7 @@ Task: Create one good discriminator question at this level with choices and a sh
 
   const client = new OpenAI({ apiKey });
   const model = process.env.OPENAI_MODEL || "gpt-5-nano";
-  const temperature = Number(process.env.OPENAI_TEMPERATURE ?? "1");
+  const temperature = Number(process.env.OPENAI_TEMPERATURE ?? "0.2");
 
   const completion = await client.chat.completions.create({
     model,
@@ -98,12 +102,10 @@ Task: Create one good discriminator question at this level with choices and a sh
   const raw = completion.choices[0]?.message?.content ?? "{}";
   const parsed = JSON.parse(raw) as PlacementItem;
 
-  // Minimal safety
   if (!safe(parsed.prompt)) {
     return NextResponse.json({ error: "Unsafe content generated; try again" }, { status: 502 });
   }
 
-  // Fill guard fields
   parsed.subject = state.subject;
   parsed.course = state.course;
   parsed.difficulty = parsed.difficulty ?? state.difficulty;
