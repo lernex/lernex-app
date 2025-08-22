@@ -65,7 +65,7 @@ export default function PlacementClient() {
 
       if (data.state?.done || !data.item) {
         // finish
-        const fres = await fetch("/api/placement/finish", {
+        await fetch("/api/placement/finish", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ state: data.state, correctTotal, questionTotal }),

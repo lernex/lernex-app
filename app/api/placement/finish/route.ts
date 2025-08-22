@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
   // Roll simple mastery estimate
   const acc = questionTotal > 0 ? correctTotal / questionTotal : 0.5;
-  let difficulty = state.difficulty;
+  const difficulty = state.difficulty;
 
   // Write/Upsert user_subject_state
   await sb.from("user_subject_state").upsert({

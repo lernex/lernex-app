@@ -62,13 +62,75 @@ export interface Database {
         };
         Relationships: [];
       };
+      user_subject_state: {
+        Row: {
+          user_id: string;
+          subject: string;
+          course: string;
+          mastery: number | null;
+          difficulty: "intro" | "easy" | "medium" | "hard";
+          next_topic: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          subject: string;
+          course: string;
+          mastery?: number | null;
+          difficulty?: "intro" | "easy" | "medium" | "hard";
+          next_topic?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          subject?: string;
+          course?: string;
+          mastery?: number | null;
+          difficulty?: "intro" | "easy" | "medium" | "hard";
+          next_topic?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: [];
+      };
+      attempts: {
+        Row: {
+          user_id: string;
+          lesson_id: string | null;
+          subject: string | null;
+          level: string | null;
+          correct_count: number | null;
+          total: number | null;
+          created_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          lesson_id?: string | null;
+          subject?: string | null;
+          level?: string | null;
+          correct_count?: number | null;
+          total?: number | null;
+          created_at?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          lesson_id?: string | null;
+          subject?: string | null;
+          level?: string | null;
+          correct_count?: number | null;
+          total?: number | null;
+          created_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: { [key: string]: never };
     Functions: {
       // If you created ensure_profile() per earlier steps:
       ensure_profile?: { Args: Record<string, never>; Returns: void };
     };
-    Enums: { [key: string]: never };
+    Enums: {
+      difficulty: "intro" | "easy" | "medium" | "hard";
+    };
     CompositeTypes: { [key: string]: never };
   };
 }
