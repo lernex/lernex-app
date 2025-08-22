@@ -87,7 +87,7 @@ Task: Create one good discriminator question at this level with choices and a sh
 
   const client = new OpenAI({ apiKey });
   const model = process.env.OPENAI_MODEL || "gpt-5-nano";
-  const temperature = Number(process.env.OPENAI_TEMPERATURE ?? "0.2");
+  const temperature = Number(process.env.OPENAI_TEMPERATURE ?? "1");
 
   const completion = await client.chat.completions.create({
     model,
