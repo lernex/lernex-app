@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useLernexStore } from "@/lib/store";
+import { supabaseServer } from "@/lib/supabase-server";
 
 export default function NavBar() {
   const { points, streak } = useLernexStore();

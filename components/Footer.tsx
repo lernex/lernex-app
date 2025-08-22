@@ -7,7 +7,7 @@ export default function Footer() {
           <a href="https://lernex-1.gitbook.io/lernex" className="text-neutral-400 hover:text-white">
             Privacy
           </a>
-          <a href="/terms" className="text-neutral-400 hover:text-white">
+          <a href="https://lernex-1.gitbook.io/lernex/terms-and-conditions" className="text-neutral-400 hover:text-white">
             Terms
           </a>
         </div>
