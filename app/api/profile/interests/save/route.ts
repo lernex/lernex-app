@@ -1,3 +1,4 @@
+// app/api/profile/interests/save/route.ts
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 
@@ -10,12 +11,16 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const { interests } = await req.json().catch(() => ({}));
-  if (!Array.isArray(interests) || interests.some((x) => typeof x !== "string")) {
-    return NextResponse.json({ error: "Invalid interests" }, { status: 400 });
+  if (!Array.isArray(interests) || interests.length === 0) {
+    return NextResponse.json({ error: "Pick at least one subject" }, { status: 400 });
   }
 
-  const { error } = await sb.from("profiles").update({ interests }).eq("id", user.id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // Save interests and clear level_map (so levels step must run)
+  const { error } = await sb
+    .from("profiles")
+    .update({ interests, level_map: null })
+    .eq("id", user.id);
 
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

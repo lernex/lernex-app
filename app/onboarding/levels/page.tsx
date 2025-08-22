@@ -1,101 +1,46 @@
-"use client";
-
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+// app/onboarding/levels/page.tsx
+import { redirect } from "next/navigation";
+import { supabaseServer } from "@/lib/supabase-server";
 import { LEVELS_BY_DOMAIN } from "@/data/domains";
 
-type LevelMap = Record<string, string>;
+export const dynamic = "force-dynamic";
 
-export default function OnboardingLevels() {
-  const router = useRouter();
-  const [interests, setInterests] = useState<string[]>([]);
-  const [levelMap, setLevelMap] = useState<LevelMap>({});
-  const [saving, setSaving] = useState(false);
+export default async function LevelsPage() {
+  const sb = supabaseServer();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) redirect("/login");
 
-  useEffect(() => {
-    (async () => {
-      const sb = supabaseBrowser();
-      const { data } = await sb.auth.getSession();
-      if (!data.session) {
-        router.replace("/login");
-        return;
-      }
-      const res = await fetch("/api/profile/me");
-      const me = await res.json();
-      if (!me?.interests || me.interests.length === 0) {
-        router.replace("/onboarding");
-        return;
-      }
-      setInterests(me.interests as string[]);
-      // prefill from existing profile if any
-      if (me?.level_map) setLevelMap(me.level_map as LevelMap);
-    })();
-  }, [router]);
+  // Fresh read of interests
+  const { data: prof } = await sb
+    .from("profiles")
+    .select("interests, level_map")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  const allPicked = useMemo(
-    () => interests.length > 0 && interests.every((d) => !!levelMap[d]),
-    [interests, levelMap]
-  );
+  const interests: string[] = Array.isArray(prof?.interests) ? prof!.interests : [];
+  if (!interests.length) redirect("/onboarding");
 
-  const setLevel = (domain: string, level: string) =>
-    setLevelMap((prev) => ({ ...prev, [domain]: level }));
-
-  const save = async () => {
-    if (!allPicked) return;
-    setSaving(true);
-    const res = await fetch("/api/profile/levels/save", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ level_map: levelMap }),
-    });
-    setSaving(false);
-    if (res.ok) router.replace("/app");
-  };
-
+  // Render a simple form (SSR) that posts to our save endpoint
   return (
-    <main className="min-h-screen flex items-center justify-center text-white">
-      <div className="w-full max-w-2xl px-4 py-6 space-y-5 rounded-2xl bg-neutral-900 border border-neutral-800">
-        <h1 className="text-2xl font-bold">Choose your starting level</h1>
-        <p className="text-neutral-400 text-sm">
-          For each interest, pick the course that matches where you want to start.
-        </p>
-
-        <div className="space-y-6">
-          {interests.map((domain) => {
-            const levels = LEVELS_BY_DOMAIN[domain] ?? [];
-            return (
-              <div key={domain}>
-                <div className="mb-2 font-semibold">{domain}</div>
-                <div className="grid md:grid-cols-3 gap-2">
-                  {levels.map((lvl) => {
-                    const on = levelMap[domain] === lvl;
-                    return (
-                      <button
-                        key={lvl}
-                        onClick={() => setLevel(domain, lvl)}
-                        className={`px-3 py-2 rounded-xl border text-left transition
-                          ${on ? "bg-lernex-blue border-lernex-blue text-white"
-                               : "bg-neutral-900 border-neutral-800 hover:bg-neutral-800"}`}
-                      >
-                        {lvl}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <button
-          onClick={save}
-          disabled={!allPicked || saving}
-          className="w-full py-3 rounded-2xl bg-lernex-green hover:bg-green-600 disabled:opacity-60"
-        >
-          {saving ? "Saving…" : "Finish"}
-        </button>
-      </div>
+    <main className="min-h-screen grid place-items-center text-white">
+      <form
+        action="/onboarding/levels/save"
+        method="post"
+        className="w-full max-w-md px-4 py-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-4"
+      >
+        <h1 className="text-2xl font-bold">Pick your course level</h1>
+        {interests.map((domain) => (
+          <div key={domain} className="space-y-2">
+            <label className="text-sm text-neutral-300">{domain}</label>
+            <select name={`lv_${domain}`} className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700">
+              {LEVELS_BY_DOMAIN[domain]?.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              )) ?? <option>No options</option>}
+            </select>
+          </div>
+        ))}
+        <button className="w-full py-3 rounded-xl bg-lernex-blue hover:bg-blue-500">Continue</button>
+      </form>
     </main>
   );
 }
