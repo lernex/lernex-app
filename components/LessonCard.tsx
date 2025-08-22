@@ -1,6 +1,5 @@
 "use client";
 import { Lesson } from "@/types";
-import Image from "next/image";
 
 export default function LessonCard({ lesson }: { lesson: Lesson }) {
   return (

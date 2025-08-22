@@ -1,18 +1,20 @@
 "use client";
 import Link from "next/link";
 import { useLernexStore } from "@/lib/store";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import ThemeToggle from "./ThemeToggle";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 
 export default function NavBar() {
   const { points, streak } = useLernexStore();
   const [user, setUser] = useState<User | null>(null);
   const [open, setOpen] = useState(false);
   const router = useRouter();
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
@@ -21,6 +23,23 @@ export default function NavBar() {
     });
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (open && menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
 
   return (
     <nav className="sticky top-0 z-20 backdrop-blur-lg bg-white/60 border-b border-neutral-200 text-neutral-900 dark:bg-neutral-950/60 dark:border-white/10 dark:text-white">
@@ -41,10 +60,10 @@ export default function NavBar() {
             Generate
           </Link>
           {user ? (
-            <div className="relative">
+            <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setOpen((o) => !o)}
-                className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 dark:border-white/10 dark:bg-white/5"
+                className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 transition-colors hover:bg-neutral-200 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
               >
                 {user.user_metadata?.avatar_url ? (
                   <Image src={user.user_metadata.avatar_url} alt="avatar" width={36} height={36} />
@@ -54,8 +73,15 @@ export default function NavBar() {
                   </span>
                 )}
               </button>
-              {open && (
-                <div className="absolute right-0 mt-2 w-40 rounded-md border border-neutral-200 bg-white py-2 text-neutral-900 shadow-lg dark:border-white/10 dark:bg-neutral-900 dark:text-white">
+              <AnimatePresence>
+                {open && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-2 w-40 rounded-md border border-neutral-200 bg-white py-2 text-neutral-900 shadow-lg dark:border-white/10 dark:bg-neutral-900 dark:text-white"
+                  >
                   <Link
                     href="/settings"
                     className="block px-4 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -90,8 +116,9 @@ export default function NavBar() {
                   >
                     Logout
                   </button>
-                </div>
-              )}
+                </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           ) : (
             <Link
