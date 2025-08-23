@@ -46,11 +46,11 @@ export default function NavBar() {
   }, [open]);
 
   return (
-    <nav className="sticky top-0 z-20 backdrop-blur-lg bg-white/60 border-b border-neutral-200 text-neutral-900 dark:bg-neutral-950/60 dark:border-white/10 dark:text-white">
+    <nav className="sticky top-0 z-20 border-b border-neutral-200 bg-white/60 text-neutral-900 shadow-sm backdrop-blur-lg transition-shadow dark:border-white/10 dark:bg-neutral-950/60 dark:text-white">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4 text-sm">
         <Link
           href="/"
-          className="text-xl font-bold bg-gradient-to-r from-lernex-blue to-purple-400 bg-clip-text text-transparent"
+          className="bg-gradient-to-r from-lernex-blue to-purple-400 bg-clip-text text-xl font-bold text-transparent transition-colors hover:from-blue-500 hover:to-purple-500"
         >
           Lernex
         </Link>
@@ -59,7 +59,7 @@ export default function NavBar() {
           <span className="rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5">⭐ {points}</span>
           <Link
             href="/generate"
-            className="rounded-full border border-neutral-200 bg-neutral-100 px-4 py-1 hover:bg-neutral-200 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            className="rounded-full border border-neutral-200 bg-neutral-100 px-4 py-1 shadow-sm hover:shadow-md dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
           >
             Generate
           </Link>
@@ -67,7 +67,7 @@ export default function NavBar() {
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setOpen((o) => !o)}
-                className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 transition-colors hover:bg-neutral-200 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 shadow-sm transition-transform hover:scale-105 dark:border-white/10 dark:bg-white/5"
               >
                 {user.user_metadata?.avatar_url ? (
                   <Image src={user.user_metadata.avatar_url} alt="avatar" width={36} height={36} />

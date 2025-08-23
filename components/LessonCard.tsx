@@ -3,7 +3,7 @@ import { Lesson } from "@/types";
 
 export default function LessonCard({ lesson }: { lesson: Lesson }) {
   return (
-     <div className="rounded-[28px] overflow-hidden border border-neutral-200 bg-white/70 backdrop-blur shadow-xl dark:border-neutral-800 dark:bg-neutral-900/70">
+     <div className="rounded-[28px] overflow-hidden border border-neutral-200 bg-white/70 backdrop-blur shadow-xl transition-transform hover:scale-[1.02] hover:shadow-2xl dark:border-neutral-800 dark:bg-neutral-900/70">
       <div className="p-5 space-y-2">
         <div className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
           {lesson.subject}
