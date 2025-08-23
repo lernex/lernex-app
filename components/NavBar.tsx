@@ -11,13 +11,17 @@ import { AnimatePresence, motion } from "framer-motion";
 
 export default function NavBar() {
   const { points, streak } = useLernexStore();
-  const [user, setUser] = useState<User | null>(null);
+  // `undefined` indicates the auth state is still being resolved
+  const [user, setUser] = useState<User | null | undefined>(undefined);
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    // Resolve the current session from local storage for instant results
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
     const { data: listener } = supabase.auth.onAuthStateChange((_, session) => {
       setUser(session?.user ?? null);
     });
@@ -59,7 +63,7 @@ export default function NavBar() {
           >
             Generate
           </Link>
-          {user ? (
+          {user === undefined ? null : user ? (
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setOpen((o) => !o)}
@@ -82,41 +86,41 @@ export default function NavBar() {
                     transition={{ duration: 0.15 }}
                     className="absolute right-0 mt-2 w-40 rounded-md border border-neutral-200 bg-white py-2 text-neutral-900 shadow-lg dark:border-white/10 dark:bg-neutral-900 dark:text-white"
                   >
-                  <Link
-                    href="/settings"
-                    className="block px-4 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                    onClick={() => setOpen(false)}
-                  >
-                    Settings
-                  </Link>
-                  <Link
-                    href="/profile"
-                    className="block px-4 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                    onClick={() => setOpen(false)}
-                  >
-                    Profile
-                  </Link>
-                  <a
-                    href="https://lernex-1.gitbook.io/lernex"
-                    className="block px-4 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => setOpen(false)}
-                  >
-                    Privacy
-                  </a>
-                  <ThemeToggle className="w-full text-left px-4 py-2 bg-transparent border-0 hover:bg-neutral-100 dark:hover:bg-neutral-800" />
-                  <button
-                    onClick={async () => {
-                      await supabase.auth.signOut();
-                      setOpen(false);
-                      router.refresh();
-                    }}
-                    className="block w-full text-left px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                  >
-                    Logout
-                  </button>
-                </motion.div>
+                    <Link
+                      href="/settings"
+                      className="block px-4 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                      onClick={() => setOpen(false)}
+                    >
+                      Settings
+                    </Link>
+                    <Link
+                      href="/profile"
+                      className="block px-4 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                      onClick={() => setOpen(false)}
+                    >
+                      Profile
+                    </Link>
+                    <a
+                      href="https://lernex-1.gitbook.io/lernex"
+                      className="block px-4 py-2 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => setOpen(false)}
+                    >
+                      Privacy
+                    </a>
+                    <ThemeToggle className="w-full text-left px-4 py-2 bg-transparent border-0 hover:bg-neutral-100 dark:hover:bg-neutral-800" />
+                    <button
+                      onClick={async () => {
+                        await supabase.auth.signOut();
+                        setOpen(false);
+                        router.refresh();
+                      }}
+                      className="block w-full text-left px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    >
+                      Logout
+                    </button>
+                  </motion.div>
                 )}
               </AnimatePresence>
             </div>

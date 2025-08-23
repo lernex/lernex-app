@@ -10,7 +10,9 @@ function SyncThemeFromProfile() {
         const res = await fetch("/api/profile/me");
         if (!res.ok) return;
         const me = await res.json();
-        if (me?.theme_pref) setTheme(me.theme_pref);
+        // Only apply the server preference if the user hasn't chosen one locally yet
+        const stored = localStorage.getItem("theme");
+        if (!stored && me?.theme_pref) setTheme(me.theme_pref);
       } catch {}
     })();
   }, [setTheme]);
