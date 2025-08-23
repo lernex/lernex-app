@@ -111,13 +111,13 @@ export default function PlaylistDetail() {
     setPl((prev) => (prev ? { ...prev, is_public: true } : prev));
   };
 
-  if (!pl) return <div className="p-6 text-white">Loading…</div>;
+  if (!pl) return <div className="p-6 text-neutral-900 dark:text-white">Loading…</div>;
 
   return (
-    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center">
-      <div className="w-full max-w-md px-4 py-6 space-y-3 text-white">
+    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center text-neutral-900 dark:text-white">
+      <div className="w-full max-w-md px-4 py-6 space-y-3">
         <h1 className="text-xl font-semibold">{pl.name}</h1>
-        <div className="text-sm text-neutral-400">
+        <div className="text-sm text-neutral-500 dark:text-neutral-400">
           {pl.is_public ? "Public" : "Private"}
         </div>
 
@@ -131,13 +131,13 @@ export default function PlaylistDetail() {
 
         <div className="grid gap-2 pt-3">
           {items.map((it) => (
-            <div key={it.id} className="rounded-xl bg-neutral-900 border border-neutral-800 p-3">
-              <div className="text-xs text-neutral-400">{it.lessons?.subject}</div>
+            <div key={it.id} className="rounded-xl bg-white border border-neutral-200 p-3 dark:bg-neutral-900 dark:border-neutral-800">
+              <div className="text-xs text-neutral-500 dark:text-neutral-400">{it.lessons?.subject}</div>
               <div className="font-semibold">{it.lessons?.title}</div>
             </div>
           ))}
           {items.length === 0 && (
-            <div className="text-neutral-400 text-sm">No lessons yet.</div>
+            <div className="text-neutral-500 dark:text-neutral-400 text-sm">No lessons yet.</div>
           )}
         </div>
       </div>

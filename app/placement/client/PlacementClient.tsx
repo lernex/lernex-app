@@ -81,25 +81,25 @@ export default function PlacementClient() {
   };
 
   if (loading && !item) {
-    return <div className="min-h-screen grid place-items-center text-white">Loading placement…</div>;
+    return <div className="min-h-screen grid place-items-center text-neutral-900 dark:text-white">Loading placement…</div>;
   }
   if (err) {
     return (
-      <main className="min-h-screen grid place-items-center text-white">
-        <div className="text-red-400">{err}</div>
+      <main className="min-h-screen grid place-items-center text-neutral-900 dark:text-white">
+        <div className="text-red-500 dark:text-red-400">{err}</div>
       </main>
     );
   }
   if (!state || !item) return null;
 
   return (
-    <main className="min-h-screen grid place-items-center text-white">
-      <div className="w-full max-w-md px-4 py-6 space-y-4 rounded-2xl bg-neutral-900 border border-neutral-800">
-        <div className="flex items-center justify-between text-sm text-neutral-400">
+    <main className="min-h-screen grid place-items-center text-neutral-900 dark:text-white">
+      <div className="w-full max-w-md px-4 py-6 space-y-4 rounded-2xl bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800">
+        <div className="flex items-center justify-between text-sm text-neutral-500 dark:text-neutral-400">
           <div>{state.subject} • {state.course}</div>
           <div>Step {state.step} / {state.maxSteps}</div>
         </div>
-        <div className="text-xs uppercase tracking-wide text-neutral-400">Difficulty: {state.difficulty}</div>
+        <div className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Difficulty: {state.difficulty}</div>
         <h1 className="text-lg font-semibold">{item.prompt}</h1>
 
         <div className="grid gap-2">
@@ -112,8 +112,8 @@ export default function PlacementClient() {
                 onClick={() => answer(i)}
                 disabled={selected !== null}
                 className={`text-left px-3 py-2 rounded-xl border transition
-                  ${isSel ? (isCorrect ? "bg-green-600 border-green-500" : "bg-red-600 border-red-500")
-                          : "bg-neutral-800 border-neutral-700 hover:bg-neutral-700"}`}
+                  ${isSel ? (isCorrect ? "bg-green-600 border-green-500 text-white" : "bg-red-600 border-red-500 text-white")
+                          : "bg-neutral-100 border-neutral-300 hover:bg-neutral-200 dark:bg-neutral-800 dark:border-neutral-700 dark:hover:bg-neutral-700"}`}
               >
                 {c}
               </button>
@@ -121,11 +121,11 @@ export default function PlacementClient() {
           })}
         </div>
 
-        <div className="text-xs text-neutral-400">
+        <div className="text-xs text-neutral-500 dark:text-neutral-400">
           Correct so far: {correctTotal} / {questionTotal}
         </div>
         {selected !== null && item.explanation && (
-          <div className="text-sm text-neutral-300 pt-1">{item.explanation}</div>
+          <div className="text-sm text-neutral-600 dark:text-neutral-300 pt-1">{item.explanation}</div>
         )}
       </div>
     </main>

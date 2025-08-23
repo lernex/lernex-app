@@ -76,18 +76,18 @@ export default function LoginPage() {
 
   if (checking) {
     return (
-      <main className="min-h-screen grid place-items-center text-white">
+      <main className="min-h-screen grid place-items-center text-neutral-900 dark:text-white">
         <div>Checking session…</div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen grid place-items-center text-white">
-      <div className="w-full max-w-md px-4 py-6 space-y-5 rounded-2xl bg-neutral-900 border border-neutral-800">
+    <main className="min-h-screen grid place-items-center text-neutral-900 dark:text-white">
+      <div className="w-full max-w-md px-4 py-6 space-y-5 rounded-2xl bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800">
         <h1 className="text-2xl font-bold">Sign in to Lernex</h1>
 
-        {err && <div className="text-sm text-red-400">{err}</div>}
+        {err && <div className="text-sm text-red-500 dark:text-red-400">{err}</div>}
 
         <button
           onClick={signInWithGoogle}
@@ -96,7 +96,7 @@ export default function LoginPage() {
           Continue with Google
         </button>
 
-        <div className="text-center text-neutral-500 text-sm">— or —</div>
+        <div className="text-center text-neutral-500 dark:text-neutral-400 text-sm">— or —</div>
 
         <div className="space-y-3">
           <input
@@ -104,7 +104,7 @@ export default function LoginPage() {
             placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 outline-none"
+            className="w-full px-3 py-2 rounded-xl bg-white border border-neutral-300 text-neutral-900 outline-none dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
           />
           <button
             onClick={signInWithEmail}

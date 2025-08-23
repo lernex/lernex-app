@@ -25,8 +25,8 @@ export default function PostAuth() {
   }, [router]);
 
   return (
-    <main className="min-h-screen grid place-items-center text-white">
-      <div className="text-neutral-400">Setting up your account…</div>
+    <main className="min-h-screen grid place-items-center text-neutral-900 dark:text-white">
+      <div className="text-neutral-500 dark:text-neutral-400">Setting up your account…</div>
     </main>
   );
 }
