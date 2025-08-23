@@ -52,14 +52,14 @@ export default function Generate() {
   };
 
   return (
-    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center">
+    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center text-neutral-900 dark:text-white">
       <div className="w-full max-w-md px-4 py-6 space-y-4">
-        <div className="rounded-2xl bg-neutral-900 border border-neutral-800 p-5 space-y-3">
+        <div className="rounded-2xl bg-white border border-neutral-200 p-5 space-y-3 dark:bg-neutral-900 dark:border-neutral-800">
           <h1 className="text-xl font-semibold">Generate a Micro-Lesson</h1>
 
           {/* progress bar */}
           {loading || progress > 0 ? (
-            <div className="h-2 w-full rounded-full bg-neutral-800 overflow-hidden">
+            <div className="h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
               <div
                 className="h-full bg-lernex-blue transition-[width] duration-200"
                 style={{ width: `${progress}%` }}
@@ -71,14 +71,14 @@ export default function Generate() {
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Subject (e.g., Algebra 1)"
-            className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white outline-none"
+            className="w-full px-3 py-2 rounded-xl bg-white border border-neutral-300 text-neutral-900 outline-none dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
           />
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={6}
             placeholder="Paste study text here… (≥ 30 chars)"
-            className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white outline-none"
+            className="w-full px-3 py-2 rounded-xl bg-white border border-neutral-300 text-neutral-900 outline-none dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
           />
           <button
             onClick={run}
@@ -87,7 +87,7 @@ export default function Generate() {
           >
             {loading ? "Generating…" : "Generate"}
           </button>
-          {err && <div className="text-red-400 text-sm">{err}</div>}
+          {err && <div className="text-red-500 dark:text-red-400 text-sm">{err}</div>}
         </div>
 
         {lesson && (
