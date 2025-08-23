@@ -203,66 +203,66 @@ ${text}
       stream: true,
     });
 
-    let full = "";
-    let usage: { prompt_tokens?: number | null; completion_tokens?: number | null } | null = null;
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        try {
-          for await (const chunk of completion) {
-            if (chunk.choices[0]?.delta?.content) {
-              const text = chunk.choices[0].delta.content;
-              full += text;
-              controller.enqueue(encoder.encode(text));
-            }
-            if (chunk.usage) usage = chunk.usage;
-          }
-
-          let parsed: unknown = null;
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          let full = "";
+          let usage: { prompt_tokens?: number | null; completion_tokens?: number | null } | null = null;
           try {
-            parsed = JSON.parse(full || "{}");
-          } catch {
-            // ignore parse errors; client will handle
-            return;
-          }
-          const validated = LessonSchema.safeParse(parsed);
-          if (validated.success) {
-            try {
-              await sb.from("lesson_cache").insert({
-                user_id: uid,
-                subject,
-                input_hash: key,
-                lesson: validated.data,
-              });
-            } catch {
-              /* ignore cache errors */
+            for await (const chunk of completion) {
+              if (chunk.choices[0]?.delta?.content) {
+                const text = chunk.choices[0].delta.content;
+                full += text;
+                controller.enqueue(encoder.encode(text));
+              }
+              if (chunk.usage) usage = chunk.usage;
             }
-            if (usage) {
+            let parsed: unknown = null;
+            try {
+              parsed = JSON.parse(full || "{}");
+            } catch {
+              // ignore parse errors; client will handle
+              return;
+            }
+            const validated = LessonSchema.safeParse(parsed);
+            if (validated.success) {
               try {
-                await sb.from("usage_logs").insert({
+                await sb.from("lesson_cache").insert({
                   user_id: uid,
-                  ip,
-                  model,
-                  input_tokens: usage.prompt_tokens ?? null,
-                  output_tokens: usage.completion_tokens ?? null,
+                  subject,
+                  input_hash: key,
+                  lesson: validated.data,
                 });
               } catch {
-                /* ignore usage log errors */
+                /* ignore cache errors */
+              }
+              if (usage) {
+                try {
+                  await sb.from("usage_logs").insert({
+                    user_id: uid,
+                    ip,
+                    model,
+                    input_tokens: usage.prompt_tokens ?? null,
+                    output_tokens: usage.completion_tokens ?? null,
+                  });
+                } catch {
+                  /* ignore usage log errors */
+                }
               }
             }
+          } catch (err) {
+            controller.error(err);
+          } finally {
+            controller.close();
           }
-        } catch (err) {
-          controller.error(err);
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, {
-      headers: { "content-type": "application/json" },
-      status: 200,
-    });
+        },
+      }),
+      {
+        headers: { "content-type": "text/plain" },
+        status: 200,
+      }
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Server error";
     return new Response(JSON.stringify({ error: msg }), { status: 500 });
