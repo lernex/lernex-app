@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 
+
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -199,53 +200,66 @@ ${text}
         { role: "user", content: userPrompt },
       ],
       response_format: { type: "json_object" },
+      stream: true,
     });
 
-    // usage logging (typed)
-    try {
-      const usage = completion.usage ?? null;
-      if (usage) {
-        await sb.from("usage_logs").insert({
-          user_id: uid,
-          ip,
-          model,
-          input_tokens: usage.prompt_tokens ?? null,
-          output_tokens: usage.completion_tokens ?? null,
-        });
-      }
-    } catch {
-      // ignore logging errors in MVP
-    }
+    let full = "";
+    let usage: { prompt_tokens?: number | null; completion_tokens?: number | null } | null = null;
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const chunk of completion) {
+            if (chunk.choices[0]?.delta?.content) {
+              const text = chunk.choices[0].delta.content;
+              full += text;
+              controller.enqueue(encoder.encode(text));
+            }
+            if (chunk.usage) usage = chunk.usage;
+          }
 
-    // parse + validate
-    const raw = completion.choices[0]?.message?.content ?? "{}";
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return new Response(JSON.stringify({ error: "Model returned invalid JSON." }), { status: 502 });
-    }
-    const validated = LessonSchema.safeParse(parsed);
-    if (!validated.success) {
-      return new Response(
-        JSON.stringify({ error: "Validation failed", details: validated.error.flatten() }),
-        { status: 422 }
-      );
-    }
+          let parsed: unknown = null;
+          try {
+            parsed = JSON.parse(full || "{}");
+          } catch {
+            // ignore parse errors; client will handle
+            return;
+          }
+          const validated = LessonSchema.safeParse(parsed);
+          if (validated.success) {
+            try {
+              await sb.from("lesson_cache").insert({
+                user_id: uid,
+                subject,
+                input_hash: key,
+                lesson: validated.data,
+              });
+            } catch {
+              /* ignore cache errors */
+            }
+            if (usage) {
+              try {
+                await sb.from("usage_logs").insert({
+                  user_id: uid,
+                  ip,
+                  model,
+                  input_tokens: usage.prompt_tokens ?? null,
+                  output_tokens: usage.completion_tokens ?? null,
+                });
+              } catch {
+                /* ignore usage log errors */
+              }
+            }
+          }
+        } catch (err) {
+          controller.error(err);
+        } finally {
+          controller.close();
+        }
+      },
+    });
 
-    // write to cache (best-effort)
-    try {
-      await sb.from("lesson_cache").insert({
-        user_id: uid,
-        subject,
-        input_hash: key,
-        lesson: validated.data,
-      });
-    } catch {
-      // ignore cache errors in MVP
-    }
-
-    return new Response(JSON.stringify(validated.data), {
+    return new Response(stream, {
       headers: { "content-type": "application/json" },
       status: 200,
     });
