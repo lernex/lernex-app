@@ -12,6 +12,7 @@ export default function Generate() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [err, setErr] = useState<string | null>(null);
+  const [streamed, setStreamed] = useState("");
   const timerRef = useRef<number | null>(null);
 
   const startProgress = () => {
@@ -32,6 +33,7 @@ export default function Generate() {
     setLoading(true);
     setErr(null);
     setLesson(null);
+    setStreamed("");
     startProgress();
     try {
       const res = await fetch("/api/generate", {
@@ -39,9 +41,25 @@ export default function Generate() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text, subject }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to generate");
-      setLesson(data);
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to generate");
+      }
+      if (!res.body) throw new Error("No response body");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let full = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        full += chunk;
+        setStreamed((s) => s + chunk);
+        try {
+          const parsed = JSON.parse(full);
+          setLesson(parsed);
+        } catch {}
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error";
       setErr(message);
@@ -90,6 +108,9 @@ export default function Generate() {
           {err && <div className="text-red-500 dark:text-red-400 text-sm">{err}</div>}
         </div>
 
+        {!lesson && streamed && (
+          <pre className="whitespace-pre-wrap text-sm">{streamed}</pre>
+        )}
         {lesson && (
           <div className="space-y-3">
             <LessonCard lesson={lesson} />
