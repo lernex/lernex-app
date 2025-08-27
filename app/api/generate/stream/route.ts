@@ -8,8 +8,8 @@ type ModelSpec = { name: string; delayMs: number };
 
 // Primary + backup (tune order if needed)
 const HEDGE: ModelSpec[] = [
-  { name: process.env.OPENAI_MODEL || "gpt-5-nano", delayMs: 0 },
-  { name: "gpt-4o-mini", delayMs: 600 },
+  { name: "gpt-4o-mini", delayMs: 0 },      // try this first
+  { name: process.env.OPENAI_MODEL || "gpt-4.1-nano", delayMs: 300 }, // backup
 ];
 
 const MAX_CHARS = 2000;  // cap input to keep TTFB low

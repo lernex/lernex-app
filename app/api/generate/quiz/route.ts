@@ -40,7 +40,7 @@ Use the source to craft fair questions.
     `.trim();
 
     const completion = await ai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-5-nano",
+      model: process.env.OPENAI_MODEL || "gpt-4.1-nano",
       temperature: 1,
       response_format: { type: "json_object" },
       messages: [
