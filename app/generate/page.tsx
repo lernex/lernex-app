@@ -68,7 +68,7 @@ export default function Generate() {
       }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let firstChunk = true;
+      let full = "";
 
       const streamPump = async () => {
         while (true) {
