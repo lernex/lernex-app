@@ -33,6 +33,7 @@ export default function Generate() {
   useEffect(() => () => { if (timerRef.current) window.clearInterval(timerRef.current); }, []);
 
   const run = async () => {
+    const t0 = performance.now();
     setLoading(true);
     setErr(null);
     setLesson(null);
@@ -46,6 +47,8 @@ export default function Generate() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text, subject }),
       });
+      const t1 = performance.now();
+      console.log("[client] headers-received", (t1 - t0).toFixed(1), "ms");
 
       // 2) in parallel, request quiz JSON (non-stream)
       const quizReq = fetch("/api/generate/quiz", {
@@ -65,7 +68,7 @@ export default function Generate() {
       }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let full = "";
+      let firstChunk = true;
 
       const streamPump = async () => {
         while (true) {
@@ -92,6 +95,8 @@ export default function Generate() {
       };
 
       setLesson(assembled);
+      const t3 = performance.now();
+      console.log("[client] stream-complete", (t3 - t0).toFixed(1), "ms");
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error";
       setErr(message);

@@ -14,6 +14,8 @@ export async function POST(req: Request) {
     const MAX_CHARS = 2000; // cap input to keep TTFB low
     const src = text.slice(0, MAX_CHARS);
 
+    console.log("[gen/stream] request-start", { dt: 0 });
+
     const ai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const t0 = Date.now();
@@ -29,6 +31,8 @@ export async function POST(req: Request) {
         { role: "user", content: `Subject: ${subject}\nSource:\n${src}` },
       ],
     });
+
+    console.log("[gen/stream] after-openai-call", { dt: Date.now() - t0 });
 
     const enc = new TextEncoder();
 
