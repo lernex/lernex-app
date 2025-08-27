@@ -1,11 +1,13 @@
 // app/api/generate/quiz/route.ts
-import { NextRequest } from "next/server";
+export const runtime = "edge";
+export const dynamic = "force-dynamic";
+
 import OpenAI from "openai";
 
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
+const MAX_CHARS = 1200;
+const MAX_TOKENS = 180;
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const { text, subject = "Algebra 1", difficulty = "easy" } = await req.json();
 
@@ -17,49 +19,39 @@ export async function POST(req: NextRequest) {
     }
 
     const ai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const src = text.slice(0, MAX_CHARS);
 
     const system = `
 Return STRICT JSON only:
 {
   "id": string,
   "subject": string,
-  "topic": string,
   "title": string,
   "difficulty": "intro"|"easy"|"medium"|"hard",
   "questions": [
     { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }
   ]
 }
-No commentary. 1–3 MCQs. Keep choices concise.
-    `.trim();
-
-    const user = `
-Subject: ${subject}
-Target Difficulty: ${difficulty}
-Use the source to craft fair questions.
-    `.trim();
+No commentary. 2–3 MCQs. Keep choices short.
+`.trim();
 
     const completion = await ai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-4.1-nano",
+      model: "gpt-4.1-nano",     // small, cheap, fast for JSON
       temperature: 1,
+      max_tokens: MAX_TOKENS,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: system },
-        { role: "user", content: user },
-        { role: "user", content: `Source:\n${text}` },
+        { role: "user", content: `Subject: ${subject}\nDifficulty: ${difficulty}\nCreate fair MCQs from:\n${src}` },
       ],
     });
 
     const raw = completion.choices[0]?.message?.content ?? "{}";
     let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return new Response(JSON.stringify({ error: "Model returned invalid JSON" }), { status: 502 });
-    }
+    try { parsed = JSON.parse(raw); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 }); }
 
     return new Response(JSON.stringify(parsed), {
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "Cache-Control": "no-store" },
       status: 200,
     });
   } catch (e) {
