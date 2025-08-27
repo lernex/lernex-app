@@ -3,6 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --primary: #2F80ED;
 }
 
 
@@ -15,8 +16,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #1C1C1E;
+    --foreground: #f2f2f2;
   }
 }
 
@@ -35,6 +36,9 @@ html {
   button {
     @apply transition-colors duration-200 ease-in-out;
   }
+  a {
+    @apply text-lernex-blue hover:text-lernex-blue/80;
+  }
 }
 
 @layer utilities {
@@ -45,9 +49,9 @@ html {
     @apply bg-transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-neutral-300 rounded-full dark:bg-neutral-700;
+    @apply bg-lernex-blue rounded-full;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-neutral-400 dark:bg-neutral-600;
+    @apply bg-lernex-blue/80;
   }
 }

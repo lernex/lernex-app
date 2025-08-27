@@ -8,8 +8,8 @@ export type Lesson = {
   id: string;
   subject: string;
   title: string;
-  content: string; // 30–80 words
-  questions: Question[]; // 1–3
-  mediaUrl?: string;     // optional image/gif/video
-  mediaType?: "image" | "video";
+  content: string;
+  questions: { prompt: string; choices: string[]; correctIndex: number; explanation?: string }[];
+  difficulty?: "intro" | "easy" | "medium" | "hard";
+  topic?: string; // <- add this if you want it
 };

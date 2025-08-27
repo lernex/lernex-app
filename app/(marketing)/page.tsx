@@ -5,17 +5,17 @@ export default function Landing() {
       <section className="mx-auto max-w-5xl px-6 py-24 text-white">
         <div className="grid items-center gap-16 md:grid-cols-2">
           <div>
-            <h1 className="text-5xl font-extrabold leading-tight bg-gradient-to-r from-lernex-blue/70 via-lernex-blue to-purple-400 bg-clip-text text-transparent">
+            <h1 className="text-5xl font-extrabold leading-tight text-lernex-blue">
               Learn 10x faster with AI-generated micro-lessons.
             </h1>
             <p className="mt-6 text-lg text-neutral-300">
               Bite-sized explanations, instant quizzes, and adaptive difficulty—like TikTok, but for learning.
             </p>
             <div className="mt-10 flex flex-wrap gap-4">
-              <a href="/login" className="rounded-full bg-lernex-blue px-8 py-3 font-medium hover:bg-blue-500">
+              <a href="/login" className="rounded-full bg-lernex-blue px-8 py-3 font-medium hover:bg-lernex-blue/90">
                 Get started
               </a>
-              <a href="#how" className="rounded-full border border-white/20 px-8 py-3 font-medium hover:bg-white/10">
+              <a href="#how" className="rounded-full border border-lernex-blue px-8 py-3 font-medium text-lernex-blue hover:bg-lernex-blue/10">
                 How it works
               </a>
             </div>

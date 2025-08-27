@@ -8,11 +8,14 @@ import QuizBlock from "@/components/QuizBlock";
 export default function Generate() {
   const [text, setText] = useState("");
   const [subject, setSubject] = useState("Algebra 1");
+
+  // streaming text + assembled lesson
+  const [streamed, setStreamed] = useState("");
   const [lesson, setLesson] = useState<Lesson | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [err, setErr] = useState<string | null>(null);
-  const [streamed, setStreamed] = useState("");
   const timerRef = useRef<number | null>(null);
 
   const startProgress = () => {
@@ -35,31 +38,60 @@ export default function Generate() {
     setLesson(null);
     setStreamed("");
     startProgress();
+
     try {
-      const res = await fetch("/api/generate", {
+      // 1) kick off streaming lesson text
+      const streamReq = fetch("/api/generate/stream", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text, subject }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "Failed to generate");
+
+      // 2) in parallel, request quiz JSON (non-stream)
+      const quizReq = fetch("/api/generate/quiz", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text, subject, difficulty: "easy" }),
+      }).then(async (r) => {
+        if (!r.ok) throw new Error((await r.text()) || "Quiz failed");
+        return r.json();
+      });
+
+      // 1) handle streaming
+      const res = await streamReq;
+      if (!res.ok || !res.body) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || "Stream failed");
       }
-      if (!res.body) throw new Error("No response body");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let full = "";
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        full += chunk;
-        setStreamed((s) => s + chunk);
-        try {
-          const parsed = JSON.parse(full);
-          setLesson(parsed);
-        } catch {}
-      }
+
+      const streamPump = async () => {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          full += chunk;
+          setStreamed((s) => s + chunk);
+        }
+        return full.trim();
+      };
+
+      const [content, quizObj] = await Promise.all([streamPump(), quizReq]);
+
+      // 3) assemble Lesson object for your LessonCard + QuizBlock
+      const assembled: Lesson = {
+        id: quizObj?.id ?? crypto.randomUUID(),
+        subject: quizObj?.subject ?? subject,
+        topic: quizObj?.topic ?? "Micro-lesson",
+        title: quizObj?.title ?? "Quick Concept",
+        content: content || "Generated lesson.",
+        difficulty: (quizObj?.difficulty as "intro" | "easy" | "medium" | "hard") ?? "easy",
+        questions: Array.isArray(quizObj?.questions) ? quizObj.questions : [],
+      };
+
+      setLesson(assembled);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error";
       setErr(message);
@@ -75,15 +107,11 @@ export default function Generate() {
         <div className="rounded-2xl bg-white border border-neutral-200 p-5 space-y-3 dark:bg-neutral-900 dark:border-neutral-800">
           <h1 className="text-xl font-semibold">Generate a Micro-Lesson</h1>
 
-          {/* progress bar */}
-          {loading || progress > 0 ? (
+          {(loading || progress > 0) && (
             <div className="h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
-              <div
-                className="h-full bg-lernex-blue transition-[width] duration-200"
-                style={{ width: `${progress}%` }}
-              />
+              <div className="h-full bg-lernex-blue transition-[width] duration-200" style={{ width: `${progress}%` }} />
             </div>
-          ) : null}
+          )}
 
           <input
             value={subject}
@@ -95,7 +123,7 @@ export default function Generate() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={6}
-            placeholder="Paste study text here… (≥ 30 chars)"
+            placeholder="Paste study text here… (≥ 40 chars)"
             className="w-full px-3 py-2 rounded-xl bg-white border border-neutral-300 text-neutral-900 outline-none dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
           />
           <button
@@ -108,9 +136,13 @@ export default function Generate() {
           {err && <div className="text-red-500 dark:text-red-400 text-sm">{err}</div>}
         </div>
 
+        {/* Show streaming text immediately if lesson object not ready yet */}
         {!lesson && streamed && (
-          <pre className="whitespace-pre-wrap text-sm">{streamed}</pre>
+          <div className="rounded-2xl bg-neutral-900 border border-neutral-800 p-4 whitespace-pre-wrap">
+            {streamed}
+          </div>
         )}
+
         {lesson && (
           <div className="space-y-3">
             <LessonCard lesson={lesson} />
