@@ -9,6 +9,8 @@ export type Lesson = {
   subject: string;
   title: string;
   content: string;
+  mediaUrl?: string;
+  mediaType?: "image" | "video";
   questions: { prompt: string; choices: string[]; correctIndex: number; explanation?: string }[];
   difficulty?: "intro" | "easy" | "medium" | "hard";
   topic?: string; // <- add this if you want it
