@@ -4,8 +4,8 @@ export const dynamic = "force-dynamic";
 
 import OpenAI from "openai";
 
-const MAX_CHARS = 1200;
-const MAX_TOKENS = 180;
+const MAX_CHARS = 3000;
+const MAX_TOKENS = 380;
 
 export async function POST(req: Request) {
   try {
