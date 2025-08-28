@@ -26,12 +26,21 @@ export default function PlacementClient() {
       try {
         const res = await fetch("/api/placement/next", { method: "POST" });
         const data: PlacementNextResponse | { error?: string } = await res.json();
-        if (!res.ok) throw new Error(("error" in data && data.error) || "Failed to start placement");
+        if (!res.ok) {
+          // Narrow the union before reading .error
+          const msg = "error" in data ? data.error ?? "Failed to start placement" : "Failed to start placement";
+          throw new Error(msg);
+        }
+        if ("error" in data) {
+          throw new Error(data.error ?? "Failed to start placement");
+        }
+        if (!("state" in data)) {
+          throw new Error("Invalid response");
+        }
         setState(data.state);
         setItem(data.item);
         setBranches(data.branches ?? null);
-
-        if (data.state?.done || !data.item) {
+        if (data.state.done || !data.item) {
           router.replace("/app");
         }
       } catch (e) {
@@ -55,11 +64,11 @@ export default function PlacementClient() {
     const next = correct ? branches?.right : branches?.wrong;
 
     // If we have the prefetched branch, swap instantly
-    if (next?.item && next.state) {
+    if (next && next.item && next.state) {
       setState(next.state);
       setItem(next.item);
       setSelected(null);
-      setBranches(null); // will be refilled by background prefetch
+      setBranches(null); 
 
       // Background prefetch for the following step
       void fetch("/api/placement/next", {
@@ -70,7 +79,8 @@ export default function PlacementClient() {
       })
         .then(async (r) => {
           const data: PlacementNextResponse | { error?: string } = await r.json();
-          if (!r.ok) throw new Error(("error" in data && data.error) || "Failed prefetch");
+          if (!r.ok) throw new Error((("error" in data) && data.error) || "Failed prefetch");
+          if (!("state" in data)) throw new Error("Invalid response");
           // If finished according to server, end flow
           if (data.state?.done || !data.item) {
             router.replace("/app");
@@ -98,12 +108,12 @@ export default function PlacementClient() {
         body: JSON.stringify({ state, lastAnswer: idx, lastItem: item }),
       });
       const data: PlacementNextResponse | { error?: string } = await res.json();
-      if (!res.ok) throw new Error(("error" in data && data.error) || "Failed");
+      if (!res.ok) throw new Error((("error" in data) && data.error) || "Failed");
+      if (!("state" in data)) throw new Error("Invalid response");
       setState(data.state);
       setItem(data.item);
       setBranches(data.branches ?? null);
       setSelected(null);
-
       if (data.state?.done || !data.item) {
         router.replace("/app");
       }
