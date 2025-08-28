@@ -46,20 +46,26 @@ export default function NavBar() {
   }, [open]);
 
   return (
-    <nav className="sticky top-0 z-20 border-b border-lernex-blue/10 bg-white/80 text-neutral-900 shadow-sm backdrop-blur-lg transition-shadow dark:border-lernex-blue/20 dark:bg-lernex-charcoal/80 dark:text-white">
+    <nav className="sticky top-0 z-20 w-full border-b border-white/10 bg-gradient-to-r from-white/80 to-white/60 text-neutral-900 shadow-sm backdrop-blur-md transition-colors dark:from-lernex-charcoal/80 dark:to-lernex-charcoal/60 dark:text-white">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4 text-sm">
         <Link
           href="/"
-          className="text-xl font-bold text-lernex-blue transition-colors hover:text-lernex-blue/80"
+          className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent transition-colors hover:opacity-80"
         >
           Lernex
         </Link>
         <div className="flex items-center gap-4">
-          <span className="rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5">🔥 {streak}</span>
-          <span className="rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5">⭐ {points}</span>
+          <Link href="/#how" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">
+            Features
+          </Link>
+          <Link href="/pricing" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">
+            Pricing
+          </Link>
+          <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">🔥 {streak}</span>
+          <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">⭐ {points}</span>
           <Link
             href="/generate"
-            className="rounded-full bg-lernex-blue px-4 py-1 text-white shadow-sm hover:bg-lernex-blue/90"
+            className="rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-1 text-white shadow-sm transition hover:opacity-90"
           >
             Generate
           </Link>
@@ -84,7 +90,7 @@ export default function NavBar() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-40 rounded-md border border-lernex-blue/10 bg-white py-2 text-neutral-900 shadow-lg dark:border-lernex-blue/20 dark:bg-lernex-charcoal dark:text-white"
+                    className="absolute right-0 mt-2 w-44 rounded-md border border-white/10 bg-gradient-to-br from-white to-neutral-100 py-2 text-neutral-900 shadow-lg dark:from-lernex-charcoal dark:to-neutral-900 dark:text-white"
                   >
                     <Link
                       href="/settings"
@@ -109,14 +115,14 @@ export default function NavBar() {
                     >
                       Privacy
                     </a>
-                    <ThemeToggle className="w-full text-left px-4 py-2 bg-transparent border-0 hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20" />
+                    <ThemeToggle className="w-full bg-transparent px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20" />
                     <button
                       onClick={async () => {
                         await supabase.auth.signOut();
                         setOpen(false);
                         router.refresh();
                       }}
-                      className="block w-full text-left px-4 py-2 hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                      className="block w-full px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
                     >
                       Logout
                     </button>
@@ -127,7 +133,7 @@ export default function NavBar() {
           ) : (
             <Link
               href="/login"
-              className="rounded-full bg-lernex-blue px-4 py-1 text-white hover:bg-lernex-blue/90"
+              className="rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-1 text-white transition hover:opacity-90"
             >
               Login
             </Link>
