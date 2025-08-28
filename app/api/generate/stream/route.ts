@@ -12,8 +12,8 @@ const HEDGE: ModelSpec[] = [
   { name: process.env.OPENAI_MODEL || "gpt-4.1-nano", delayMs: 300 }, // backup
 ];
 
-const MAX_CHARS = 2000;  // cap input to keep TTFB low
-const MAX_TOKENS = 220;  // cap output tokens for snappier completions
+const MAX_CHARS = 2200;  // cap input to keep TTFB low
+const MAX_TOKENS = 250;  // cap output tokens for snappier completions
 
 export async function POST(req: Request) {
   const t0 = Date.now();
