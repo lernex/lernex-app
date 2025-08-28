@@ -1,76 +1,110 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { PlacementItem, PlacementState } from "@/types/placement";
+import type { PlacementItem, PlacementState, PlacementNextResponse } from "@/types/placement";
 import { useRouter } from "next/navigation";
 
 export default function PlacementClient() {
   const router = useRouter();
+
   const [state, setState] = useState<PlacementState | null>(null);
   const [item, setItem] = useState<PlacementItem | null>(null);
+  const [branches, setBranches] = useState<PlacementNextResponse["branches"] | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+
   const [selected, setSelected] = useState<number | null>(null);
   const [correctTotal, setCorrectTotal] = useState(0);
   const [questionTotal, setQuestionTotal] = useState(0);
 
-  // Start placement
+  // 1) Prime: load first question + prefetch branches
   useEffect(() => {
     (async () => {
       setLoading(true);
       setErr(null);
       try {
-        const res = await fetch("/api/placement/start", { method: "POST" });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || "Failed to start");
-        setState(data);
-        // immediately fetch first question
-        const qres = await fetch("/api/placement/next", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ state: data }),
-        });
-        const qdata = await qres.json();
-        if (!qres.ok) throw new Error(qdata?.error || "Failed to load question");
-        setState(qdata.state);
-        setItem(qdata.item);
+        const res = await fetch("/api/placement/next", { method: "POST" });
+        const data: PlacementNextResponse = await res.json();
+        if (!res.ok) throw new Error((data as any)?.error || "Failed to start placement");
+        setState(data.state);
+        setItem(data.item);
+        setBranches(data.branches ?? null);
+
+        if (data.state?.done || !data.item) {
+          router.replace("/app");
+        }
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Unknown error");
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [router]);
 
+  // 2) Answer instantly with prefetched branch, then prefetch next branches in background
   const answer = async (idx: number) => {
     if (!item || !state) return;
+
     setSelected(idx);
     const correct = idx === item.correctIndex;
     setQuestionTotal((t) => t + 1);
     if (correct) setCorrectTotal((c) => c + 1);
 
-    // fetch next state + item
-    setLoading(true);
+    // Consume prefetched branch immediately
+    const next = correct ? branches?.right : branches?.wrong;
+
+    // If we have the prefetched branch, swap instantly
+    if (next?.item && next.state) {
+      setState(next.state);
+      setItem(next.item);
+      setSelected(null);
+      setBranches(null); // will be refilled by background prefetch
+
+      // Background prefetch for the following step
+      void fetch("/api/placement/next", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        // Send the last answer + lastItem so the server advances canonical state (for logging / parity)
+        body: JSON.stringify({ state: state, lastAnswer: idx, lastItem: item }),
+      })
+        .then(async (r) => {
+          const data: PlacementNextResponse = await r.json();
+          if (!r.ok) throw new Error((data as any)?.error || "Failed prefetch");
+          // If finished according to server, end flow
+          if (data.state?.done || !data.item) {
+            router.replace("/app");
+            return;
+          }
+          // Refresh state/item/branches if our current item matches server's "now"
+          // (If the model generated something slightly different, we still accept server as source of truth)
+          setState(data.state);
+          setItem(data.item);
+          setBranches(data.branches ?? null);
+        })
+        .catch(() => {
+          /* soft fail: keep current question; user can still continue */
+        });
+
+      return;
+    }
+
+    // Fallback: if no prefetched branch (rare), hit server synchronously (old behavior)
     try {
+      setLoading(true);
       const res = await fetch("/api/placement/next", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ state, lastAnswer: idx, lastItem: item }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed");
+      const data: PlacementNextResponse = await res.json();
+      if (!res.ok) throw new Error((data as any)?.error || "Failed");
       setState(data.state);
       setItem(data.item);
+      setBranches(data.branches ?? null);
       setSelected(null);
 
       if (data.state?.done || !data.item) {
-        // finish
-        await fetch("/api/placement/finish", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ state: data.state, correctTotal, questionTotal }),
-        });
-        // ignore errors for now
         router.replace("/app");
       }
     } catch (e) {
@@ -100,8 +134,8 @@ export default function PlacementClient() {
           <div>Step {state.step} / {state.maxSteps}</div>
         </div>
         <div className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Difficulty: {state.difficulty}</div>
-        <h1 className="text-lg font-semibold">{item.prompt}</h1>
 
+        <h1 className="text-lg font-semibold">{item.prompt}</h1>
         <div className="grid gap-2">
           {item.choices.map((c, i) => {
             const isCorrect = i === item.correctIndex;

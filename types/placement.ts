@@ -1,8 +1,20 @@
+// @/types/placement.ts
 export type Difficulty = "intro" | "easy" | "medium" | "hard";
 
+export type PlacementState = {
+  subject: string;
+  course: string;
+  step: number;
+  maxSteps: number;
+  difficulty: Difficulty;
+  mistakes: number;
+  correctStreak: number;
+  done: boolean;
+};
+
 export type PlacementItem = {
-  subject: string;        // e.g., "Math"
-  course: string;         // e.g., "Algebra 1"
+  subject: string;
+  course: string;
   prompt: string;
   choices: string[];
   correctIndex: number;
@@ -10,13 +22,14 @@ export type PlacementItem = {
   difficulty: Difficulty;
 };
 
-export type PlacementState = {
-  subject: string;
-  course: string;
-  difficulty: Difficulty;     // current step difficulty
-  step: number;               // 1..N
-  correctStreak: number;      // consecutive correct
-  mistakes: number;           // total mistakes
-  done: boolean;
-  maxSteps: number;
+// Returned by /api/placement/next
+export type PlacementNextResponse = {
+  state: PlacementState;      // current state (unchanged if just asking "next")
+  item: PlacementItem | null; // the question to show now (or null if done)
+  branches?: {
+    right?: { state: PlacementState; item: PlacementItem | null };
+    wrong?: { state: PlacementState; item: PlacementItem | null };
+  };
+  // Optional diagnostics
+  // timings?: { nowMs: number; rightMs: number; wrongMs: number };
 };
