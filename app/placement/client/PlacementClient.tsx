@@ -25,8 +25,8 @@ export default function PlacementClient() {
       setErr(null);
       try {
         const res = await fetch("/api/placement/next", { method: "POST" });
-        const data: PlacementNextResponse = await res.json();
-        if (!res.ok) throw new Error((data as any)?.error || "Failed to start placement");
+        const data: PlacementNextResponse | { error?: string } = await res.json();
+        if (!res.ok) throw new Error(("error" in data && data.error) || "Failed to start placement");
         setState(data.state);
         setItem(data.item);
         setBranches(data.branches ?? null);
@@ -69,8 +69,8 @@ export default function PlacementClient() {
         body: JSON.stringify({ state: state, lastAnswer: idx, lastItem: item }),
       })
         .then(async (r) => {
-          const data: PlacementNextResponse = await r.json();
-          if (!r.ok) throw new Error((data as any)?.error || "Failed prefetch");
+          const data: PlacementNextResponse | { error?: string } = await r.json();
+          if (!r.ok) throw new Error(("error" in data && data.error) || "Failed prefetch");
           // If finished according to server, end flow
           if (data.state?.done || !data.item) {
             router.replace("/app");
@@ -97,8 +97,8 @@ export default function PlacementClient() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ state, lastAnswer: idx, lastItem: item }),
       });
-      const data: PlacementNextResponse = await res.json();
-      if (!res.ok) throw new Error((data as any)?.error || "Failed");
+      const data: PlacementNextResponse | { error?: string } = await res.json();
+      if (!res.ok) throw new Error(("error" in data && data.error) || "Failed");
       setState(data.state);
       setItem(data.item);
       setBranches(data.branches ?? null);

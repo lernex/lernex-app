@@ -83,9 +83,10 @@ Create ONE discriminative MCQ with short explanation.
   // Normalize fields and difficulty fallback
   item.subject = state.subject;
   item.course = state.course;
-  const diff: Difficulty = item.difficulty && ["intro","easy","medium","hard"].includes(item.difficulty as any)
-    ? (item.difficulty as Difficulty)
-    : state.difficulty;
+  const diff: Difficulty =
+    typeof item.difficulty === "string" && ["intro", "easy", "medium", "hard"].includes(item.difficulty)
+      ? (item.difficulty as Difficulty)
+      : state.difficulty;
   item.difficulty = diff;
 
   // Ensure well-formed choices/correctIndex
