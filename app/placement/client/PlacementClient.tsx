@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PlacementItem, PlacementState, PlacementNextResponse } from "@/types/placement";
 import { useRouter } from "next/navigation";
 
@@ -17,6 +17,11 @@ export default function PlacementClient() {
   const [selected, setSelected] = useState<number | null>(null);
   const [correctTotal, setCorrectTotal] = useState(0);
   const [questionTotal, setQuestionTotal] = useState(0);
+
+  const stateRef = useRef<PlacementState | null>(null);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // 1) Prime: load first question + prefetch branches
   useEffect(() => {
@@ -66,13 +71,15 @@ export default function PlacementClient() {
     // If we have the prefetched branch, swap after a short delay to show feedback
     if (next && next.item && next.state) {
       // Allow the user to see correct/incorrect styling & explanation
-      await new Promise((r) => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, 1200));
+
       setState(next.state);
       setItem(next.item);
       setSelected(null);
       setBranches(null);
 
       // Background prefetch for the following step
+      const stepForPrefetch = next.state.step;
       void fetch("/api/placement/next", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -88,11 +95,10 @@ export default function PlacementClient() {
             router.replace("/app");
             return;
           }
-          // Refresh state/item/branches if our current item matches server's "now"
-          // (If the model generated something slightly different, we still accept server as source of truth)
-          setState(data.state);
-          setItem(data.item);
-          setBranches(data.branches ?? null);
+          // Only update branches if we're still on the same step
+          if (stateRef.current?.step === stepForPrefetch) {
+            setBranches(data.branches ?? null);
+          }
         })
         .catch(() => {
           /* soft fail: keep current question; user can still continue */
