@@ -34,7 +34,7 @@ function nextState(prev: PlacementState, correct: boolean): PlacementState {
   return s;
 }
 
-async function makeQuestion(state: PlacementState): Promise<PlacementItem | null> {
+async function makeQuestion(state: PlacementState, avoid: string[] = [], depth = 0): Promise<PlacementItem | null> {
   if (state.done) return null;
 
   const system = `
@@ -51,11 +51,17 @@ Return STRICT JSON only:
 No commentary. Keep concise. 2–3 choices for intro/easy; 3–4 for medium/hard; exactly one correct.
 `.trim();
 
+const avoidText =
+    avoid.length > 0
+      ? `Avoid reusing or closely mirroring any of these questions: ${avoid.map((a) => `"${a}"`).join("; ")}`
+      : "";
+
   const user = `
 Subject: ${state.subject}
 Course: ${state.course}
 Target Difficulty: ${state.difficulty}
 Step: ${state.step} of ${state.maxSteps}
+${avoidText}
 Create ONE discriminative MCQ with short explanation.
 `.trim();
 
@@ -92,6 +98,11 @@ Create ONE discriminative MCQ with short explanation.
   // Ensure well-formed choices/correctIndex
   if (!Array.isArray(item.choices) || typeof item.correctIndex !== "number") return null;
   if (item.correctIndex < 0 || item.correctIndex >= item.choices.length) return null;
+
+  // If model ignored instructions, retry a couple times
+  if (avoid.some((a) => a.trim() === item.prompt.trim()) && depth < 2) {
+    return makeQuestion(state, avoid, depth + 1);
+  }
 
   return item;
 }
@@ -148,18 +159,21 @@ export async function POST(req: Request) {
       return new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });
     }
 
-    // 2) Produce the current question (if client doesn't already have one)
-    // We always (re)generate here so client can simply render what we send.
-    const nowPromise = makeQuestion(state);
+    // Avoid reusing the last question
+    const prevPrompt = body.lastItem?.prompt ? [body.lastItem.prompt] : [];
 
-    // 3) Compute the two branch states and prefetch them in parallel
+    // 2) Produce the current question first
+    const nowItem = await makeQuestion(state, prevPrompt);
+
+    // 3) Compute the two branch states and prefetch them (avoid repeating current or previous)
     const stateIfRight = nextState(state, true);
     const stateIfWrong = nextState(state, false);
+    const avoidForBranches = nowItem?.prompt ? [...prevPrompt, nowItem.prompt] : prevPrompt;
 
-    const rightPromise = makeQuestion(stateIfRight);
-    const wrongPromise = makeQuestion(stateIfWrong);
-
-    const [nowItem, rightItem, wrongItem] = await Promise.all([nowPromise, rightPromise, wrongPromise]);
+    const [rightItem, wrongItem] = await Promise.all([
+      makeQuestion(stateIfRight, avoidForBranches),
+      makeQuestion(stateIfWrong, avoidForBranches),
+    ]);
 
     const payload: PlacementNextResponse = {
       state,

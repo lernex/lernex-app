@@ -71,7 +71,7 @@ export default function PlacementClient() {
     // If we have the prefetched branch, swap after a short delay to show feedback
     if (next && next.item && next.state) {
       // Allow the user to see correct/incorrect styling & explanation
-      await new Promise((r) => setTimeout(r, 1200));
+      await new Promise((r) => setTimeout(r, 1600));
 
       setState(next.state);
       setItem(next.item);
