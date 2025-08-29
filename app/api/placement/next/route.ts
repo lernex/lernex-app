@@ -64,7 +64,7 @@ Create ONE discriminative MCQ with short explanation.
     model: "gpt-4.1-nano",
     temperature: 1,
     response_format: { type: "json_object" },
-    max_tokens: 500,
+    max_tokens: 1000,
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },

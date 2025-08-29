@@ -63,12 +63,14 @@ export default function PlacementClient() {
     // Consume prefetched branch immediately
     const next = correct ? branches?.right : branches?.wrong;
 
-    // If we have the prefetched branch, swap instantly
+    // If we have the prefetched branch, swap after a short delay to show feedback
     if (next && next.item && next.state) {
+      // Allow the user to see correct/incorrect styling & explanation
+      await new Promise((r) => setTimeout(r, 800));
       setState(next.state);
       setItem(next.item);
       setSelected(null);
-      setBranches(null); 
+      setBranches(null);
 
       // Background prefetch for the following step
       void fetch("/api/placement/next", {
