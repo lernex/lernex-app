@@ -18,7 +18,7 @@ const down = (d: Difficulty): Difficulty => (d === "hard" ? "medium" : d === "me
 
 // Deterministic state transition (used both server + client thinking)
 function nextState(prev: PlacementState, correct: boolean): PlacementState {
-  const s: PlacementState = { ...prev, step: prev.step + 1 };
+  let s: PlacementState = { ...prev, step: prev.step + 1 };
   if (correct) {
     s.correctStreak += 1;
     if (s.correctStreak >= 2 && s.difficulty !== "hard") {
@@ -31,6 +31,23 @@ function nextState(prev: PlacementState, correct: boolean): PlacementState {
     if (s.difficulty !== "intro") s.difficulty = down(s.difficulty);
   }
   if (s.step > s.maxSteps || (s.mistakes >= 2 && s.difficulty === "hard")) s.done = true;
+
+  if (s.done && s.remaining && s.remaining.length) {
+    const [next, ...rest] = s.remaining;
+    s = {
+      subject: next.subject,
+      course: next.course,
+      step: 1,
+      maxSteps: 6,
+      difficulty: "intro",
+      mistakes: 0,
+      correctStreak: 0,
+      done: false,
+      remaining: rest,
+    };
+  } else {
+    s.remaining = prev.remaining;
+  }
   return s;
 }
 
@@ -49,6 +66,7 @@ Return STRICT JSON only:
   "difficulty": "intro"|"easy"|"medium"|"hard"
 }
 No commentary. Keep concise. 2–3 choices for intro/easy; 3–4 for medium/hard; exactly one correct.
+Difficulty reflects how deep into the course's units the question is: "intro" covers foundational early units, "easy" early units, "medium" mid-course units, and "hard" late or advanced units.
 `.trim();
 
 const avoidText =
@@ -62,7 +80,7 @@ Course: ${state.course}
 Target Difficulty: ${state.difficulty}
 Step: ${state.step} of ${state.maxSteps}
 ${avoidText}
-Create ONE discriminative MCQ with short explanation.
+Create ONE discriminative MCQ drawn from appropriate course units and include a short explanation.
 `.trim();
 
   // Small, fast, JSON-clean model; cap tokens for speed
@@ -132,18 +150,23 @@ export async function POST(req: Request) {
       if (!interests.length) return new Response(JSON.stringify({ error: "No interests" }), { status: 400 });
 
       const levelMap = (prof?.level_map || {}) as Record<string, string>;
-      const subject = interests.find((s) => levelMap[s]) ?? interests[0];
-      const course = levelMap[subject] ?? "General";
+      const courses = interests
+        .filter((s) => levelMap[s])
+        .map((s) => ({ subject: s, course: levelMap[s]! }));
+      if (!courses.length) return new Response(JSON.stringify({ error: "No course selected for any interest" }), { status: 400 });
+
+      const [first, ...rest] = courses;
 
       state = {
-        subject,
-        course,
+        subject: first.subject,
+        course: first.course,
         step: 1,
         maxSteps: 6,
-        difficulty: /algebra\s*1|geometry|biology|chemistry/i.test(course) ? "medium" : "easy",
+        difficulty: "intro",
         mistakes: 0,
         correctStreak: 0,
         done: false,
+        remaining: rest,
       };
     }
 
@@ -153,8 +176,8 @@ export async function POST(req: Request) {
       state = nextState(state, correct);
     }
 
-    // If finished, return early
-    if (state.done) {
+    // If finished and no remaining courses, return early
+    if (state.done && (!state.remaining || state.remaining.length === 0)) {
       const payload: PlacementNextResponse = { state, item: null };
       return new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });
     }

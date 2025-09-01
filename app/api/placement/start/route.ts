@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
+import type { Difficulty } from "@/types/placement";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,30 +24,28 @@ export async function POST() {
   if (!interests.length) return NextResponse.json({ error: "No interests" }, { status: 400 });
 
   const levelMap: Record<string, string> = (prof?.level_map as Record<string, string>) ?? {};
-  // Pick the first subject that has a mapped course
-  const subject = interests.find((s) => levelMap[s]);
-  if (!subject) return NextResponse.json({ error: "No course selected for any interest" }, { status: 400 });
+  const courses = interests
+    .filter((s) => levelMap[s])
+    .map((s) => ({ subject: s, course: levelMap[s]! }));
+  if (!courses.length) return NextResponse.json({ error: "No course selected for any interest" }, { status: 400 });
 
-  const course = levelMap[subject];
+  const [first, ...rest] = courses;
 
-  // Initial difficulty heuristic: intro for K-2, easy for middle, medium for HS+, else easy
-  let difficulty: "intro" | "easy" | "medium" | "hard" = "easy";
-  const lc = course.toLowerCase();
-  if (/(kindergarten|grade\s*[12])/.test(lc)) difficulty = "intro";
-  else if (/grade\s*[3-6]|pre\-?algebra/.test(lc)) difficulty = "easy";
-  else if (/(algebra\s*1|geometry|biology|chemistry)/.test(lc)) difficulty = "medium";
+  // Always begin at the introductory level for a course. Difficulty will
+  // adapt based on the learner's answers rather than relying on the course
+  // name, ensuring questions progress through the course's own units.
 
   const state = {
-    subject,
-    course,
-    difficulty,
+    subject: first.subject,
+    course: first.course,
+    difficulty: "intro" as Difficulty,
     step: 1,
     correctStreak: 0,
     mistakes: 0,
     done: false,
     maxSteps: 6,
+    remaining: rest,
   };
 
-  // Save ephemeral state in user's profile (optional) or just return it to client to hold in memory:
   return NextResponse.json(state);
 }

@@ -10,6 +10,8 @@ export default function PlacementClient() {
   const [state, setState] = useState<PlacementState | null>(null);
   const [item, setItem] = useState<PlacementItem | null>(null);
   const [branches, setBranches] = useState<PlacementNextResponse["branches"] | null>(null);
+  const [pendingNext, setPendingNext] = useState<{ state: PlacementState; item: PlacementItem | null } | null>(null);
+  const [pendingAnswer, setPendingAnswer] = useState<{ state: PlacementState; item: PlacementItem; answer: number } | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -56,79 +58,90 @@ export default function PlacementClient() {
     })();
   }, [router]);
 
-  // 2) Answer instantly with prefetched branch, then prefetch next branches in background
-  const answer = async (idx: number) => {
+  // 2) Select answer and wait for user to move on
+  const answer = (idx: number) => {
     if (!item || !state) return;
-
     setSelected(idx);
     const correct = idx === item.correctIndex;
     setQuestionTotal((t) => t + 1);
     if (correct) setCorrectTotal((c) => c + 1);
 
-    // Consume prefetched branch immediately
     const next = correct ? branches?.right : branches?.wrong;
+    if (next && next.state) setPendingNext(next);
+    setPendingAnswer({ state, item, answer: idx });
+  };
 
-    // If we have the prefetched branch, swap after a short delay to show feedback
-    if (next && next.item && next.state) {
-      // Allow the user to see correct/incorrect styling & explanation
-      await new Promise((r) => setTimeout(r, 1600));
+    const nextQuestion = async () => {
+    if (!pendingAnswer) return;
+    const prev = pendingAnswer;
+    const next = pendingNext;
+
+    if (next) {
 
       setState(next.state);
       setItem(next.item);
       setSelected(null);
       setBranches(null);
+      setPendingNext(null);
+      if (prev.state.course !== next.state.course) {
+        setCorrectTotal(0);
+        setQuestionTotal(0);
+      }
 
-      // Background prefetch for the following step
+      if (next.state.done || !next.item) {
+        router.replace("/app");
+        setPendingAnswer(null);
+        return;
+      }
+
       const stepForPrefetch = next.state.step;
       void fetch("/api/placement/next", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        // Send the last answer + lastItem so the server advances canonical state (for logging / parity)
-        body: JSON.stringify({ state: state, lastAnswer: idx, lastItem: item }),
+        body: JSON.stringify({ state: prev.state, lastAnswer: prev.answer, lastItem: prev.item }),
       })
         .then(async (r) => {
           const data: PlacementNextResponse | { error?: string } = await r.json();
           if (!r.ok) throw new Error((("error" in data) && data.error) || "Failed prefetch");
           if (!("state" in data)) throw new Error("Invalid response");
-          // If finished according to server, end flow
           if (data.state?.done || !data.item) {
-            router.replace("/app");
-            return;
-          }
-          // Only update branches if we're still on the same step
+          router.replace("/app");
+          return;
+        }
           if (stateRef.current?.step === stepForPrefetch) {
             setBranches(data.branches ?? null);
           }
         })
-        .catch(() => {
-          /* soft fail: keep current question; user can still continue */
+        .catch(() => {});
+    } else {
+      try {
+        setLoading(true);
+        const res = await fetch("/api/placement/next", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ state: prev.state, lastAnswer: prev.answer, lastItem: prev.item }),
         });
 
-      return;
-    }
-
-    // Fallback: if no prefetched branch (rare), hit server synchronously (old behavior)
-    try {
-      setLoading(true);
-      const res = await fetch("/api/placement/next", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ state, lastAnswer: idx, lastItem: item }),
-      });
       const data: PlacementNextResponse | { error?: string } = await res.json();
-      if (!res.ok) throw new Error((("error" in data) && data.error) || "Failed");
-      if (!("state" in data)) throw new Error("Invalid response");
-      setState(data.state);
-      setItem(data.item);
-      setBranches(data.branches ?? null);
-      setSelected(null);
-      if (data.state?.done || !data.item) {
-        router.replace("/app");
+        if (!res.ok) throw new Error((("error" in data) && data.error) || "Failed");
+        if (!("state" in data)) throw new Error("Invalid response");
+        setState(data.state);
+        setItem(data.item);
+        setBranches(data.branches ?? null);
+        if (prev.state.course !== data.state.course) {
+          setCorrectTotal(0);
+          setQuestionTotal(0);
+        }
+        if (data.state?.done || !data.item) {
+          router.replace("/app");
+        }
+        setSelected(null);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Unknown error");
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Unknown error");
-    } finally {
-      setLoading(false);
+    setPendingAnswer(null);
     }
   };
 
@@ -145,8 +158,8 @@ export default function PlacementClient() {
   if (!state || !item) return null;
 
   return (
-    <main className="min-h-screen grid place-items-center text-neutral-900 dark:text-white">
-      <div className="w-full max-w-md px-4 py-6 space-y-4 rounded-2xl bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800">
+    <main className="min-h-screen grid place-items-center text-neutral-900 dark:text-white bg-gradient-to-br from-blue-50 to-purple-50 dark:from-neutral-900 dark:to-neutral-800">
+      <div className="w-full max-w-md px-4 py-6 space-y-4 rounded-2xl bg-white border border-neutral-200 shadow-lg dark:bg-neutral-900 dark:border-neutral-800">
         <div className="flex items-center justify-between text-sm text-neutral-500 dark:text-neutral-400">
           <div>{state.subject} • {state.course}</div>
           <div>Step {state.step} / {state.maxSteps}</div>
@@ -163,9 +176,9 @@ export default function PlacementClient() {
                 key={i}
                 onClick={() => answer(i)}
                 disabled={selected !== null}
-                className={`text-left px-3 py-2 rounded-xl border transition
+                className={`text-left px-3 py-2 rounded-xl border transition-transform
                   ${isSel ? (isCorrect ? "bg-green-600 border-green-500 text-white" : "bg-red-600 border-red-500 text-white")
-                          : "bg-neutral-100 border-neutral-300 hover:bg-neutral-200 dark:bg-neutral-800 dark:border-neutral-700 dark:hover:bg-neutral-700"}`}
+                          : "bg-neutral-100 border-neutral-300 hover:bg-neutral-200 dark:bg-neutral-800 dark:border-neutral-700 dark:hover:bg-neutral-700 hover:scale-[1.02]"}`}
               >
                 {c}
               </button>
@@ -178,6 +191,16 @@ export default function PlacementClient() {
         </div>
         {selected !== null && item.explanation && (
           <div className="text-sm text-neutral-600 dark:text-neutral-300 pt-1">{item.explanation}</div>
+        )}
+        {selected !== null && (
+          <div className="pt-3 flex justify-end">
+            <button
+              onClick={nextQuestion}
+              className="px-4 py-2 rounded-xl bg-lernex-blue text-white hover:bg-lernex-blue/90 transition-transform transform hover:scale-105 animate-fade-in"
+            >
+              Next
+            </button>
+          </div>
         )}
       </div>
     </main>
