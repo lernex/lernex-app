@@ -32,7 +32,7 @@ function nextState(prev: PlacementState, correct: boolean): PlacementState {
   }
   if (s.step > s.maxSteps || (s.mistakes >= 2 && s.difficulty === "hard")) s.done = true;
 
-  if (s.done && s.remaining && s.remaining.length) {
+  if (s.done && s.remaining.length) {
     const [next, ...rest] = s.remaining;
     s = {
       subject: next.subject,
@@ -137,8 +137,10 @@ export async function POST(req: Request) {
     if (bodyText) { try { body = JSON.parse(bodyText); } catch { /* ignore */ } }
 
     // If no state provided, bootstrap from profile (like your START route logic)
-    let state = body.state;
-    if (!state) {
+    let state: PlacementState;
+    if (body.state) {
+      state = body.state;
+    } else {
       const { data: prof, error } = await sb
         .from("profiles")
         .select("interests, level_map")
