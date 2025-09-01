@@ -10,6 +10,11 @@ export type PlacementState = {
   mistakes: number;
   correctStreak: number;
   done: boolean;
+  /**
+   * Queue of remaining courses for multi-subject placement.
+   * Each entry contains the next subject and course to evaluate.
+   */
+  remaining: { subject: string; course: string }[];
 };
 
 export type PlacementItem = {
