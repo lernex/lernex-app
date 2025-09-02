@@ -43,7 +43,7 @@ export async function POST() {
     correctStreak: 0,
     mistakes: 0,
     done: false,
-    maxSteps: 6,
+    maxSteps: 7,
     remaining: rest,
   };
 

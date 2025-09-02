@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import ThemeToggle from "./ThemeToggle";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 
 export default function NavBar() {
@@ -15,6 +15,7 @@ export default function NavBar() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [open, setOpen] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,14 +56,15 @@ export default function NavBar() {
           Lernex
         </Link>
         <div className="flex items-center gap-4">
-          <Link href="/#how" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">
-            Features
-          </Link>
           <Link href="/pricing" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">
             Pricing
           </Link>
-          <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">🔥 {streak}</span>
-          <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">⭐ {points}</span>
+          {user && pathname !== "/" && (
+            <>
+              <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">🔥 {streak}</span>
+              <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">⭐ {points}</span>
+            </>
+          )}
           <Link
             href="/generate"
             className="rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-1 text-white shadow-sm transition hover:opacity-90"

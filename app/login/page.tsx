@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import Image from "next/image";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -83,16 +84,20 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen grid place-items-center text-neutral-900 dark:text-white">
-      <div className="w-full max-w-md px-4 py-6 space-y-5 rounded-2xl bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800">
-        <h1 className="text-2xl font-bold">Sign in to Lernex</h1>
+    <main className="min-h-screen p-4 grid place-items-center bg-gradient-to-br from-sky-50 to-indigo-100 text-neutral-900 dark:from-neutral-900 dark:to-neutral-800 dark:text-white">
+      <div className="w-full max-w-md px-6 py-8 space-y-6 rounded-2xl bg-white border border-neutral-200 shadow-sm dark:bg-neutral-900 dark:border-neutral-800">
+        <h1 className="text-2xl font-bold text-center">Sign in to Lernex</h1>
+        <p className="text-center text-neutral-600 dark:text-neutral-300">
+          Access your lessons and track your progress.
+        </p>
 
         {err && <div className="text-sm text-red-500 dark:text-red-400">{err}</div>}
 
         <button
           onClick={signInWithGoogle}
-          className="w-full py-3 rounded-xl bg-white text-black hover:bg-neutral-200"
+          className="flex items-center justify-center w-full gap-2 py-3 rounded-xl bg-white border border-neutral-300 text-black hover:bg-neutral-200"
         >
+          <Image src="/GoogleLogo.svg" alt="Google logo" width={20} height={20} />
           Continue with Google
         </button>
 

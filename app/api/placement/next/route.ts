@@ -21,9 +21,8 @@ function nextState(prev: PlacementState, correct: boolean): PlacementState {
   let s: PlacementState = { ...prev, step: prev.step + 1 };
   if (correct) {
     s.correctStreak += 1;
-    if (s.correctStreak >= 2 && s.difficulty !== "hard") {
+    if (s.difficulty !== "hard") {
       s.difficulty = up(s.difficulty);
-      s.correctStreak = 0;
     }
   } else {
     s.mistakes += 1;
@@ -38,7 +37,7 @@ function nextState(prev: PlacementState, correct: boolean): PlacementState {
       subject: next.subject,
       course: next.course,
       step: 1,
-      maxSteps: 6,
+      maxSteps: 7,
       difficulty: "intro",
       mistakes: 0,
       correctStreak: 0,
@@ -80,7 +79,7 @@ Course: ${state.course}
 Target Difficulty: ${state.difficulty}
 Step: ${state.step} of ${state.maxSteps}
 ${avoidText}
-Create ONE discriminative MCQ drawn from appropriate course units and include a short explanation.
+Create ONE discriminative MCQ drawn from appropriate course units and include a short explanation. Each question should explore a different major topic of the course (e.g. derivatives, limits, integration) to quickly gauge overall knowledge.
 `.trim();
 
   // Small, fast, JSON-clean model; cap tokens for speed
@@ -163,7 +162,7 @@ export async function POST(req: Request) {
         subject: first.subject,
         course: first.course,
         step: 1,
-        maxSteps: 6,
+        maxSteps: 7,
         difficulty: "intro",
         mistakes: 0,
         correctStreak: 0,

@@ -72,12 +72,6 @@ export default function MarketingLanding() {
             >
               <span className="inline-block transition group-hover:scale-105">Get started</span>
             </Link>
-            <a
-              href="#how"
-              className="rounded-full border border-lernex-blue px-8 py-3 font-medium text-lernex-blue transition hover:bg-lernex-blue/10"
-            >
-              How it works
-            </a>
           </motion.div>
         </div>
       </section>

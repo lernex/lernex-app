@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PlacementItem, PlacementState, PlacementNextResponse } from "@/types/placement";
 import { useRouter } from "next/navigation";
+import FormattedText from "@/components/FormattedText";
 
 export default function PlacementClient() {
   const router = useRouter();
@@ -15,6 +16,8 @@ export default function PlacementClient() {
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [nextLoading, setNextLoading] = useState(false);
+  const nextLoadingRef = useRef(false);
 
   const [selected, setSelected] = useState<number | null>(null);
   const [correctTotal, setCorrectTotal] = useState(0);
@@ -72,12 +75,13 @@ export default function PlacementClient() {
   };
 
     const nextQuestion = async () => {
-    if (!pendingAnswer) return;
+    if (!pendingAnswer || nextLoadingRef.current) return;
+    nextLoadingRef.current = true;
+    setNextLoading(true);
     const prev = pendingAnswer;
     const next = pendingNext;
 
     if (next) {
-
       setState(next.state);
       setItem(next.item);
       setSelected(null);
@@ -91,9 +95,14 @@ export default function PlacementClient() {
       if (next.state.done || !next.item) {
         router.replace("/app");
         setPendingAnswer(null);
+        setNextLoading(false);
+        nextLoadingRef.current = false;
         return;
       }
 
+      setPendingAnswer(null);
+      setNextLoading(false);
+      nextLoadingRef.current = false;
       const stepForPrefetch = next.state.step;
       void fetch("/api/placement/next", {
         method: "POST",
@@ -105,9 +114,9 @@ export default function PlacementClient() {
           if (!r.ok) throw new Error((("error" in data) && data.error) || "Failed prefetch");
           if (!("state" in data)) throw new Error("Invalid response");
           if (data.state?.done || !data.item) {
-          router.replace("/app");
-          return;
-        }
+            router.replace("/app");
+            return;
+          }
           if (stateRef.current?.step === stepForPrefetch) {
             setBranches(data.branches ?? null);
           }
@@ -122,7 +131,7 @@ export default function PlacementClient() {
           body: JSON.stringify({ state: prev.state, lastAnswer: prev.answer, lastItem: prev.item }),
         });
 
-      const data: PlacementNextResponse | { error?: string } = await res.json();
+        const data: PlacementNextResponse | { error?: string } = await res.json();
         if (!res.ok) throw new Error((("error" in data) && data.error) || "Failed");
         if (!("state" in data)) throw new Error("Invalid response");
         setState(data.state);
@@ -140,8 +149,10 @@ export default function PlacementClient() {
         setErr(e instanceof Error ? e.message : "Unknown error");
       } finally {
         setLoading(false);
+        setNextLoading(false);
+        nextLoadingRef.current = false;
       }
-    setPendingAnswer(null);
+      setPendingAnswer(null);
     }
   };
 
@@ -165,8 +176,13 @@ export default function PlacementClient() {
           <div>Step {state.step} / {state.maxSteps}</div>
         </div>
         <div className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Difficulty: {state.difficulty}</div>
+        {nextLoading && (
+          <div className="w-full h-1 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+            <div className="h-full w-full bg-gradient-to-r from-lernex-blue to-lernex-purple animate-pulse" />
+          </div>
+        )}
 
-        <h1 className="text-lg font-semibold">{item.prompt}</h1>
+        <h1 className="text-lg font-semibold"><FormattedText text={item.prompt} /></h1>
         <div className="grid gap-2">
           {item.choices.map((c, i) => {
             const isCorrect = i === item.correctIndex;
@@ -180,7 +196,7 @@ export default function PlacementClient() {
                   ${isSel ? (isCorrect ? "bg-green-600 border-green-500 text-white" : "bg-red-600 border-red-500 text-white")
                           : "bg-neutral-100 border-neutral-300 hover:bg-neutral-200 dark:bg-neutral-800 dark:border-neutral-700 dark:hover:bg-neutral-700 hover:scale-[1.02]"}`}
               >
-                {c}
+                <FormattedText text={c} />
               </button>
             );
           })}
@@ -190,15 +206,18 @@ export default function PlacementClient() {
           Correct so far: {correctTotal} / {questionTotal}
         </div>
         {selected !== null && item.explanation && (
-          <div className="text-sm text-neutral-600 dark:text-neutral-300 pt-1">{item.explanation}</div>
+          <div className="text-sm text-neutral-600 dark:text-neutral-300 pt-1">
+            <FormattedText text={item.explanation} />
+          </div>
         )}
         {selected !== null && (
           <div className="pt-3 flex justify-end">
             <button
               onClick={nextQuestion}
-              className="px-4 py-2 rounded-xl bg-lernex-blue text-white hover:bg-lernex-blue/90 transition-transform transform hover:scale-105 animate-fade-in"
+              disabled={nextLoading}
+              className={`px-4 py-2 rounded-xl bg-lernex-blue text-white transition-transform transform animate-fade-in ${nextLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-lernex-blue/90 hover:scale-105"}`}
             >
-              Next
+              {nextLoading ? "Loading..." : "Next"}
             </button>
           </div>
         )}

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Lesson } from "@/types";
 import { useLernexStore } from "@/lib/store";
+import FormattedText from "./FormattedText";
 
 export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: (correctCount: number) => void; }) {
   const addPoints = useLernexStore((s) => s.addPoints);
@@ -47,11 +48,13 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
 
   return (
     <div className="rounded-[24px] bg-white/80 border border-neutral-200 p-5 mt-3 dark:bg-neutral-900/80 dark:border-neutral-800">
-      <div className="mb-3 text-sm text-neutral-700 dark:text-neutral-300">{q.prompt}</div>
+      <div className="mb-3 text-sm text-neutral-700 dark:text-neutral-300">
+        <FormattedText text={q.prompt} />
+      </div>
       <div className="grid gap-2">
         {q.choices.map((choice, idx) => (
           <button key={idx} onClick={() => choose(idx)} disabled={selected !== null} className={btnClass(idx)}>
-            {choice}
+            <FormattedText text={choice} />
           </button>
         ))}
       </div>
