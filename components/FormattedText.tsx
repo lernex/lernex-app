@@ -7,9 +7,16 @@ function formatMath(text: string): string {
   // Handle inline LaTeX delimiters like \( ... \) by recursively formatting the content
   html = html.replace(/\\\((.+?)\\\)/g, (_, expr: string) => formatMath(expr));
 
+  // Remove common LaTeX helpers
+  html = html.replace(/\\text{([^}]+)}/g, "$1");
+  html = html.replace(/\\left|\\right/g, "");
+
   // Basic markdown style formatting
   html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/__([^_]+)__/g, "<strong>$1</strong>");
   html = html.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  html = html.replace(/_([^_]+)_/g, "<em>$1</em>");
+  html = html.replace(/~~([^~]+)~~/g, "<del>$1</del>");
   html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
 
   const fractionReplacer = (_: string, n: string, d: string) =>
@@ -21,8 +28,9 @@ function formatMath(text: string): string {
   // Fractions wrapped in parentheses like (a)/(b)
   html = html.replace(/\(([^()]+)\)\/\(([^()]+)\)/g, fractionReplacer);
 
-  // Simple numeric fractions like 4/5
+  // Simple numeric or single-letter fractions like 4/5 or x/y
   html = html.replace(/\b(-?\d+)\/(-?\d+)\b/g, fractionReplacer);
+  html = html.replace(/\b([A-Za-z])\/([A-Za-z])\b/g, fractionReplacer);
 
   // Subscripts and superscripts
   html = html.replace(/([A-Za-z0-9]+)_({?[^\s}]+}?)/g, (m, base: string, sub: string) =>
@@ -37,6 +45,50 @@ function formatMath(text: string): string {
     `<span class="inline-block align-middle"><span class="text-xl">&radic;</span><span class="border-t border-current inline-block pl-1">${radicand}</span></span>`;
   html = html.replace(/\\sqrt{([^{}]+)}/g, sqrtReplacer);
   html = html.replace(/sqrt\(([^()]+)\)/g, sqrtReplacer);
+
+  // Basic LaTeX symbol replacements
+  const symbols: Record<string, string> = {
+    "\\alpha": "&alpha;",
+    "\\beta": "&beta;",
+    "\\gamma": "&gamma;",
+    "\\delta": "&delta;",
+    "\\epsilon": "&epsilon;",
+    "\\theta": "&theta;",
+    "\\lambda": "&lambda;",
+    "\\mu": "&mu;",
+    "\\pi": "&pi;",
+    "\\sigma": "&sigma;",
+    "\\phi": "&phi;",
+    "\\omega": "&omega;",
+    "\\infty": "&infin;",
+    "\\cdot": "&middot;",
+    "\\times": "&times;",
+    "\\pm": "&plusmn;",
+    "\\mp": "∓",
+    "\\leq": "&le;",
+    "\\le": "&le;",
+    "\\geq": "&ge;",
+    "\\ge": "&ge;",
+    "\\neq": "&ne;",
+    "\\approx": "&approx;",
+    "\\partial": "&part;",
+    "\\nabla": "&nabla;",
+    "\\sum": "&sum;",
+    "\\prod": "&prod;",
+    "\\int": "&int;",
+    "\\rightarrow": "&rarr;",
+    "\\leftarrow": "&larr;",
+    "\\Rightarrow": "&rArr;",
+    "\\Leftarrow": "&lArr;",
+  };
+
+  for (const [key, value] of Object.entries(symbols)) {
+    html = html.replace(new RegExp(key, "g"), value);
+  }
+
+  // Overline and underline helpers
+  html = html.replace(/\\overline{([^{}]+)}/g, '<span style="text-decoration: overline;">$1</span>');
+  html = html.replace(/\\underline{([^{}]+)}/g, '<span style="text-decoration: underline;">$1</span>');
 
   return html;
 }
