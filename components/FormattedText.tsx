@@ -8,17 +8,17 @@ function formatMath(text: string): string {
   html = html.replace(/\\\((.+?)\\\)/g, (_, expr: string) => formatMath(expr));
 
   // Remove common LaTeX helpers
-  html = html.replace(/\\text{([^}]+)}/g, "$1");
-  html = html.replace(/\\left|\\right/g, "");
+  html = html.replace(/\text{([^}]+)}/g, "$1");
+  html = html.replace(/\left|\right/g, "");
 
   // Common LaTeX style commands
-  html = html.replace(/\\mathbf{([^}]+)}/g, "<strong>$1</strong>");
-  html = html.replace(/\\textbf{([^}]+)}/g, "<strong>$1</strong>");
-  html = html.replace(/\\textit{([^}]+)}/g, "<em>$1</em>");
-  html = html.replace(/\\emph{([^}]+)}/g, "<em>$1</em>");
+  html = html.replace(/\mathbf{([^}]+)}/g, "<strong>$1</strong>");
+  html = html.replace(/\textbf{([^}]+)}/g, "<strong>$1</strong>");
+  html = html.replace(/\textit{([^}]+)}/g, "<em>$1</em>");
+  html = html.replace(/\emph{([^}]+)}/g, "<em>$1</em>");
 
   // Unescape common delimiters
-  html = html.replace(/\\([|()])/g, "$1");
+  html = html.replace(/\([|()_*~`])/g, "$1");
 
   // Basic markdown style formatting
   html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
@@ -32,7 +32,7 @@ function formatMath(text: string): string {
     `<span class="inline-block align-middle text-center"><span class="block border-b border-current px-1">${formatMath(n)}</span><span class="block px-1">${formatMath(d)}</span></span>`;
 
   // Fractions written as \frac{a}{b}
-  html = html.replace(/\\frac{([^{}]+)}{([^{}]+)}/g, fractionReplacer);
+  html = html.replace(/\frac{([^{}]+)}{([^{}]+)}/g, fractionReplacer);
 
   // Fractions wrapped in parentheses like (a)/(b)
   html = html.replace(/\(([^()]+)\)\/\(([^()]+)\)/g, fractionReplacer);
@@ -52,7 +52,7 @@ function formatMath(text: string): string {
   // Square roots \sqrt{n} or sqrt(n)
   const sqrtReplacer = (_: string, radicand: string) =>
     `<span class="inline-block align-middle"><span class="text-xl">&radic;</span><span class="border-t border-current inline-block pl-1">${formatMath(radicand)}</span></span>`;
-  html = html.replace(/\\sqrt{([^{}]+)}/g, sqrtReplacer);
+  html = html.replace(/\sqrt{([^{}]+)}/g, sqrtReplacer);
   html = html.replace(/sqrt\(([^()]+)\)/g, sqrtReplacer);
 
   // Basic LaTeX symbol replacements
@@ -89,15 +89,17 @@ function formatMath(text: string): string {
     "\\leftarrow": "&larr;",
     "\\Rightarrow": "&rArr;",
     "\\Leftarrow": "&lArr;",
+    "\\langle": "&lang;",
+    "\\rangle": "&rang;",
   };
 
   for (const [key, value] of Object.entries(symbols)) {
-    html = html.replace(new RegExp(key, "g"), value);
+    html = html.replaceAll(key, value);
   }
 
   // Overline and underline helpers
-  html = html.replace(/\\overline{([^{}]+)}/g, '<span style="text-decoration: overline;">$1</span>');
-  html = html.replace(/\\underline{([^{}]+)}/g, '<span style="text-decoration: underline;">$1</span>');
+  html = html.replace(/\overline{([^{}]+)}/g, '<span style="text-decoration: overline;">$1</span>');
+  html = html.replace(/\underline{([^{}]+)}/g, '<span style="text-decoration: underline;">$1</span>');
 
   return html;
 }
