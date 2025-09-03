@@ -1,8 +1,8 @@
 "use client";
 import Link from "next/link";
 import { useLernexStore } from "@/lib/store";
-import { useEffect, useState, useRef } from "react";
-import { supabase } from "@/lib/supabase";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { User } from "@supabase/supabase-js";
 import ThemeToggle from "./ThemeToggle";
 import Image from "next/image";
@@ -16,6 +16,7 @@ export default function NavBar() {
   const router = useRouter();
   const pathname = usePathname();
   const menuRef = useRef<HTMLDivElement>(null);
+  const supabase = useMemo(() => supabaseBrowser(), []);
 
   // Routes that should always use the top nav. We treat `/` as an exact match
   // because every path starts with `/`.
@@ -40,7 +41,7 @@ export default function NavBar() {
       setUser(session?.user ?? null);
     });
     return () => listener.subscription.unsubscribe();
-  }, []);
+  }, [supabase.auth]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -60,7 +61,7 @@ export default function NavBar() {
   }, [open]);
 
   useEffect(() => {
-    document.body.style.marginLeft = showSideNav ? "4rem" : "0";
+    document.body.style.marginLeft = showSideNav ? "5rem" : "0";
     return () => {
       document.body.style.marginLeft = "0";
     };
@@ -68,7 +69,7 @@ export default function NavBar() {
 
   if (showSideNav) {
     return (
-      <nav className="fixed left-0 top-0 z-20 flex h-screen w-16 flex-col justify-between border-r border-white/10 bg-gradient-to-b from-white/80 to-white/60 text-neutral-900 shadow-sm backdrop-blur-md transition-colors dark:from-lernex-charcoal/80 dark:to-lernex-charcoal/60 dark:text-white">
+      <nav className="fixed left-0 top-0 z-20 flex h-screen w-20 flex-col justify-between border-r border-white/10 bg-gradient-to-b from-white/80 to-white/60 text-neutral-900 shadow-sm backdrop-blur-md transition-colors dark:from-lernex-charcoal/80 dark:to-lernex-charcoal/60 dark:text-white">
         <div className="mt-4 flex flex-col items-center gap-6">
           <Link
             href={user ? "/app" : "/"}
@@ -92,20 +93,68 @@ export default function NavBar() {
             📚
           </Link>
         </div>
-        <div className="mb-4 flex justify-center">
+        <div className="relative mb-4 flex justify-center" ref={menuRef}>
           {user && (
-            <Link
-              href="/profile"
-              className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 shadow-sm transition-transform hover:scale-105 dark:border-white/10 dark:bg-white/5"
-            >
-              {user.user_metadata?.avatar_url ? (
-                <Image src={user.user_metadata.avatar_url} alt="avatar" width={40} height={40} />
-              ) : (
-                <span className="text-sm font-semibold">
-                  {user.email?.[0]?.toUpperCase()}
-                </span>
-              )}
-            </Link>
+            <>
+              <button
+                onClick={() => setOpen((o) => !o)}
+                className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 shadow-sm transition-transform hover:scale-105 dark:border-white/10 dark:bg-white/5"
+              >
+                {user.user_metadata?.avatar_url ? (
+                  <Image src={user.user_metadata.avatar_url} alt="avatar" width={40} height={40} />
+                ) : (
+                  <span className="text-sm font-semibold">
+                    {user.email?.[0]?.toUpperCase()}
+                  </span>
+                )}
+              </button>
+              <AnimatePresence>
+                {open && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute left-14 bottom-0 mb-2 w-44 rounded-md border border-white/10 bg-gradient-to-br from-white to-neutral-100 py-2 text-neutral-900 shadow-lg dark:from-lernex-charcoal dark:to-neutral-900 dark:text-white"
+                  >
+                    <Link
+                      href="/settings"
+                      className="block px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                      onClick={() => setOpen(false)}
+                    >
+                      Settings
+                    </Link>
+                    <Link
+                      href="/profile"
+                      className="block px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                      onClick={() => setOpen(false)}
+                    >
+                      Profile
+                    </Link>
+                    <a
+                      href="https://lernex-1.gitbook.io/lernex"
+                      className="block px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => setOpen(false)}
+                    >
+                      Privacy
+                    </a>
+                    <ThemeToggle className="w-full bg-transparent px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20" />
+                    <button
+                      onClick={async () => {
+                        await supabase.auth.signOut();
+                        setOpen(false);
+                        router.replace("/login");
+                      }}
+                      className="block w-full px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                    >
+                      Logout
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
           )}
         </div>
       </nav>
