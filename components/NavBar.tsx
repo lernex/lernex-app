@@ -17,8 +17,9 @@ export default function NavBar() {
   const pathname = usePathname();
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Routes that should always use the top nav. We treat `/` as an exact match
+  // because every path starts with `/`.
   const marketingRoutes = [
-    "/",
     "/login",
     "/placement",
     "/welcome",
@@ -27,7 +28,9 @@ export default function NavBar() {
     "/auth/callback",
   ];
   const showSideNav =
-    !!user && !marketingRoutes.some((p) => pathname.startsWith(p));
+    !!user &&
+    pathname !== "/" &&
+    !marketingRoutes.some((p) => pathname.startsWith(p));
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -192,7 +195,7 @@ export default function NavBar() {
                       onClick={async () => {
                         await supabase.auth.signOut();
                         setOpen(false);
-                        router.refresh();
+                        router.replace("/login");
                       }}
                       className="block w-full px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
                     >
