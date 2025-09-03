@@ -11,6 +11,15 @@ function formatMath(text: string): string {
   html = html.replace(/\\text{([^}]+)}/g, "$1");
   html = html.replace(/\\left|\\right/g, "");
 
+  // Common LaTeX style commands
+  html = html.replace(/\\mathbf{([^}]+)}/g, "<strong>$1</strong>");
+  html = html.replace(/\\textbf{([^}]+)}/g, "<strong>$1</strong>");
+  html = html.replace(/\\textit{([^}]+)}/g, "<em>$1</em>");
+  html = html.replace(/\\emph{([^}]+)}/g, "<em>$1</em>");
+
+  // Unescape common delimiters
+  html = html.replace(/\\([|()])/g, "$1");
+
   // Basic markdown style formatting
   html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   html = html.replace(/__([^_]+)__/g, "<strong>$1</strong>");
@@ -42,7 +51,7 @@ function formatMath(text: string): string {
 
   // Square roots \sqrt{n} or sqrt(n)
   const sqrtReplacer = (_: string, radicand: string) =>
-    `<span class="inline-block align-middle"><span class="text-xl">&radic;</span><span class="border-t border-current inline-block pl-1">${radicand}</span></span>`;
+    `<span class="inline-block align-middle"><span class="text-xl">&radic;</span><span class="border-t border-current inline-block pl-1">${formatMath(radicand)}</span></span>`;
   html = html.replace(/\\sqrt{([^{}]+)}/g, sqrtReplacer);
   html = html.replace(/sqrt\(([^()]+)\)/g, sqrtReplacer);
 
