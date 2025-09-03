@@ -11,15 +11,25 @@ import { AnimatePresence, motion } from "framer-motion";
 
 export default function NavBar() {
   const { points, streak } = useLernexStore();
-  // `undefined` indicates the auth state is still being resolved
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const marketingRoutes = [
+    "/",
+    "/login",
+    "/placement",
+    "/welcome",
+    "/onboarding",
+    "/post-auth",
+    "/auth/callback",
+  ];
+  const showSideNav =
+    !!user && !marketingRoutes.some((p) => pathname.startsWith(p));
+
   useEffect(() => {
-    // Resolve the current session from local storage for instant results
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });
@@ -46,23 +56,83 @@ export default function NavBar() {
     };
   }, [open]);
 
+  useEffect(() => {
+    document.body.style.marginLeft = showSideNav ? "4rem" : "0";
+    return () => {
+      document.body.style.marginLeft = "0";
+    };
+  }, [showSideNav]);
+
+  if (showSideNav) {
+    return (
+      <nav className="fixed left-0 top-0 z-20 flex h-screen w-16 flex-col justify-between border-r border-white/10 bg-gradient-to-b from-white/80 to-white/60 text-neutral-900 shadow-sm backdrop-blur-md transition-colors dark:from-lernex-charcoal/80 dark:to-lernex-charcoal/60 dark:text-white">
+        <div className="mt-4 flex flex-col items-center gap-6">
+          <Link
+            href={user ? "/app" : "/"}
+            className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent transition-colors hover:opacity-80"
+          >
+            Lernex
+          </Link>
+          <span className="rounded-full border border-neutral-200 bg-neutral-100 px-2 py-1 text-xs dark:border-white/10 dark:bg-white/5">
+            🔥 {streak}
+          </span>
+          <span className="rounded-full border border-neutral-200 bg-neutral-100 px-2 py-1 text-xs dark:border-white/10 dark:bg-white/5">
+            ⭐ {points}
+          </span>
+          <Link href="/pricing" title="Pricing" className="text-xl transition hover:opacity-80">
+            💎
+          </Link>
+          <Link href="/generate" title="Generate" className="text-xl transition hover:opacity-80">
+            ✨
+          </Link>
+          <Link href="/playlists" title="Playlists" className="text-xl transition hover:opacity-80">
+            📚
+          </Link>
+        </div>
+        <div className="mb-4 flex justify-center">
+          {user && (
+            <Link
+              href="/profile"
+              className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 shadow-sm transition-transform hover:scale-105 dark:border-white/10 dark:bg-white/5"
+            >
+              {user.user_metadata?.avatar_url ? (
+                <Image src={user.user_metadata.avatar_url} alt="avatar" width={40} height={40} />
+              ) : (
+                <span className="text-sm font-semibold">
+                  {user.email?.[0]?.toUpperCase()}
+                </span>
+              )}
+            </Link>
+          )}
+        </div>
+      </nav>
+    );
+  }
+
   return (
     <nav className="sticky top-0 z-20 w-full border-b border-white/10 bg-gradient-to-r from-white/80 to-white/60 text-neutral-900 shadow-sm backdrop-blur-md transition-colors dark:from-lernex-charcoal/80 dark:to-lernex-charcoal/60 dark:text-white">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4 text-sm">
         <Link
-          href="/"
+          href={user ? "/app" : "/"}
           className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent transition-colors hover:opacity-80"
         >
           Lernex
         </Link>
         <div className="flex items-center gap-4">
-          <Link href="/pricing" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">
+          <Link
+            href="/pricing"
+            className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block"
+          >
             Pricing
           </Link>
           {user && pathname !== "/" && (
             <>
-              <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">🔥 {streak}</span>
-              <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">⭐ {points}</span>
+              <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">
+                🔥 {streak}
+              </span>
+              <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">
+                ⭐ {points}
+              </span>
             </>
           )}
           <Link
@@ -143,6 +213,5 @@ export default function NavBar() {
         </div>
       </div>
     </nav>
-
   );
 }
