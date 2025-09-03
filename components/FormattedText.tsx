@@ -18,7 +18,7 @@ function formatMath(text: string): string {
   html = html.replace(/\emph{([^}]+)}/g, "<em>$1</em>");
 
   // Unescape common delimiters
-  html = html.replace(/\([|()_*~`])/g, "$1");
+  html = html.replace(/\\([|()_*~\x60])/g, "$1");
 
   // Basic markdown style formatting
   html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
@@ -99,7 +99,7 @@ function formatMath(text: string): string {
 
   // Overline and underline helpers
   html = html.replace(/\overline{([^{}]+)}/g, '<span style="text-decoration: overline;">$1</span>');
-  html = html.replace(/\underline{([^{}]+)}/g, '<span style="text-decoration: underline;">$1</span>');
+  html = html.replace(/\\underline{([^{}]+)}/g, '<span style="text-decoration: underline;">$1</span>');
 
   return html;
 }
@@ -107,3 +107,4 @@ function formatMath(text: string): string {
 export default function FormattedText({ text }: { text: string }) {
   return <span dangerouslySetInnerHTML={{ __html: formatMath(text) }} />;
 }
+   
