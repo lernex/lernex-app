@@ -29,8 +29,17 @@ export async function checkUsageLimit(
   userId: string,
   limit = 3
 ) {
+    const { data } = await sb
+    .from("profiles")
+    .select("total_cost")
+    .eq("id", userId)
+    .maybeSingle();
+  return (data?.total_cost ?? 0) < limit;
+}
+
+export async function updateUserTotalCost(sb: SupabaseClient, userId: string) {
   const total = await getUserTotalCost(sb, userId);
-  return total < limit;
+  await sb.from("profiles").update({ total_cost: total }).eq("id", userId);
 }
 
 export async function logUsage(
