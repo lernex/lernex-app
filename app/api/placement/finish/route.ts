@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { PlacementState } from "@/types/placement";
 import { supabaseServer } from "@/lib/supabase-server";
+import { generateLearningPath, LearningPath } from "@/lib/learning-path";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,6 +23,14 @@ export async function POST(req: Request) {
   // Roll simple mastery estimate
   const acc = questionTotal > 0 ? correctTotal / questionTotal : 0.5;
   const difficulty = state.difficulty;
+  let path: LearningPath | null = null;
+  try {
+    path = await generateLearningPath(state.course, Math.round(acc * 100));
+  } catch {
+    path = null;
+  }
+
+  const nextTopic = path?.starting_topic ?? null;
 
   // Write/Upsert user_subject_state
   await sb.from("user_subject_state").upsert({
@@ -30,7 +39,8 @@ export async function POST(req: Request) {
     course: state.course,
     mastery: Math.round(acc * 100),
     difficulty,
-    next_topic: null,
+    next_topic: nextTopic,
+    path,
     updated_at: new Date().toISOString(),
   }, { onConflict: "user_id,subject" });
 

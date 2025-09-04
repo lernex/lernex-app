@@ -70,6 +70,7 @@ export interface Database {
           mastery: number | null;
           difficulty: "intro" | "easy" | "medium" | "hard";
           next_topic: string | null;
+          path: Json | null;
           updated_at: string | null;
         };
         Insert: {
@@ -79,6 +80,7 @@ export interface Database {
           mastery?: number | null;
           difficulty?: "intro" | "easy" | "medium" | "hard";
           next_topic?: string | null;
+          path?: Json | null;
           updated_at?: string | null;
         };
         Update: {
@@ -88,6 +90,7 @@ export interface Database {
           mastery?: number | null;
           difficulty?: "intro" | "easy" | "medium" | "hard";
           next_topic?: string | null;
+          path?: Json | null;
           updated_at?: string | null;
         };
         Relationships: [];
