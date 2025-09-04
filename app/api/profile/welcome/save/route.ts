@@ -20,7 +20,11 @@ export async function POST(req: Request) {
   }
 
   // Ensure the row exists (trigger should handle this, but belt-and-suspenders)
-  await sb.from("profiles").insert({ id: user.id }).select("id").maybeSingle();
+  await sb
+    .from("profiles")
+    .insert({ id: user.id, total_cost: 0 })
+    .select("id")
+    .maybeSingle();
 
   // Check duplicates excluding self
   const { data: taken } = await sb

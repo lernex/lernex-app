@@ -12,7 +12,11 @@ export async function ensureProfile() {
   const { data, error } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
   if (error) throw error;
   if (!data) {
-    const { data: created, error: e2 } = await supabase.from("profiles").insert({ id: uid }).select().maybeSingle();
+    const { data: created, error: e2 } = await supabase
+      .from("profiles")
+      .insert({ id: uid, total_cost: 0 })
+      .select()
+      .maybeSingle();
     if (e2) throw e2;
     return created;
   }

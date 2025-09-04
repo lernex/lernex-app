@@ -16,7 +16,11 @@ export async function POST(req: Request) {
   }
 
   // Ensure row exists (safety)
-  await sb.from("profiles").insert({ id: user.id }).select("id").maybeSingle();
+  await sb
+    .from("profiles")
+    .insert({ id: user.id, total_cost: 0 })
+    .select("id")
+    .maybeSingle();
 
   const { error } = await sb
     .from("profiles")
