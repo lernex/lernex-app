@@ -16,7 +16,7 @@ export interface Database {
           username: string | null;
           streak: number | null;
           points: number | null;
-          total_cost: number | null;
+          total_cost: number;
           last_study_date: string | null;
           // New / extended fields:
           full_name: string | null;
@@ -34,7 +34,7 @@ export interface Database {
           username?: string | null;
           streak?: number | null;
           points?: number | null;
-          total_cost?: number | null;
+          total_cost?: number;
           last_study_date?: string | null;
           full_name?: string | null;
           avatar_url?: string | null;
@@ -51,7 +51,7 @@ export interface Database {
           username?: string | null;
           streak?: number | null;
           points?: number | null;
-          total_cost?: number | null;
+          total_cost?: number;
           last_study_date?: string | null;
           full_name?: string | null;
           avatar_url?: string | null;

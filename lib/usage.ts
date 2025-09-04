@@ -56,4 +56,8 @@ export async function logUsage(
     input_tokens: usage.prompt_tokens ?? null,
     output_tokens: usage.completion_tokens ?? null,
   });
+
+  if (userId) {
+    await updateUserTotalCost(sb, userId);
+  }
 }
