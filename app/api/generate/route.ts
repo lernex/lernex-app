@@ -5,6 +5,7 @@ import { take } from "@/lib/rate";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
+import { checkUsageLimit, logUsage } from "@/lib/usage";
 
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,13 @@ export async function POST(req: NextRequest) {
     uid = auth?.user?.id ?? null;
   } catch {
     uid = null;
+  }
+
+  if (uid) {
+    const ok = await checkUsageLimit(sb, uid);
+    if (!ok) {
+      return new Response(JSON.stringify({ error: "Usage limit exceeded" }), { status: 403 });
+    }
   }
 
   try {
@@ -239,13 +247,7 @@ ${text}
               }
               if (usage) {
                 try {
-                  await sb.from("usage_logs").insert({
-                    user_id: uid,
-                    ip,
-                    model,
-                    input_tokens: usage.prompt_tokens ?? null,
-                    output_tokens: usage.completion_tokens ?? null,
-                  });
+                  await logUsage(sb, uid, ip, model, usage);
                 } catch {
                   /* ignore usage log errors */
                 }

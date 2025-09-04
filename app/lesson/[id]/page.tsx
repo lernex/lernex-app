@@ -14,7 +14,7 @@ export default function LessonPage() {
   const lesson = useMemo(() => lessons.find((l) => l.id === id), [id]);
 
   if (!lesson) {
-    return <div className="p-6 text-white">Not found.</div>;
+    return <div className="p-6 text-neutral-900 dark:text-white">Not found.</div>;
   }
 
   return (

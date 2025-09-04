@@ -75,20 +75,20 @@ export default function PlacementClient() {
 
   if (loading && !item) {
     return (
-      <main className="min-h-[60vh] grid place-items-center text-white">
+      <main className="min-h-[60vh] grid place-items-center text-neutral-900 dark:text-white">
         <div>Loading placement…</div>
-        {err && <div className="text-red-400 mt-2 text-sm">{err}</div>}
+        {err && <div className="mt-2 text-sm text-red-500 dark:text-red-400">{err}</div>}
       </main>
     );
   }
 
   if (err && !item) {
     return (
-      <main className="min-h-[60vh] grid place-items-center text-white">
-        <div className="text-red-400">{err}</div>
+      <main className="min-h-[60vh] grid place-items-center text-neutral-900 dark:text-white">
+        <div className="text-red-500 dark:text-red-400">{err}</div>
         <button
           onClick={() => callNext()}
-          className="mt-3 px-4 py-2 rounded-xl bg-neutral-800 border border-neutral-700 hover:bg-neutral-700"
+          className="mt-3 rounded-xl border border-neutral-300 bg-white px-4 py-2 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700"
         >
           Retry
         </button>
@@ -99,9 +99,9 @@ export default function PlacementClient() {
   if (!item || !state) return null;
 
   return (
-    <main className="min-h-[60vh] grid place-items-center text-white">
-      <div className="w-full max-w-xl px-4 py-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-4">
-        <div className="text-xs text-neutral-400">
+    <main className="min-h-[60vh] grid place-items-center text-neutral-900 dark:text-white">
+      <div className="w-full max-w-xl space-y-4 rounded-2xl border border-neutral-200 bg-white px-4 py-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="text-xs text-neutral-500 dark:text-neutral-400">
           {state.subject} • {state.course} • Step {state.step}/{state.maxSteps} • {state.difficulty}
         </div>
         <h1 className="text-xl font-semibold">{item.prompt}</h1>
@@ -110,13 +110,13 @@ export default function PlacementClient() {
             <button
               key={i}
               onClick={() => answer(i)}
-              className="text-left px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 hover:bg-neutral-700"
+              className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-left transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700"
             >
               {c}
             </button>
           ))}
         </div>
-        {err && <div className="text-red-400 text-sm">{err}</div>}
+        {err && <div className="text-sm text-red-500 dark:text-red-400">{err}</div>}
       </div>
     </main>
   );

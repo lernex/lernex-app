@@ -35,31 +35,31 @@ export default function Welcome() {
   };
 
   return (
-    <main className="min-h-screen grid place-items-center text-white">
-      <div className="w-full max-w-md px-4 py-6 space-y-4 rounded-2xl bg-neutral-900 border border-neutral-800">
+    <main className="min-h-screen grid place-items-center bg-gradient-to-br from-neutral-50 to-neutral-200 text-neutral-900 dark:from-neutral-900 dark:to-neutral-800 dark:text-white">
+      <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white px-4 py-6 space-y-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
         <h1 className="text-2xl font-bold">Enough about us—let’s hear about you! 🎉</h1>
-        <p className="text-neutral-400 text-sm">Pick a username and add your date of birth.</p>
+        <p className="text-sm text-neutral-600 dark:text-neutral-300">Pick a username and add your date of birth.</p>
 
-        <label className="text-sm text-neutral-300">Username</label>
+        <label className="text-sm text-neutral-700 dark:text-neutral-300">Username</label>
         <input
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           placeholder="yourname"
-          className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 outline-none"
+          className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
         />
 
-        <label className="text-sm text-neutral-300">Date of Birth</label>
+        <label className="text-sm text-neutral-700 dark:text-neutral-300">Date of Birth</label>
         <input
           type="date"
           value={dob}
           onChange={(e) => setDob(e.target.value)}
-          className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 outline-none"
+          className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
         />
 
         <button
           onClick={save}
           disabled={!username || !dob || saving}
-          className="w-full py-3 rounded-xl bg-lernex-blue hover:bg-blue-500 disabled:opacity-60"
+          className="w-full rounded-xl bg-lernex-blue py-3 transition hover:bg-blue-500 disabled:opacity-60"
         >
           {saving ? "Saving…" : "Continue"}
         </button>

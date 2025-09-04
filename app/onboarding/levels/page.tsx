@@ -22,24 +22,27 @@ export default async function LevelsPage() {
 
   // Render a simple form (SSR) that posts to our save endpoint
   return (
-    <main className="min-h-screen grid place-items-center text-white">
+    <main className="min-h-screen grid place-items-center bg-gradient-to-br from-neutral-50 to-neutral-200 text-neutral-900 dark:from-neutral-900 dark:to-neutral-800 dark:text-white">
       <form
         action="/onboarding/levels/save"
         method="post"
-        className="w-full max-w-md px-4 py-6 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-4"
+        className="w-full max-w-md space-y-4 rounded-2xl border border-neutral-200 bg-white px-4 py-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
       >
         <h1 className="text-2xl font-bold">Pick your course level</h1>
         {interests.map((domain) => (
           <div key={domain} className="space-y-2">
-            <label className="text-sm text-neutral-300">{domain}</label>
-            <select name={`lv_${domain}`} className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700">
+            <label className="text-sm text-neutral-700 dark:text-neutral-300">{domain}</label>
+            <select
+              name={`lv_${domain}`}
+              className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
+            >
               {LEVELS_BY_DOMAIN[domain]?.map((opt) => (
                 <option key={opt} value={opt}>{opt}</option>
               )) ?? <option>No options</option>}
             </select>
           </div>
         ))}
-        <button className="w-full py-3 rounded-xl bg-lernex-blue hover:bg-blue-500">Continue</button>
+        <button className="w-full rounded-xl bg-lernex-blue py-3 transition hover:bg-blue-500">Continue</button>
       </form>
     </main>
   );

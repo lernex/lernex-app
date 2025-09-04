@@ -3,13 +3,15 @@ export const runtime = "edge";
 
 import OpenAI from "openai";
 import type { ChatCompletionChunk } from "openai/resources/chat/completions";
+import { supabaseServer } from "@/lib/supabase-server";
+import { checkUsageLimit, logUsage } from "@/lib/usage";
 
 type ModelSpec = { name: string; delayMs: number };
 
 // Primary + backup (tune order if needed)
 const HEDGE: ModelSpec[] = [
-  { name: "gpt-4o-mini", delayMs: 0 },      // try this first
-  { name: process.env.OPENAI_MODEL || "gpt-4.1-nano", delayMs: 300 }, // backup
+  { name: "gpt-4.1-nano", delayMs: 0 },      // try this first
+  { name: process.env.OPENAI_MODEL || "gpt-4o-mini", delayMs: 300 }, // backup
 ];
 
 const MAX_CHARS = 2200;  // cap input to keep TTFB low
@@ -18,6 +20,18 @@ const MAX_TOKENS = 250;  // cap output tokens for snappier completions
 export async function POST(req: Request) {
   const t0 = Date.now();
   try {
+    const sb = supabaseServer();
+    const { data: { user } } = await sb.auth.getUser();
+    const uid = user?.id ?? null;
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+
+    if (uid) {
+      const ok = await checkUsageLimit(sb, uid);
+      if (!ok) {
+        return new Response("Usage limit exceeded", { status: 403 });
+      }
+    }
+
     const { text, subject = "Algebra 1" } = await req.json();
 
     if (!process.env.OPENAI_API_KEY) {
@@ -31,6 +45,9 @@ export async function POST(req: Request) {
     const ai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     console.log("[gen/stream] request-start", { dt: 0 });
+
+    let chosenModel = "";
+    let usage: { prompt_tokens?: number | null; completion_tokens?: number | null } | null = null;
 
     // Start a streaming completion for a model, with optional abort signal
     const startStream = (model: string, signal?: AbortSignal): Promise<AsyncIterable<ChatCompletionChunk>> =>
@@ -67,6 +84,7 @@ export async function POST(req: Request) {
               const stream = await startStream(name, ac.signal);
               if (!resolved) {
                 resolved = true;
+                chosenModel = name;
                 console.log("[gen/stream] first-model", { model: name, dt: Date.now() - t0 });
                 // cancel the others
                 controllers.forEach((c, j) => {
@@ -102,6 +120,7 @@ export async function POST(req: Request) {
           let first = true;
           for await (const chunk of winner) {
             const token = chunk.choices?.[0]?.delta?.content ?? "";
+            if (chunk.usage) usage = chunk.usage;
             if (!token) continue;
             if (first) {
               console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
@@ -111,6 +130,13 @@ export async function POST(req: Request) {
           }
 
           console.log("[gen/stream] done", { dt: Date.now() - t0 });
+          if (uid && usage) {
+            try {
+              await logUsage(sb, uid, ip, chosenModel, usage);
+            } catch {
+              /* ignore */
+            }
+          }
         } catch (e) {
           console.error("[gen/stream] error", e);
           controller.error(e);

@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
   const sb = supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
 
   const subjectParam = req.nextUrl.searchParams.get("subject");
 
@@ -38,7 +39,14 @@ export async function GET(req: NextRequest) {
   const currentTopic = state?.next_topic || path.starting_topic;
   if (!currentTopic) return new Response(JSON.stringify({ error: "No topic" }), { status: 400 });
 
-  const lesson = await generateLessonForTopic(subject, currentTopic);
+  let lesson;
+  try {
+    lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentTopic);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    const status = msg === "Usage limit exceeded" ? 403 : 500;
+    return new Response(JSON.stringify({ error: msg }), { status });
+  }
 
   let nextTopic: string | null = null;
   const idx = path.topics.findIndex((t) => t.name === currentTopic);

@@ -10,6 +10,7 @@ export async function POST(req: Request) {
   const sb = supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
 
   const { state, correctTotal, questionTotal } = await req.json().catch(() => ({})) as {
     state: PlacementState;
@@ -25,8 +26,12 @@ export async function POST(req: Request) {
   const difficulty = state.difficulty;
   let path: LearningPath | null = null;
   try {
-    path = await generateLearningPath(state.course, Math.round(acc * 100));
-  } catch {
+    path = await generateLearningPath(sb, user.id, ip, state.course, Math.round(acc * 100));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    if (msg === "Usage limit exceeded") {
+      return NextResponse.json({ error: msg }, { status: 403 });
+    }
     path = null;
   }
 

@@ -3,8 +3,10 @@ export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 import OpenAI from "openai";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlacementState, PlacementItem, Difficulty, PlacementNextResponse } from "@/types/placement";
 import { supabaseServer } from "@/lib/supabase-server";
+import { checkUsageLimit, logUsage } from "@/lib/usage";
 
 const ai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
@@ -50,8 +52,19 @@ function nextState(prev: PlacementState, correct: boolean): PlacementState {
   return s;
 }
 
-async function makeQuestion(state: PlacementState, avoid: string[] = [], depth = 0): Promise<PlacementItem | null> {
+async function makeQuestion(
+  state: PlacementState,
+  sb: SupabaseClient,
+  uid: string,
+  ip: string,
+  avoid: string[] = [],
+  depth = 0
+): Promise<PlacementItem | null> {
   if (state.done) return null;
+  if (uid) {
+    const ok = await checkUsageLimit(sb, uid);
+    if (!ok) return null;
+  }
 
   const system = `
 Return STRICT JSON only:
@@ -83,8 +96,9 @@ Create ONE discriminative MCQ drawn from appropriate course units and include a 
 `.trim();
 
   // Small, fast, JSON-clean model; cap tokens for speed
+  const model = "gpt-4.1-nano";
   const completion = await ai.chat.completions.create({
-    model: "gpt-4.1-nano",
+    model,
     temperature: 1,
     response_format: { type: "json_object" },
     max_tokens: 1000,
@@ -93,6 +107,14 @@ Create ONE discriminative MCQ drawn from appropriate course units and include a 
       { role: "user", content: user },
     ],
   });
+
+  if (uid && completion.usage) {
+    try {
+      await logUsage(sb, uid, ip, model, completion.usage);
+    } catch {
+      /* ignore */
+    }
+  }
 
   const raw = completion.choices[0]?.message?.content ?? "{}";
   let item: PlacementItem;
@@ -118,7 +140,7 @@ Create ONE discriminative MCQ drawn from appropriate course units and include a 
 
   // If model ignored instructions, retry a couple times
   if (avoid.some((a) => a.trim() === item.prompt.trim()) && depth < 2) {
-    return makeQuestion(state, avoid, depth + 1);
+    return makeQuestion(state, sb, uid, ip, avoid, depth + 1);
   }
 
   return item;
@@ -130,6 +152,12 @@ export async function POST(req: Request) {
     const sb = supabaseServer();
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+
+    const ok = await checkUsageLimit(sb, user.id);
+    if (!ok) {
+      return new Response(JSON.stringify({ error: "Usage limit exceeded" }), { status: 403 });
+    }
 
     const bodyText = await req.text();
     let body: { state?: PlacementState; lastAnswer?: number; lastItem?: PlacementItem } = {};
@@ -187,7 +215,7 @@ export async function POST(req: Request) {
     const prevPrompt = body.lastItem?.prompt ? [body.lastItem.prompt] : [];
 
     // 2) Produce the current question first
-    const nowItem = await makeQuestion(state, prevPrompt);
+    const nowItem = await makeQuestion(state, sb, user.id, ip, prevPrompt);
 
     // 3) Compute the two branch states and prefetch them (avoid repeating current or previous)
     const stateIfRight = nextState(state, true);
@@ -195,8 +223,8 @@ export async function POST(req: Request) {
     const avoidForBranches = nowItem?.prompt ? [...prevPrompt, nowItem.prompt] : prevPrompt;
 
     const [rightItem, wrongItem] = await Promise.all([
-      makeQuestion(stateIfRight, avoidForBranches),
-      makeQuestion(stateIfWrong, avoidForBranches),
+      makeQuestion(stateIfRight, sb, user.id, ip, avoidForBranches),
+      makeQuestion(stateIfWrong, sb, user.id, ip, avoidForBranches),
     ]);
 
     const payload: PlacementNextResponse = {
