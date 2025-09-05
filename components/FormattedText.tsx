@@ -105,7 +105,9 @@ function formatMath(text: string): string {
 }
 
 export default function FormattedText({ text }: { text: string }) {
-  const cleaned = text.replace(/<\/?div[^>]*>/g, "");
+  const cleaned = text
+    .replace(/<\/?div[^>]*>/gi, "")
+    .replace(/&lt;\/?div[^&]*&gt;/gi, "");
   return <span dangerouslySetInnerHTML={{ __html: formatMath(cleaned) }} />;
 }
    

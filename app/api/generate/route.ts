@@ -189,7 +189,7 @@ Rules:
 - No extra commentary or code fences.
 - If passage is too advanced for the difficulty, simplify the content.
 - Prefer 2–3 choices for intro/easy; 3–4 for medium/hard.
-Wrap any expressions requiring special formatting (equations, vectors, matrices, etc.) in their own <div>...</div> blocks so the client can style them separately.
+- Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.
 `.trim();
 
     const userPrompt = `

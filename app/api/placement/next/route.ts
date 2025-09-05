@@ -81,7 +81,7 @@ Return STRICT JSON only:
 No commentary. Keep concise. 2–3 choices for intro/easy; 3–4 for medium/hard; exactly one correct.
 Difficulty reflects how deep into the course's units the question is: "intro" covers foundational early units, "easy" early units, "medium" mid-course units, and "hard" late or advanced units.
 Questions must stay strictly within the standard curriculum for the given course and avoid topics from more advanced classes.
-Wrap any expressions requiring special formatting (equations, vectors, matrices, etc.) in their own <div>...</div> blocks so the client can style them separately.
+Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.
 `.trim();
 
 const avoidText =

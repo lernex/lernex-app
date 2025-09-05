@@ -61,7 +61,7 @@ export async function POST(req: Request) {
             {
               role: "system",
               content:
-                "Write a concise micro-lesson (80–120 words). Two short paragraphs. No JSON, no code fences. Wrap any expressions requiring special formatting (equations, vectors, matrices, etc.) in their own <div>...</div> blocks so the client can style them separately.",
+                "Write a concise micro-lesson (80–120 words). Two short paragraphs. No JSON, no code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags in the lesson text.",
             },
             { role: "user", content: `Subject: ${subject}\nSource:\n${src}` },
           ],

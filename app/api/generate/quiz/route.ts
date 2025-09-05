@@ -45,7 +45,7 @@ Return STRICT JSON only:
     { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }
   ]
 }
-No commentary. 2–3 MCQs. Keep choices short. Wrap any expressions requiring special formatting (equations, vectors, matrices, etc.) in their own <div>...</div> blocks so the client can style them separately.
+No commentary. 2–3 MCQs. Keep choices short. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.
 `.trim();
 
     const model = "gpt-4.1-nano";
