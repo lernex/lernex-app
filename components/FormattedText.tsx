@@ -105,21 +105,7 @@ function formatMath(text: string): string {
 }
 
 export default function FormattedText({ text }: { text: string }) {
-  const segments = text
-    .split(/<\/?div[^>]*>/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  return (
-    <>
-      {segments.map((seg, i) => (
-        <span
-          key={i}
-          className={segments.length > 1 ? "block" : undefined}
-          dangerouslySetInnerHTML={{ __html: formatMath(seg) }}
-        />
-      ))}
-    </>
-  );
+  const cleaned = text.replace(/<\/?div[^>]*>/g, "");
+  return <span dangerouslySetInnerHTML={{ __html: formatMath(cleaned) }} />;
 }
    
