@@ -1,5 +1,6 @@
 "use client";
 import { Lesson } from "@/types";
+import FormattedText from "./FormattedText";
 
 export default function LessonCard({ lesson }: { lesson: Lesson }) {
   return (
@@ -9,7 +10,9 @@ export default function LessonCard({ lesson }: { lesson: Lesson }) {
           {lesson.subject}
         </div>
         <h2 className="text-xl font-semibold">{lesson.title}</h2>
-        <p className="leading-relaxed text-neutral-700 dark:text-neutral-300">{lesson.content}</p>
+        <p className="leading-relaxed text-neutral-700 dark:text-neutral-300">
+          <FormattedText text={lesson.content} />
+        </p>
       </div>
     </div>
   );
