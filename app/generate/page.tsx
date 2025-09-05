@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Lesson } from "@/types";
 import LessonCard from "@/components/LessonCard";
 import QuizBlock from "@/components/QuizBlock";
+import FormattedText from "@/components/FormattedText";
 
 export default function Generate() {
   const [text, setText] = useState("");
@@ -144,7 +145,7 @@ export default function Generate() {
         {/* Show streaming text immediately if lesson object not ready yet */}
         {!lesson && streamed && (
           <div className="rounded-2xl bg-neutral-900 border border-neutral-800 p-4 whitespace-pre-wrap">
-            {streamed}
+            <FormattedText text={streamed} />
           </div>
         )}
 
