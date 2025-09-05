@@ -20,7 +20,7 @@ const down = (d: Difficulty): Difficulty => (d === "hard" ? "medium" : d === "me
 
 // Deterministic state transition (used both server + client thinking)
 function nextState(prev: PlacementState, correct: boolean): PlacementState {
-  let s: PlacementState = { ...prev, step: prev.step + 1 };
+  let s: PlacementState = { ...prev, step: prev.step + 1, asked: [...prev.asked] };
   if (correct) {
     s.correctStreak += 1;
     if (s.difficulty !== "hard") {
@@ -44,6 +44,7 @@ function nextState(prev: PlacementState, correct: boolean): PlacementState {
       mistakes: 0,
       correctStreak: 0,
       done: false,
+      asked: [],
       remaining: rest,
     };
   } else {
@@ -66,7 +67,7 @@ async function makeQuestion(
     if (!ok) return null;
   }
 
-  const system = `
+const system = `
 Return STRICT JSON only:
 {
   "subject": string,
@@ -79,6 +80,8 @@ Return STRICT JSON only:
 }
 No commentary. Keep concise. 2–3 choices for intro/easy; 3–4 for medium/hard; exactly one correct.
 Difficulty reflects how deep into the course's units the question is: "intro" covers foundational early units, "easy" early units, "medium" mid-course units, and "hard" late or advanced units.
+Questions must stay strictly within the standard curriculum for the given course and avoid topics from more advanced classes.
+Wrap any expressions requiring special formatting (equations, vectors, matrices, etc.) in their own <div>...</div> blocks so the client can style them separately.
 `.trim();
 
 const avoidText =
@@ -92,7 +95,7 @@ Course: ${state.course}
 Target Difficulty: ${state.difficulty}
 Step: ${state.step} of ${state.maxSteps}
 ${avoidText}
-Create ONE discriminative MCQ drawn from appropriate course units and include a short explanation. Each question should explore a different major topic of the course (e.g. derivatives, limits, integration) to quickly gauge overall knowledge.
+Create ONE discriminative MCQ drawn from appropriate course units and include a short explanation. Each question should cover a distinct key topic within the course's own syllabus to gauge overall knowledge.
 `.trim();
 
   // Small, fast, JSON-clean model; cap tokens for speed
@@ -167,6 +170,7 @@ export async function POST(req: Request) {
     let state: PlacementState;
     if (body.state) {
       state = body.state;
+      if (!Array.isArray(state.asked)) state.asked = [];
     } else {
       const { data: prof, error } = await sb
         .from("profiles")
@@ -195,6 +199,7 @@ export async function POST(req: Request) {
         mistakes: 0,
         correctStreak: 0,
         done: false,
+        asked: [],
         remaining: rest,
       };
     }
@@ -211,21 +216,21 @@ export async function POST(req: Request) {
       return new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });
     }
 
-    // Avoid reusing the last question
-    const prevPrompt = body.lastItem?.prompt ? [body.lastItem.prompt] : [];
-
-    // 2) Produce the current question first
-    const nowItem = await makeQuestion(state, sb, user.id, ip, prevPrompt);
+    // 2) Produce the current question first, avoiding duplicates
+    const nowItem = await makeQuestion(state, sb, user.id, ip, state.asked);
+    if (nowItem) state.asked.push(nowItem.prompt);
 
     // 3) Compute the two branch states and prefetch them (avoid repeating current or previous)
     const stateIfRight = nextState(state, true);
     const stateIfWrong = nextState(state, false);
-    const avoidForBranches = nowItem?.prompt ? [...prevPrompt, nowItem.prompt] : prevPrompt;
+    const avoidForBranches = state.asked;
 
     const [rightItem, wrongItem] = await Promise.all([
       makeQuestion(stateIfRight, sb, user.id, ip, avoidForBranches),
       makeQuestion(stateIfWrong, sb, user.id, ip, avoidForBranches),
     ]);
+    if (rightItem) stateIfRight.asked.push(rightItem.prompt);
+    if (wrongItem) stateIfWrong.asked.push(wrongItem.prompt);
 
     const payload: PlacementNextResponse = {
       state,

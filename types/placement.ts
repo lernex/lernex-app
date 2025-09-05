@@ -11,6 +11,10 @@ export type PlacementState = {
   correctStreak: number;
   done: boolean;
   /**
+   * List of prompts already asked in this course to avoid duplicates.
+   */
+  asked: string[];
+  /**
    * Queue of remaining courses for multi-subject placement.
    * Each entry contains the next subject and course to evaluate.
    */

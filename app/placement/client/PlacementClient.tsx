@@ -182,7 +182,7 @@ export default function PlacementClient() {
           </div>
         )}
 
-        <h1 className="text-lg font-semibold"><FormattedText text={item.prompt} /></h1>
+        <div className="text-lg font-semibold"><FormattedText text={item.prompt} /></div>
         <div className="grid gap-2">
           {item.choices.map((c, i) => {
             const isCorrect = i === item.correctIndex;

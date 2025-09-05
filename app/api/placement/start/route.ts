@@ -44,6 +44,7 @@ export async function POST() {
     mistakes: 0,
     done: false,
     maxSteps: 7,
+    asked: [],
     remaining: rest,
   };
 
