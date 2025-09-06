@@ -105,7 +105,7 @@ Create exactly one discriminative multiple-choice question from the course's app
     temperature: 1,
     max_output_tokens: 1000,
     reasoning: { effort: "low" },
-    text: { verbosity: "medium" }
+    text: { verbosity: "medium" },
     response_format: { type: "json_object" },
     input: [
       { role: "system", content: system },
