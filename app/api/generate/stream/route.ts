@@ -5,6 +5,7 @@ import OpenAI from "openai";
 import type { ResponseStreamEvent } from "openai/resources/responses/responses";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
+import { TexLineBarrier, TEX_PREAMBLE, TEX_POSTAMBLE } from "@/lib/latex";
 
 type ModelSpec = { name: string; delayMs: number };
 
@@ -15,7 +16,7 @@ const HEDGE: ModelSpec[] = [
 ];
 
 const MAX_CHARS = 2200;  // cap input to keep TTFB low
-const MAX_TOKENS = 250;  // cap output tokens for snappier completions
+const MAX_TOKENS = 400;  // cap output tokens for snappier completions
 
 export async function POST(req: Request) {
   const t0 = Date.now();
@@ -62,9 +63,12 @@ export async function POST(req: Request) {
             {
               role: "system",
               content:
-                "Write a concise micro-lesson of 80–120 words in exactly two short paragraphs. Do not use JSON, markdown, HTML, or code fences. Use standard inline LaTeX like \( ... \) for any expressions requiring special formatting (equations, vectors, matrices, etc.). No HTML tags."
+                "Write a concise micro-lesson of 80–120 words in LaTeX. Begin with three comment lines providing metadata exactly as:\n% Title: <short lesson title>\n% Subject: <subject>\n% Difficulty: <intro|easy|medium|hard>\n\nThen output exactly two short paragraphs separated by a blank line. Output only LaTeX body content without any preamble or document environment. Do not use JSON, markdown, HTML, or code fences. Use inline LaTeX like \( ... \) for any expressions requiring special formatting (equations, vectors, matrices, etc.).",
             },
-            { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
+            {
+              role: "user",
+              content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.`,
+            },
           ],
         },
         { signal }
@@ -116,8 +120,8 @@ export async function POST(req: Request) {
     const body = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {
-          // Early tiny chunk to defeat buffering in some paths
-          controller.enqueue(enc.encode("\n"));
+          const barrier = new TexLineBarrier();
+          controller.enqueue(enc.encode(TEX_PREAMBLE));
 
           let first = true;
           for await (const event of winner) {
@@ -128,11 +132,19 @@ export async function POST(req: Request) {
                 console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
                 first = false;
               }
-              controller.enqueue(enc.encode(token));
+              const chunks = barrier.push(token);
+              for (const ch of chunks) {
+                controller.enqueue(enc.encode(ch));
+              }
             } else if (event.type === "response.completed") {
               usage = event.response?.usage ?? null;
             }
           }
+          const leftover = barrier.flush();
+          if (leftover) {
+            controller.enqueue(enc.encode(leftover));
+          }
+          controller.enqueue(enc.encode(TEX_POSTAMBLE));
 
           console.log("[gen/stream] done", { dt: Date.now() - t0 });
           if (uid && usage) {
@@ -154,7 +166,7 @@ export async function POST(req: Request) {
 
     return new Response(body, {
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Type": "application/x-tex; charset=utf-8",
         "Cache-Control": "no-store, no-transform",
         "X-Accel-Buffering": "no",
         "Connection": "keep-alive",
