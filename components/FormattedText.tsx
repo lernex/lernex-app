@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 
 interface MathJaxWithConfig {
   typesetPromise?: (elements?: unknown[]) => Promise<void>;
@@ -79,42 +79,50 @@ function loadMathJax() {
 export default function FormattedText({ text }: { text: string }) {
   const ref = useRef<HTMLSpanElement>(null);
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+  // Compute the HTML once per `text` value. Using `dangerouslySetInnerHTML`
+  // lets React "own" the content so it won't randomly clear MathJax's
+  // rendered DOM on unrelated re-renders.
+  const html = useMemo(() => {
+    const raw = text ?? "";
 
-    // Clean and apply basic formatting before MathJax handles math content
-    const cleaned = text
-      .replace(/<\/?div[^>]*>/gi, "")
-      .replace(/&lt;\/?div[^&]*&gt;/gi, "");
+    // Escape any raw HTML coming from the model/user to avoid script injection.
+    const escaped = raw
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
 
-    const formatted = cleaned
+    // Lightweight markdown-ish styling that we explicitly allow.
+    return escaped
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
       .replace(/__([^_]+)__/g, "<strong>$1</strong>")
       .replace(/\*([^*]+)\*/g, "<em>$1</em>")
       .replace(/_([^_]+)_/g, "<em>$1</em>")
       .replace(/~~([^~]+)~~/g, "<del>$1</del>")
       .replace(/`([^`]+)`/g, "<code>$1</code>");
+  }, [text]);
 
-    // Directly set innerHTML so React re-renders don't wipe MathJax output
-    el.innerHTML = formatted;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
 
+    // Ensure MathJax is loaded, then typeset the element's contents.
     void loadMathJax().then(() => {
       const MathJax = window.MathJax;
       if (!MathJax) return;
 
-      const typeset = () => {
-        MathJax.typesetClear?.([el]);
+      const doTypeset = () => {
+        try { MathJax.typesetClear?.([el]); } catch { /* noop */ }
         return MathJax.typesetPromise?.([el]).catch(() => {});
       };
 
+      // If MathJax is still starting up, wait for it before typesetting
       if (MathJax.startup?.promise) {
-        MathJax.startup.promise.then(typeset).catch(() => {});
+        MathJax.startup.promise.then(doTypeset).catch(() => {});
       } else {
-        typeset();
+        doTypeset();
       }
     });
-  }, [text]);
+  }, [html]);
 
-  return <span ref={ref} />;
+  return <span ref={ref} dangerouslySetInnerHTML={{ __html: html }} />;
 }
