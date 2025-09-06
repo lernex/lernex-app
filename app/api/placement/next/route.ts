@@ -82,7 +82,7 @@ Return JSON:
 Generate one concise multiple-choice question. For intro/easy use 2–3 choices; for medium/hard use 3–4 choices. Exactly one answer must be correct.
 Difficulty reflects how deep into the course's units the question is: "intro" covers foundational early units, "easy" early units, "medium" mid-course units, and "hard" late or advanced units.
 Keep strictly to the standard curriculum for the given course and avoid topics from more advanced classes.
-Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.
+Use standard inline LaTeX like \( ... \) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid HTML, markdown, and code fences.
 `.trim();
 
 const avoidText =
