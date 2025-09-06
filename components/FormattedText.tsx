@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useRef } from "react";
+
 interface MathJaxWithConfig {
   typesetPromise?: (elements?: unknown[]) => Promise<void>;
   typesetClear?: (elements?: unknown[]) => void;
@@ -21,6 +22,8 @@ declare global {
 }
 
 // Render text that may contain LaTeX using MathJax for full compatibility.
+// We load MathJax only once and ensure configuration is in place before the
+// script executes. Subsequent calls simply wait for the original promise.
 let mathJaxPromise: Promise<void> | null = null;
 
 function loadMathJax() {
@@ -75,10 +78,12 @@ function loadMathJax() {
 
 export default function FormattedText({ text }: { text: string }) {
   const ref = useRef<HTMLSpanElement>(null);
+
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-      void loadMathJax().then(() => {
+
+    void loadMathJax().then(() => {
       const MathJax = window.MathJax;
       if (!MathJax) return;
 
@@ -107,5 +112,5 @@ export default function FormattedText({ text }: { text: string }) {
     .replace(/~~([^~]+)~~/g, "<del>$1</del>")
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 
-  return <span ref={ref} dangerouslySetInnerHTML={{ __html: formatted }} />;
+    return <span ref={ref} dangerouslySetInnerHTML={{ __html: formatted }} />;
 }
