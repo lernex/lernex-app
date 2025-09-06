@@ -14,5 +14,4 @@ export type Lesson = {
   questions: { prompt: string; choices: string[]; correctIndex: number; explanation?: string }[];
   difficulty?: "intro" | "easy" | "medium" | "hard";
   topic?: string; // <- add this if you want it
-  tex?: string;
 };

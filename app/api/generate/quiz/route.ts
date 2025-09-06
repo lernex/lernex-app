@@ -5,10 +5,9 @@ export const dynamic = "force-dynamic";
 import OpenAI from "openai";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
-import { parseQuizTex } from "@/lib/latex";
 
 const MAX_CHARS = 4300;
-const MAX_TOKENS = 500;
+const MAX_TOKENS = 480;
 
 export async function POST(req: Request) {
   try {
@@ -36,24 +35,17 @@ export async function POST(req: Request) {
     const src = text.slice(0, MAX_CHARS);
 
    const system = `
-Produce only LaTeX for a short multiple-choice quiz with two or three questions.
-Begin with three comment lines providing metadata exactly as:
-% Title: <short quiz title>
-% Subject: <subject>
-% Difficulty: <intro|easy|medium|hard>
-
-Then output:
-\\begin{enumerate}
-\\item <question text>
-\\begin{enumerate}[label=\\Alph*.]
-\\item <choice>
-... (2-4 choices)
-\\end{enumerate}
-\\textbf{Answer:} <letter>\\\\
-<optional explanation>
-\\item ...
-\\end{enumerate}
-No JSON, markdown, HTML, or commentary. All text must be LaTeX-ready.
+Return only JSON matching exactly:
+{
+  "id": string,
+  "subject": string,
+  "title": string,
+  "difficulty": "intro"|"easy"|"medium"|"hard",
+  "questions": [
+    { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }
+  ]
+}
+Generate two or three multiple-choice questions with short choices. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid HTML, markdown, and code fences.
 `.trim();
 
     const model = "gpt-5-nano";
@@ -62,7 +54,7 @@ No JSON, markdown, HTML, or commentary. All text must be LaTeX-ready.
       temperature: 1,
       max_output_tokens: MAX_TOKENS,
       reasoning: { effort: "minimal" },
-      text: { verbosity: "low" },
+      text: { format: { type: "json_object" }, verbosity: "low" },
       input: [
         { role: "system", content: system },
         {
@@ -72,8 +64,9 @@ No JSON, markdown, HTML, or commentary. All text must be LaTeX-ready.
       ],
     });
 
-    const raw = (completion.output_text ?? "").trim();
-    const parsed = parseQuizTex(raw);
+    const raw = completion.output_text ?? "{}";
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 }); }
 
     if (user && completion.usage) {
       try {
@@ -83,16 +76,7 @@ No JSON, markdown, HTML, or commentary. All text must be LaTeX-ready.
       }
     }
 
-    const resp = {
-      id: crypto.randomUUID(),
-      subject: (parsed.subject as string) || subject,
-      title: (parsed.title as string) || `Quiz on ${subject}`,
-      difficulty: (parsed.difficulty as string) || difficulty,
-      questions: parsed.questions,
-      tex: raw,
-    };
-
-    return new Response(JSON.stringify(resp), {
+    return new Response(JSON.stringify(parsed), {
       headers: { "content-type": "application/json", "Cache-Control": "no-store" },
       status: 200,
     });

@@ -5,7 +5,6 @@ import type { Lesson } from "@/types";
 import LessonCard from "@/components/LessonCard";
 import QuizBlock from "@/components/QuizBlock";
 import FormattedText from "@/components/FormattedText";
-import { buildLessonTex, TEX_PREAMBLE, TEX_POSTAMBLE } from "@/lib/latex";
 
 export default function Generate() {
   const [text, setText] = useState("");
@@ -73,45 +72,17 @@ export default function Generate() {
       let full = "";
 
       const streamPump = async () => {
-        let started = false;
-        let headerDone = false;
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
           full += chunk;
-          let display = chunk;
-          if (!started) {
-            const idx = full.indexOf(TEX_PREAMBLE);
-            if (idx !== -1) {
-              started = true;
-              display = full.slice(idx + TEX_PREAMBLE.length);
-            } else {
-              continue;
-            }
-          }
-          if (display) {
-            const endIdx = display.indexOf(TEX_POSTAMBLE);
-            let toAdd = endIdx !== -1 ? display.slice(0, endIdx) : display;
-            if (!headerDone) {
-              const metaEnd = toAdd.indexOf("\n\n");
-              if (metaEnd !== -1) {
-                headerDone = true;
-                toAdd = toAdd.slice(metaEnd + 2);
-              } else {
-                continue;
-              }
-            }
-            if (toAdd) setStreamed((s) => s + toAdd);
-          }
+          setStreamed((s) => s + chunk);
         }
-        const withoutWrap = full.replace(TEX_PREAMBLE, "").replace(TEX_POSTAMBLE, "");
-        return withoutWrap.replace(/^%.*\n/gm, "").trim();
+        return full.trim();
       };
 
       const [content, quizObj] = await Promise.all([streamPump(), quizReq]);
-
-      const texDoc = buildLessonTex(content, quizObj.tex);
 
       // 3) assemble Lesson object for your LessonCard + QuizBlock
       const assembled: Lesson = {
@@ -122,7 +93,6 @@ export default function Generate() {
         content: content || "Generated lesson.",
         difficulty: (quizObj?.difficulty as "intro" | "easy" | "medium" | "hard") ?? "easy",
         questions: Array.isArray(quizObj?.questions) ? quizObj.questions : [],
-        tex: texDoc,
       };
 
       setLesson(assembled);
