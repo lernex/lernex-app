@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     console.log("[gen/stream] request-start", { dt: 0 });
 
     let chosenModel = "";
-    let usage: { prompt_tokens?: number | null; completion_tokens?: number | null } | null = null;
+    let usage: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
 
     // Start a streaming response for a model, with optional abort signal
     const startStream = (model: string, signal?: AbortSignal) =>

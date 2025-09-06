@@ -54,8 +54,7 @@ Generate two or three multiple-choice questions with short choices. Use standard
       temperature: 1,
       max_output_tokens: MAX_TOKENS,
       reasoning: { effort: "minimal" },
-      text: { verbosity: "low" },
-      response_format: { type: "json_object" },
+      text: { format: { type: "json_object" }, verbosity: "low" },
       input: [
         { role: "system", content: system },
         {

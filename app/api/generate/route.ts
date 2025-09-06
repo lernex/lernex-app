@@ -206,8 +206,7 @@ Generate the lesson and questions as specified. Output only the JSON object.
       model,
       temperature,
       reasoning: { effort: "minimal" },
-      text: { verbosity: "low" },
-      response_format: { type: "json_object" },
+      text: { format: { type: "json_object" }, verbosity: "low" },
       input: [
         { role: "system", content: system },
         { role: "user", content: userPrompt },
@@ -219,7 +218,7 @@ Generate the lesson and questions as specified. Output only the JSON object.
         async start(controller) {
           const encoder = new TextEncoder();
           let full = "";
-          let usage: { prompt_tokens?: number | null; completion_tokens?: number | null } | null = null;
+          let usage: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
           try {
             for await (const event of stream) {
               if (event.type === "response.output_text.delta") {

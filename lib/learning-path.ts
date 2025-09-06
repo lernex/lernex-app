@@ -42,8 +42,7 @@ export async function generateLearningPath(
     model,
     temperature,
     reasoning: { effort: "minimal" },
-    text: { verbosity: "low" },
-    response_format: { type: "json_object" },
+    text: { format: { type: "json_object" }, verbosity: "low" },
     input: [
       { role: "system", content: system },
       { role: "user", content: userPrompt },

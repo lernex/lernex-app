@@ -47,14 +47,14 @@ export async function logUsage(
   userId: string | null,
   ip: string | null,
   model: string,
-  usage: { prompt_tokens?: number | null; completion_tokens?: number | null }
+  usage: { input_tokens?: number | null; output_tokens?: number | null }
 ) {
   await sb.from("usage_logs").insert({
     user_id: userId,
     ip,
     model,
-    input_tokens: usage.prompt_tokens ?? null,
-    output_tokens: usage.completion_tokens ?? null,
+    input_tokens: usage.input_tokens ?? null,
+    output_tokens: usage.output_tokens ?? null,
   });
 
   if (userId) {
