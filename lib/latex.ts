@@ -81,7 +81,7 @@ export function parseQuizTex(tex: string): ParsedQuiz {
     const prompt = (promptPart || "").trim();
     if (!rest1) continue;
 
-    const [choicesPart, rest2] = rest1.split("\\end{enumerate}");
+    const [choicesPart, rest2 = ""] = rest1.split("\\end{enumerate}");
     const choices = choicesPart
       .split("\\item ")
       .slice(1)
