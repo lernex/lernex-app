@@ -140,13 +140,42 @@ export default function FormattedText({ text }: { text: string }) {
     commit(src.length);
 
     // 3) Render: escape HTML in both; apply minimal markdown only to text segments.
-    const formatText = (s: string) =>
-      escapeHtml(s)
+    const formatText = (s: string) => {
+      let out = escapeHtml(s);
+      // Minimal markdown formatting
+      out = out
         .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
         .replace(/__([^_]+)__/g, "<strong>$1</strong>")
-        // Avoid single-asterisk/underscore italics to not collide with LaTeX like v_1 or a*b
         .replace(/~~([^~]+)~~/g, "<del>$1</del>")
         .replace(/`([^`]+)`/g, "<code>$1</code>");
+
+      // Heuristic: auto-wrap obvious TeX runs that lack delimiters so MathJax
+      // can parse them. We only do this inside non-math segments.
+      const wrap = (tex: string) => `\\(${tex}\\)`; // inline math delimiters
+
+      // 1) Environments like \begin{pmatrix} ... \end{pmatrix}
+      out = out.replace(/\\begin\{([^}]+)\}[\s\S]*?\\end\{\1\}/g, (m) => wrap(m));
+
+      // 2) Common macros with braces (one or two args)
+      out = out.replace(
+        /\\(?:frac|sqrt|vec|mathbf|mathbb|mathcal|hat|bar|underline|overline|binom|pmatrix|bmatrix|vmatrix)\b(?:\{[^{}]*\}){1,2}/g,
+        (m) => wrap(m)
+      );
+
+      // 3) Greek and simple math operators (no braces)
+      out = out.replace(
+        /\\(?:alpha|beta|gamma|delta|theta|phi|pi|mu|sigma|omega|cdot|times|pm|leq|geq)\b/g,
+        (m) => wrap(m)
+      );
+
+      // 4) Subscripts like v_1 or x_{ij}
+      out = out.replace(/([A-Za-z]+)_(\{[^}]+\}|\d+|[A-Za-z])/g, (_m, a, b) => wrap(`${a}_${b}`));
+
+      // 5) ||v|| patterns: convert to \| v \| within math
+      out = out.replace(/\|\|\s*(\\[a-zA-Z]+\{[^}]+\})\s*\|\|/g, (_m, inner) => wrap(`\\| ${inner} \\|`));
+
+      return out;
+    };
 
     const out = segs.map(({ math, t }) => (math ? escapeHtml(t) : formatText(t))).join("");
     dbg("html-ready", { len: out.length });
@@ -157,26 +186,44 @@ export default function FormattedText({ text }: { text: string }) {
     const el = ref.current;
     if (!el) return;
 
-    // Debounce rapid updates during streaming to reduce flicker
-    dbg("typeset-schedule");
-    const id = window.setTimeout(() => {
-      dbg("typeset-run");
-      void loadMathJax().then(() => {
-        const MathJax = window.MathJax;
-        if (!MathJax) { dbg("no-mathjax"); return; }
-        const doTypeset = () => {
-          try { MathJax.typesetClear?.([el]); } catch (e) { dbg("typesetClear-error", e); }
-          return MathJax.typesetPromise?.([el]).then(() => dbg("typeset-done")).catch((e) => dbg("typeset-error", e));
-        };
-        if (MathJax.startup?.promise) {
-          MathJax.startup.promise.then(doTypeset).catch((e) => dbg("startup-promise-error", e));
-        } else {
-          doTypeset();
-        }
-      });
-    }, 150);
+    const schedule = () => {
+      dbg("typeset-schedule");
+      // Delay slightly, then double-rAF to ensure the DOM is painted
+      window.setTimeout(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            dbg("typeset-run");
+            void loadMathJax().then(() => {
+              const MathJax = window.MathJax;
+              if (!MathJax) { dbg("no-mathjax"); return; }
+              const doTypeset = () => {
+                try { MathJax.typesetClear?.([el]); } catch (e) { dbg("typesetClear-error", e); }
+                return MathJax.typesetPromise?.([el])
+                  .then(() => dbg("typeset-done"))
+                  .catch((e) => dbg("typeset-error", e));
+              };
+              if (MathJax.startup?.promise) {
+                MathJax.startup.promise
+                  .then(doTypeset)
+                  .catch((e) => dbg("startup-promise-error", e));
+              } else {
+                doTypeset();
+              }
+            });
+          });
+        });
+      }, 120);
+    };
 
-    return () => window.clearTimeout(id);
+    schedule();
+
+    // Retypeset when the element becomes visible (covers card swaps)
+    const obs = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) schedule();
+    }, { root: null, threshold: 0.01 });
+    obs.observe(el);
+
+    return () => { try { obs.disconnect(); } catch {} };
   }, [html]);
 
   return <span ref={ref} dangerouslySetInnerHTML={{ __html: html }} />;
