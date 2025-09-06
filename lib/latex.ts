@@ -6,6 +6,18 @@ export const TEX_PREAMBLE = `\\documentclass{article}
 
 export const TEX_POSTAMBLE = `\n\\end{document}\n`;
 
+export interface ParsedQuiz {
+  title?: string;
+  subject?: string;
+  difficulty?: string;
+  questions: {
+    prompt: string;
+    choices: string[];
+    correctIndex: number;
+    explanation?: string;
+  }[];
+}
+
 // Barrier that buffers incoming tokens until a full line is available.
 // Prevents partial LaTeX commands from leaking to the client.
 export class TexLineBarrier {
@@ -44,7 +56,7 @@ export function buildLessonTex(content: string, quizTex: string): string {
 }
 
 // Parse a LaTeX quiz snippet into structured questions and metadata
-export function parseQuizTex(tex: string) {
+export function parseQuizTex(tex: string): ParsedQuiz {
   const lines = tex.split("\n");
   const meta: Record<string, string> = {};
 
@@ -61,12 +73,7 @@ export function parseQuizTex(tex: string) {
 
   const body = lines.join("\n");
 
-  const questions: {
-    prompt: string;
-    choices: string[];
-    correctIndex: number;
-    explanation?: string;
-  }[] = [];
+  const questions: ParsedQuiz["questions"] = [];
 
   const blocks = body.split("\\item ").slice(1);
   for (const block of blocks) {
@@ -97,5 +104,5 @@ export function parseQuizTex(tex: string) {
     questions.push({ prompt, choices, correctIndex, ...(explanation ? { explanation } : {}) });
   }
 
-  return { ...meta, questions };
+  return { ...(meta as Partial<ParsedQuiz>), questions };
 }
