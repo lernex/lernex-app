@@ -9,6 +9,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 
 const ai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+const MAX_TOKENS = 600;
 
 // Safety
 const BLOCKLIST = [/suicide|self[-\s]?harm/i, /explicit|porn|sexual/i, /hate\s*speech|racial\s*slur/i, /bomb|weapon|make\s+drugs/i];
@@ -68,7 +69,7 @@ async function makeQuestion(
   }
 
 const system = `
-Return only JSON in exactly this shape:
+Return JSON:
 {
   "subject": string,
   "course": string,
@@ -103,7 +104,7 @@ Create exactly one discriminative multiple-choice question from the course's app
   const completion = await ai.responses.create({
     model,
     temperature: 1,
-    max_output_tokens: 1000,
+    max_output_tokens: MAX_TOKENS,
     reasoning: { effort: "low" },
     text: { format: { type: "json_object" }, verbosity: "low" },
     input: [
