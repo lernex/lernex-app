@@ -83,6 +83,22 @@ export default function FormattedText({ text }: { text: string }) {
     const el = ref.current;
     if (!el) return;
 
+    // Clean and apply basic formatting before MathJax handles math content
+    const cleaned = text
+      .replace(/<\/?div[^>]*>/gi, "")
+      .replace(/&lt;\/?div[^&]*&gt;/gi, "");
+
+    const formatted = cleaned
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+      .replace(/_([^_]+)_/g, "<em>$1</em>")
+      .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+      .replace(/`([^`]+)`/g, "<code>$1</code>");
+
+    // Directly set innerHTML so React re-renders don't wipe MathJax output
+    el.innerHTML = formatted;
+
     void loadMathJax().then(() => {
       const MathJax = window.MathJax;
       if (!MathJax) return;
@@ -100,17 +116,5 @@ export default function FormattedText({ text }: { text: string }) {
     });
   }, [text]);
 
-  const cleaned = text
-    .replace(/<\/?div[^>]*>/gi, "")
-    .replace(/&lt;\/?div[^&]*&gt;/gi, "");
-
-  const formatted = cleaned
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
-    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-    .replace(/_([^_]+)_/g, "<em>$1</em>")
-    .replace(/~~([^~]+)~~/g, "<del>$1</del>")
-    .replace(/`([^`]+)`/g, "<code>$1</code>");
-
-    return <span ref={ref} dangerouslySetInnerHTML={{ __html: formatted }} />;
+  return <span ref={ref} />;
 }

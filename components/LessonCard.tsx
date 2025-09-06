@@ -10,7 +10,7 @@ export default function LessonCard({ lesson }: { lesson: Lesson }) {
           {lesson.subject}
         </div>
         <h2 className="text-xl font-semibold">{lesson.title}</h2>
-        <p className="leading-relaxed text-neutral-700 dark:text-neutral-300">
+        <p className="leading-relaxed whitespace-pre-wrap text-neutral-700 dark:text-neutral-300">
           <FormattedText text={lesson.content} />
         </p>
       </div>
