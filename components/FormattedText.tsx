@@ -1,11 +1,22 @@
 "use client";
 import React, { useEffect, useRef } from "react";
+interface MathJaxWithConfig {
+  typesetPromise?: (elements?: unknown[]) => Promise<void>;
+  typesetClear?: (elements?: unknown[]) => void;
+  startup?: { promise?: Promise<void> };
+  tex?: {
+    inlineMath?: [string, string][];
+    displayMath?: [string, string][];
+    processEscapes?: boolean;
+  };
+  options?: {
+    skipHtmlTags?: string[];
+  };
+}
 
 declare global {
   interface Window {
-    MathJax?: {
-      typesetPromise?: (elements?: unknown[]) => Promise<void>;
-    };
+    MathJax?: MathJaxWithConfig;
   }
 }
 
@@ -13,29 +24,74 @@ declare global {
 let mathJaxPromise: Promise<void> | null = null;
 
 function loadMathJax() {
-  if (typeof window === "undefined" || window.MathJax) {
+  if (typeof window === "undefined") {
     return Promise.resolve();
   }
+
+  if (window.MathJax) {
+    return Promise.resolve();
+  }
+
   if (!mathJaxPromise) {
     mathJaxPromise = new Promise((resolve) => {
+      // Provide a basic configuration so that inline math using \( .. \) works
+      // reliably across pages.
+      window.MathJax = {
+        tex: {
+          inlineMath: [
+            ["\\(", "\\)"],
+            ["$", "$"]
+          ],
+          displayMath: [
+            ["\\[", "\\]"],
+            ["$$", "$$"]
+          ],
+          processEscapes: true,
+        },
+        options: {
+          skipHtmlTags: [
+            "script",
+            "noscript",
+            "style",
+            "textarea",
+            "pre",
+            "code",
+          ],
+        },
+      } satisfies MathJaxWithConfig;
+
       const script = document.createElement("script");
       script.src =
         "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
       script.async = true;
       script.onload = () => resolve();
+      script.onerror = () => resolve();
       document.head.appendChild(script);
     });
   }
+
   return mathJaxPromise;
 }
 
 export default function FormattedText({ text }: { text: string }) {
-  const spanRef = useRef<HTMLSpanElement>(null);
+  const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
-    const el = spanRef.current;
+    const el = ref.current;
     if (!el) return;
-      loadMathJax().then(() => {
-      window.MathJax?.typesetPromise?.([el]).catch(() => {});
+      void loadMathJax().then(() => {
+      const MathJax = window.MathJax;
+      if (!MathJax) return;
+
+      const typeset = () => {
+        MathJax.typesetClear?.([el]);
+        return MathJax.typesetPromise?.([el]).catch(() => {});
+      };
+
+      if (MathJax.startup?.promise) {
+        MathJax.startup.promise.then(typeset).catch(() => {});
+      } else {
+        typeset();
+      }
     });
   }, [text]);
 
@@ -51,5 +107,5 @@ export default function FormattedText({ text }: { text: string }) {
     .replace(/~~([^~]+)~~/g, "<del>$1</del>")
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 
-  return <span ref={spanRef} dangerouslySetInnerHTML={{ __html: formatted }} />;
+  return <span ref={ref} dangerouslySetInnerHTML={{ __html: formatted }} />;
 }
