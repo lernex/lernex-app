@@ -2,7 +2,7 @@
 export const runtime = "edge";
 
 import OpenAI from "openai";
-import type { ChatCompletionChunk } from "openai/resources/chat/completions";
+import type { ResponseStreamEvent } from "openai/resources/responses/responses";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 
@@ -49,17 +49,16 @@ export async function POST(req: Request) {
     let chosenModel = "";
     let usage: { prompt_tokens?: number | null; completion_tokens?: number | null } | null = null;
 
-    // Start a streaming completion for a model, with optional abort signal
-    const startStream = (model: string, signal?: AbortSignal): Promise<AsyncIterable<ChatCompletionChunk>> =>
-      ai.chat.completions.create(
+    // Start a streaming response for a model, with optional abort signal
+    const startStream = (model: string, signal?: AbortSignal) =>
+      ai.responses.stream(
         {
           model,
           temperature: 1,
-          stream: true,
-          max_tokens: MAX_TOKENS,
+          max_output_tokens: MAX_TOKENS,
           reasoning: { effort: "minimal" },
           text: { verbosity: "low" },
-          messages: [
+          input: [
             {
               role: "system",
               content:
@@ -69,11 +68,11 @@ export async function POST(req: Request) {
           ],
         },
         { signal }
-      ) as unknown as Promise<AsyncIterable<ChatCompletionChunk>>;
+      );
 
     // Hedged start: launch primary now, backup after a small delay; take the first that responds
     const controllers: (AbortController | undefined)[] = [];
-    const winner: AsyncIterable<ChatCompletionChunk> = await new Promise<AsyncIterable<ChatCompletionChunk>>(
+    const winner = await new Promise<AsyncIterable<ResponseStreamEvent>>(
       (resolve, reject) => {
         let resolved = false;
 
@@ -121,15 +120,18 @@ export async function POST(req: Request) {
           controller.enqueue(enc.encode("\n"));
 
           let first = true;
-          for await (const chunk of winner) {
-            const token = chunk.choices?.[0]?.delta?.content ?? "";
-            if (chunk.usage) usage = chunk.usage;
-            if (!token) continue;
-            if (first) {
-              console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
-              first = false;
+          for await (const event of winner) {
+            if (event.type === "response.output_text.delta") {
+              const token = event.delta;
+              if (!token) continue;
+              if (first) {
+                console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
+                first = false;
+              }
+              controller.enqueue(enc.encode(token));
+            } else if (event.type === "response.completed") {
+              usage = event.response?.usage ?? null;
             }
-            controller.enqueue(enc.encode(token));
           }
 
           console.log("[gen/stream] done", { dt: Date.now() - t0 });
@@ -142,7 +144,7 @@ export async function POST(req: Request) {
           }
         } catch (e) {
           console.error("[gen/stream] error", e);
-          controller.error(e);
+          controller.error(e as Error);
           return;
         } finally {
           controller.close();

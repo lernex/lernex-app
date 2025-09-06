@@ -100,14 +100,14 @@ Create exactly one discriminative multiple-choice question from the course's app
 
   // Small, fast, JSON-clean model; cap tokens for speed
   const model = "gpt-5-nano";
-  const completion = await ai.chat.completions.create({
+  const completion = await ai.responses.create({
     model,
     temperature: 1,
+    max_output_tokens: 1000,
     reasoning: { effort: "low" },
-    text: { verbosity: "medium" },
+    text: { verbosity: "medium" }
     response_format: { type: "json_object" },
-    max_tokens: 1000,
-    messages: [
+    input: [
       { role: "system", content: system },
       { role: "user", content: user },
     ],
@@ -121,7 +121,7 @@ Create exactly one discriminative multiple-choice question from the course's app
     }
   }
 
-  const raw = completion.choices[0]?.message?.content ?? "{}";
+  const raw = completion.output_text ?? "{}";
   let item: PlacementItem;
   try {
     item = JSON.parse(raw) as PlacementItem;

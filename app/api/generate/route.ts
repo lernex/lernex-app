@@ -202,17 +202,16 @@ ${text}
 Generate the lesson and questions as specified. Output only the JSON object.
 `.trim();
 
-    const completion = await client.chat.completions.create({
+    const stream = await client.responses.stream({
       model,
       temperature,
       reasoning: { effort: "minimal" },
       text: { verbosity: "low" },
-      messages: [
+      response_format: { type: "json_object" },
+      input: [
         { role: "system", content: system },
         { role: "user", content: userPrompt },
       ],
-      response_format: { type: "json_object" },
-      stream: true,
     });
 
     return new Response(
@@ -222,13 +221,13 @@ Generate the lesson and questions as specified. Output only the JSON object.
           let full = "";
           let usage: { prompt_tokens?: number | null; completion_tokens?: number | null } | null = null;
           try {
-            for await (const chunk of completion) {
-              if (chunk.choices[0]?.delta?.content) {
-                const text = chunk.choices[0].delta.content;
-                full += text;
-                controller.enqueue(encoder.encode(text));
+            for await (const event of stream) {
+              if (event.type === "response.output_text.delta") {
+                full += event.delta;
+                controller.enqueue(encoder.encode(event.delta));
+              } else if (event.type === "response.completed") {
+                usage = event.response?.usage ?? null;
               }
-              if (chunk.usage) usage = chunk.usage;
             }
             let parsed: unknown = null;
             try {
@@ -258,7 +257,7 @@ Generate the lesson and questions as specified. Output only the JSON object.
               }
             }
           } catch (err) {
-            controller.error(err);
+            controller.error(err as Error);
           } finally {
             controller.close();
           }

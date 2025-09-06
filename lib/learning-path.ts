@@ -38,22 +38,22 @@ export async function generateLearningPath(
 
   const userPrompt = `Course: ${course}\nMastery: ${mastery}%${notes ? `\nNotes: ${notes}` : ""}\nCreate a learning path in the specified format.`;
 
-  const completion = await client.chat.completions.create({
+  const completion = await client.responses.create({
     model,
     temperature,
     reasoning: { effort: "minimal" },
     text: { verbosity: "low" },
-    messages: [
+    response_format: { type: "json_object" },
+    input: [
       { role: "system", content: system },
       { role: "user", content: userPrompt },
     ],
-    response_format: { type: "json_object" },
   });
 
   if (uid && completion.usage) {
     await logUsage(sb, uid, ip, model, completion.usage);
   }
 
-  const content = completion.choices[0].message?.content || "{}";
+  const content = completion.output_text || "{}";
   return JSON.parse(content) as LearningPath;
 }

@@ -49,20 +49,23 @@ Generate two or three multiple-choice questions with short choices. Use standard
 `.trim();
 
     const model = "gpt-5-nano";
-    const completion = await ai.chat.completions.create({
+    const completion = await ai.responses.create({
       model,
       temperature: 1,
-      max_tokens: MAX_TOKENS,
+      max_output_tokens: MAX_TOKENS,
       reasoning: { effort: "minimal" },
       text: { verbosity: "low" },
       response_format: { type: "json_object" },
-      messages: [
+      input: [
         { role: "system", content: system },
-        { role: "user", content: `Subject: ${subject}\nDifficulty: ${difficulty}\nSource Text:\n${src}\nCreate 2 or 3 fair multiple-choice questions based on the source.` },
+        {
+          role: "user",
+          content: `Subject: ${subject}\nDifficulty: ${difficulty}\nSource Text:\n${src}\nCreate 2 or 3 fair multiple-choice questions based on the source.`,
+        },
       ],
     });
 
-    const raw = completion.choices[0]?.message?.content ?? "{}";
+    const raw = completion.output_text ?? "{}";
     let parsed: unknown;
     try { parsed = JSON.parse(raw); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 }); }
 
