@@ -49,7 +49,10 @@ function loadMathJax() {
             ["\\[", "\\]"],
             ["$$", "$$"]
           ],
-          processEscapes: true,
+          // If true, \\$ or \\(...\\) are treated as literal text, which
+          // conflicts with many LLMs that emit double-backslashed delimiters.
+          // Keep it false so \\(...\\) can be normalized and parsed as math.
+          processEscapes: false,
         },
         options: {
           skipHtmlTags: [
@@ -85,7 +88,15 @@ export default function FormattedText({ text }: { text: string }) {
   // lets React "own" the content so it won't randomly clear MathJax's
   // rendered DOM on unrelated re-renders.
   const html = useMemo(() => {
-    const src = text ?? "";
+    let src = text ?? "";
+    // Many LLM outputs double-backslashed math delimiters (\\( ... \\)).
+    // Normalize those to single-backslash so MathJax recognizes them.
+    // Use split/join to avoid regex-escape confusion across build targets
+    src = src
+      .split("\\\\(").join("\\(")
+      .split("\\\\)").join("\\)")
+      .split("\\\\[").join("\\[")
+      .split("\\\\]").join("\\]");
     dbg("html-build", { len: src.length, preview: src.slice(0, 60) });
 
     // 1) Escape HTML first
