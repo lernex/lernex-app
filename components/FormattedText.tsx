@@ -198,8 +198,22 @@ export default function FormattedText({ text }: { text: string }) {
               if (!MathJax) { dbg("no-mathjax"); return; }
               const doTypeset = () => {
                 try { MathJax.typesetClear?.([el]); } catch (e) { dbg("typesetClear-error", e); }
-                return MathJax.typesetPromise?.([el])
-                  .then(() => dbg("typeset-done"))
+                // Try scoping by element, then parent, then whole doc as a last resort
+                const parent = el.parentElement ?? undefined;
+                const tryLocal = () => MathJax.typesetPromise?.([el]).catch(() => {});
+                const tryParent = () => parent ? MathJax.typesetPromise?.([parent]).catch(() => {}) : Promise.resolve();
+                const tryGlobal = () => MathJax.typesetPromise?.().catch(() => {});
+
+                return (tryLocal() as Promise<void> | undefined)
+                  ?.then(() => {
+                    if (!el.querySelector("mjx-container")) return tryParent();
+                  })
+                  .then(() => {
+                    if (!el.querySelector("mjx-container")) return tryGlobal();
+                  })
+                  .then(() => {
+                    dbg(el.querySelector("mjx-container") ? "typeset-done" : "typeset-fallback-global-done");
+                  })
                   .catch((e) => dbg("typeset-error", e));
               };
               if (MathJax.startup?.promise) {
