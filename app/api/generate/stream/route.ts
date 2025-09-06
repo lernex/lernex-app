@@ -10,8 +10,8 @@ type ModelSpec = { name: string; delayMs: number };
 
 // Primary + backup (tune order if needed)
 const HEDGE: ModelSpec[] = [
-  { name: "gpt-4.1-nano", delayMs: 0 },      // try this first
-  { name: process.env.OPENAI_MODEL || "gpt-4o-mini", delayMs: 300 }, // backup
+  { name: "gpt-5-nano", delayMs: 0 },
+  { name: process.env.OPENAI_MODEL || "gpt-4.1-nano", delayMs: 1000 },
 ];
 
 const MAX_CHARS = 2200;  // cap input to keep TTFB low
@@ -55,15 +55,17 @@ export async function POST(req: Request) {
         {
           model,
           temperature: 1,
-          stream: true,           // streaming overload
-          max_tokens: MAX_TOKENS, // chat-completions param
+          stream: true,
+          max_tokens: MAX_TOKENS,
+          reasoning: { effort: "minimal" },
+          text: { verbosity: "low" },
           messages: [
             {
               role: "system",
               content:
-                "Write a concise micro-lesson (80–120 words). Two short paragraphs. No JSON, no code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags in the lesson text.",
+                "Write a concise micro-lesson of 80–120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.",
             },
-            { role: "user", content: `Subject: ${subject}\nSource:\n${src}` },
+            { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
           ],
         },
         { signal }

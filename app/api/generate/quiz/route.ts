@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     const src = text.slice(0, MAX_CHARS);
 
    const system = `
-Return STRICT JSON only:
+Return only JSON matching exactly:
 {
   "id": string,
   "subject": string,
@@ -45,18 +45,20 @@ Return STRICT JSON only:
     { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }
   ]
 }
-No commentary. 2–3 MCQs. Keep choices short. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.
+Generate two or three multiple-choice questions with short choices. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags and extra commentary.
 `.trim();
 
-    const model = "gpt-4.1-nano";
+    const model = "gpt-5-nano";
     const completion = await ai.chat.completions.create({
-      model,     // small, cheap, fast for JSON
+      model,
       temperature: 1,
       max_tokens: MAX_TOKENS,
+      reasoning: { effort: "minimal" },
+      text: { verbosity: "low" },
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: system },
-        { role: "user", content: `Subject: ${subject}\nDifficulty: ${difficulty}\nCreate fair MCQs from:\n${src}` },
+        { role: "user", content: `Subject: ${subject}\nDifficulty: ${difficulty}\nSource Text:\n${src}\nCreate 2 or 3 fair multiple-choice questions based on the source.` },
       ],
     });
 

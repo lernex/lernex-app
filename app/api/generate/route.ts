@@ -169,10 +169,10 @@ export async function POST(req: NextRequest) {
     const temperature = Number(process.env.OPENAI_TEMPERATURE ?? "1");
 
     const system = `
-You create ONE micro-lesson (30–80 words) and 1–3 MCQs with explanations.
+You create exactly one micro-lesson of 30–80 words and between one and three MCQs with explanations.
 Audience: ${subject} student. Adapt to the indicated difficulty.
 
-Return STRICT JSON ONLY (no markdown) matching:
+Return only JSON matching exactly:
 {
   "id": string,                   // short slug
   "subject": string,              // e.g., "Algebra 1"
@@ -199,11 +199,14 @@ ${nextTopicHint ? `Next Topic Hint: ${nextTopicHint}\n` : ""}Source Text:
 """
 ${text}
 """
+Generate the lesson and questions as specified. Output only the JSON object.
 `.trim();
 
     const completion = await client.chat.completions.create({
       model,
       temperature,
+      reasoning: { effort: "minimal" },
+      text: { verbosity: "low" },
       messages: [
         { role: "system", content: system },
         { role: "user", content: userPrompt },

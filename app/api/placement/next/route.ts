@@ -68,7 +68,7 @@ async function makeQuestion(
   }
 
 const system = `
-Return STRICT JSON only:
+Return only JSON in exactly this shape:
 {
   "subject": string,
   "course": string,
@@ -78,9 +78,9 @@ Return STRICT JSON only:
   "explanation": string,
   "difficulty": "intro"|"easy"|"medium"|"hard"
 }
-No commentary. Keep concise. 2–3 choices for intro/easy; 3–4 for medium/hard; exactly one correct.
+Generate one concise multiple-choice question. For intro/easy use 2–3 choices; for medium/hard use 3–4 choices. Exactly one answer must be correct.
 Difficulty reflects how deep into the course's units the question is: "intro" covers foundational early units, "easy" early units, "medium" mid-course units, and "hard" late or advanced units.
-Questions must stay strictly within the standard curriculum for the given course and avoid topics from more advanced classes.
+Keep strictly to the standard curriculum for the given course and avoid topics from more advanced classes.
 Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.
 `.trim();
 
@@ -95,14 +95,16 @@ Course: ${state.course}
 Target Difficulty: ${state.difficulty}
 Step: ${state.step} of ${state.maxSteps}
 ${avoidText}
-Create ONE discriminative MCQ drawn from appropriate course units and include a short explanation. Each question should cover a distinct key topic within the course's own syllabus to gauge overall knowledge.
+Create exactly one discriminative multiple-choice question from the course's appropriate units. Include a short explanation. The question should address a key topic within the course's own syllabus.
 `.trim();
 
   // Small, fast, JSON-clean model; cap tokens for speed
-  const model = "gpt-4.1-nano";
+  const model = "gpt-5-nano";
   const completion = await ai.chat.completions.create({
     model,
     temperature: 1,
+    reasoning: { effort: "low" },
+    text: { verbosity: "medium" },
     response_format: { type: "json_object" },
     max_tokens: 1000,
     messages: [

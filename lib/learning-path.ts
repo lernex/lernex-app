@@ -27,21 +27,22 @@ export async function generateLearningPath(
     if (!ok) throw new Error("Usage limit exceeded");
   }
 
-  const system = `You are a curriculum planner. Given a course name and user mastery, return JSON with:
+  const system = `You are a curriculum planner. Given a course name and user mastery, respond only with JSON in the following structure:
 {
   "course": string,
   "starting_topic": string,
   "topics": [
     { "name": string, "prerequisites": string[], "estimated_lessons": number }
   ]
-}
-Return strictly JSON.`.trim();
+}`.trim();
 
-  const userPrompt = `Course: ${course}\nMastery: ${mastery}%${notes ? `\nNotes: ${notes}` : ""}`;
+  const userPrompt = `Course: ${course}\nMastery: ${mastery}%${notes ? `\nNotes: ${notes}` : ""}\nCreate a learning path in the specified format.`;
 
   const completion = await client.chat.completions.create({
     model,
     temperature,
+    reasoning: { effort: "minimal" },
+    text: { verbosity: "low" },
     messages: [
       { role: "system", content: system },
       { role: "user", content: userPrompt },

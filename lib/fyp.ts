@@ -21,12 +21,14 @@ export async function generateLessonForTopic(
     if (!ok) throw new Error("Usage limit exceeded");
   }
 
-  const system = `You are an adaptive tutor. Create one micro-lesson (30-80 words) and 1-3 multiple-choice questions with explanations. Return strict JSON matching LessonSchema.`;
-  const userPrompt = `Subject: ${subject}\nTopic: ${topic}`;
+  const system = `You are an adaptive tutor. Generate exactly one micro-lesson of 30–80 words and one to three multiple-choice questions. Each question must include an explanation. Return only JSON matching LessonSchema.`;
+  const userPrompt = `Subject: ${subject}\nTopic: ${topic}\nProduce the lesson and questions described above.`;
 
   const completion = await client.chat.completions.create({
     model,
     temperature,
+    reasoning: { effort: "minimal" },
+    text: { verbosity: "low" },
     messages: [
       { role: "system", content: system },
       { role: "user", content: userPrompt },
