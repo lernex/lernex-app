@@ -11,7 +11,7 @@ type ModelSpec = { name: string; delayMs: number };
 // Primary + backup (tune order if needed)
 const HEDGE: ModelSpec[] = [
   { name: "gpt-5-nano", delayMs: 0 },
-  { name: process.env.OPENAI_MODEL || "gpt-4.1-nano", delayMs: 1000 },
+  { name: process.env.OPENAI_MODEL || "gpt-4.1-nano", delayMs: 500 },
 ];
 
 const MAX_CHARS = 2200;  // cap input to keep TTFB low
