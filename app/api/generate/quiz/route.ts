@@ -7,7 +7,8 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 
 const MAX_CHARS = 4300;
-const MAX_TOKENS = 480;
+// Allow a bit more room so the model can finish the JSON payload
+const MAX_TOKENS = 800;
 
 export async function POST(req: Request) {
   try {
@@ -66,7 +67,19 @@ Generate two or three multiple-choice questions with short choices. Use standard
 
     const raw = completion.output_text ?? "{}";
     let parsed: unknown;
-    try { parsed = JSON.parse(raw); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 }); }
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // Sometimes the model includes stray characters before/after the JSON
+      // or truncates the output slightly. Attempt to salvage the object.
+      try {
+        const start = raw.indexOf("{");
+        const end = raw.lastIndexOf("}") + 1;
+        parsed = JSON.parse(raw.slice(start, end));
+      } catch {
+        return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 });
+      }
+    }
 
     if (user && completion.usage) {
       try {
