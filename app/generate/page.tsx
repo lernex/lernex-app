@@ -107,6 +107,28 @@ export default function Generate() {
     }
   };
 
+  // After we assemble the final lesson (card + quiz), force a one-time global
+  // MathJax typeset to ensure everything on the page is rendered, including
+  // prompts/choices that may contain raw TeX without delimiters before our
+  // heuristics kick in.
+  useEffect(() => {
+    if (!lesson) return;
+    const kick = () => {
+      try {
+        // Double-rAF so layout is committed before typeset
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            // Best-effort: ignore errors in case MathJax isn't loaded yet
+            // The FormattedText fallbacks will still handle local elements.
+            // @ts-ignore
+            window.MathJax?.typesetPromise?.().catch(() => {});
+          });
+        });
+      } catch {}
+    };
+    kick();
+  }, [lesson]);
+
   return (
     <main className="min-h-[calc(100vh-56px)] flex items-center justify-center text-neutral-900 dark:text-white">
       <div className="w-full max-w-md px-4 py-6 space-y-4">
@@ -145,7 +167,8 @@ export default function Generate() {
         {/* Show streaming text immediately if lesson object not ready yet */}
         {!lesson && streamed && (
           <div className="rounded-2xl bg-neutral-900 border border-neutral-800 p-4 whitespace-pre-wrap">
-            <FormattedText text={streamed} />
+            {/* Use incremental rendering to avoid flashing while streaming */}
+            <FormattedText text={streamed} incremental />
           </div>
         )}
 

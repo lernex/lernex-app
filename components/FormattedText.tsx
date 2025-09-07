@@ -79,7 +79,7 @@ function loadMathJax() {
   return mathJaxPromise;
 }
 
-export default function FormattedText({ text }: { text: string }) {
+export default function FormattedText({ text, incremental = false }: { text: string; incremental?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
   const isDev = typeof process !== "undefined" && process.env.NODE_ENV !== "production";
   const dbg = (...args: unknown[]) => { if (isDev) console.debug("[FormattedText]", ...args); };
@@ -182,7 +182,57 @@ export default function FormattedText({ text }: { text: string }) {
     return out;
   }, [text]);
 
+  // Incremental mode: append only the delta to avoid wiping previous MathJax
+  // output during streaming. This eliminates the formatted ↔ unformatted flash.
+  const lastHtmlRef = useRef<string>(""
+  );
   useEffect(() => {
+    if (!incremental) return; // handled by the normal effect below
+    const el = ref.current;
+    if (!el) return;
+
+    const last = lastHtmlRef.current;
+    const next = html;
+    if (next.startsWith(last)) {
+      const delta = next.slice(last.length);
+      if (delta) el.insertAdjacentHTML("beforeend", delta);
+    } else {
+      // Content changed in a non-append way; replace fully
+      el.innerHTML = next;
+    }
+    lastHtmlRef.current = next;
+
+    const schedule = () => {
+      dbg("typeset-schedule");
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          dbg("typeset-run");
+          void loadMathJax().then(() => {
+            const MathJax = window.MathJax;
+            if (!MathJax) { dbg("no-mathjax"); return; }
+            const doTypeset = () => {
+              try { MathJax.typesetClear?.([el]); } catch (e) { dbg("typesetClear-error", e); }
+              return MathJax.typesetPromise?.([el])
+                .then(() => dbg("typeset-done"))
+                .catch((e) => dbg("typeset-error", e));
+            };
+            if (MathJax.startup?.promise) {
+              MathJax.startup.promise.then(doTypeset).catch((e) => dbg("startup-promise-error", e));
+            } else {
+              doTypeset();
+            }
+          });
+        });
+      });
+    };
+
+    schedule();
+    // No cleanup necessary; we never schedule long timers in incremental path
+  }, [html, incremental]);
+
+  // Normal mode: rely on React to set innerHTML, then typeset after paint
+  useEffect(() => {
+    if (incremental) return; // handled above
     const el = ref.current;
     if (!el) return;
 
@@ -238,7 +288,11 @@ export default function FormattedText({ text }: { text: string }) {
     obs.observe(el);
 
     return () => { try { obs.disconnect(); } catch {} };
-  }, [html]);
+  }, [html, incremental]);
 
-  return <span ref={ref} dangerouslySetInnerHTML={{ __html: html }} />;
+  return incremental ? (
+    <span ref={ref} />
+  ) : (
+    <span ref={ref} dangerouslySetInnerHTML={{ __html: html }} />
+  );
 }

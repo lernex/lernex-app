@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Lesson } from "@/types";
 import { useLernexStore } from "@/lib/store";
 import FormattedText from "./FormattedText";
@@ -13,6 +13,22 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
   const [selected, setSel] = useState<number | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const q = lesson.questions[qIndex];
+
+  // Ensure MathJax formats newly shown questions immediately after index
+  // changes. This complements the per-element fallback in FormattedText and
+  // helps when the entire question block swaps at once.
+  useEffect(() => {
+    const raf = () => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // Best-effort; ignore errors if MathJax isn't ready yet.
+          // @ts-ignore
+          window.MathJax?.typesetPromise?.().catch(() => {});
+        });
+      });
+    };
+    raf();
+  }, [qIndex]);
 
   const choose = (idx: number) => {
     if (selected !== null) return;
