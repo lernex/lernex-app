@@ -14,7 +14,6 @@ export default function LessonCard({ lesson }: { lesson: Lesson }) {
     if (!el) return;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        // @ts-expect-error - MathJax is injected at runtime
         window.MathJax?.typesetPromise?.([el]).catch(() => {});
       });
     });
