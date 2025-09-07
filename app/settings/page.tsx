@@ -17,6 +17,8 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [me, setMe] = useState<Me>({});
+  const [nameStatus, setNameStatus] = useState<"idle"|"checking"|"available"|"taken"|"invalid">("idle");
+  const [nameMsg, setNameMsg] = useState<string>("");
 
   useEffect(() => {
     (async () => {
@@ -27,6 +29,27 @@ export default function SettingsPage() {
       setLoading(false);
     })();
   }, [router]);
+
+  // Username availability check (debounced)
+  useEffect(() => {
+    const u = (me.username ?? "").trim();
+    if (!u) { setNameStatus("idle"); setNameMsg(""); return; }
+    if (u.length < 3 || u.length > 20 || !/^[a-zA-Z0-9_]+$/.test(u)) {
+      setNameStatus("invalid"); setNameMsg("3–20 chars: letters, numbers, _"); return;
+    }
+    setNameStatus("checking"); setNameMsg("Checking…");
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/profile/username/check?username=${encodeURIComponent(u)}`, { cache: "no-store" });
+        const data = await res.json();
+        if (data.available) { setNameStatus("available"); setNameMsg("Available"); }
+        else { setNameStatus("taken"); setNameMsg("Taken"); }
+      } catch {
+        setNameStatus("invalid"); setNameMsg("Could not check");
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [me.username]);
 
   const save = async () => {
     setSaving(true);
@@ -62,10 +85,17 @@ export default function SettingsPage() {
 
         <label className="text-sm text-neutral-700 dark:text-neutral-300">Username</label>
         <input
-          className="w-full px-3 py-2 rounded-xl bg-neutral-100 border border-neutral-300 text-neutral-900 outline-none dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
+          className={`w-full px-3 py-2 rounded-xl bg-neutral-100 border text-neutral-900 outline-none dark:bg-neutral-800 dark:text-white ${
+            nameStatus === "available" ? "border-green-500 dark:border-green-500" :
+            nameStatus === "taken" || nameStatus === "invalid" ? "border-red-500 dark:border-red-500" :
+            "border-neutral-300 dark:border-neutral-700"
+          }`}
           value={me.username ?? ""}
           onChange={(e) => setMe((m) => ({ ...m, username: e.target.value }))}
         />
+        {nameStatus !== "idle" && (
+          <div className={`${nameStatus === "available" ? "text-green-600" : nameStatus === "checking" ? "text-neutral-500" : "text-red-600"} text-xs`}>{nameMsg}</div>
+        )}
 
         <label className="text-sm text-neutral-700 dark:text-neutral-300">Date of Birth</label>
         <input
@@ -93,7 +123,7 @@ export default function SettingsPage() {
         <div className="flex gap-2">
           <button
             onClick={save}
-            disabled={saving}
+            disabled={saving || nameStatus === "checking" || nameStatus === "taken" || nameStatus === "invalid"}
             className="px-4 py-2 rounded-xl bg-lernex-blue text-white hover:bg-blue-500 disabled:opacity-60"
           >
             Save
