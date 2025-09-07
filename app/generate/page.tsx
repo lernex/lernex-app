@@ -121,6 +121,10 @@ export default function Generate() {
             // Best-effort: ignore errors in case MathJax isn't loaded yet
             // The FormattedText fallbacks will still handle local elements.
             window.MathJax?.typesetPromise?.().catch(() => {});
+            // Second pass a bit later to catch any late layout
+            setTimeout(() => {
+              window.MathJax?.typesetPromise?.().catch(() => {});
+            }, 350);
           });
         });
       } catch {}

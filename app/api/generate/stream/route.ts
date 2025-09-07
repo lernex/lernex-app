@@ -15,7 +15,7 @@ const HEDGE: ModelSpec[] = [
 ];
 
 const MAX_CHARS = 2200;  // cap input to keep TTFB low
-const MAX_TOKENS = 250;  // cap output tokens for snappier completions
+const MAX_TOKENS = 380;  // allow a bit more room to finish math
 
 export async function POST(req: Request) {
   const t0 = Date.now();
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
             {
               role: "system",
               content:
-                "Write a concise micro-lesson of 80–120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.",
+                "Write a concise micro-lesson of 80–120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Always close any math delimiters you open and prefer inline math (\\( ... \\)) for short expressions.",
             },
             { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
           ],

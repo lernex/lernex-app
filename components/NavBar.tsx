@@ -171,12 +171,9 @@ export default function NavBar() {
           Lernex
         </Link>
         <div className="flex items-center gap-4">
-          <Link
-            href="/pricing"
-            className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block"
-          >
-            Pricing
-          </Link>
+          <Link href="/playlists" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">Playlists</Link>
+          <Link href="/about" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">About</Link>
+          <Link href="/pricing" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">Pricing</Link>
           {user && pathname !== "/" && (
             <>
               <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">
@@ -187,12 +184,7 @@ export default function NavBar() {
               </span>
             </>
           )}
-          <Link
-            href="/generate"
-            className="rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-1 text-white shadow-sm transition hover:opacity-90"
-          >
-            Generate
-          </Link>
+          <Link href="/generate" className="rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-1 text-white shadow-sm transition hover:opacity-90">Generate</Link>
           {user === undefined ? null : user ? (
             <div className="relative" ref={menuRef}>
               <button

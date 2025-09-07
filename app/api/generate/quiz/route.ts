@@ -46,7 +46,7 @@ Return only JSON matching exactly:
     { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }
   ]
 }
-Generate two or three multiple-choice questions with short choices. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags and extra commentary.
+Generate two or three multiple-choice questions with short choices. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags and extra commentary. Always close any math delimiters you open; prefer inline math (\\( ... \\)) for expressions in sentences.
 `.trim();
 
     const model = "gpt-5-nano";

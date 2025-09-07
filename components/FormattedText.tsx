@@ -102,6 +102,27 @@ export default function FormattedText({ text, incremental = false }: { text: str
       .split("\\\\]").join("\\]");
     dbg("html-build", { len: src.length, preview: src.slice(0, 60) });
 
+    // Balance unmatched math delimiters at the end of the text so truncated
+    // generations still render (e.g., an opening "\\(" with no closing).
+    {
+      const stack: ("\\(" | "\\[")[] = [];
+      let displayOpen = false;
+      const tokenRe = /\\\(|\\\[|\\\)|\\\]|\$\$/g;
+      let m: RegExpExecArray | null;
+      while ((m = tokenRe.exec(src))) {
+        const t = m[0];
+        if (t === "\\(" || t === "\\[") stack.push(t);
+        else if (t === "\\)") { if (stack[stack.length - 1] === "\\(") stack.pop(); }
+        else if (t === "\\]") { if (stack[stack.length - 1] === "\\[") stack.pop(); }
+        else if (t === "$$") displayOpen = !displayOpen;
+      }
+      while (stack.length) {
+        const open = stack.pop();
+        src += open === "\\(" ? "\\)" : "\\]";
+      }
+      if (displayOpen) src += "$$";
+    }
+
     // 1) Escape HTML first
     const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -174,8 +195,14 @@ export default function FormattedText({ text, incremental = false }: { text: str
       // 4) Subscripts like v_1 or x_{ij}
       out = out.replace(/([A-Za-z]+)_(\{[^}]+\}|\d+|[A-Za-z])/g, (_m, a, b) => wrap(`${a}_${b}`));
 
-      // 5) ||v|| patterns: convert to \| v \| within math
-      out = out.replace(/\|\|\s*(\\[a-zA-Z]+\{[^}]+\})\s*\|\|/g, (_m, inner) => wrap(`\\| ${inner} \\|`));
+      // 5) Norms: || ... ||
+      out = out.replace(/\|\|([^|]{1,80})\|\|/g, (_m, inner) => wrap(`\\| ${inner.trim()} \\|`));
+
+      // 6) Angle brackets: ⟨ a, b ⟩ → \langle a, b \rangle
+      out = out.replace(/⟨([^⟩]{1,80})⟩/g, (_m, inner) => wrap(`\\langle ${inner.trim()} \\rangle`));
+
+      // 7) Unicode square root: √(expr) or √n → \sqrt{...}
+      out = out.replace(/√\s*\(?([0-9A-Za-z+\-*/^\s,.]+?)\)?(?=(\s|[.,;:)\]]|$))/g, (_m, inner) => wrap(`\\sqrt{${inner.trim()}}`));
 
       return out;
     };
