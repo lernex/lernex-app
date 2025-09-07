@@ -21,13 +21,13 @@ export async function GET(req: NextRequest) {
   const v = validate(username);
   if (!v.ok) return NextResponse.json({ available: false, reason: v.reason }, { headers: { "Cache-Control": "no-store" } });
 
+  const name = v.ok ? (v as { ok: true; value: string }).value : "";
   const { data } = await sb
     .from("profiles")
     .select("id")
-    .eq("username", v.value)
+    .eq("username", name)
     .limit(1);
 
   const takenByOther = (data?.[0]?.id && data[0].id !== user?.id) ? true : false;
   return NextResponse.json({ available: !takenByOther }, { headers: { "Cache-Control": "no-store" } });
 }
-

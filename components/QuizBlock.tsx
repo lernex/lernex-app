@@ -53,6 +53,13 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
       setQ(qIndex + 1);
       setSel(null);
     } else {
+      try {
+        fetch("/api/attempt", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ lesson_id: lesson.id, correct_count: correctCount, total: lesson.questions.length }),
+        }).catch(() => {});
+      } catch {}
       onDone(correctCount);
     }
   };

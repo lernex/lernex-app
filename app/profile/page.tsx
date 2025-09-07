@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 export default function Profile() {
-  const { points, streak, accuracyBySubject, resetStreak } = useLernexStore();
+  const { points, streak, accuracyBySubject } = useLernexStore();
   const [email, setEmail] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const supabase = useMemo(() => supabaseBrowser(), []);
@@ -53,9 +53,9 @@ export default function Profile() {
               <div className="text-lg font-semibold">{points}</div>
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
-            <Link href="/settings" className="flex-1 rounded-xl bg-lernex-blue px-3 py-2 text-center text-white">Settings</Link>
-            <button onClick={resetStreak} className="flex-1 rounded-xl border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700">Reset Streak</button>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Link href="/settings" className="rounded-xl bg-lernex-blue px-3 py-2 text-center text-white">Settings</Link>
+            <Link href="/leaderboard" className="rounded-xl border border-neutral-300 px-3 py-2 text-center dark:border-neutral-700">Leaderboard</Link>
           </div>
         </section>
 
@@ -88,6 +88,19 @@ export default function Profile() {
           <div className="mt-6 grid gap-2 sm:grid-cols-2">
             <Link href="/onboarding" className="rounded-xl border border-neutral-300 px-3 py-2 text-center dark:border-neutral-700">Update interests</Link>
             <Link href="/placement" className="rounded-xl border border-neutral-300 px-3 py-2 text-center dark:border-neutral-700">Run placement</Link>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
+              <div className="font-medium">Weekly Goal</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400">Earn 200 points</div>
+              <div className="mt-2 h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-800">
+                <div className="h-full rounded-full bg-lernex-blue transition-all" style={{ width: `${Math.min(100, Math.round(((points ?? 0) % 200) / 2))}%` }} />
+              </div>
+            </div>
+            <div className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
+              <div className="font-medium">Next Streak Milestone</div>
+              <div className="text-sm text-neutral-600 dark:text-neutral-300">{Math.max(0, 7 - ((streak ?? 0) % 7))} days to next reward</div>
+            </div>
           </div>
         </section>
       </div>

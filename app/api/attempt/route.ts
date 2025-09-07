@@ -35,7 +35,32 @@ export async function POST(req: NextRequest) {
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), { status: 500 });
     }
-    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+
+    // Update profile points + streak
+    const today = new Date().toISOString().slice(0,10);
+    const { data: prof } = await sb
+      .from("profiles")
+      .select("points, streak, last_study_date")
+      .eq("id", uid)
+      .maybeSingle();
+    const last = (prof?.last_study_date as string | null) ?? null;
+    let newStreak = 1;
+    if (last) {
+      const d0 = new Date(today);
+      const d1 = new Date(last);
+      const diff = Math.floor((+d0 - +d1)/86400000);
+      if (diff === 0) newStreak = (prof?.streak as number | null) ?? 1;
+      else newStreak = diff === 1 ? (((prof?.streak as number | null) ?? 0) + 1) : 1;
+    }
+    const addPts = Math.max(0, Number(correct_count) || 0) * 10;
+    await sb.from("profiles").update({
+      last_study_date: today,
+      streak: newStreak,
+      points: ((prof?.points as number | null) ?? 0) + addPts,
+      updated_at: new Date().toISOString(),
+    }).eq("id", uid);
+
+    return new Response(JSON.stringify({ ok: true, addPts, newStreak }), { status: 200 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Server error";
     return new Response(JSON.stringify({ error: msg }), { status: 500 });
