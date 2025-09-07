@@ -41,6 +41,7 @@ export default function Playlists() {
     <main className="min-h-[calc(100vh-56px)] flex items-center justify-center text-neutral-900 dark:text-white">
       <div className="w-full max-w-md px-4 py-6 space-y-4">
         <h1 className="text-xl font-semibold">Your Playlists</h1>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">Create sets of lessons to study and share with friends.</p>
 
         <div className="flex gap-2">
           <input
@@ -70,6 +71,9 @@ export default function Playlists() {
               </div>
             </Link>
           ))}
+          {rows.length === 0 && (
+            <div className="text-sm text-neutral-500 dark:text-neutral-400">No playlists yet — create your first above.</div>
+          )}
         </div>
       </div>
     </main>
