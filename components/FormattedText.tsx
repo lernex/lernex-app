@@ -83,7 +83,6 @@ export default function FormattedText({ text, incremental = false }: { text: str
   const ref = useRef<HTMLSpanElement>(null);
   const dbg = useCallback((...args: unknown[]) => {
     if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
       console.debug("[FormattedText]", ...args);
     }
   }, []);
@@ -218,7 +217,7 @@ export default function FormattedText({ text, incremental = false }: { text: str
         pendingRef.current += delta;
 
         const outsideMath = inlineDepthRef.current === 0 && !inDisplayRef.current;
-        let hasCloser = /\\\)|\\\]|\$\$/.test(delta) && outsideMath;
+        const hasCloser = /\\\)|\\\]|\$\$/.test(delta) && outsideMath;
 
         let hasSentence = false;
         if (outsideMath) {
