@@ -5,7 +5,21 @@ import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useLernexStore } from "@/lib/store";
 
-type ProfileRow = { id: string; points: number | null; streak: number | null };
+type ProfileRow = { id: string; username: string | null; points: number | null; streak: number | null };
+type RawProfile = { id?: unknown; username?: unknown; points?: unknown; streak?: unknown };
+
+function toStr(v: unknown): string { return typeof v === "string" ? v : String(v ?? ""); }
+function toStrOrNull(v: unknown): string | null { return v == null ? null : toStr(v); }
+function toNumOrNull(v: unknown): number | null { return typeof v === "number" ? v : v == null ? null : Number(v); }
+function normalizeProfiles(rows: unknown[] | null | undefined): ProfileRow[] {
+  const arr = Array.isArray(rows) ? (rows as RawProfile[]) : [];
+  return arr.map((r) => ({
+    id: toStr(r.id),
+    username: toStrOrNull(r.username),
+    points: toNumOrNull(r.points),
+    streak: toNumOrNull(r.streak),
+  }));
+}
 
 export default function Leaderboard() {
   const supabase = useMemo(() => supabaseBrowser(), []);
@@ -29,17 +43,17 @@ export default function Leaderboard() {
       const [{ data: pts }, { data: stk }] = await Promise.all([
         supabase
           .from("profiles")
-          .select("id, points, streak")
+          .select("id, username, points, streak")
           .order("points", { ascending: false })
           .limit(20),
         supabase
           .from("profiles")
-          .select("id, points, streak")
+          .select("id, username, points, streak")
           .order("streak", { ascending: false })
           .limit(20),
       ]);
-      setTopPoints((pts as any[])?.map((r) => ({ id: String(r.id), points: r.points ?? 0, streak: r.streak ?? 0 })) ?? []);
-      setTopStreak((stk as any[])?.map((r) => ({ id: String(r.id), points: r.points ?? 0, streak: r.streak ?? 0 })) ?? []);
+      setTopPoints(normalizeProfiles(pts ?? []));
+      setTopStreak(normalizeProfiles(stk ?? []));
 
       if (userId) {
         const { data: me } = await supabase
@@ -102,7 +116,7 @@ export default function Leaderboard() {
               >
                 <div className="flex items-center gap-3">
                   <span className="w-6 text-right text-sm text-neutral-500">{i + 1}</span>
-                  <span className="text-sm">Learner #{r.id.slice(0, 6)}</span>
+                  <span className="text-sm">{r.username ?? `Learner #${r.id.slice(0, 6)}`}</span>
                 </div>
                 <span className="text-sm font-medium">{r.points ?? 0}</span>
               </li>
@@ -122,7 +136,7 @@ export default function Leaderboard() {
               >
                 <div className="flex items-center gap-3">
                   <span className="w-6 text-right text-sm text-neutral-500">{i + 1}</span>
-                  <span className="text-sm">Learner #{r.id.slice(0, 6)}</span>
+                  <span className="text-sm">{r.username ?? `Learner #${r.id.slice(0, 6)}`}</span>
                 </div>
                 <span className="text-sm font-medium">{r.streak ?? 0} days</span>
               </li>
