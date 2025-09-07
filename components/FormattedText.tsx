@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 interface MathJaxWithConfig {
   typesetPromise?: (elements?: unknown[]) => Promise<void>;
@@ -81,8 +81,12 @@ function loadMathJax() {
 
 export default function FormattedText({ text, incremental = false }: { text: string; incremental?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const isDev = typeof process !== "undefined" && process.env.NODE_ENV !== "production";
-  const dbg = (...args: unknown[]) => { if (isDev) console.debug("[FormattedText]", ...args); };
+  const dbg = useCallback((...args: unknown[]) => {
+    if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.debug("[FormattedText]", ...args);
+    }
+  }, []);
 
   // Compute the HTML once per `text` value. Using `dangerouslySetInnerHTML`
   // lets React "own" the content so it won't randomly clear MathJax's
@@ -180,12 +184,12 @@ export default function FormattedText({ text, incremental = false }: { text: str
     const out = segs.map(({ math, t }) => (math ? escapeHtml(t) : formatText(t))).join("");
     dbg("html-ready", { len: out.length });
     return out;
-  }, [text]);
+  }, [text, dbg]);
 
   // Incremental mode: append only the delta to avoid wiping previous MathJax
   // output during streaming. This eliminates the formatted ↔ unformatted flash.
-  const lastHtmlRef = useRef<string>(""
-  );
+  const lastHtmlRef = useRef<string>("");
+  const lastTypesetLenRef = useRef<number>(0);
   useEffect(() => {
     if (!incremental) return; // handled by the normal effect below
     const el = ref.current;
@@ -196,39 +200,72 @@ export default function FormattedText({ text, incremental = false }: { text: str
     if (next.startsWith(last)) {
       const delta = next.slice(last.length);
       if (delta) el.insertAdjacentHTML("beforeend", delta);
+      // Only typeset when we likely completed an expression: look for closers
+      let should = false;
+      if (delta.includes("\\)")) should = true;
+      if (delta.includes("\\]")) should = true;
+      if (delta.includes("$$")) should = true;
+      if (!should && next.length - lastTypesetLenRef.current > 220) should = true; // periodic safety
+      if (should) {
+        const schedule = () => {
+          dbg("typeset-schedule");
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              dbg("typeset-run");
+              void loadMathJax().then(() => {
+                const MathJax = window.MathJax;
+                if (!MathJax) { dbg("no-mathjax"); return; }
+                const doTypeset = () => {
+                  try { MathJax.typesetClear?.([el]); } catch (e) { dbg("typesetClear-error", e); }
+                  return MathJax.typesetPromise?.([el])
+                    .then(() => dbg("typeset-done"))
+                    .catch((e) => dbg("typeset-error", e));
+                };
+                if (MathJax.startup?.promise) {
+                  MathJax.startup.promise.then(doTypeset).catch((e) => dbg("startup-promise-error", e));
+                } else {
+                  doTypeset();
+                }
+              });
+            });
+          });
+        };
+        schedule();
+        lastTypesetLenRef.current = next.length;
+      }
     } else {
       // Content changed in a non-append way; replace fully
       el.innerHTML = next;
-    }
-    lastHtmlRef.current = next;
-
-    const schedule = () => {
-      dbg("typeset-schedule");
-      requestAnimationFrame(() => {
+      // Full replace → run a local typeset once
+      const schedule = () => {
+        dbg("typeset-schedule");
         requestAnimationFrame(() => {
-          dbg("typeset-run");
-          void loadMathJax().then(() => {
-            const MathJax = window.MathJax;
-            if (!MathJax) { dbg("no-mathjax"); return; }
-            const doTypeset = () => {
-              try { MathJax.typesetClear?.([el]); } catch (e) { dbg("typesetClear-error", e); }
-              return MathJax.typesetPromise?.([el])
-                .then(() => dbg("typeset-done"))
-                .catch((e) => dbg("typeset-error", e));
-            };
-            if (MathJax.startup?.promise) {
-              MathJax.startup.promise.then(doTypeset).catch((e) => dbg("startup-promise-error", e));
-            } else {
-              doTypeset();
-            }
+          requestAnimationFrame(() => {
+            dbg("typeset-run");
+            void loadMathJax().then(() => {
+              const MathJax = window.MathJax;
+              if (!MathJax) { dbg("no-mathjax"); return; }
+              const doTypeset = () => {
+                try { MathJax.typesetClear?.([el]); } catch (e) { dbg("typesetClear-error", e); }
+                return MathJax.typesetPromise?.([el])
+                  .then(() => dbg("typeset-done"))
+                  .catch((e) => dbg("typeset-error", e));
+              };
+              if (MathJax.startup?.promise) {
+                MathJax.startup.promise.then(doTypeset).catch((e) => dbg("startup-promise-error", e));
+              } else {
+                doTypeset();
+              }
+            });
           });
         });
-      });
-    };
-
-    schedule();
+      };
+      schedule();
+      lastTypesetLenRef.current = next.length;
+    }
+    lastHtmlRef.current = next;
     // No cleanup necessary; we never schedule long timers in incremental path
-  }, [html, incremental]);
+  }, [html, incremental, dbg]);
 
   // Normal mode: rely on React to set innerHTML, then typeset after paint
   useEffect(() => {
@@ -288,7 +325,7 @@ export default function FormattedText({ text, incremental = false }: { text: str
     obs.observe(el);
 
     return () => { try { obs.disconnect(); } catch {} };
-  }, [html, incremental]);
+  }, [html, incremental, dbg]);
 
   return incremental ? (
     <span ref={ref} />

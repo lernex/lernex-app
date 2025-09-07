@@ -120,7 +120,6 @@ export default function Generate() {
           requestAnimationFrame(() => {
             // Best-effort: ignore errors in case MathJax isn't loaded yet
             // The FormattedText fallbacks will still handle local elements.
-            // @ts-ignore
             window.MathJax?.typesetPromise?.().catch(() => {});
           });
         });

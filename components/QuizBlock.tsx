@@ -22,7 +22,6 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           // Best-effort; ignore errors if MathJax isn't ready yet.
-          // @ts-ignore
           window.MathJax?.typesetPromise?.().catch(() => {});
         });
       });
