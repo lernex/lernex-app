@@ -32,9 +32,9 @@ let mathJaxPromise: Promise<void> | null = null;
 function devLog(...args: unknown[]) {
   try {
     // Only log in dev to keep console clean in production
-    // eslint-disable-next-line no-undef
+    
     if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
+      
       console.debug("[FormattedText]", ...args);
     }
   } catch {}
@@ -295,7 +295,7 @@ export default function FormattedText({ text, incremental = false }: { text: str
     }
     lastHtmlRef.current = next;
     // No cleanup necessary; we never schedule long timers in incremental path
-  }, [html, incremental, dbg]);
+  }, [html, incremental]);
 
   // Normal mode: rely on React to set innerHTML, then typeset after paint
   useEffect(() => {
