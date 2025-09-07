@@ -83,15 +83,11 @@ export default function NavBar() {
           <span className="rounded-full border border-neutral-200 bg-neutral-100 px-2 py-1 text-xs dark:border-white/10 dark:bg-white/5">
             ⭐ {points}
           </span>
-          <Link href="/pricing" title="Pricing" className="text-xl transition hover:opacity-80">
-            💎
-          </Link>
-          <Link href="/generate" title="Generate" className="text-xl transition hover:opacity-80">
-            ✨
-          </Link>
-          <Link href="/playlists" title="Playlists" className="text-xl transition hover:opacity-80">
-            📚
-          </Link>
+          <Link href="/pricing" title="Pricing" className="text-xl transition hover:opacity-80">💎</Link>
+          <Link href="/generate" title="Generate" className="text-xl transition hover:opacity-80">✨</Link>
+          <Link href="/playlists" title="Playlists" className="text-xl transition hover:opacity-80">📚</Link>
+          <Link href="/docs" title="Docs" className="text-xl transition hover:opacity-80">📘</Link>
+          <Link href="/leaderboard" title="Leaderboard" className="text-xl transition hover:opacity-80">🏆</Link>
         </div>
         <div className="relative mb-4 flex justify-center" ref={menuRef}>
           {user && (

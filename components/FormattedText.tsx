@@ -212,14 +212,20 @@ export default function FormattedText({ text, incremental = false }: { text: str
 
     const fixMacros = (s: string) => {
       // Collapse accidental double-backslashes before common macros, but keep
-      // true LaTeX linebreaks (\\) intact.
+      // true linebreaks (\\) intact.
       const macros = [
         "langle","rangle","vec","mathbf","mathbb","mathcal","hat","bar","underline","overline",
         "cdot","times","pm","leq","geq","frac","sqrt","binom","pmatrix","bmatrix","vmatrix","begin","end"
       ].join("|");
-      s = s.replace(new RegExp(String.raw`\\\\(?=${macros}\b)`, "g"), String.raw`\`);
+      const reDouble = new RegExp('\\\\\\\\(?=(' + macros + ')\\b)', 'g');
+      s = s.replace(reDouble, '\\');
       // If a macro name appears without a backslash in math (rare), add one
-      s = s.replace(/(^|[^\\])(langle|rangle|mathbf|sqrt|frac|vec|binom)\b/g, "$1\\$2");
+      s = s.replace(/(^|[^\\])(langle|rangle|mathbf|sqrt|frac|vec|binom)\b/g, '$1\\$2');
+      // Normalize one-letter macro arguments like \mathbfv -> \mathbf{v}
+      s = s.replace(/\\mathbf([A-Za-z])(?![A-Za-z])/g, '\\mathbf{$1}');
+      s = s.replace(/\\vec([A-Za-z])(?![A-Za-z])/g, '\\vec{$1}');
+      s = s.replace(/\\hat([A-Za-z])(?![A-Za-z])/g, '\\hat{$1}');
+      s = s.replace(/\\bar([A-Za-z])(?![A-Za-z])/g, '\\bar{$1}');
       return s;
     };
 
