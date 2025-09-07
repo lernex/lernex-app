@@ -15,7 +15,9 @@ export default function Profile() {
     supabase.auth.getUser().then(({ data }) => {
       const u = data.user;
       setEmail(u?.email ?? null);
-      setAvatar((u?.user_metadata as any)?.avatar_url ?? null);
+      const meta = (u?.user_metadata ?? {}) as Record<string, unknown>;
+      const a = typeof meta.avatar_url === "string" ? (meta.avatar_url as string) : null;
+      setAvatar(a);
     }).catch(() => {});
   }, [supabase]);
 

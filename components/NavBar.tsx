@@ -173,9 +173,13 @@ export default function NavBar() {
         <div className="flex items-center gap-4">
           <Link href="/playlists" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">Playlists</Link>
           <Link href="/about" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">About</Link>
+          <Link href="/docs" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">Docs</Link>
+          <Link href="/leaderboard" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">Leaderboard</Link>
           <Link href="/pricing" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">Pricing</Link>
           {user && pathname !== "/" && (
             <>
+          <Link href="/docs" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">Docs</Link>
+          <Link href="/leaderboard" className="hidden text-neutral-600 transition-colors hover:text-lernex-blue dark:text-neutral-200 md:block">Leaderboard</Link>
               <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">
                 🔥 {streak}
               </span>
