@@ -124,7 +124,7 @@ export default function Generate() {
             // Second pass a bit later to catch any late layout
             setTimeout(() => {
               window.MathJax?.typesetPromise?.().catch(() => {});
-            }, 350);
+            }, 200);
           });
         });
       } catch {}

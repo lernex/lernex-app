@@ -12,6 +12,7 @@ interface MathJaxWithConfig {
   };
   options?: {
     skipHtmlTags?: string[];
+    renderActions?: Record<string, unknown>;
   };
 }
 
@@ -63,6 +64,8 @@ function loadMathJax() {
             "pre",
             "code",
           ],
+          // Disable the MathJax right-click context menu
+          renderActions: { addMenu: [] },
         },
       } satisfies MathJaxWithConfig;
 
@@ -92,7 +95,7 @@ export default function FormattedText({ text, incremental = false }: { text: str
   // rendered DOM on unrelated re-renders.
   const html = useMemo(() => {
     let src = text ?? "";
-    // Many LLM outputs double-backslashed math delimiters (\\( ... \\)).
+    // Many LLM outputs double-backslashed math delimiters/macros.
     // Normalize those to single-backslash so MathJax recognizes them.
     // Use split/join to avoid regex-escape confusion across build targets
     src = src
@@ -207,7 +210,22 @@ export default function FormattedText({ text, incremental = false }: { text: str
       return out;
     };
 
-    const out = segs.map(({ math, t }) => (math ? escapeHtml(t) : formatText(t))).join("");
+    const fixMacros = (s: string) => {
+      // Collapse accidental double-backslashes before common macros, but keep
+      // true LaTeX linebreaks (\\) intact.
+      const macros = [
+        "langle","rangle","vec","mathbf","mathbb","mathcal","hat","bar","underline","overline",
+        "cdot","times","pm","leq","geq","frac","sqrt","binom","pmatrix","bmatrix","vmatrix","begin","end"
+      ].join("|");
+      s = s.replace(new RegExp(String.raw`\\\\(?=${macros}\b)`, "g"), String.raw`\`);
+      // If a macro name appears without a backslash in math (rare), add one
+      s = s.replace(/(^|[^\\])(langle|rangle|mathbf|sqrt|frac|vec|binom)\b/g, "$1\\$2");
+      return s;
+    };
+
+    const out = segs
+      .map(({ math, t }) => (math ? escapeHtml(fixMacros(t)) : formatText(t)))
+      .join("");
     dbg("html-ready", { len: out.length });
     return out;
   }, [text, dbg]);
