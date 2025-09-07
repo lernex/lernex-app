@@ -39,6 +39,15 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
       setCorrectCount((c) => c + 1);
       addPoints(10);
     }
+    // Ensure formatting stays intact after the immediate UI update when
+    // button classes change (avoids transient unformatted state in some
+    // browsers during reflow).
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        // @ts-expect-error - MathJax injected at runtime
+        window.MathJax?.typesetPromise?.().catch(() => {});
+      });
+    });
   };
 
   const next = () => {
