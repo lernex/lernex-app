@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Lesson } from "@/types";
 import { useLernexStore } from "@/lib/store";
 import FormattedText from "./FormattedText";
@@ -13,20 +13,18 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
   const [selected, setSel] = useState<number | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const q = lesson.questions[qIndex];
+  const rootRef = useRef<HTMLDivElement>(null);
 
   // Ensure MathJax formats newly shown questions immediately after index
   // changes. This complements the per-element fallback in FormattedText and
   // helps when the entire question block swaps at once.
   useEffect(() => {
-    const raf = () => {
+    const el = rootRef.current;
+    requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          // Best-effort; ignore errors if MathJax isn't ready yet.
-          window.MathJax?.typesetPromise?.().catch(() => {});
-        });
+        window.MathJax?.typesetPromise?.(el ? [el] : undefined).catch(() => {});
       });
-    };
-    raf();
+    });
   }, [qIndex]);
 
   const choose = (idx: number) => {
@@ -44,8 +42,8 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
     // browsers during reflow).
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        // @ts-expect-error - MathJax injected at runtime
-        window.MathJax?.typesetPromise?.().catch(() => {});
+        const el = rootRef.current;
+        window.MathJax?.typesetPromise?.(el ? [el] : undefined).catch(() => {});
       });
     });
   };
@@ -71,7 +69,7 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
     }`;
 
   return (
-    <div className="rounded-[24px] bg-white/80 border border-neutral-200 p-5 mt-3 dark:bg-neutral-900/80 dark:border-neutral-800">
+    <div ref={rootRef} className="rounded-[24px] bg-white/80 border border-neutral-200 p-5 mt-3 dark:bg-neutral-900/80 dark:border-neutral-800">
       <div className="mb-3 text-sm text-neutral-700 dark:text-neutral-300">
         <FormattedText text={q.prompt} />
       </div>
