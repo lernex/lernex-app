@@ -115,14 +115,20 @@ Create exactly one discriminative multiple-choice question from the course's app
   });
 
   if (uid && completion.usage) {
-    const mapped = {
-      input_tokens: (completion.usage as any).prompt_tokens ?? null,
-      output_tokens: (completion.usage as any).completion_tokens ?? null,
-    };
-    try {
-      await logUsage(sb, uid, ip, model, mapped);
-    } catch {
-      /* ignore */
+    const u = completion.usage;
+    let mapped: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
+    if (u && typeof u === "object") {
+      const rec = u as Record<string, unknown>;
+      const prompt = typeof rec.prompt_tokens === "number" ? rec.prompt_tokens : null;
+      const completionTokens = typeof rec.completion_tokens === "number" ? rec.completion_tokens : null;
+      mapped = { input_tokens: prompt, output_tokens: completionTokens };
+    }
+    if (mapped) {
+      try {
+        await logUsage(sb, uid, ip, model, mapped);
+      } catch {
+        /* ignore */
+      }
     }
   }
 

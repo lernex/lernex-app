@@ -5,7 +5,7 @@ import { take } from "@/lib/rate";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
-import { checkUsageLimit, logUsage } from "@/lib/usage";
+import { checkUsageLimit } from "@/lib/usage";
 
 
 export const dynamic = "force-dynamic";
@@ -227,7 +227,6 @@ Generate the lesson and questions as specified. Output only the JSON object.
         async start(controller) {
           const encoder = new TextEncoder();
           let full = "";
-          let usage: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
           try {
             for await (const chunk of stream) {
               const delta = (chunk?.choices?.[0]?.delta?.content as string | undefined) ?? "";
@@ -254,13 +253,6 @@ Generate the lesson and questions as specified. Output only the JSON object.
                 });
               } catch {
                 /* ignore cache errors */
-              }
-              if (usage) {
-                try {
-                  await logUsage(sb, uid, ip, model, usage);
-                } catch {
-                  /* ignore usage log errors */
-                }
               }
             }
           } catch (err) {

@@ -3,7 +3,7 @@ export const runtime = "edge";
 
 import OpenAI from "openai";
 import { supabaseServer } from "@/lib/supabase-server";
-import { checkUsageLimit, logUsage } from "@/lib/usage";
+import { checkUsageLimit } from "@/lib/usage";
 
 const MAX_CHARS = 2200;  // cap input to keep TTFB low
 const MAX_TOKENS = 380;  // allow a bit more room to finish math
@@ -41,10 +41,7 @@ export async function POST(req: Request) {
 
     console.log("[gen/stream] request-start", { dt: 0 });
 
-    let chosenModel = "";
-    let usage: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
     const model = "accounts/fireworks/models/gpt-oss-20b";
-    chosenModel = model;
     const winner = await ai.chat.completions.create({
       model,
       temperature: 1,
@@ -79,13 +76,6 @@ export async function POST(req: Request) {
           }
 
           console.log("[gen/stream] done", { dt: Date.now() - t0 });
-          if (uid && usage) {
-            try {
-              await logUsage(sb, uid, ip, chosenModel, usage);
-            } catch {
-              /* ignore */
-            }
-          }
         } catch (e) {
           console.error("[gen/stream] error", e);
           controller.error(e as Error);
