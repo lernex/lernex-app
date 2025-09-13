@@ -8,16 +8,14 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
   const addPoints = useLernexStore((s) => s.addPoints);
   const bumpStreak = useLernexStore((s) => s.bumpStreakIfNewDay);
   const recordAnswer = useLernexStore((s) => s.recordAnswer);
-
-  // Guard against empty or malformed question sets
-  if (!Array.isArray(lesson.questions) || lesson.questions.length === 0) {
-    return null;
-  }
+  // Normalize questions while keeping hooks unconditional
+  const questions = Array.isArray(lesson.questions) ? lesson.questions : [];
+  const hasQuestions = questions.length > 0;
 
   const [qIndex, setQ] = useState(0);
   const [selected, setSel] = useState<number | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
-  const q = lesson.questions[qIndex];
+  const q = hasQuestions ? questions[qIndex] : undefined;
   const rootRef = useRef<HTMLDivElement>(null);
 
   // Ensure MathJax formats newly shown questions immediately after index
@@ -34,6 +32,7 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
 
   const choose = (idx: number) => {
     if (selected !== null) return;
+    if (!hasQuestions || !q) return;
     setSel(idx);
     const isCorrect = idx === q.correctIndex;
     recordAnswer(lesson.subject, isCorrect);
@@ -54,7 +53,8 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
   };
 
   const next = () => {
-    if (qIndex < lesson.questions.length - 1) {
+    if (!hasQuestions) return;
+    if (qIndex < questions.length - 1) {
       setQ(qIndex + 1);
       setSel(null);
     } else {
@@ -62,7 +62,7 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
         fetch("/api/attempt", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ lesson_id: lesson.id, correct_count: correctCount, total: lesson.questions.length }),
+          body: JSON.stringify({ lesson_id: lesson.id, correct_count: correctCount, total: questions.length }),
         }).catch(() => {});
       } catch {}
       onDone(correctCount);
@@ -73,14 +73,14 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
     `text-left px-3 py-2 rounded-xl border transition ${
       selected === null
         ? "bg-neutral-100 border-neutral-200 hover:bg-neutral-200 dark:bg-neutral-800 dark:border-neutral-700 dark:hover:bg-neutral-700"
-        : idx === q.correctIndex
+        : idx === (q?.correctIndex ?? -1)
         ? "bg-green-600/80 border-green-500"
         : idx === selected
         ? "bg-red-600/80 border-red-500"
         : "bg-neutral-100/60 border-neutral-200/60 dark:bg-neutral-800/60 dark:border-neutral-700/60"
     }`;
 
-  return (
+  return hasQuestions && q ? (
     <div ref={rootRef} className="rounded-[24px] bg-white/80 border border-neutral-200 p-5 mt-3 dark:bg-neutral-900/80 dark:border-neutral-800">
       <div className="mb-3 text-sm text-neutral-700 dark:text-neutral-300">
         <FormattedText text={q.prompt} />
@@ -94,12 +94,12 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
       </div>
       <div className="mt-4 flex items-center justify-between">
         <div className="text-xs text-neutral-500 dark:text-neutral-400">
-          Question {qIndex + 1} / {lesson.questions.length}
+          Question {qIndex + 1} / {questions.length}
         </div>
         <button onClick={next} className="px-4 py-2 rounded-xl bg-lernex-blue hover:bg-blue-500 transition">
-          {qIndex < lesson.questions.length - 1 ? "Next" : "Finish"}
+          {qIndex < questions.length - 1 ? "Next" : "Finish"}
         </button>
       </div>
     </div>
-  );
+  ) : null;
 }
