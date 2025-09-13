@@ -14,7 +14,6 @@ export async function POST(req: Request) {
     const sb = supabaseServer();
     const { data: { user } } = await sb.auth.getUser();
     const uid = user?.id ?? null;
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
 
     if (uid) {
       const ok = await checkUsageLimit(sb, uid);

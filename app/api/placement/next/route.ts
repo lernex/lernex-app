@@ -118,7 +118,7 @@ Create exactly one discriminative multiple-choice question from the course's app
     const u = completion.usage;
     let mapped: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
     if (u && typeof u === "object") {
-      const rec = u as Record<string, unknown>;
+      const rec = (u as unknown) as { prompt_tokens?: unknown; completion_tokens?: unknown };
       const prompt = typeof rec.prompt_tokens === "number" ? rec.prompt_tokens : null;
       const completionTokens = typeof rec.completion_tokens === "number" ? rec.completion_tokens : null;
       mapped = { input_tokens: prompt, output_tokens: completionTokens };
