@@ -28,8 +28,8 @@ export async function POST(req: Request) {
     if (!fwApiKey) {
       return new Response("Missing FIREWORKS_API_KEY", { status: 500 });
     }
-    if (typeof text !== "string" || text.trim().length < 40) {
-      return new Response("Provide at least ~40 characters of study text.", { status: 400 });
+    if (typeof text !== "string" || text.trim().length < 20) {
+      return new Response("Provide at least ~20 characters of study text.", { status: 400 });
     }
 
     const src = text.slice(0, MAX_CHARS);
@@ -64,14 +64,37 @@ export async function POST(req: Request) {
           controller.enqueue(enc.encode("\n"));
 
           let first = true;
+          let emitted = false;
           for await (const chunk of winner) {
             const token = (chunk?.choices?.[0]?.delta?.content as string | undefined) ?? "";
             if (!token) continue;
+            emitted = true;
             if (first) {
               console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
               first = false;
             }
             controller.enqueue(enc.encode(token));
+          }
+
+          // Fallback: if stream yielded nothing (provider incompat or empty), fetch once non-streaming
+          if (!emitted) {
+            try {
+              const once = await ai.chat.completions.create({
+                model,
+                temperature: 1,
+                max_tokens: MAX_TOKENS,
+                messages: [
+                  {
+                    role: "system",
+                    content:
+                      "Write a concise micro-lesson of 80–120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Always close any math delimiters you open and prefer inline math (\\( ... \\)) for short expressions. Use \\langle ... \\rangle for vectors and \\|v\\| for norms. Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).\nReasoning: low",
+                  },
+                  { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
+                ],
+              });
+              const txt = (once.choices?.[0]?.message?.content as string | undefined) ?? "";
+              if (txt) controller.enqueue(enc.encode(txt));
+            } catch {}
           }
 
           console.log("[gen/stream] done", { dt: Date.now() - t0 });

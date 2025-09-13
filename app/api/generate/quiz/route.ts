@@ -32,8 +32,8 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
-    if (typeof text !== "string" || text.trim().length < 40) {
-      return new Response(JSON.stringify({ error: "Provide ≥ 40 characters" }), { status: 400 });
+    if (typeof text !== "string" || text.trim().length < 20) {
+      return new Response(JSON.stringify({ error: "Provide ≥ 20 characters" }), { status: 400 });
     }
 
     const src = text.slice(0, MAX_CHARS);

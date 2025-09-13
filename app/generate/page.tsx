@@ -154,12 +154,12 @@ export default function Generate() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={6}
-            placeholder="Paste study text here… (≥ 40 chars)"
+            placeholder="Paste study text here… (≥ 20 chars)"
             className="w-full px-3 py-2 rounded-xl bg-white border border-neutral-300 text-neutral-900 outline-none dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
           />
           <button
             onClick={run}
-            disabled={loading || text.trim().length < 40}
+            disabled={loading || text.trim().length < 20}
             className="w-full py-3 rounded-2xl bg-lernex-blue hover:bg-blue-500 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? "Generating…" : "Generate"}
