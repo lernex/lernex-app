@@ -7,8 +7,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlacementState, PlacementItem, Difficulty, PlacementNextResponse } from "@/types/placement";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
-
-const ai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+const ai = new OpenAI({
+  apiKey: process.env.FIREWORKS_API_KEY!,
+  baseURL: "https://api.fireworks.ai/inference/v1",
+});
 const MAX_TOKENS = 600;
 
 // Safety
@@ -83,6 +85,7 @@ Generate one concise multiple-choice question. For intro/easy use 2–3 choices;
 Difficulty reflects how deep into the course's units the question is: "intro" covers foundational early units, "easy" early units, "medium" mid-course units, and "hard" late or advanced units.
 Keep strictly to the standard curriculum for the given course and avoid topics from more advanced classes.
 Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.
+Reasoning: medium
 `.trim();
 
 const avoidText =
@@ -99,29 +102,31 @@ ${avoidText}
 Create exactly one discriminative multiple-choice question from the course's appropriate units. Include a short explanation. The question should address a key topic within the course's own syllabus.
 `.trim();
 
-  // Small, fast, JSON-clean model; cap tokens for speed
-  const model = "gpt-5-nano";
-  const completion = await ai.responses.create({
+  // Fireworks model; cap tokens for speed
+  const model = "accounts/fireworks/models/gpt-oss-20b";
+  const completion = await ai.chat.completions.create({
     model,
     temperature: 1,
-    max_output_tokens: MAX_TOKENS,
-    reasoning: { effort: "low" },
-    text: { format: { type: "json_object" }, verbosity: "low" },
-    input: [
+    max_tokens: MAX_TOKENS,
+    messages: [
       { role: "system", content: system },
       { role: "user", content: user },
     ],
   });
 
   if (uid && completion.usage) {
+    const mapped = {
+      input_tokens: (completion.usage as any).prompt_tokens ?? null,
+      output_tokens: (completion.usage as any).completion_tokens ?? null,
+    };
     try {
-      await logUsage(sb, uid, ip, model, completion.usage);
+      await logUsage(sb, uid, ip, model, mapped);
     } catch {
       /* ignore */
     }
   }
 
-  const raw = completion.output_text ?? "{}";
+  const raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "{}";
   let item: PlacementItem;
   try {
     item = JSON.parse(raw) as PlacementItem;

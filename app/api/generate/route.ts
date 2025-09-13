@@ -32,9 +32,12 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429 });
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return new Response(JSON.stringify({ error: "Server misconfigured: missing OPENAI_API_KEY" }), { status: 500 });
+  const fwApiKey = process.env.FIREWORKS_API_KEY;
+  if (!fwApiKey) {
+    return new Response(
+      JSON.stringify({ error: "Server misconfigured: missing FIREWORKS_API_KEY" }),
+      { status: 500 }
+    );
   }
 
   // Supabase client (forward the user session for RLS)
@@ -163,14 +166,15 @@ export async function POST(req: NextRequest) {
     }
     // ------------------------------------------------------------
 
-    // OpenAI call
-    const client = new OpenAI({ apiKey });
-    const model = process.env.OPENAI_MODEL || "gpt-5-nano";
-    const temperature = Number(process.env.OPENAI_TEMPERATURE ?? "1");
+    // Model/provider selection (Fireworks)
+    const model = "accounts/fireworks/models/gpt-oss-20b";
+    const temperature = 1;
 
     const system = `
 You create exactly one micro-lesson of 30–80 words and between one and three MCQs with explanations.
 Audience: ${subject} student. Adapt to the indicated difficulty.
+Reasoning: low
+ Reasoning effort: low — prioritize concise, fast derivations over long chains of thought.
 
 Return only JSON matching exactly:
 {
@@ -202,12 +206,17 @@ ${text}
 Generate the lesson and questions as specified. Output only the JSON object.
 `.trim();
 
-    const stream = await client.responses.stream({
+    // Fireworks Chat Completions (streaming)
+    const client = new OpenAI({
+      apiKey: fwApiKey,
+      baseURL: "https://api.fireworks.ai/inference/v1",
+    });
+    const stream = await client.chat.completions.create({
       model,
       temperature,
-      reasoning: { effort: "minimal" },
-      text: { format: { type: "json_object" }, verbosity: "low" },
-      input: [
+      max_tokens: 1200,
+      stream: true,
+      messages: [
         { role: "system", content: system },
         { role: "user", content: userPrompt },
       ],
@@ -220,12 +229,11 @@ Generate the lesson and questions as specified. Output only the JSON object.
           let full = "";
           let usage: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
           try {
-            for await (const event of stream) {
-              if (event.type === "response.output_text.delta") {
-                full += event.delta;
-                controller.enqueue(encoder.encode(event.delta));
-              } else if (event.type === "response.completed") {
-                usage = event.response?.usage ?? null;
+            for await (const chunk of stream) {
+              const delta = (chunk?.choices?.[0]?.delta?.content as string | undefined) ?? "";
+              if (delta) {
+                full += delta;
+                controller.enqueue(encoder.encode(delta));
               }
             }
             let parsed: unknown = null;

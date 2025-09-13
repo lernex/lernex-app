@@ -2,17 +2,8 @@
 export const runtime = "edge";
 
 import OpenAI from "openai";
-import type { ResponseStreamEvent } from "openai/resources/responses/responses";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
-
-type ModelSpec = { name: string; delayMs: number };
-
-// Primary + backup (tune order if needed)
-const HEDGE: ModelSpec[] = [
-  { name: "gpt-5-nano", delayMs: 0 },
-  { name: process.env.OPENAI_MODEL || "gpt-4.1-nano", delayMs: 500 },
-];
 
 const MAX_CHARS = 2200;  // cap input to keep TTFB low
 const MAX_TOKENS = 380;  // allow a bit more room to finish math
@@ -34,83 +25,40 @@ export async function POST(req: Request) {
 
     const { text, subject = "Algebra 1" } = await req.json();
 
-    if (!process.env.OPENAI_API_KEY) {
-      return new Response("Missing OPENAI_API_KEY", { status: 500 });
+    const fwApiKey = process.env.FIREWORKS_API_KEY;
+    if (!fwApiKey) {
+      return new Response("Missing FIREWORKS_API_KEY", { status: 500 });
     }
     if (typeof text !== "string" || text.trim().length < 40) {
       return new Response("Provide at least ~40 characters of study text.", { status: 400 });
     }
 
     const src = text.slice(0, MAX_CHARS);
-    const ai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const ai = new OpenAI({
+      apiKey: fwApiKey,
+      baseURL: "https://api.fireworks.ai/inference/v1",
+    });
 
     console.log("[gen/stream] request-start", { dt: 0 });
 
     let chosenModel = "";
     let usage: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
-
-    // Start a streaming response for a model, with optional abort signal
-    const startStream = (model: string, signal?: AbortSignal) =>
-      ai.responses.stream(
+    const model = "accounts/fireworks/models/gpt-oss-20b";
+    chosenModel = model;
+    const winner = await ai.chat.completions.create({
+      model,
+      temperature: 1,
+      max_tokens: MAX_TOKENS,
+      stream: true,
+      messages: [
         {
-          model,
-          temperature: 1,
-          max_output_tokens: MAX_TOKENS,
-          reasoning: { effort: "minimal" },
-          text: { verbosity: "low" },
-          input: [
-            {
-              role: "system",
-              content:
-                "Write a concise micro-lesson of 80–120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Always close any math delimiters you open and prefer inline math (\\( ... \\)) for short expressions. Use \\langle ... \\rangle for vectors and \\|v\\| for norms. Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).",
-            },
-            { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
-          ],
+          role: "system",
+          content:
+            "Write a concise micro-lesson of 80–120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Always close any math delimiters you open and prefer inline math (\\( ... \\)) for short expressions. Use \\langle ... \\rangle for vectors and \\|v\\| for norms. Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).\nReasoning: low",
         },
-        { signal }
-      );
-
-    // Hedged start: launch primary now, backup after a small delay; take the first that responds
-    const controllers: (AbortController | undefined)[] = [];
-    const winner = await new Promise<AsyncIterable<ResponseStreamEvent>>(
-      (resolve, reject) => {
-        let resolved = false;
-
-        HEDGE.forEach(({ name, delayMs }, idx) => {
-          setTimeout(async () => {
-            if (resolved) return;
-            const ac = new AbortController();
-            controllers[idx] = ac;
-
-            try {
-              const stream = await startStream(name, ac.signal);
-              if (!resolved) {
-                resolved = true;
-                chosenModel = name;
-                console.log("[gen/stream] first-model", { model: name, dt: Date.now() - t0 });
-                // cancel the others
-                controllers.forEach((c, j) => {
-                  if (j !== idx && c) {
-                    try { c.abort(); } catch { /* noop */ }
-                  }
-                });
-                resolve(stream);
-              } else {
-                try { ac.abort(); } catch { /* noop */ }
-              }
-            } catch (err) {
-              // If this attempt fails and it's the last hedge, reject
-              if (!resolved && idx === HEDGE.length - 1) reject(err as Error);
-            }
-          }, delayMs);
-        });
-
-        // Safety timeout if nothing resolves
-        setTimeout(() => { if (!resolved) reject(new Error("hedge-timeout")); }, 10_000);
-      }
-    );
-
-    console.log("[gen/stream] after-openai-call", { dt: Date.now() - t0 });
+        { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
+      ],
+    });
 
     const enc = new TextEncoder();
     const body = new ReadableStream<Uint8Array>({
@@ -120,18 +68,14 @@ export async function POST(req: Request) {
           controller.enqueue(enc.encode("\n"));
 
           let first = true;
-          for await (const event of winner) {
-            if (event.type === "response.output_text.delta") {
-              const token = event.delta;
-              if (!token) continue;
-              if (first) {
-                console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
-                first = false;
-              }
-              controller.enqueue(enc.encode(token));
-            } else if (event.type === "response.completed") {
-              usage = event.response?.usage ?? null;
+          for await (const chunk of winner) {
+            const token = (chunk?.choices?.[0]?.delta?.content as string | undefined) ?? "";
+            if (!token) continue;
+            if (first) {
+              console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
+              first = false;
             }
+            controller.enqueue(enc.encode(token));
           }
 
           console.log("[gen/stream] done", { dt: Date.now() - t0 });

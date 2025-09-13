@@ -25,14 +25,17 @@ export async function POST(req: Request) {
     
     const { text, subject = "Algebra 1", difficulty = "easy" } = await req.json();
 
-    if (!process.env.OPENAI_API_KEY) {
-      return new Response(JSON.stringify({ error: "Missing OPENAI_API_KEY" }), { status: 500 });
+    const fwApiKey = process.env.FIREWORKS_API_KEY;
+    if (!fwApiKey) {
+      return new Response(
+        JSON.stringify({ error: "Missing FIREWORKS_API_KEY" }),
+        { status: 500 }
+      );
     }
     if (typeof text !== "string" || text.trim().length < 40) {
       return new Response(JSON.stringify({ error: "Provide ≥ 40 characters" }), { status: 400 });
     }
 
-    const ai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const src = text.slice(0, MAX_CHARS);
 
    const system = `
@@ -47,16 +50,21 @@ Return only JSON matching exactly:
   ]
 }
 Generate two or three multiple-choice questions with short choices. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags and extra commentary. Always close any math delimiters you open; prefer inline math (\\( ... \\)) for expressions in sentences. Use vector notation with \\langle ... \\rangle and norms with \\|v\\| (not angle brackets or plain pipes). Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).
+Reasoning: low
 `.trim();
 
-    const model = "gpt-5-nano";
-    const completion = await ai.responses.create({
+    const model = "accounts/fireworks/models/gpt-oss-20b";
+    let raw = "{}";
+
+    const ai = new OpenAI({
+      apiKey: fwApiKey,
+      baseURL: "https://api.fireworks.ai/inference/v1",
+    });
+    const completion = await ai.chat.completions.create({
       model,
       temperature: 1,
-      max_output_tokens: MAX_TOKENS,
-      reasoning: { effort: "minimal" },
-      text: { format: { type: "json_object" }, verbosity: "low" },
-      input: [
+      max_tokens: MAX_TOKENS,
+      messages: [
         { role: "system", content: system },
         {
           role: "user",
@@ -64,8 +72,18 @@ Generate two or three multiple-choice questions with short choices. Use standard
         },
       ],
     });
-
-    const raw = completion.output_text ?? "{}";
+    raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "{}";
+    if (user && completion.usage) {
+      const mapped = {
+        input_tokens: (completion.usage as any).prompt_tokens ?? null,
+        output_tokens: (completion.usage as any).completion_tokens ?? null,
+      };
+      try {
+        await logUsage(sb, user.id, ip, model, mapped);
+      } catch {
+        /* ignore */
+      }
+    }
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
@@ -81,13 +99,7 @@ Generate two or three multiple-choice questions with short choices. Use standard
       }
     }
 
-    if (user && completion.usage) {
-      try {
-        await logUsage(sb, user.id, ip, model, completion.usage);
-      } catch {
-        /* ignore */
-      }
-    }
+    // Note: Bedrock usage logging is handled in the generation route; here we log only for OpenAI path above.
 
     return new Response(JSON.stringify(parsed), {
       headers: { "content-type": "application/json", "Cache-Control": "no-store" },
