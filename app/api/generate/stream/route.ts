@@ -1,18 +1,20 @@
 // app/api/generate/stream/route.ts
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 import OpenAI from "openai";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit } from "@/lib/usage";
 
-const MAX_CHARS = 2200;  // cap input to keep TTFB low
-const MAX_TOKENS = 380;  // allow a bit more room to finish math
+const MAX_CHARS = 2200; // cap input to keep TTFB low
+const MAX_TOKENS = 380; // allow a bit more room to finish math
 
 export async function POST(req: Request) {
   const t0 = Date.now();
   try {
     const sb = supabaseServer();
-    const { data: { user } } = await sb.auth.getUser();
+    const {
+      data: { user },
+    } = await sb.auth.getUser();
     const uid = user?.id ?? null;
 
     if (uid) {
@@ -52,7 +54,10 @@ export async function POST(req: Request) {
           content:
             "Write a concise micro-lesson of 80–120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Always close any math delimiters you open and prefer inline math (\\( ... \\)) for short expressions. Use \\langle ... \\rangle for vectors and \\|v\\| for norms. Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).\nReasoning: low",
         },
-        { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
+        {
+          role: "user",
+          content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.`,
+        },
       ],
     });
 
@@ -65,19 +70,26 @@ export async function POST(req: Request) {
 
           let first = true;
           let emitted = false;
-          for await (const chunk of winner) {
-            const token = (chunk?.choices?.[0]?.delta?.content as string | undefined) ?? "";
-            if (!token) continue;
-            emitted = true;
-            if (first) {
-              console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
-              first = false;
+          let streamFailed = false;
+          try {
+            for await (const chunk of winner) {
+              const token =
+                (chunk?.choices?.[0]?.delta?.content as string | undefined) ?? "";
+              if (!token) continue;
+              emitted = true;
+              if (first) {
+                console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
+                first = false;
+              }
+              controller.enqueue(enc.encode(token));
             }
-            controller.enqueue(enc.encode(token));
+          } catch (err) {
+            streamFailed = true;
+            console.warn("[gen/stream] stream failed, falling back", err);
           }
 
-          // Fallback: if stream yielded nothing (provider incompat or empty), fetch once non-streaming
-          if (!emitted) {
+          // Fallback: if stream yielded nothing (provider incompat or empty) or failed, fetch once non-streaming
+          if (!emitted || streamFailed) {
             try {
               const once = await ai.chat.completions.create({
                 model,
@@ -89,19 +101,25 @@ export async function POST(req: Request) {
                     content:
                       "Write a concise micro-lesson of 80–120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Always close any math delimiters you open and prefer inline math (\\( ... \\)) for short expressions. Use \\langle ... \\rangle for vectors and \\|v\\| for norms. Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).\nReasoning: low",
                   },
-                  { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
+                  {
+                    role: "user",
+                    content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.`,
+                  },
                 ],
               });
-              const txt = (once.choices?.[0]?.message?.content as string | undefined) ?? "";
+              const txt =
+                (once.choices?.[0]?.message?.content as string | undefined) ??
+                "";
               if (txt) controller.enqueue(enc.encode(txt));
-            } catch {}
+            } catch (err) {
+              console.error("[gen/stream] fallback failed", err);
+            }
           }
 
           console.log("[gen/stream] done", { dt: Date.now() - t0 });
         } catch (e) {
           console.error("[gen/stream] error", e);
-          controller.error(e as Error);
-          return;
+          // Avoid surfacing stream errors to HTTP; just close.
         } finally {
           controller.close();
         }
@@ -121,3 +139,4 @@ export async function POST(req: Request) {
     return new Response("Server error", { status: 500 });
   }
 }
+

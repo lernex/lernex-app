@@ -83,12 +83,14 @@ export default function Feed({ lessons }: { lessons: Lesson[] }) {
           className="absolute inset-0 px-4 py-5"
         >
           <LessonCard lesson={cur} />
-          <QuizBlock
-            lesson={cur}
-            onDone={() => {
-              setTimeout(next, 250);
-            }}
-          />
+          {Array.isArray(cur.questions) && cur.questions.length > 0 && (
+            <QuizBlock
+              lesson={cur}
+              onDone={() => {
+                setTimeout(next, 250);
+              }}
+            />
+          )}
           <div className="mt-3 text-xs text-neutral-400 text-center">
             Tip: Swipe up/down, use mouse wheel, or arrow keys.
             {pct !== null && <div>So far in <b>{cur.subject}</b>: {pct}% correct</div>}

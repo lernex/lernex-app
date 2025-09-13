@@ -22,15 +22,17 @@ export default function LessonPage() {
       <div className="w-full max-w-md px-4 py-6 space-y-4">
         <LessonCard lesson={lesson} />
 
-        <QuizBlock
-          lesson={lesson}
-          onDone={(correctCount) => {
-            // award cloud points: +10 per correct
-            bumpStreakAndPoints(correctCount * 10).catch(() => {});
-            // go back to the vertical feed after a short beat
-            setTimeout(() => router.push("/"), 200);
-          }}
-        />
+        {Array.isArray(lesson.questions) && lesson.questions.length > 0 && (
+          <QuizBlock
+            lesson={lesson}
+            onDone={(correctCount) => {
+              // award cloud points: +10 per correct
+              bumpStreakAndPoints(correctCount * 10).catch(() => {});
+              // go back to the vertical feed after a short beat
+              setTimeout(() => router.push("/"), 200);
+            }}
+          />
+        )}
       </div>
     </main>
   );

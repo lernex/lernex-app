@@ -9,6 +9,11 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
   const bumpStreak = useLernexStore((s) => s.bumpStreakIfNewDay);
   const recordAnswer = useLernexStore((s) => s.recordAnswer);
 
+  // Guard against empty or malformed question sets
+  if (!Array.isArray(lesson.questions) || lesson.questions.length === 0) {
+    return null;
+  }
+
   const [qIndex, setQ] = useState(0);
   const [selected, setSel] = useState<number | null>(null);
   const [correctCount, setCorrectCount] = useState(0);

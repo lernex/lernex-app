@@ -178,7 +178,9 @@ export default function Generate() {
         {lesson && (
           <div className="space-y-3">
             <LessonCard lesson={lesson} />
-            <QuizBlock lesson={lesson} onDone={() => {}} />
+            {Array.isArray(lesson.questions) && lesson.questions.length > 0 && (
+              <QuizBlock lesson={lesson} onDone={() => {}} />
+            )}
           </div>
         )}
       </div>
