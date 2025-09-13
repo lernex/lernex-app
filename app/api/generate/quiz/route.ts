@@ -64,6 +64,7 @@ Reasoning: low
       model,
       temperature: 1,
       max_tokens: MAX_TOKENS,
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: system },
         {
@@ -90,16 +91,50 @@ Reasoning: low
         }
       }
     }
+    // Robust JSON parsing with balanced-brace extraction fallback
+    function extractBalancedObject(s: string): string | null {
+      let i = 0;
+      const n = s.length;
+      let depth = 0;
+      let start = -1;
+      let inStr = false;
+      let escaped = false;
+      for (; i < n; i++) {
+        const ch = s[i];
+        if (inStr) {
+          if (escaped) {
+            escaped = false;
+          } else if (ch === "\\") {
+            escaped = true;
+          } else if (ch === '"') {
+            inStr = false;
+          }
+          continue;
+        }
+        if (ch === '"') { inStr = true; continue; }
+        if (ch === '{') {
+          if (depth === 0) start = i;
+          depth++;
+        } else if (ch === '}') {
+          depth--;
+          if (depth === 0 && start !== -1) {
+            return s.slice(start, i + 1);
+          }
+        }
+      }
+      return null;
+    }
+
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
     } catch {
-      // Sometimes the model includes stray characters before/after the JSON
-      // or truncates the output slightly. Attempt to salvage the object.
+      const extracted = extractBalancedObject(raw);
+      if (!extracted) {
+        return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 });
+      }
       try {
-        const start = raw.indexOf("{");
-        const end = raw.lastIndexOf("}") + 1;
-        parsed = JSON.parse(raw.slice(start, end));
+        parsed = JSON.parse(extracted);
       } catch {
         return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 });
       }

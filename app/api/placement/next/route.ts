@@ -108,6 +108,7 @@ Create exactly one discriminative multiple-choice question from the course's app
     model,
     temperature: 1,
     max_tokens: MAX_TOKENS,
+    response_format: { type: "json_object" },
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },
@@ -133,11 +134,50 @@ Create exactly one discriminative multiple-choice question from the course's app
   }
 
   const raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "{}";
+  function extractBalancedObject(s: string): string | null {
+    let i = 0;
+    const n = s.length;
+    let depth = 0;
+    let start = -1;
+    let inStr = false;
+    let escaped = false;
+    for (; i < n; i++) {
+      const ch = s[i];
+      if (inStr) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === "\\") {
+          escaped = true;
+        } else if (ch === '"') {
+          inStr = false;
+        }
+        continue;
+      }
+      if (ch === '"') { inStr = true; continue; }
+      if (ch === '{') {
+        if (depth === 0) start = i;
+        depth++;
+      } else if (ch === '}') {
+        depth--;
+        if (depth === 0 && start !== -1) {
+          return s.slice(start, i + 1);
+        }
+      }
+    }
+    return null;
+  }
+
   let item: PlacementItem;
   try {
     item = JSON.parse(raw) as PlacementItem;
   } catch {
-    return null; // let client request again; keeps UX flowing
+    const extracted = extractBalancedObject(raw);
+    if (!extracted) return null;
+    try {
+      item = JSON.parse(extracted) as PlacementItem;
+    } catch {
+      return null;
+    }
   }
   if (!isSafe(item.prompt)) return null;
 
