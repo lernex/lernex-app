@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Footer() {
   return (
     <footer className="mt-24 border-t border-lernex-blue/10 bg-white text-neutral-900 shadow-inner backdrop-blur-lg dark:border-lernex-blue/20 dark:bg-lernex-charcoal dark:text-white">
@@ -6,23 +8,23 @@ export default function Footer() {
           <div className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-lg font-semibold text-transparent">Lernex</div>
           <p className="text-neutral-600 dark:text-neutral-400">Learn faster with AI‑generated micro‑lessons and instant quizzes.</p>
           <div className="flex gap-3 pt-2">
-            <a href="/about" className="rounded-md border border-white/10 px-2 py-1 hover:bg-white/10">About</a>
-            <a href="/docs" className="rounded-md border border-white/10 px-2 py-1 hover:bg-white/10">Docs</a>
+            <Link href="/about" className="rounded-md border border-white/10 px-2 py-1 hover:bg-white/10">About</Link>
+            <Link href="/docs" className="rounded-md border border-white/10 px-2 py-1 hover:bg-white/10">Docs</Link>
           </div>
         </div>
         <div>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Product</div>
           <ul className="space-y-2">
-            <li><a href="/generate" className="hover:underline">Generate</a></li>
-            <li><a href="/playlists" className="hover:underline">Playlists</a></li>
-            <li><a href="/pricing" className="hover:underline">Pricing</a></li>
+            <li><Link href="/generate" className="hover:underline">Generate</Link></li>
+            <li><Link href="/playlists" className="hover:underline">Playlists</Link></li>
+            <li><Link href="/pricing" className="hover:underline">Pricing</Link></li>
           </ul>
         </div>
         <div>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Community</div>
           <ul className="space-y-2">
-            <li><a href="/leaderboard" className="hover:underline">Leaderboard</a></li>
-            <li><a href="/docs" className="hover:underline">Help & Docs</a></li>
+            <li><Link href="/leaderboard" className="hover:underline">Leaderboard</Link></li>
+            <li><Link href="/docs" className="hover:underline">Help & Docs</Link></li>
           </ul>
         </div>
         <div>

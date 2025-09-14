@@ -73,13 +73,6 @@ export default function FypFeed() {
   const fetching = useRef(false);
   const subjIdxRef = useRef(0);
 
-  const nextSubject = (): string | null => {
-    const idx = subjIdxRef.current % rotation.length;
-    subjIdxRef.current = idx + 1;
-    const s = rotation[idx];
-    return s;
-  };
-
   const ensureBuffer = useCallback(async (minAhead = 3) => {
     if (fetching.current) return;
     fetching.current = true;
@@ -87,7 +80,9 @@ export default function FypFeed() {
       let needed = Math.max(0, minAhead - (items.length - i));
       let guard = 0;
       while (needed > 0 && guard++ < 6) {
-        const subject = nextSubject();
+        const idx = subjIdxRef.current % rotation.length;
+        subjIdxRef.current = idx + 1;
+        const subject = rotation[idx];
         const batch = await fetchFypBatch(subject, Math.min(needed, 5));
         if (batch.length) {
           setItems((arr) => [...arr, ...batch]);
@@ -103,7 +98,7 @@ export default function FypFeed() {
     } finally {
       fetching.current = false;
     }
-  }, [items.length, i, nextSubject]);
+  }, [items.length, i, rotation]);
 
   // Bootstrap
   useEffect(() => {
