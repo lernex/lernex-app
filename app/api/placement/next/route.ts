@@ -12,7 +12,7 @@ const ai = new Groq({
   apiKey: process.env.GROQ_API_KEY!,
 });
 // Increase token budget to reduce truncation/invalid JSON under longer prompts
-const MAX_TOKENS = 900;
+const MAX_TOKENS = 1500;
 
 // Safety
 const BLOCKLIST = [/suicide|self[-\s]?harm/i, /explicit|porn|sexual/i, /hate\s*speech|racial\s*slur/i, /bomb|weapon|make\s+drugs/i];
