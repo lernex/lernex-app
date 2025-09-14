@@ -75,8 +75,8 @@ async function makeQuestion(
       return null;
     }
   }
-
-const system = `
+// Keep two variants: a normal template and a tighter one for retries
+const systemNormal = `
 Return ONLY a valid JSON object (no prose) matching exactly:
 {
   "subject": string,
@@ -88,17 +88,43 @@ Return ONLY a valid JSON object (no prose) matching exactly:
   "difficulty": "intro"|"easy"|"medium"|"hard"
 }
 Rules:
-- Place the correct answer as the FIRST element of the choices array and set correctIndex to 0.
-- For intro/easy use 2–3 choices; for medium/hard use 3–4 choices. Exactly one answer is correct.
-- Keep choices concise (<= 8 words each).
-- Difficulty maps to syllabus depth: intro = foundational early units; easy = early units; medium = mid-course; hard = late/advanced.
-- Only standard curriculum content for the course; avoid topics from more advanced classes.
-- Use inline LaTeX like \\( ... \\) when needed. Avoid HTML. Ensure braces { } are balanced and escape backslashes so the JSON remains valid.
+- Place the correct answer as the FIRST element in choices and set correctIndex to 0.
+- For intro/easy use 2–3 choices; for medium/hard use 3–4 choices.
+- Keep choices concise (<= 8 words each). Keep explanation concise (<= 25 words).
+- Difficulty maps to syllabus depth (intro: foundational; easy: early units; medium: mid-course; hard: late/advanced).
+- Only standard curriculum content for the course; avoid more advanced classes.
+- Use inline LaTeX like \\( ... \\) when needed. Avoid HTML. Ensure braces { } are balanced and backslashes escaped so the JSON remains valid.
 `.trim();
 
-const avoidText =
-    avoid.length > 0
-      ? `Avoid reusing or closely mirroring any of these questions: ${avoid.map((a) => `"${a}"`).join("; ")}`
+const systemTight = `
+Return ONLY a valid JSON object (no prose) matching exactly:
+{
+  "subject": string,
+  "course": string,
+  "prompt": string,
+  "choices": string[],
+  "correctIndex": number,
+  "explanation": string,
+  "difficulty": "intro"|"easy"|"medium"|"hard"
+}
+Rules:
+- Produce a very short prompt and choices.
+- EXACTLY 2 choices for intro/easy; EXACTLY 3 choices for medium/hard.
+- Place the correct answer first and set correctIndex to 0.
+- Explanation must be <= 15 words.
+- No HTML; inline LaTeX (\\( ... \\)) allowed if needed. JSON must be valid.
+`.trim();
+
+  // Limit avoid list to keep token budget small
+  const MAX_AVOID = 5;
+  const trimmedAvoid = (avoid || [])
+    .slice(-MAX_AVOID)
+    .map((a) => (typeof a === "string" ? a : String(a ?? "")))
+    .map((a) => (a.length > 160 ? a.slice(0, 160) : a));
+
+  const avoidText =
+    trimmedAvoid.length > 0
+      ? `Avoid reusing or closely mirroring any of these questions: ${trimmedAvoid.map((a) => `"${a}"`).join("; ")}`
       : "";
 
   const user = `
@@ -123,7 +149,7 @@ Create exactly one discriminative multiple-choice question from the course's app
       reasoning_effort: "medium",
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: system },
+        { role: "system", content: depth === 0 ? systemNormal : systemTight },
         { role: "user", content: user },
       ],
     });
@@ -143,7 +169,7 @@ Create exactly one discriminative multiple-choice question from the course's app
           max_tokens: MAX_TOKENS,
           reasoning_effort: "medium",
           messages: [
-            { role: "system", content: system },
+            { role: "system", content: depth === 0 ? systemNormal : systemTight },
             { role: "user", content: user },
           ],
         });
