@@ -114,7 +114,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const topics = (Array.isArray(path.topics) ? path.topics : []) as LearningPath["topics"];
+  if (!path || !Array.isArray(path.topics)) {
+    return new Response(JSON.stringify({ error: "No learning path" }), { status: 400 });
+  }
+  const topics = path.topics as LearningPath["topics"];
   const progress: PathProgress = path.progress ?? {};
   const currentTopic = (state?.next_topic as string | null) || path.starting_topic || topics[0]?.name;
   if (!currentTopic) return new Response(JSON.stringify({ error: "No topic" }), { status: 400 });
