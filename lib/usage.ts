@@ -4,11 +4,8 @@ const PRICES: Record<string, { input: number; output: number }> = {
   "gpt-5-nano": { input: 0.05 / 1_000_000, output: 0.4 / 1_000_000 },
   "gpt-4.1-nano": { input: 0.1 / 1_000_000, output: 0.4 / 1_000_000 },
   "gpt-4o-mini": { input: 0.15 / 1_000_000, output: 0.6 / 1_000_000 },
-  // Fireworks OSS 20B
-  "accounts/fireworks/models/gpt-oss-20b": { input: 0.07 / 1_000_000, output: 0.3 / 1_000_000 },
-  "gpt-oss-20b": { input: 0.07 / 1_000_000, output: 0.3 / 1_000_000 },
-  // Groq alias for OSS 20B
-  "openai/gpt-oss-20b": { input: 0.1 / 1_000_000, output: 0.5 / 1_000_000 },
+  // Groq OSS 20B
+  "openai/gpt-oss-20b": { input: 0.07 / 1_000_000, output: 0.3 / 1_000_000 },
 };
 
 export function calcCost(model: string, inputTokens = 0, outputTokens = 0) {

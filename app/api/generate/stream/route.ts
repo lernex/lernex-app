@@ -46,12 +46,13 @@ export async function POST(req: Request) {
     const ai = new Groq({ apiKey: groqApiKey });
 
     const system =
-      "Write a concise micro-lesson of 80-120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Always close any math delimiters you open and prefer inline math (\\( ... \\)) for short expressions. Use \\langle ... \\rangle for vectors and \\|v\\| for norms. Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).\nReasoning: low";
+      "Write a concise micro-lesson of 80-120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Always close any math delimiters you open and prefer inline math (\\( ... \\)) for short expressions. Use \\langle ... \\rangle for vectors and \\|v\\| for norms. Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).";
 
     const streamPromise = ai.chat.completions.create({
       model,
       temperature: 1,
       max_tokens: MAX_TOKENS,
+      reasoning_effort: "low",
       stream: true,
       messages: [
         { role: "system", content: system },
@@ -81,15 +82,16 @@ export async function POST(req: Request) {
           if (wrote || closed) return;
           console.warn("[gen/stream] fallback-trigger", { why, dt: Date.now() - t0 });
           try {
-            const nonStream = await ai.chat.completions.create({
-              model,
-              temperature: 1,
-              max_tokens: MAX_TOKENS,
-              messages: [
-                { role: "system", content: system },
-                { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
-              ],
-            });
+              const nonStream = await ai.chat.completions.create({
+                model,
+                temperature: 1,
+                max_tokens: MAX_TOKENS,
+                reasoning_effort: "low",
+                messages: [
+                  { role: "system", content: system },
+                  { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
+                ],
+              });
             const full = (nonStream?.choices?.[0]?.message?.content as string | undefined) ?? "";
             if (full) {
               wrote = true;

@@ -50,7 +50,6 @@ Return only JSON matching exactly:
   ]
 }
 Generate two or three multiple-choice questions with short choices. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags and extra commentary. Always close any math delimiters you open; prefer inline math (\\( ... \\)) for expressions in sentences. Use vector notation with \\langle ... \\rangle and norms with \\|v\\| (not angle brackets or plain pipes). Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).
-Reasoning: low
 `.trim();
 
     const model = "openai/gpt-oss-20b";
@@ -61,6 +60,7 @@ Reasoning: low
       model,
       temperature: 1,
       max_tokens: MAX_TOKENS,
+      reasoning_effort: "low",
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: system },

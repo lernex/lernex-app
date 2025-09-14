@@ -84,7 +84,6 @@ Generate one concise multiple-choice question. For intro/easy use 2–3 choices;
 Difficulty reflects how deep into the course's units the question is: "intro" covers foundational early units, "easy" early units, "medium" mid-course units, and "hard" late or advanced units.
 Keep strictly to the standard curriculum for the given course and avoid topics from more advanced classes.
 Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.
-Reasoning: medium
 `.trim();
 
 const avoidText =
@@ -107,6 +106,7 @@ Create exactly one discriminative multiple-choice question from the course's app
     model,
     temperature: 1,
     max_tokens: MAX_TOKENS,
+    reasoning_effort: "medium",
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: system },

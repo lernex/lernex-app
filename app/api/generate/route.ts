@@ -173,8 +173,6 @@ export async function POST(req: NextRequest) {
     const system = `
 You create exactly one micro-lesson of 30–80 words and between one and three MCQs with explanations.
 Audience: ${subject} student. Adapt to the indicated difficulty.
-Reasoning: low
- Reasoning effort: low — prioritize concise, fast derivations over long chains of thought.
 
 Return only JSON matching exactly:
 {
@@ -212,6 +210,7 @@ Generate the lesson and questions as specified. Output only the JSON object.
       model,
       temperature,
       max_tokens: 1200,
+      reasoning_effort: "low",
       stream: true,
       messages: [
         { role: "system", content: system },
