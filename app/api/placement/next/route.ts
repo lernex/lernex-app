@@ -77,7 +77,7 @@ async function makeQuestion(
   }
 
 const system = `
-Return only a valid JSON object matching exactly:
+Return ONLY a valid JSON object (no prose) matching exactly:
 {
   "subject": string,
   "course": string,
@@ -87,10 +87,13 @@ Return only a valid JSON object matching exactly:
   "explanation": string,
   "difficulty": "intro"|"easy"|"medium"|"hard"
 }
-Generate one concise multiple-choice question. For intro/easy use 2–3 choices; for medium/hard use 3–4 choices. Exactly one answer must be correct.
-Difficulty reflects how deep into the course's units the question is: "intro" covers foundational early units, "easy" early units, "medium" mid-course units, and "hard" late or advanced units.
-Keep strictly to the standard curriculum for the given course and avoid topics from more advanced classes.
-Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Ensure all LaTeX braces { } are balanced and escape backslashes so the JSON remains valid.
+Rules:
+- Place the correct answer as the FIRST element of the choices array and set correctIndex to 0.
+- For intro/easy use 2–3 choices; for medium/hard use 3–4 choices. Exactly one answer is correct.
+- Keep choices concise (<= 8 words each).
+- Difficulty maps to syllabus depth: intro = foundational early units; easy = early units; medium = mid-course; hard = late/advanced.
+- Only standard curriculum content for the course; avoid topics from more advanced classes.
+- Use inline LaTeX like \\( ... \\) when needed. Avoid HTML. Ensure braces { } are balanced and escape backslashes so the JSON remains valid.
 `.trim();
 
 const avoidText =
@@ -237,19 +240,29 @@ Create exactly one discriminative multiple-choice question from the course's app
   item.difficulty = diff;
 
   // Ensure well-formed choices/correctIndex
-  if (!Array.isArray(item.choices) || typeof item.correctIndex !== "number") {
-    console.warn("[placement] invalid item shape (choices/correctIndex)", {
+  if (!Array.isArray(item.choices)) {
+    console.warn("[placement] invalid item shape: choices not array", {
       subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
     });
     return null;
   }
-  if (item.correctIndex < 0 || item.correctIndex >= item.choices.length) {
-    console.warn("[placement] correctIndex out of bounds", {
-      subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
-      choicesLen: item.choices.length, idx: item.correctIndex,
-    });
+  // Normalize and trim choices
+  item.choices = item.choices.map((c) => String((c as unknown) ?? "").trim()).filter((c) => c.length > 0);
+  // Enforce reasonable choice counts; we can slice extra distractors but keep first (correct) element
+  const maxChoices = (item.difficulty === "intro" || item.difficulty === "easy") ? 3 : 4;
+  if (item.choices.length > maxChoices) item.choices = item.choices.slice(0, maxChoices);
+  if (item.choices.length < 2) {
+    console.warn("[placement] too few choices", { len: item.choices.length });
     return null;
   }
+  // If model failed to set a valid index, default to 0 per instruction
+  const rawIdx = (item as unknown as { correctIndex: unknown }).correctIndex;
+  let idx = typeof rawIdx === "number" ? rawIdx : Number(rawIdx);
+  if (!Number.isFinite(idx) || idx < 0 || idx >= item.choices.length) {
+    console.warn("[placement] correcting invalid correctIndex -> 0", { idx: rawIdx, len: item.choices.length });
+    idx = 0;
+  }
+  item.correctIndex = idx;
 
   // If model ignored instructions, retry a couple times
   if (avoid.some((a) => a.trim() === item.prompt.trim()) && depth < 2) {
