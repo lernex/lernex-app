@@ -119,7 +119,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const topics = (Array.isArray(path.topics) ? path.topics : []) as LearningPath["topics"];
+  if (!path || !Array.isArray(path.topics)) {
+    return new Response(JSON.stringify({ error: "No learning path" }), { status: 400 });
+  }
+  const topics = path.topics as LearningPath["topics"];
   if (!topics.length) return new Response(JSON.stringify({ error: "No topics in learning path" }), { status: 400 });
 
   const progress = getProgress(path);
