@@ -34,11 +34,15 @@ export default function Leaderboard() {
   const [topStreak, setTopStreak] = useState<ProfileRow[]>([]);
   const [rankPoints, setRankPoints] = useState<number | null>(null);
   const [rankStreak, setRankStreak] = useState<number | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [scope, setScope] = useState<"global" | "friends">("global");
+  const [range, setRange] = useState<"all" | "monthly" | "weekly" | "daily">("all");
 
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
-      const userId = auth.user?.id ?? null;
+      const uid = auth.user?.id ?? null;
+      setUserId(uid);
 
       const [{ data: pts }, { data: stk }] = await Promise.all([
         supabase
@@ -55,11 +59,11 @@ export default function Leaderboard() {
       setTopPoints(normalizeProfiles(pts ?? []));
       setTopStreak(normalizeProfiles(stk ?? []));
 
-      if (userId) {
+      if (uid) {
         const { data: me } = await supabase
           .from("profiles")
           .select("points, streak")
-          .eq("id", userId)
+          .eq("id", uid)
           .maybeSingle();
         const myPts = (me?.points as number | null) ?? 0;
         const myStk = (me?.streak as number | null) ?? 0;
@@ -83,6 +87,35 @@ export default function Leaderboard() {
       <p className="mt-2 text-neutral-600 dark:text-neutral-300">
         See how you stack up. Points and streaks come from your study activity.
       </p>
+      <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+        <div className="inline-flex overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800">
+          <button
+            className={`px-3 py-1.5 ${scope === "global" ? "bg-lernex-blue/10 dark:bg-lernex-blue/20" : ""}`}
+            onClick={() => setScope("global")}
+          >
+            Global
+          </button>
+          <button
+            className={`px-3 py-1.5 ${scope === "friends" ? "bg-lernex-blue/10 dark:bg-lernex-blue/20" : ""}`}
+            onClick={() => setScope("friends")}
+            title="Friends leaderboard coming soon"
+          >
+            Friends
+          </button>
+        </div>
+        <div className="inline-flex overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800">
+          {(["all","monthly","weekly","daily"] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              title="Time ranges coming soon"
+              className={`px-3 py-1.5 capitalize ${range === r ? "bg-lernex-blue/10 dark:bg-lernex-blue/20" : ""}`}
+            >
+              {r === "all" ? "All Time" : r}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <section className="mt-6 grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-neutral-200 p-4 text-center dark:border-neutral-800">
@@ -112,13 +145,23 @@ export default function Leaderboard() {
             {topPoints.map((r, i) => (
               <li
                 key={r.id}
-                className="flex items-center justify-between rounded-lg bg-white/60 px-3 py-2 dark:bg-white/5"
+                aria-current={r.id === userId ? "true" : undefined}
+                className={`flex items-center justify-between rounded-lg px-3 py-2 ring-offset-2 transition ${
+                  r.id === userId
+                    ? "bg-lernex-blue/15 ring-2 ring-lernex-blue/40 dark:bg-lernex-blue/20"
+                    : "bg-white/60 hover:bg-white/80 dark:bg-white/5 dark:hover:bg-white/10"
+                }`}
               >
                 <div className="flex items-center gap-3">
-                  <span className="w-6 text-right text-sm text-neutral-500">{i + 1}</span>
+                  <span className="w-6 text-right text-sm text-neutral-500">
+                    {i + 1}
+                  </span>
                   <span className="text-sm">{r.username ?? `Learner #${r.id.slice(0, 6)}`}</span>
                 </div>
-                <span className="text-sm font-medium">{r.points ?? 0}</span>
+                <span className="text-sm font-medium flex items-center gap-1">
+                  {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null}
+                  {r.points ?? 0}
+                </span>
               </li>
             ))}
             {topPoints.length === 0 && (
@@ -132,13 +175,21 @@ export default function Leaderboard() {
             {topStreak.map((r, i) => (
               <li
                 key={r.id}
-                className="flex items-center justify-between rounded-lg bg-white/60 px-3 py-2 dark:bg-white/5"
+                aria-current={r.id === userId ? "true" : undefined}
+                className={`flex items-center justify-between rounded-lg px-3 py-2 ring-offset-2 transition ${
+                  r.id === userId
+                    ? "bg-lernex-blue/15 ring-2 ring-lernex-blue/40 dark:bg-lernex-blue/20"
+                    : "bg-white/60 hover:bg-white/80 dark:bg-white/5 dark:hover:bg-white/10"
+                }`}
               >
                 <div className="flex items-center gap-3">
                   <span className="w-6 text-right text-sm text-neutral-500">{i + 1}</span>
                   <span className="text-sm">{r.username ?? `Learner #${r.id.slice(0, 6)}`}</span>
                 </div>
-                <span className="text-sm font-medium">{r.streak ?? 0} days</span>
+                <span className="text-sm font-medium flex items-center gap-1">
+                  {i === 0 ? "🏆" : null}
+                  {r.streak ?? 0} days
+                </span>
               </li>
             ))}
             {topStreak.length === 0 && (

@@ -8,6 +8,19 @@ import ThemeToggle from "./ThemeToggle";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import {
+  Home,
+  Diamond,
+  Sparkles,
+  BookOpen,
+  FileText,
+  Trophy,
+  Medal,
+  Users,
+  Bell,
+  BarChart3,
+  LifeBuoy,
+} from "lucide-react";
 
 export default function NavBar() {
   const { points, streak } = useLernexStore();
@@ -69,6 +82,14 @@ export default function NavBar() {
   }, [showSideNav]);
 
   if (showSideNav) {
+    const isActive = (href: string, exact = false) =>
+      exact ? pathname === href : pathname.startsWith(href);
+
+    const baseIconClasses =
+      "group relative flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/50 text-neutral-700 shadow-sm transition hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 dark:bg-white/5 dark:text-white/90";
+    const activeClasses =
+      "!bg-lernex-blue/15 !text-lernex-blue !border-lernex-blue/30 dark:!bg-lernex-blue/20";
+
     return (
       <nav className="fixed left-0 top-0 z-20 flex h-screen w-20 flex-col justify-between border-r border-white/10 bg-gradient-to-b from-white/80 to-white/60 text-neutral-900 shadow-sm backdrop-blur-md transition-colors dark:from-lernex-charcoal/80 dark:to-lernex-charcoal/60 dark:text-white">
         <div className="mt-4 flex flex-col items-center gap-6">
@@ -84,19 +105,118 @@ export default function NavBar() {
           <span className="rounded-full border border-neutral-200 bg-neutral-100 px-2 py-1 text-xs dark:border-white/10 dark:bg-white/5">
             ⭐ {points}
           </span>
-          <Link href="/pricing" title="Pricing" className="text-xl transition hover:opacity-80" aria-label="Pricing">💎</Link>
-          <Link href="/generate" title="Generate" className="text-xl transition hover:opacity-80" aria-label="Generate">✨</Link>
-          <Link href="/playlists" title="Playlists" className="text-xl transition hover:opacity-80" aria-label="Playlists">📚</Link>
-          <Link href="/docs" title="Docs" className="text-xl transition hover:opacity-80" aria-label="Docs">📘</Link>
-          <Link href="/leaderboard" title="Leaderboard" className="text-xl transition hover:opacity-80" aria-label="Leaderboard">🏆</Link>
+          {/* Quick home link */}
+          <Link
+            href="/app"
+            title="Home"
+            aria-label="Home"
+            className={`${baseIconClasses} ${isActive("/app", true) ? activeClasses : ""}`}
+            aria-current={isActive("/app", true) ? "page" : undefined}
+          >
+            <Home className="h-5 w-5" />
+          </Link>
+          {/* Primary actions */}
+          <Link
+            href="/pricing"
+            title="Pricing"
+            aria-label="Pricing"
+            className={`${baseIconClasses} ${isActive("/pricing") ? activeClasses : ""}`}
+            aria-current={isActive("/pricing") ? "page" : undefined}
+          >
+            <Diamond className="h-5 w-5" />
+          </Link>
+          <Link
+            href="/generate"
+            title="Generate"
+            aria-label="Generate"
+            className={`${baseIconClasses} ${isActive("/generate") ? activeClasses : ""}`}
+            aria-current={isActive("/generate") ? "page" : undefined}
+          >
+            <Sparkles className="h-5 w-5" />
+          </Link>
+          <Link
+            href="/playlists"
+            title="Playlists"
+            aria-label="Playlists"
+            className={`${baseIconClasses} ${isActive("/playlists") ? activeClasses : ""}`}
+            aria-current={isActive("/playlists") ? "page" : undefined}
+          >
+            <BookOpen className="h-5 w-5" />
+          </Link>
+          <Link
+            href="/docs"
+            title="Docs"
+            aria-label="Docs"
+            className={`${baseIconClasses} ${isActive("/docs") ? activeClasses : ""}`}
+            aria-current={isActive("/docs") ? "page" : undefined}
+          >
+            <FileText className="h-5 w-5" />
+          </Link>
+          <Link
+            href="/leaderboard"
+            title="Leaderboard"
+            aria-label="Leaderboard"
+            className={`${baseIconClasses} ${isActive("/leaderboard") ? activeClasses : ""}`}
+            aria-current={isActive("/leaderboard") ? "page" : undefined}
+          >
+            <Trophy className="h-5 w-5" />
+          </Link>
+          {/* Secondary ideas */}
+          <div className="mt-1 flex flex-col items-center gap-3">
+            <Link
+              href="/achievements"
+              title="Achievements"
+              aria-label="Achievements"
+              className={`${baseIconClasses} ${isActive("/achievements") ? activeClasses : ""}`}
+              aria-current={isActive("/achievements") ? "page" : undefined}
+            >
+              <Medal className="h-5 w-5" />
+            </Link>
+            <Link
+              href="/friends"
+              title="Friends"
+              aria-label="Friends"
+              className={`${baseIconClasses} ${isActive("/friends") ? activeClasses : ""}`}
+              aria-current={isActive("/friends") ? "page" : undefined}
+            >
+              <Users className="h-5 w-5" />
+            </Link>
+            <Link
+              href="/notifications"
+              title="Notifications"
+              aria-label="Notifications"
+              className={`${baseIconClasses} ${isActive("/notifications") ? activeClasses : ""}`}
+              aria-current={isActive("/notifications") ? "page" : undefined}
+            >
+              <Bell className="h-5 w-5" />
+            </Link>
+            <Link
+              href="/analytics"
+              title="Analytics"
+              aria-label="Analytics"
+              className={`${baseIconClasses} ${isActive("/analytics") ? activeClasses : ""}`}
+              aria-current={isActive("/analytics") ? "page" : undefined}
+            >
+              <BarChart3 className="h-5 w-5" />
+            </Link>
+            <Link
+              href="/support"
+              title="Support"
+              aria-label="Support"
+              className={`${baseIconClasses} ${isActive("/support") ? activeClasses : ""}`}
+              aria-current={isActive("/support") ? "page" : undefined}
+            >
+              <LifeBuoy className="h-5 w-5" />
+            </Link>
+          </div>
         </div>
         <div className="relative mb-4 flex flex-col items-center gap-3" ref={menuRef}>
-          <ThemeToggle className="bg-transparent text-neutral-900 dark:text-white text-xs px-2 py-1 border border-white/15 hover:bg-white/10" />
+          <ThemeToggle className="bg-transparent text-neutral-900 dark:text-white text-xs px-2 py-1 border border-white/15 hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-lernex-blue/40" />
           {user && (
             <>
               <button
                 onClick={() => setOpen((o) => !o)}
-                className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 shadow-sm transition-transform hover:scale-105 dark:border-white/10 dark:bg-white/5"
+                className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 shadow-sm transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 dark:border-white/10 dark:bg-white/5"
               >
                 {user.user_metadata?.avatar_url ? (
                   <Image src={user.user_metadata.avatar_url} alt="avatar" width={40} height={40} />
@@ -169,8 +289,20 @@ export default function NavBar() {
           Lernex
         </Link>
         <div className="hidden items-center gap-2 md:flex">
-          <Link href="/pricing" className="px-3 py-1.5 rounded-md hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">Pricing</Link>
-          <Link href="/generate" className="ml-1 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-1.5 text-white shadow-sm transition hover:opacity-90">Generate</Link>
+          <Link
+            href="/pricing"
+            aria-current={pathname === "/pricing" ? "page" : undefined}
+            className="px-3 py-1.5 rounded-md hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40"
+          >
+            Pricing
+          </Link>
+          <Link
+            href="/generate"
+            aria-current={pathname.startsWith("/generate") ? "page" : undefined}
+            className="ml-1 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-1.5 text-white shadow-sm transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40"
+          >
+            Generate
+          </Link>
           {user && pathname !== "/" && (
             <>
               <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">
@@ -257,7 +389,7 @@ export default function NavBar() {
           <button
             onClick={() => setMobileOpen((s) => !s)}
             aria-label="Toggle menu"
-            className="rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-lg backdrop-blur hover:bg-white/20 dark:bg-white/5"
+            className="rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-lg backdrop-blur hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 dark:bg-white/5"
           >
             {mobileOpen ? "✕" : "☰"}
           </button>
@@ -274,10 +406,10 @@ export default function NavBar() {
             className="md:hidden fixed inset-x-0 top-[56px] z-20 border-b border-white/10 bg-gradient-to-b from-white/90 to-white/70 p-4 backdrop-blur dark:from-lernex-charcoal/90 dark:to-lernex-charcoal/70"
           >
             <div className="grid gap-2 text-sm">
-              <Link href="/pricing" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">Pricing</Link>
-              <Link href="/generate" onClick={() => setMobileOpen(false)} className="rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-2 text-center text-white">Generate</Link>
+              <Link href="/pricing" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40">Pricing</Link>
+              <Link href="/generate" onClick={() => setMobileOpen(false)} className="rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-2 text-center text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40">Generate</Link>
               {user === undefined ? null : !user && (
-                <Link href="/login" onClick={() => setMobileOpen(false)} className="rounded-md border border-white/10 px-3 py-2 text-center hover:bg-white/10">Login</Link>
+                <Link href="/login" onClick={() => setMobileOpen(false)} className="rounded-md border border-white/10 px-3 py-2 text-center hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40">Login</Link>
               )}
             </div>
           </motion.div>
