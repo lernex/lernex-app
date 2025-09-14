@@ -3,13 +3,22 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { LessonSchema } from "./schema";
 import { checkUsageLimit, logUsage } from "./usage";
 
+type Pace = "slow" | "normal" | "fast";
+type Difficulty = "intro" | "easy" | "medium" | "hard";
+
 export async function generateLessonForTopic(
   sb: SupabaseClient,
   uid: string,
   ip: string,
   subject: string,
-  topic: string
-
+  topic: string,
+  opts?: {
+    pace?: Pace;
+    accuracyPct?: number; // 0-100
+    difficultyPref?: Difficulty;
+    avoidIds?: string[];
+    avoidTitles?: string[];
+  }
 ) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("Missing GROQ_API_KEY");
@@ -22,10 +31,27 @@ export async function generateLessonForTopic(
     if (!ok) throw new Error("Usage limit exceeded");
   }
 
+  const pace = opts?.pace ?? "normal";
+  const acc = typeof opts?.accuracyPct === "number" ? Math.max(0, Math.min(100, Math.round(opts!.accuracyPct!))) : null;
+  const diffPref = opts?.difficultyPref ?? undefined;
+  const avoidIds = (opts?.avoidIds ?? []).slice(-20);
+  const avoidTitles = (opts?.avoidTitles ?? []).slice(-20);
+
+  const lenHint = pace === "fast" ? "Aim near 30–45 words." : pace === "slow" ? "Aim near 60–80 words." : "Aim near 45–65 words.";
+  const accHint = acc !== null ? `Recent accuracy ~${acc}%.` : "";
+  const diffHint = diffPref ? `Target difficulty around: ${diffPref}.` : "";
+  const avoidHint = [
+    avoidIds.length ? `Avoid reusing these lesson IDs: ${avoidIds.map((x) => '"'+x+'"').join(', ')}.` : "",
+    avoidTitles.length ? `Avoid reusing these lesson titles: ${avoidTitles.map((x) => '"'+x+'"').join(', ')}.` : "",
+  ].filter(Boolean).join(" ");
+
   const system = `You are an adaptive tutor.
 Return only a valid JSON object matching LessonSchema with fields: id, subject, topic, title, content (30–80 words), difficulty, questions[ { prompt, choices[], correctIndex, explanation } ].
 Use standard inline LaTeX like \\( ... \\) when needed; avoid HTML tags. Ensure all LaTeX braces are balanced and escape backslashes so the JSON remains valid.`;
-  const userPrompt = `Subject: ${subject}\nTopic: ${topic}\nProduce exactly one micro-lesson and 1–3 MCQs as specified.`;
+
+  const userPrompt = `Subject: ${subject}\nTopic: ${topic}\nLearner pace: ${pace}. ${accHint} ${diffHint} ${lenHint}
+${avoidHint}
+Produce exactly one micro-lesson and 1–3 MCQs as specified.`;
 
   let raw = "";
   let completion: import("groq-sdk/resources/chat/completions").ChatCompletion | null = null;

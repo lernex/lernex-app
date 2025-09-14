@@ -41,6 +41,30 @@ async function fetchFyp(subject?: string): Promise<Lesson | null> {
   }
 }
 
+async function fetchFypBatch(subject: string | null, n: number): Promise<Lesson[]> {
+  const url = subject ? `/api/fyp/batch?subject=${encodeURIComponent(subject)}&n=${n}` : `/api/fyp/batch?n=${n}`;
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json() as { items?: { topic: string; lesson: ApiLesson }[] };
+    const arr = Array.isArray(data?.items) ? data.items : [];
+    return arr
+      .map((it) => it.lesson)
+      .filter(Boolean)
+      .map((l) => ({
+        id: l.id,
+        subject: l.subject,
+        title: l.title,
+        content: l.content,
+        questions: Array.isArray(l.questions) ? l.questions : [],
+        difficulty: l.difficulty,
+        topic: l.topic,
+      } as Lesson));
+  } catch {
+    return [];
+  }
+}
+
 export default function FypFeed() {
   const { selectedSubjects, accuracyBySubject } = useLernexStore();
 
@@ -84,19 +108,20 @@ export default function FypFeed() {
     if (fetching.current) return;
     fetching.current = true;
     try {
-      let tries = 0;
-      while (items.length - i < minAhead && tries < Math.max(6, minAhead * 2)) {
-        tries++;
+      let needed = Math.max(0, minAhead - (items.length - i));
+      let guard = 0;
+      while (needed > 0 && guard++ < 6) {
         const subject = nextSubject();
-        const l = await fetchFyp(subject ?? undefined);
-        if (l) {
-          setItems((arr) => [...arr, l]);
+        const batch = await fetchFypBatch(subject, Math.min(needed, 5));
+        if (batch.length) {
+          setItems((arr) => [...arr, ...batch]);
+          needed -= batch.length;
         } else {
-          // If failed for a specific subject, continue to next subject
+          // try next subject in rotation
         }
       }
       setInitialized(true);
-      if (items.length === 0 && tries > 0) {
+      if (items.length === 0) {
         setError("Could not load your feed. Try again.");
       }
     } finally {
