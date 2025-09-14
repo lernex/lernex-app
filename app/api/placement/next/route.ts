@@ -301,6 +301,15 @@ export async function POST(req: Request) {
 
     // 2) Produce the current question first, avoiding duplicates
     const nowItem = await makeQuestion(state, sb, user.id, ip, state.asked);
+    // If we could not generate a question but we are not truly finished,
+    // return an error instead of { item: null } to avoid clients treating this
+    // as completion and redirecting away mid-session.
+    if (!nowItem && !(state.done && (!state.remaining || state.remaining.length === 0))) {
+      return new Response(
+        JSON.stringify({ error: "Could not generate question. Please try again." }),
+        { status: 503, headers: { "content-type": "application/json" } }
+      );
+    }
     if (nowItem) state.asked.push(nowItem.prompt);
 
     // 3) Compute the two branch states and prefetch them (avoid repeating current or previous)

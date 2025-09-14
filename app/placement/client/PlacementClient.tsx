@@ -50,7 +50,8 @@ export default function PlacementClient() {
         setState(data.state);
         setItem(data.item);
         setBranches(data.branches ?? null);
-        if (data.state.done || !data.item) {
+        // Only redirect when truly finished (done and no remaining courses)
+        if (data.state.done && (!data.state.remaining || data.state.remaining.length === 0)) {
           router.replace("/app");
         }
       } catch (e) {
@@ -81,7 +82,8 @@ export default function PlacementClient() {
     const prev = pendingAnswer;
     const next = pendingNext;
 
-    if (next) {
+    // Use optimistic path only when we have a prefetched item
+    if (next && next.item) {
       setState(next.state);
       setItem(next.item);
       setSelected(null);
@@ -92,7 +94,7 @@ export default function PlacementClient() {
         setQuestionTotal(0);
       }
 
-      if (next.state.done || !next.item) {
+      if (next.state.done && (!next.state.remaining || next.state.remaining.length === 0)) {
         router.replace("/app");
         setPendingAnswer(null);
         setNextLoading(false);
@@ -113,7 +115,7 @@ export default function PlacementClient() {
           const data: PlacementNextResponse | { error?: string } = await r.json();
           if (!r.ok) throw new Error((("error" in data) && data.error) || "Failed prefetch");
           if (!("state" in data)) throw new Error("Invalid response");
-          if (data.state?.done || !data.item) {
+          if (data.state?.done && (!data.state.remaining || data.state.remaining.length === 0)) {
             router.replace("/app");
             return;
           }
@@ -123,6 +125,7 @@ export default function PlacementClient() {
         })
         .catch(() => {});
     } else {
+      // Fallback: no usable prefetched item, request synchronously
       try {
         setLoading(true);
         const res = await fetch("/api/placement/next", {
@@ -141,7 +144,7 @@ export default function PlacementClient() {
           setCorrectTotal(0);
           setQuestionTotal(0);
         }
-        if (data.state?.done || !data.item) {
+        if (data.state?.done && (!data.state.remaining || data.state.remaining.length === 0)) {
           router.replace("/app");
         }
         setSelected(null);
