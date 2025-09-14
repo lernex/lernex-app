@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import OpenAI from "openai";
+import Groq from "groq-sdk";
 import { LessonSchema } from "@/lib/schema";
 import { take } from "@/lib/rate";
 import { cookies } from "next/headers";
@@ -32,10 +32,10 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429 });
   }
 
-  const fwApiKey = process.env.FIREWORKS_API_KEY;
-  if (!fwApiKey) {
+  const groqApiKey = process.env.GROQ_API_KEY;
+  if (!groqApiKey) {
     return new Response(
-      JSON.stringify({ error: "Server misconfigured: missing FIREWORKS_API_KEY" }),
+      JSON.stringify({ error: "Server misconfigured: missing GROQ_API_KEY" }),
       { status: 500 }
     );
   }
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
     // ------------------------------------------------------------
 
     // Model/provider selection (Fireworks)
-    const model = "accounts/fireworks/models/gpt-oss-20b";
+    const model = "openai/gpt-oss-20b";
     const temperature = 1;
 
     const system = `
@@ -207,10 +207,7 @@ Generate the lesson and questions as specified. Output only the JSON object.
 `.trim();
 
     // Fireworks Chat Completions (streaming)
-    const client = new OpenAI({
-      apiKey: fwApiKey,
-      baseURL: "https://api.fireworks.ai/inference/v1",
-    });
+    const client = new Groq({ apiKey: groqApiKey });
     const stream = await client.chat.completions.create({
       model,
       temperature,

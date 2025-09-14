@@ -7,6 +7,8 @@ const PRICES: Record<string, { input: number; output: number }> = {
   // Fireworks OSS 20B
   "accounts/fireworks/models/gpt-oss-20b": { input: 0.07 / 1_000_000, output: 0.3 / 1_000_000 },
   "gpt-oss-20b": { input: 0.07 / 1_000_000, output: 0.3 / 1_000_000 },
+  // Groq alias for OSS 20B
+  "openai/gpt-oss-20b": { input: 0.1 / 1_000_000, output: 0.5 / 1_000_000 },
 };
 
 export function calcCost(model: string, inputTokens = 0, outputTokens = 0) {

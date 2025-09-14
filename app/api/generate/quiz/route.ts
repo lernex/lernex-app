@@ -1,8 +1,8 @@
 // app/api/generate/quiz/route.ts
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import OpenAI from "openai";
+import Groq from "groq-sdk";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 
@@ -25,10 +25,10 @@ export async function POST(req: Request) {
     
     const { text, subject = "Algebra 1", difficulty = "easy" } = await req.json();
 
-    const fwApiKey = process.env.FIREWORKS_API_KEY;
-    if (!fwApiKey) {
+    const groqApiKey = process.env.GROQ_API_KEY;
+    if (!groqApiKey) {
       return new Response(
-        JSON.stringify({ error: "Missing FIREWORKS_API_KEY" }),
+        JSON.stringify({ error: "Missing GROQ_API_KEY" }),
         { status: 500 }
       );
     }
@@ -53,13 +53,10 @@ Generate two or three multiple-choice questions with short choices. Use standard
 Reasoning: low
 `.trim();
 
-    const model = "accounts/fireworks/models/gpt-oss-20b";
+    const model = "openai/gpt-oss-20b";
     let raw = "{}";
 
-    const ai = new OpenAI({
-      apiKey: fwApiKey,
-      baseURL: "https://api.fireworks.ai/inference/v1",
-    });
+    const ai = new Groq({ apiKey: groqApiKey });
     const completion = await ai.chat.completions.create({
       model,
       temperature: 1,

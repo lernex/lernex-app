@@ -2,7 +2,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import OpenAI from "openai";
+import Groq from "groq-sdk";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit } from "@/lib/usage";
 
@@ -28,22 +28,22 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const { text, subject = "Algebra 1" } = body ?? {} as { text?: string; subject?: string };
 
-    const fwApiKey = process.env.FIREWORKS_API_KEY;
-    if (!fwApiKey) {
-      console.error("[gen/stream] missing FIREWORKS_API_KEY");
-      return new Response("Missing FIREWORKS_API_KEY", { status: 500 });
+    const groqApiKey = process.env.GROQ_API_KEY;
+    if (!groqApiKey) {
+      console.error("[gen/stream] missing GROQ_API_KEY");
+      return new Response("Missing GROQ_API_KEY", { status: 500 });
     }
     if (typeof text !== "string" || text.trim().length < 20) {
       return new Response("Provide at least ~20 characters of study text.", { status: 400 });
     }
 
     const src = text.slice(0, MAX_CHARS);
-    const model = "accounts/fireworks/models/gpt-oss-20b";
+    const model = "openai/gpt-oss-20b";
 
     console.log("[gen/stream] request-start", { subject, inputLen: src.length, dt: 0 });
 
     const enc = new TextEncoder();
-    const ai = new OpenAI({ apiKey: fwApiKey, baseURL: "https://api.fireworks.ai/inference/v1" });
+    const ai = new Groq({ apiKey: groqApiKey });
 
     const system =
       "Write a concise micro-lesson of 80-120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Always close any math delimiters you open and prefer inline math (\\( ... \\)) for short expressions. Use \\langle ... \\rangle for vectors and \\|v\\| for norms. Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).\nReasoning: low";

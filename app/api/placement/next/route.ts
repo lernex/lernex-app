@@ -1,15 +1,14 @@
 // app/api/placement/next/route.ts
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import OpenAI from "openai";
+import Groq from "groq-sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlacementState, PlacementItem, Difficulty, PlacementNextResponse } from "@/types/placement";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
-const ai = new OpenAI({
-  apiKey: process.env.FIREWORKS_API_KEY!,
-  baseURL: "https://api.fireworks.ai/inference/v1",
+const ai = new Groq({
+  apiKey: process.env.GROQ_API_KEY!,
 });
 const MAX_TOKENS = 600;
 
@@ -102,8 +101,8 @@ ${avoidText}
 Create exactly one discriminative multiple-choice question from the course's appropriate units. Include a short explanation. The question should address a key topic within the course's own syllabus.
 `.trim();
 
-  // Fireworks model; cap tokens for speed
-  const model = "accounts/fireworks/models/gpt-oss-20b";
+  // Groq model; cap tokens for speed
+  const model = "openai/gpt-oss-20b";
   const completion = await ai.chat.completions.create({
     model,
     temperature: 1,
