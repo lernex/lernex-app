@@ -11,7 +11,8 @@ import { checkUsageLimit, logUsage } from "@/lib/usage";
 const ai = new Groq({
   apiKey: process.env.GROQ_API_KEY!,
 });
-const MAX_TOKENS = 600;
+// Increase token budget to reduce truncation/invalid JSON under longer prompts
+const MAX_TOKENS = 900;
 
 // Safety
 const BLOCKLIST = [/suicide|self[-\s]?harm/i, /explicit|porn|sexual/i, /hate\s*speech|racial\s*slur/i, /bomb|weapon|make\s+drugs/i];
