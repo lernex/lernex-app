@@ -9,6 +9,14 @@ import FormattedText from "@/components/FormattedText";
 export default function Generate() {
   const [text, setText] = useState("");
   const [subject, setSubject] = useState("Algebra 1");
+  const subjects = [
+    "Algebra 1",
+    "Calculus",
+    "Physics",
+    "Chemistry",
+    "Biology",
+    "US History",
+  ];
 
   // streaming text + assembled lesson
   const [streamed, setStreamed] = useState("");
@@ -158,7 +166,7 @@ export default function Generate() {
   return (
     <main className="min-h-[calc(100vh-56px)] flex items-center justify-center text-neutral-900 dark:text-white">
       <div className="w-full max-w-md px-4 py-6 space-y-4">
-        <div className="rounded-2xl bg-white border border-neutral-200 p-5 space-y-3 dark:bg-neutral-900 dark:border-neutral-800">
+        <div className="rounded-2xl bg-white/80 border border-neutral-200 p-5 space-y-3 backdrop-blur dark:bg-neutral-900/70 dark:border-neutral-800">
           <h1 className="text-xl font-semibold">Generate a Micro-Lesson</h1>
 
           {(loading || progress > 0) && (
@@ -167,23 +175,39 @@ export default function Generate() {
             </div>
           )}
 
+          <div className="flex flex-wrap gap-2 pt-1">
+            {subjects.map((s) => (
+              <button
+                key={s}
+                onClick={() => setSubject(s)}
+                className={`rounded-full border px-3 py-1.5 text-sm ${subject === s ? "bg-lernex-blue text-white border-blue-600" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700"}`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+
           <input
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Subject (e.g., Algebra 1)"
-            className="w-full px-3 py-2 rounded-xl bg-white border border-neutral-300 text-neutral-900 outline-none dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
+            className="w-full px-3 py-2 rounded-xl bg-white border border-neutral-300 text-neutral-900 outline-none focus:ring-2 focus:ring-lernex-blue/40 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
           />
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={6}
             placeholder="Paste study text here… (≥ 20 chars)"
-            className="w-full px-3 py-2 rounded-xl bg-white border border-neutral-300 text-neutral-900 outline-none dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
+            className="w-full px-3 py-2 rounded-xl bg-white border border-neutral-300 text-neutral-900 outline-none focus:ring-2 focus:ring-lernex-blue/40 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
           />
+          <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
+            <span>Tip: Keep it 2 short paragraphs for best results.</span>
+            <span>{text.length} chars</span>
+          </div>
           <button
             onClick={run}
             disabled={loading || text.trim().length < 20}
-            className="w-full py-3 rounded-2xl bg-lernex-blue hover:bg-blue-500 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full py-3 rounded-2xl bg-gradient-to-r from-lernex-blue to-lernex-purple shadow-sm hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? "Generating…" : "Generate"}
           </button>
@@ -195,6 +219,18 @@ export default function Generate() {
           <div className="rounded-2xl bg-neutral-900 border border-neutral-800 p-4 whitespace-pre-wrap">
             {/* Use incremental rendering to avoid flashing while streaming */}
             <FormattedText text={streamed} incremental />
+          </div>
+        )}
+
+        {/* Empty-state helper */}
+        {!lesson && !streamed && (
+          <div className="rounded-2xl border border-dashed border-neutral-300 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
+            Paste a concept or definition to turn it into a short lesson with a quick quiz. Great inputs:
+            <ul className="mt-2 list-disc pl-5">
+              <li>Key theorem statements or laws</li>
+              <li>Definitions of core terms</li>
+              <li>Short excerpts from notes or textbooks</li>
+            </ul>
           </div>
         )}
 

@@ -46,6 +46,13 @@ html {
 }
 
 @layer utilities {
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, rgba(127,127,127,0.1) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(127,127,127,0.1) 1px, transparent 1px);
+    background-size: 24px 24px;
+    background-position: center;
+  }
   ::-webkit-scrollbar {
     width: 8px;
   }

@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/next";
 import Footer from "@/components/Footer";
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import ThemeProvider from "./providers/ThemeProvider";
+import PageTransition from "@/components/PageTransition";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,12 +21,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body
+        id="top"
         className={`${inter.className} bg-white text-neutral-900 dark:bg-lernex-charcoal dark:text-white`}
       >
         <ThemeProvider>
           <div className="fixed inset-0 -z-10 bg-[radial-gradient(60%_40%_at_50%_0%,rgba(47,128,237,0.12),transparent)]"></div>
           <NavBar />
-          {children}
+          <PageTransition>
+            {children}
+          </PageTransition>
           <Footer />
           <Analytics />
           <SpeedInsights />

@@ -42,8 +42,9 @@ export default function MarketingLanding() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-neutral-50 via-neutral-100 to-neutral-200 text-neutral-900 dark:from-neutral-900 dark:via-neutral-900/80 dark:to-neutral-950 dark:text-white">
       <section className="relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-grid [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-lernex-blue/20 via-lernex-purple/20 to-transparent blur-3xl" />
-        <div className="mx-auto flex max-w-5xl flex-col items-center px-6 py-32 text-center">
+        <div className="mx-auto flex max-w-6xl flex-col items-center px-6 py-28 text-center md:py-32">
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -72,7 +73,27 @@ export default function MarketingLanding() {
             >
               <span className="inline-block transition group-hover:scale-105">Get started</span>
             </Link>
+            <Link
+              href="#how"
+              className="rounded-full border border-white/10 bg-white/40 px-8 py-3 font-medium backdrop-blur hover:bg-white/60 dark:bg-white/5 dark:hover:bg-white/10"
+            >
+              See how it works
+            </Link>
           </motion.div>
+          <div className="mt-10 grid w-full max-w-3xl grid-cols-3 gap-3 text-left text-sm text-neutral-600 dark:text-neutral-300">
+            <div className="rounded-2xl border border-white/10 bg-white/70 p-4 backdrop-blur dark:bg-white/5">
+              <div className="text-2xl font-bold text-neutral-900 dark:text-white">30–60s</div>
+              <div>Micro‑lessons per card</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/70 p-4 backdrop-blur dark:bg-white/5">
+              <div className="text-2xl font-bold text-neutral-900 dark:text-white">1–3</div>
+              <div>Instant quiz questions</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/70 p-4 backdrop-blur dark:bg-white/5">
+              <div className="text-2xl font-bold text-neutral-900 dark:text-white">Adaptive</div>
+              <div>Difficulty tunes to you</div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -86,9 +107,9 @@ export default function MarketingLanding() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
-              className="rounded-2xl border border-neutral-200 bg-white p-6 text-center shadow-md shadow-black/20 backdrop-blur dark:border-white/10 dark:bg-white/5"
+              className="group rounded-2xl border border-neutral-200 bg-white p-6 text-center shadow-md shadow-black/20 backdrop-blur transition-transform hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-white/5"
             >
-              <div className="text-4xl">{f.icon}</div>
+              <div className="text-4xl transition-transform group-hover:scale-110">{f.icon}</div>
               <div className="mt-4 text-xl font-semibold">{f.title}</div>
               <div className="mt-2 text-neutral-600 dark:text-neutral-300">{f.desc}</div>
             </motion.div>
@@ -106,9 +127,9 @@ export default function MarketingLanding() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
-              className="rounded-2xl border border-neutral-200 bg-white p-6 text-center shadow-md shadow-black/20 backdrop-blur dark:border-white/10 dark:bg-white/5"
+              className="group rounded-2xl border border-neutral-200 bg-white p-6 text-center shadow-md shadow-black/20 backdrop-blur transition-transform hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-white/5"
             >
-              <div className="text-4xl">{b.icon}</div>
+              <div className="text-4xl transition-transform group-hover:scale-110">{b.icon}</div>
               <div className="mt-4 text-xl font-semibold">{b.title}</div>
               <div className="mt-2 text-neutral-600 dark:text-neutral-300">{b.desc}</div>
             </motion.div>

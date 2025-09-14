@@ -13,6 +13,7 @@ export default function NavBar() {
   const { points, streak } = useLernexStore();
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [open, setOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -83,13 +84,14 @@ export default function NavBar() {
           <span className="rounded-full border border-neutral-200 bg-neutral-100 px-2 py-1 text-xs dark:border-white/10 dark:bg-white/5">
             ⭐ {points}
           </span>
-          <Link href="/pricing" title="Pricing" className="text-xl transition hover:opacity-80">💎</Link>
-          <Link href="/generate" title="Generate" className="text-xl transition hover:opacity-80">✨</Link>
-          <Link href="/playlists" title="Playlists" className="text-xl transition hover:opacity-80">📚</Link>
-          <Link href="/docs" title="Docs" className="text-xl transition hover:opacity-80">📘</Link>
-          <Link href="/leaderboard" title="Leaderboard" className="text-xl transition hover:opacity-80">🏆</Link>
+          <Link href="/pricing" title="Pricing" className="text-xl transition hover:opacity-80" aria-label="Pricing">💎</Link>
+          <Link href="/generate" title="Generate" className="text-xl transition hover:opacity-80" aria-label="Generate">✨</Link>
+          <Link href="/playlists" title="Playlists" className="text-xl transition hover:opacity-80" aria-label="Playlists">📚</Link>
+          <Link href="/docs" title="Docs" className="text-xl transition hover:opacity-80" aria-label="Docs">📘</Link>
+          <Link href="/leaderboard" title="Leaderboard" className="text-xl transition hover:opacity-80" aria-label="Leaderboard">🏆</Link>
         </div>
-        <div className="relative mb-4 flex justify-center" ref={menuRef}>
+        <div className="relative mb-4 flex flex-col items-center gap-3" ref={menuRef}>
+          <ThemeToggle className="bg-transparent text-neutral-900 dark:text-white text-xs px-2 py-1 border border-white/15 hover:bg-white/10" />
           {user && (
             <>
               <button
@@ -159,16 +161,20 @@ export default function NavBar() {
 
   return (
     <nav className="sticky top-0 z-20 w-full border-b border-white/10 bg-gradient-to-r from-white/80 to-white/60 text-neutral-900 shadow-sm backdrop-blur-md transition-colors dark:from-lernex-charcoal/80 dark:to-lernex-charcoal/60 dark:text-white">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4 text-sm">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 text-sm">
         <Link
           href={user ? "/app" : "/"}
           className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent transition-colors hover:opacity-80"
         >
           Lernex
         </Link>
-        <div className="flex items-center gap-4">
-          {/* Marketing/top navbar keeps a very small set of links */}
-          <Link href="/generate" className="rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-1 text-white shadow-sm transition hover:opacity-90">Generate</Link>
+        <div className="hidden items-center gap-2 md:flex">
+          <Link href="/#how" className="px-3 py-1.5 rounded-md hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">How it works</Link>
+          <Link href="/docs" className="px-3 py-1.5 rounded-md hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">Docs</Link>
+          <Link href="/pricing" className="px-3 py-1.5 rounded-md hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">Pricing</Link>
+          <Link href="/leaderboard" className="px-3 py-1.5 rounded-md hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">Leaderboard</Link>
+          <ThemeToggle />
+          <Link href="/generate" className="ml-2 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-1.5 text-white shadow-sm transition hover:opacity-90">Generate</Link>
           {user && pathname !== "/" && (
             <>
               <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">
@@ -249,7 +255,41 @@ export default function NavBar() {
             </Link>
           )}
         </div>
+
+        {/* Mobile: hamburger */}
+        <div className="flex items-center gap-3 md:hidden">
+          <button
+            onClick={() => setMobileOpen((s) => !s)}
+            aria-label="Toggle menu"
+            className="rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-lg backdrop-blur hover:bg-white/20 dark:bg-white/5"
+          >
+            {mobileOpen ? "✕" : "☰"}
+          </button>
+        </div>
       </div>
+      {/* Mobile menu overlay */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="md:hidden fixed inset-x-0 top-[56px] z-20 border-b border-white/10 bg-gradient-to-b from-white/90 to-white/70 p-4 backdrop-blur dark:from-lernex-charcoal/90 dark:to-lernex-charcoal/70"
+          >
+            <div className="grid gap-2 text-sm">
+              <Link href="/#how" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">How it works</Link>
+              <Link href="/docs" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">Docs</Link>
+              <Link href="/pricing" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">Pricing</Link>
+              <Link href="/leaderboard" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">Leaderboard</Link>
+              <Link href="/generate" onClick={() => setMobileOpen(false)} className="rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-2 text-center text-white">Generate</Link>
+              <div className="pt-2">
+                <ThemeToggle className="w-full justify-center" />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </nav>
   );
 }
