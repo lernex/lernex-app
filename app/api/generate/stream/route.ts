@@ -1,5 +1,5 @@
 // app/api/generate/stream/route.ts
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import OpenAI from "openai";
@@ -64,9 +64,47 @@ export async function POST(req: Request) {
         // Early tiny chunk to help proxies flush streaming
         controller.enqueue(enc.encode("\n"));
         let first = true;
-        let emitted = false;
+        let wrote = false; // true after we emit any model text (not the initial newline)
+        let closed = false;
+
+        const safeEnqueue = (s: string) => {
+          if (!closed && s) controller.enqueue(enc.encode(s));
+        };
+        const doClose = () => {
+          if (!closed) {
+            closed = true;
+            try { controller.close(); } catch {}
+          }
+        };
+
+        const doFallback = async (why: string) => {
+          if (wrote || closed) return;
+          console.warn("[gen/stream] fallback-trigger", { why, dt: Date.now() - t0 });
+          try {
+            const nonStream = await ai.chat.completions.create({
+              model,
+              temperature: 1,
+              max_tokens: MAX_TOKENS,
+              messages: [
+                { role: "system", content: system },
+                { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
+              ],
+            });
+            const full = (nonStream?.choices?.[0]?.message?.content as string | undefined) ?? "";
+            if (full) {
+              wrote = true;
+              safeEnqueue(full);
+            } else {
+              console.warn("[gen/stream] fallback-empty");
+            }
+          } catch (err) {
+            console.error("[gen/stream] fallback-error", err);
+          }
+        };
+
         const firstTimer = setTimeout(() => {
-          console.warn("[gen/stream] first-token-timeout", { dt: Date.now() - t0 });
+          // If we haven't seen any model text after a few seconds, try fallback
+          void doFallback("first-token-timeout");
         }, 7000);
 
         try {
@@ -75,42 +113,28 @@ export async function POST(req: Request) {
           for await (const chunk of stream) {
             const delta = (chunk?.choices?.[0]?.delta?.content as string | undefined) ?? "";
             if (!delta) continue;
-            emitted = true;
-            if (first) {
+            if (!wrote) {
               console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
               clearTimeout(firstTimer);
-              first = false;
+              first = false; // retained for potential future use
             }
-            controller.enqueue(enc.encode(delta));
+            wrote = true;
+            safeEnqueue(delta);
           }
 
-          if (!emitted) {
-            console.warn("[gen/stream] no-tokens-from-stream", { dt: Date.now() - t0 });
-            // Fallback: non-streaming single request
-            try {
-              const nonStream = await ai.chat.completions.create({
-                model,
-                temperature: 1,
-                max_tokens: MAX_TOKENS,
-                messages: [
-                  { role: "system", content: system },
-                  { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
-                ],
-              });
-              const full = (nonStream?.choices?.[0]?.message?.content as string | undefined) ?? "";
-              if (full) controller.enqueue(enc.encode(full));
-            } catch (err) {
-              console.error("[gen/stream] fallback-error", err);
-            }
+          if (!wrote) {
+            // No tokens emitted by stream; run fallback synchronously
+            await doFallback("no-tokens-from-stream");
           }
 
           console.log("[gen/stream] done", { dt: Date.now() - t0 });
         } catch (e) {
           console.error("[gen/stream] stream-error", e);
-          // Swallow streaming errors; close cleanly so client resolves
+          // Try fallback on stream error
+          await doFallback("stream-error");
         } finally {
           try { clearTimeout(firstTimer); } catch {}
-          controller.close();
+          doClose();
         }
       },
     });
