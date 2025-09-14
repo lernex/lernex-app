@@ -103,12 +103,13 @@ Create exactly one discriminative multiple-choice question from the course's app
 
   // Groq model; cap tokens for speed
   const model = "openai/gpt-oss-20b";
+  const TEMP = 0.4; // lower temp for more stable JSON
   let completion: ChatCompletion | null = null;
   let raw = "";
   try {
     completion = await ai.chat.completions.create({
       model,
-      temperature: 1,
+      temperature: TEMP,
       max_tokens: MAX_TOKENS,
       reasoning_effort: "medium",
       response_format: { type: "json_object" },
@@ -129,7 +130,7 @@ Create exactly one discriminative multiple-choice question from the course's app
       try {
         completion = await ai.chat.completions.create({
           model,
-          temperature: 1,
+          temperature: TEMP,
           max_tokens: MAX_TOKENS,
           reasoning_effort: "medium",
           messages: [
@@ -300,7 +301,11 @@ export async function POST(req: Request) {
     }
 
     // 2) Produce the current question first, avoiding duplicates
-    const nowItem = await makeQuestion(state, sb, user.id, ip, state.asked);
+    let nowItem = await makeQuestion(state, sb, user.id, ip, state.asked);
+    // Retry once more if generation failed (transient model hiccup)
+    if (!nowItem) {
+      nowItem = await makeQuestion(state, sb, user.id, ip, state.asked);
+    }
     // If we could not generate a question but we are not truly finished,
     // return an error instead of { item: null } to avoid clients treating this
     // as completion and redirecting away mid-session.
@@ -312,26 +317,31 @@ export async function POST(req: Request) {
     }
     if (nowItem) state.asked.push(nowItem.prompt);
 
-    // 3) Compute the two branch states and prefetch them (avoid repeating current or previous)
-    const stateIfRight = nextState(state, true);
-    const stateIfWrong = nextState(state, false);
-    const avoidForBranches = state.asked;
+    // 3) Optionally prefetch branches (off by default to improve reliability)
+    const PREFETCH_BRANCHES = process.env.PLACEMENT_PREFETCH === "1";
+    let payload: PlacementNextResponse;
+    if (PREFETCH_BRANCHES) {
+      const stateIfRight = nextState(state, true);
+      const stateIfWrong = nextState(state, false);
+      const avoidForBranches = state.asked;
+      const [rightItem, wrongItem] = await Promise.all([
+        makeQuestion(stateIfRight, sb, user.id, ip, avoidForBranches),
+        makeQuestion(stateIfWrong, sb, user.id, ip, avoidForBranches),
+      ]);
+      if (rightItem) stateIfRight.asked.push(rightItem.prompt);
+      if (wrongItem) stateIfWrong.asked.push(wrongItem.prompt);
+      payload = {
+        state,
+        item: nowItem,
+        branches: {
+          right: { state: stateIfRight, item: rightItem },
+          wrong: { state: stateIfWrong, item: wrongItem },
+        },
+      };
+    } else {
+      payload = { state, item: nowItem };
+    }
 
-    const [rightItem, wrongItem] = await Promise.all([
-      makeQuestion(stateIfRight, sb, user.id, ip, avoidForBranches),
-      makeQuestion(stateIfWrong, sb, user.id, ip, avoidForBranches),
-    ]);
-    if (rightItem) stateIfRight.asked.push(rightItem.prompt);
-    if (wrongItem) stateIfWrong.asked.push(wrongItem.prompt);
-
-    const payload: PlacementNextResponse = {
-      state,
-      item: nowItem,
-      branches: {
-        right: { state: stateIfRight, item: rightItem },
-        wrong: { state: stateIfWrong, item: wrongItem },
-      },
-    };
     return new Response(JSON.stringify(payload), {
       headers: { "content-type": "application/json", "cache-control": "no-store" },
     });

@@ -148,6 +148,7 @@ export default function PlacementClient() {
           router.replace("/app");
         }
         setSelected(null);
+        setPendingAnswer(null);
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Unknown error");
       } finally {
@@ -155,7 +156,6 @@ export default function PlacementClient() {
         setNextLoading(false);
         nextLoadingRef.current = false;
       }
-      setPendingAnswer(null);
     }
   };
 
