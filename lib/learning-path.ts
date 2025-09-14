@@ -84,7 +84,8 @@ Ensure the JSON is valid; avoid HTML; balance any LaTeX braces if present.`.trim
 
   if (!raw) raw = "{}";
   function extractBalancedObject(s: string): string | null {
-    let i = 0, n = s.length, depth = 0, start = -1, inStr = false, escaped = false;
+    let i = 0, depth = 0, start = -1, inStr = false, escaped = false;
+    const n = s.length;
     for (; i < n; i++) {
       const ch = s[i];
       if (inStr) {

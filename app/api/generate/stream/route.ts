@@ -64,7 +64,6 @@ export async function POST(req: Request) {
       async start(controller) {
         // Early tiny chunk to help proxies flush streaming
         controller.enqueue(enc.encode("\n"));
-        let first = true;
         let wrote = false; // true after we emit any model text (not the initial newline)
         let closed = false;
 
@@ -118,7 +117,6 @@ export async function POST(req: Request) {
             if (!wrote) {
               console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
               clearTimeout(firstTimer);
-              first = false; // retained for potential future use
             }
             wrote = true;
             safeEnqueue(delta);

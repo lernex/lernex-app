@@ -138,7 +138,7 @@ Create exactly one discriminative multiple-choice question from the course's app
           ],
         });
         raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
-      } catch (e2: unknown) {
+      } catch (_e: unknown) {
         console.error("[placement] groq completion failed twice");
         return null;
       }

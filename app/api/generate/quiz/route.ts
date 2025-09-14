@@ -97,7 +97,7 @@ Generate two or three multiple-choice questions with short choices. Use standard
             ],
           });
           raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
-        } catch (e: unknown) {
+        } catch (_e: unknown) {
           console.error("[quiz] groq completion failed twice");
           return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 });
         }
