@@ -169,12 +169,8 @@ export default function NavBar() {
           Lernex
         </Link>
         <div className="hidden items-center gap-2 md:flex">
-          <Link href="/#how" className="px-3 py-1.5 rounded-md hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">How it works</Link>
-          <Link href="/docs" className="px-3 py-1.5 rounded-md hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">Docs</Link>
           <Link href="/pricing" className="px-3 py-1.5 rounded-md hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">Pricing</Link>
-          <Link href="/leaderboard" className="px-3 py-1.5 rounded-md hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">Leaderboard</Link>
-          <ThemeToggle />
-          <Link href="/generate" className="ml-2 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-1.5 text-white shadow-sm transition hover:opacity-90">Generate</Link>
+          <Link href="/generate" className="ml-1 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-1.5 text-white shadow-sm transition hover:opacity-90">Generate</Link>
           {user && pathname !== "/" && (
             <>
               <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">
@@ -278,14 +274,11 @@ export default function NavBar() {
             className="md:hidden fixed inset-x-0 top-[56px] z-20 border-b border-white/10 bg-gradient-to-b from-white/90 to-white/70 p-4 backdrop-blur dark:from-lernex-charcoal/90 dark:to-lernex-charcoal/70"
           >
             <div className="grid gap-2 text-sm">
-              <Link href="/#how" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">How it works</Link>
-              <Link href="/docs" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">Docs</Link>
               <Link href="/pricing" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">Pricing</Link>
-              <Link href="/leaderboard" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20">Leaderboard</Link>
               <Link href="/generate" onClick={() => setMobileOpen(false)} className="rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-2 text-center text-white">Generate</Link>
-              <div className="pt-2">
-                <ThemeToggle className="w-full justify-center" />
-              </div>
+              {user === undefined ? null : !user && (
+                <Link href="/login" onClick={() => setMobileOpen(false)} className="rounded-md border border-white/10 px-3 py-2 text-center hover:bg-white/10">Login</Link>
+              )}
             </div>
           </motion.div>
         )}

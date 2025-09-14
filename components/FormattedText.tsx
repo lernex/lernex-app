@@ -42,7 +42,14 @@ function devLog(...args: unknown[]) {
 
 // Utilities kept outside React so they aren't re-created every render
 function escapeHtml(s: string) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // Broaden escaping to reduce risk when injecting fragments
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/`/g, "&#96;");
 }
 
 function normalizeBackslashes(src: string) {
@@ -114,9 +121,16 @@ function formatNonMath(s: string) {
     .replace(/__([^_]+)__/g, "<strong>$1</strong>")
     .replace(/~~([^~]+)~~/g, "<del>$1</del>")
     .replace(/`([^`]+)`/g, "<code>$1</code>");
+  // Conservatively wrap common TeX fragments that appear in plain text
   out = out.replace(/\\begin\{([^}]+)\}[\s\S]*?\\end\{\1\}/g, (m) => wrap(m));
-  out = out.replace(/\\(?:frac|sqrt|vec|mathbf|mathbb|mathcal|hat|bar|underline|overline|binom|pmatrix|bmatrix|vmatrix)\b(?:\{[^{}]*\}){1,2}/g, (m) => wrap(m));
-  out = out.replace(/\\(?:alpha|beta|gamma|delta|theta|phi|pi|mu|sigma|omega|cdot|times|pm|leq|geq)\b/g, (m) => wrap(m));
+  out = out.replace(
+    /\\(?:frac|sqrt|vec|mathbf|mathbb|mathcal|hat|bar|underline|overline|binom|pmatrix|bmatrix|vmatrix)\b(?:\{[^{}]*\}){1,2}/g,
+    (m) => wrap(m)
+  );
+  out = out.replace(
+    /\\(?:alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|vartheta|iota|kappa|lambda|mu|nu|xi|pi|varpi|rho|varrho|sigma|varsigma|tau|upsilon|phi|varphi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|infty|neq|approx|sim|propto|forall|exists|nabla|partial|cdot|times|pm|leq|geq)\b/g,
+    (m) => wrap(m)
+  );
   out = out.replace(/([A-Za-z]+)_(\{[^}]+\}|\d+|[A-Za-z])/g, (_m, a, b) => wrap(`${a}_${b}`));
   out = out.replace(/\|\|([^|]{1,80})\|\|/g, (_m, inner) => wrap(`\\| ${inner.trim()} \\|`));
   out = out.replace(/⟨([^⟩]{1,80})⟩/g, (_m, inner) => wrap(`\\langle ${inner.trim()} \\rangle`));
@@ -127,10 +141,22 @@ function formatNonMath(s: string) {
 function fixMacrosInMath(s: string) {
   // Collapse accidental double-backslashes before common macros (not row breaks)
   const macros = [
+    // formatting/accents/sets
     "langle","rangle","vec","mathbf","mathbb","mathcal","hat","bar","underline","overline",
-    "cdot","times","pm","leq","geq","frac","sqrt","binom","pmatrix","bmatrix","vmatrix","begin","end"
+    // operators and relations
+    "cdot","times","pm","leq","geq","neq","approx","sim","propto","forall","exists",
+    // structures
+    "frac","sqrt","binom","pmatrix","bmatrix","vmatrix","begin","end",
+    // greek letters
+    "alpha","beta","gamma","delta","epsilon","varepsilon","zeta","eta","theta","vartheta","iota","kappa","lambda","mu","nu","xi","pi","varpi","rho","varrho","sigma","varsigma","tau","upsilon","phi","varphi","chi","psi","omega",
+    "Gamma","Delta","Theta","Lambda","Xi","Pi","Sigma","Upsilon","Phi","Psi","Omega",
+    // calculus symbols
+    "nabla","partial","sum","prod","int","lim",
+    // functions
+    "log","sin","cos","tan","to","infty"
   ].join("|");
-  const reDouble = new RegExp('\\\\\\\\(?=(' + macros + ')\\b)', 'g');
+  // Match two backslashes before the macro and collapse to one (e.g., \\alpha -> \alpha)
+  const reDouble = new RegExp('\\\\(?=(' + macros + ')\\b)', 'g');
   s = s.replace(reDouble, '\\');
   // If a macro name appears without a backslash in math (rare), add one
   s = s.replace(/(^|[^\\])(langle|rangle|mathbf|sqrt|frac|vec|binom)\b/g, '$1\\$2');
@@ -142,30 +168,46 @@ function fixMacrosInMath(s: string) {
   return s;
 }
 
-// Typeset helper reused by both effects
-function scheduleTypeset(el: HTMLElement) {
+// Typeset helper reused by both effects. Returns a cancel function.
+function scheduleTypeset(el: HTMLElement, delayMs = 80) {
   devLog("typeset-schedule");
-  window.setTimeout(() => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
+  let cancelled = false;
+  let timeoutId: number | undefined;
+  let raf1: number | undefined;
+  let raf2: number | undefined;
+  const cancel = () => {
+    cancelled = true;
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    if (raf1 !== undefined) cancelAnimationFrame(raf1);
+    if (raf2 !== undefined) cancelAnimationFrame(raf2);
+  };
+  timeoutId = window.setTimeout(() => {
+    if (cancelled) return;
+    raf1 = requestAnimationFrame(() => {
+      if (cancelled) return;
+      raf2 = requestAnimationFrame(() => {
+        if (cancelled) return;
         devLog("typeset-run");
-        void loadMathJax().then(() => {
-          const MathJax = window.MathJax; if (!MathJax) { devLog("no-mathjax"); return; }
-          const parent = el.parentElement ?? undefined;
-          const tryLocal = () => MathJax.typesetPromise?.([el]).catch(() => {});
-          const tryParent = () => parent ? MathJax.typesetPromise?.([parent]).catch(() => {}) : Promise.resolve();
-          const tryGlobal = () => MathJax.typesetPromise?.().catch(() => {});
-          const run = () => (tryLocal() as Promise<void> | undefined)
-            ?.then(() => { if (!el.querySelector("mjx-container")) return tryParent(); })
-            .then(() => { if (!el.querySelector("mjx-container")) return tryGlobal(); })
-            .then(() => devLog(el.querySelector("mjx-container") ? "typeset-done" : "typeset-fallback-global-done"))
-            .catch((e) => devLog("typeset-error", e));
-          if (MathJax.startup?.promise) MathJax.startup.promise.then(run).catch((e)=>devLog("startup-promise-error", e));
-          else run();
-        });
+        void loadMathJax()
+          .then(() => {
+            const MathJax = window.MathJax; if (!MathJax) { devLog("no-mathjax"); return; }
+            const parent = el.parentElement ?? undefined;
+            const tryLocal = () => MathJax.typesetPromise?.([el]).catch(() => {});
+            const tryParent = () => parent ? MathJax.typesetPromise?.([parent]).catch(() => {}) : Promise.resolve();
+            const tryGlobal = () => MathJax.typesetPromise?.().catch(() => {});
+            const run = () => (tryLocal() as Promise<void> | undefined)
+              ?.then(() => { if (!el.querySelector("mjx-container")) return tryParent(); })
+              .then(() => { if (!el.querySelector("mjx-container")) return tryGlobal(); })
+              .then(() => devLog(el.querySelector("mjx-container") ? "typeset-done" : "typeset-fallback-global-done"))
+              .catch((e) => devLog("typeset-error", e));
+            if (MathJax.startup?.promise) MathJax.startup.promise.then(run).catch((e)=>devLog("startup-promise-error", e));
+            else run();
+          })
+          .catch((e) => devLog("mathjax-load-error", e));
       });
     });
-  }, 80);
+  }, delayMs);
+  return cancel;
 }
 
 function loadMathJax() {
@@ -178,7 +220,7 @@ function loadMathJax() {
   }
 
   if (!mathJaxPromise) {
-    mathJaxPromise = new Promise((resolve) => {
+    mathJaxPromise = new Promise((resolve, reject) => {
       // Provide a basic configuration so that inline math using \( .. \) works
       // reliably across pages.
       window.MathJax = {
@@ -210,20 +252,33 @@ function loadMathJax() {
         },
       } satisfies MathJaxWithConfig;
 
-      const script = document.createElement("script");
-      script.src =
-        "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
-      script.async = true;
-      script.onload = () => resolve();
-      script.onerror = () => resolve();
-      document.head.appendChild(script);
+      const src = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
+      const maxRetries = 2;
+      const attempt = (n: number) => {
+        const script = document.createElement("script");
+        script.src = src + (n ? `?retry=${n}` : "");
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = () => {
+          devLog("mathjax-script-error", { attempt: n });
+          try { script.remove(); } catch {}
+          if (n < maxRetries) {
+            const backoff = 200 * Math.pow(2, n);
+            window.setTimeout(() => attempt(n + 1), backoff);
+          } else {
+            reject(new Error("Failed to load MathJax"));
+          }
+        };
+        document.head.appendChild(script);
+      };
+      attempt(0);
     });
   }
 
   return mathJaxPromise;
 }
 
-export default function FormattedText({ text, incremental = false }: { text: string; incremental?: boolean }) {
+export default function FormattedText({ text, incremental = false, finalize = false, typesetDelayMs = 80 }: { text: string; incremental?: boolean; finalize?: boolean; typesetDelayMs?: number }) {
   const ref = useRef<HTMLSpanElement>(null);
 
   // Compute the HTML once per `text` value. Using `dangerouslySetInnerHTML`
@@ -258,21 +313,48 @@ export default function FormattedText({ text, incremental = false }: { text: str
       const delta = next.slice(last.length);
       if (delta) {
         // Track math open/close state in the newly received delta
-        const tokenRe = /\\\(|\\\[|\\\)|\\\]|\$\$/g;
+        const tokenRe = /\\\(|\\\[|\\\)|\\\]|\$\$|\$/g; // order matters: $$ before $
         let m: RegExpExecArray | null;
+        let closedToOutside = false;
         while ((m = tokenRe.exec(delta))) {
           const t = m[0];
-          if (t === "\\(" || t === "\\[") inlineDepthRef.current += 1;
-          else if (t === "\\)" || t === "\\]") inlineDepthRef.current = Math.max(0, inlineDepthRef.current - 1);
-          else if (t === "$$") inDisplayRef.current = !inDisplayRef.current;
+          if (t === "\\(" || t === "\\[") {
+            inlineDepthRef.current += 1;
+          } else if (t === "\\)" || t === "\\]") {
+            const before = inlineDepthRef.current;
+            inlineDepthRef.current = Math.max(0, inlineDepthRef.current - 1);
+            if (before > 0 && inlineDepthRef.current === 0 && !inDisplayRef.current && !inSingleRef.current) {
+              closedToOutside = true;
+            }
+          } else if (t === "$$") {
+            const was = inDisplayRef.current;
+            inDisplayRef.current = !inDisplayRef.current;
+            if (was && !inDisplayRef.current && inlineDepthRef.current === 0 && !inSingleRef.current) {
+              closedToOutside = true;
+            }
+          } else if (t === "$") {
+            // Heuristic: treat as inline math delimiter if not escaped and likely not currency
+            const pos = (m.index ?? 0);
+            const prevChar = pos > 0 ? delta[pos - 1] : (last + pendingRef.current).slice(-1);
+            const nextChar = delta[pos + 1] ?? "";
+            const escaped = prevChar === "\\";
+            const likelyCurrency = !inSingleRef.current && (nextChar >= '0' && nextChar <= '9');
+            if (!escaped && !likelyCurrency) {
+              const was = inSingleRef.current;
+              inSingleRef.current = !inSingleRef.current;
+              if (was && !inSingleRef.current && inlineDepthRef.current === 0 && !inDisplayRef.current) {
+                closedToOutside = true;
+              }
+            }
+          }
         }
 
         // Buffer until we hit a safe boundary: a closing delimiter that leaves
         // us outside math, or a sentence boundary while outside math.
         pendingRef.current += delta;
 
-        const outsideMath = inlineDepthRef.current === 0 && !inDisplayRef.current;
-        const hasCloser = /\\\)|\\\]|\$\$/.test(delta) && outsideMath;
+        const outsideMath = inlineDepthRef.current === 0 && !inDisplayRef.current && !inSingleRef.current;
+        const hasCloser = closedToOutside && outsideMath;
 
         let hasSentence = false;
         if (outsideMath) {
@@ -288,25 +370,45 @@ export default function FormattedText({ text, incremental = false }: { text: str
           if (!hasSentence && s.includes("\n\n")) hasSentence = true;
         }
 
-        const shouldFlush = hasCloser || hasSentence || (next.length - lastTypesetLenRef.current > 280);
+        const shouldFlush = hasCloser || hasSentence || finalize || (next.length - lastTypesetLenRef.current > 280);
         if (shouldFlush && pendingRef.current) {
           el.insertAdjacentHTML("beforeend", pendingRef.current);
           lastHtmlRef.current = last + pendingRef.current;
           pendingRef.current = "";
 
-          scheduleTypeset(el);
+          if (cancelTypesetRef.current) cancelTypesetRef.current();
+          cancelTypesetRef.current = scheduleTypeset(el, typesetDelayMs);
           lastTypesetLenRef.current = next.length;
         }
       }
     } else {
       // Content changed in a non-append way; replace fully
       el.innerHTML = next;
-      scheduleTypeset(el);
+      if (cancelTypesetRef.current) cancelTypesetRef.current();
+      cancelTypesetRef.current = scheduleTypeset(el, typesetDelayMs);
       lastTypesetLenRef.current = next.length;
     }
     lastHtmlRef.current = next;
-    // No cleanup necessary; we never schedule long timers in incremental path
-  }, [html, incremental]);
+    return () => {
+      if (cancelTypesetRef.current) cancelTypesetRef.current();
+    };
+  }, [html, incremental, finalize, typesetDelayMs]);
+
+  // If parent signals completion, flush any remaining pending text
+  useEffect(() => {
+    if (!incremental) return;
+    if (!finalize) return;
+    const el = ref.current;
+    if (!el) return;
+    if (pendingRef.current) {
+      el.insertAdjacentHTML("beforeend", pendingRef.current);
+      lastHtmlRef.current += pendingRef.current;
+      pendingRef.current = "";
+      if (cancelTypesetRef.current) cancelTypesetRef.current();
+      cancelTypesetRef.current = scheduleTypeset(el, typesetDelayMs);
+      lastTypesetLenRef.current = lastHtmlRef.current.length;
+    }
+  }, [finalize, incremental, typesetDelayMs]);
 
   // Normal mode: rely on React to set innerHTML, then typeset after paint
   useEffect(() => {
@@ -314,16 +416,19 @@ export default function FormattedText({ text, incremental = false }: { text: str
     const el = ref.current;
     if (!el) return;
 
-    scheduleTypeset(el);
+    let cancelTypeset = scheduleTypeset(el, typesetDelayMs);
 
     // Retypeset when the element becomes visible (covers card swaps)
     const obs = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) scheduleTypeset(el);
+      if (entries.some((e) => e.isIntersecting)) {
+        cancelTypeset();
+        cancelTypeset = scheduleTypeset(el, typesetDelayMs);
+      }
     }, { root: null, threshold: 0.01 });
     obs.observe(el);
 
-    return () => { try { obs.disconnect(); } catch {} };
-  }, [html, incremental]);
+    return () => { try { obs.disconnect(); } catch {} try { cancelTypeset(); } catch {} };
+  }, [html, incremental, typesetDelayMs]);
 
   return incremental ? (
     <span ref={ref} />
