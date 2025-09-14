@@ -1,6 +1,5 @@
 "use client";
-import { lessons } from "@/data/lessons";
-import Feed from "@/components/Feed";
+import FypFeed from "@/components/FypFeed";
 import StreakPoints from "@/components/StreakPoints";
 import Link from "next/link";
 import { useLernexStore } from "@/lib/store";
@@ -15,7 +14,7 @@ export default function AppFeedClient() {
           Personalize your feed → <Link href="/onboarding" className="underline">choose subjects</Link>.
         </div>
       )}
-      <Feed lessons={lessons} />
+      <FypFeed />
     </main>
   );
 }
