@@ -172,20 +172,12 @@ function fixMacrosInMath(s: string) {
 function scheduleTypeset(el: HTMLElement, delayMs = 80) {
   devLog("typeset-schedule");
   let cancelled = false;
-  let timeoutId: number | undefined;
-  let raf1: number | undefined;
-  let raf2: number | undefined;
-  const cancel = () => {
-    cancelled = true;
-    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-    if (raf1 !== undefined) cancelAnimationFrame(raf1);
-    if (raf2 !== undefined) cancelAnimationFrame(raf2);
-  };
-  timeoutId = window.setTimeout(() => {
+  const handles: { raf1?: number; raf2?: number } = {};
+  const timeoutId = window.setTimeout(() => {
     if (cancelled) return;
-    raf1 = requestAnimationFrame(() => {
+    handles.raf1 = requestAnimationFrame(() => {
       if (cancelled) return;
-      raf2 = requestAnimationFrame(() => {
+      handles.raf2 = requestAnimationFrame(() => {
         if (cancelled) return;
         devLog("typeset-run");
         void loadMathJax()
@@ -207,6 +199,12 @@ function scheduleTypeset(el: HTMLElement, delayMs = 80) {
       });
     });
   }, delayMs);
+  const cancel = () => {
+    cancelled = true;
+    window.clearTimeout(timeoutId);
+    if (handles.raf1 !== undefined) cancelAnimationFrame(handles.raf1);
+    if (handles.raf2 !== undefined) cancelAnimationFrame(handles.raf2);
+  };
   return cancel;
 }
 
@@ -302,6 +300,8 @@ export default function FormattedText({ text, incremental = false, finalize = fa
   const pendingRef = useRef<string>("");
   const inlineDepthRef = useRef<number>(0); // depth for \( \) and \[ \]
   const inDisplayRef = useRef<boolean>(false); // toggled by $$
+  const inSingleRef = useRef<boolean>(false); // inside $ ... $
+  const cancelTypesetRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (!incremental) return; // handled by the normal effect below
     const el = ref.current;
