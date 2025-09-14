@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
   if (!topics.length) return new Response(JSON.stringify({ error: "No topics in learning path" }), { status: 400 });
 
   const progress = getProgress(path);
-  let currentTopic = (stateRow?.next_topic as string | null) || path.starting_topic || topics[0]?.name;
+  let currentTopic: string | null = (stateRow?.next_topic as string | null) || path.starting_topic || topics[0]?.name || null;
   if (!currentTopic) return new Response(JSON.stringify({ error: "No topic" }), { status: 400 });
 
   // Compute simple accuracy-based and activity-based pace
