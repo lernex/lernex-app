@@ -157,6 +157,7 @@ export default function FypFeed() {
 
   return (
     <div ref={containerRef} className="relative h-[calc(100vh-56px)] w-full max-w-md mx-auto overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.18),transparent_40%),radial-gradient(circle_at_80%_80%,rgba(168,85,247,0.18),transparent_40%)]" />
       {!cur && !error && (
         <div className="absolute inset-0 flex items-center justify-center text-neutral-400">Loading your feed…</div>
       )}

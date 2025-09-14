@@ -49,7 +49,11 @@ export async function GET(req: NextRequest) {
     .eq("subject", subject)
     .maybeSingle();
 
-  type PathProgress = { deliveredByTopic?: Record<string, number>; deliveredIdsByTopic?: Record<string, string[]> };
+  type PathProgress = {
+    deliveredByTopic?: Record<string, number>;
+    deliveredIdsByTopic?: Record<string, string[]>;
+    preferences?: { liked?: string[]; disliked?: string[]; saved?: string[] };
+  };
   type PathWithProgress = LearningPath & { progress?: PathProgress };
   let path = state?.path as PathWithProgress | null;
   // Auto-generate a learning path if missing
@@ -135,11 +139,12 @@ export async function GET(req: NextRequest) {
   let lesson: Lesson;
   try {
     const recentIds = (progress.deliveredIdsByTopic?.[currentTopic] || []).slice(-20);
+    const disliked = (progress.preferences?.disliked ?? []).slice(-20);
     lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentTopic, {
       pace,
       accuracyPct: accuracyPct ?? undefined,
       difficultyPref: (state?.difficulty as Difficulty | undefined) ?? undefined,
-      avoidIds: recentIds,
+      avoidIds: [...recentIds, ...disliked],
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Server error";

@@ -85,7 +85,6 @@ Rules:
       const e = err as unknown as { error?: { failed_generation?: string } };
       const failed = e?.error?.failed_generation;
       if (typeof failed === "string" && failed.trim().length > 0) {
-        console.warn("[quiz] using failed_generation from JSON mode");
         raw = failed;
       } else {
         // Retry without JSON mode
@@ -105,7 +104,6 @@ Rules:
           });
           raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
         } catch (_e: unknown) {
-          console.error("[quiz] groq completion failed twice");
           return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 });
         }
       }

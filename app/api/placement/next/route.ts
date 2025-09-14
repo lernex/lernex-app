@@ -68,13 +68,7 @@ async function makeQuestion(
   if (state.done) return null;
   if (uid) {
     const ok = await checkUsageLimit(sb, uid);
-    if (!ok) {
-      console.warn("[placement] usage limit hit inside makeQuestion", {
-        subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
-        askedLen: state.asked?.length ?? 0, remainingLen: state.remaining?.length ?? 0,
-      });
-      return null;
-    }
+    if (!ok) { return null; }
   }
 // Keep two variants: a normal template and a tighter one for retries
 const systemNormal = `
@@ -159,7 +153,6 @@ Create exactly one discriminative multiple-choice question from the course's app
     const e = err as unknown as { error?: { failed_generation?: string } };
     const failed = e?.error?.failed_generation;
     if (typeof failed === "string" && failed.trim().length > 0) {
-      console.warn("[placement] using failed_generation from JSON mode");
       raw = failed;
     } else {
       // Retry without JSON mode
@@ -175,10 +168,7 @@ Create exactly one discriminative multiple-choice question from the course's app
           ],
         });
         raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
-      } catch (_e: unknown) {
-        console.error("[placement] groq completion failed twice");
-        return null;
-      }
+      } catch (_e: unknown) { return null; }
     }
   }
 
@@ -242,20 +232,9 @@ Create exactly one discriminative multiple-choice question from the course's app
     if (!extracted) return null;
     try {
       item = JSON.parse(extracted) as PlacementItem;
-    } catch {
-      console.warn("[placement] parse failure after extractBalancedObject", {
-        subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
-        rawLen: raw?.length ?? 0,
-      });
-      return null;
-    }
+    } catch { return null; }
   }
-  if (!isSafe(item.prompt)) {
-    console.warn("[placement] prompt flagged by safety blocklist", {
-      subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
-    });
-    return null;
-  }
+  if (!isSafe(item.prompt)) { return null; }
 
   // Normalize fields and difficulty fallback
   item.subject = state.subject;
@@ -267,28 +246,17 @@ Create exactly one discriminative multiple-choice question from the course's app
   item.difficulty = diff;
 
   // Ensure well-formed choices/correctIndex
-  if (!Array.isArray(item.choices)) {
-    console.warn("[placement] invalid item shape: choices not array", {
-      subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
-    });
-    return null;
-  }
+  if (!Array.isArray(item.choices)) { return null; }
   // Normalize and trim choices
   item.choices = item.choices.map((c) => String((c as unknown) ?? "").trim()).filter((c) => c.length > 0);
   // Enforce reasonable choice counts; we can slice extra distractors but keep first (correct) element
   const maxChoices = (item.difficulty === "intro" || item.difficulty === "easy") ? 3 : 4;
   if (item.choices.length > maxChoices) item.choices = item.choices.slice(0, maxChoices);
-  if (item.choices.length < 2) {
-    console.warn("[placement] too few choices", { len: item.choices.length });
-    return null;
-  }
+  if (item.choices.length < 2) { return null; }
   // If model failed to set a valid index, default to 0 per instruction
   const rawIdx = (item as unknown as { correctIndex: unknown }).correctIndex;
   let idx = typeof rawIdx === "number" ? rawIdx : Number(rawIdx);
-  if (!Number.isFinite(idx) || idx < 0 || idx >= item.choices.length) {
-    console.warn("[placement] correcting invalid correctIndex -> 0", { idx: rawIdx, len: item.choices.length });
-    idx = 0;
-  }
+  if (!Number.isFinite(idx) || idx < 0 || idx >= item.choices.length) { idx = 0; }
   item.correctIndex = idx;
 
   // If model ignored instructions, retry a couple times
@@ -370,22 +338,13 @@ export async function POST(req: Request) {
     const MAX_TRIES = 3;
     let nowItem: PlacementItem | null = null;
     for (let i = 0; i < MAX_TRIES && !nowItem; i++) {
-      if (i > 0) {
-        console.debug(`[placement] retrying makeQuestion attempt=${i} state`, {
-          subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
-          askedLen: state.asked?.length ?? 0,
-        });
-      }
+      if (i > 0) { /* retry */ }
       nowItem = await makeQuestion(state, sb, user.id, ip, state.asked);
     }
     // If we could not generate a question but we are not truly finished,
     // return an error instead of { item: null } to avoid clients treating this
     // as completion and redirecting away mid-session.
     if (!nowItem && !(state.done && (!state.remaining || state.remaining.length === 0))) {
-      console.warn(`[placement] no question generated after ${MAX_TRIES} tries`, {
-        subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
-        askedLen: state.asked?.length ?? 0, remainingLen: state.remaining?.length ?? 0, okUsagePrecheck: ok,
-      });
       return new Response(
         JSON.stringify({ error: "Could not generate question. Please try again." }),
         { status: 503, headers: { "content-type": "application/json" } }

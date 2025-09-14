@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 type PathProgress = {
   deliveredByTopic?: Record<string, number>;
   deliveredIdsByTopic?: Record<string, string[]>;
+  preferences?: { liked?: string[]; disliked?: string[]; saved?: string[] };
 };
 
 type PathWithProgress = LearningPath & { progress?: PathProgress };
@@ -136,6 +137,7 @@ export async function GET(req: NextRequest) {
     const planned = Math.max(1, Number(topics[idx].estimated_lessons || 1));
     const delivered = Math.max(0, Number(progress.deliveredByTopic?.[currentTopic] || 0));
     const recentIds = (progress.deliveredIdsByTopic?.[currentTopic] || []).slice(-20);
+    const disliked = (progress.preferences?.disliked ?? []).slice(-20);
 
     // Generate the lesson
     let lesson: Lesson;
@@ -150,7 +152,7 @@ export async function GET(req: NextRequest) {
           pace,
           accuracyPct: accuracyPct ?? undefined,
           difficultyPref: (stateRow?.difficulty as Difficulty | undefined) ?? undefined,
-          avoidIds: recentIds,
+          avoidIds: [...recentIds, ...disliked],
         }
       );
     } catch (e) {
