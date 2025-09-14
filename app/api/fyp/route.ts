@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { generateLessonForTopic } from "@/lib/fyp";
 import { LearningPath } from "@/lib/learning-path";
+import type { Lesson } from "@/lib/schema";
+import type { Difficulty } from "@/types/placement";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -47,7 +49,9 @@ export async function GET(req: NextRequest) {
     .eq("subject", subject)
     .maybeSingle();
 
-  let path = state?.path as (LearningPath & { progress?: { deliveredByTopic?: Record<string, number>; deliveredIdsByTopic?: Record<string, string[]> } }) | null;
+  type PathProgress = { deliveredByTopic?: Record<string, number>; deliveredIdsByTopic?: Record<string, string[]> };
+  type PathWithProgress = LearningPath & { progress?: PathProgress };
+  let path = state?.path as PathWithProgress | null;
   // Auto-generate a learning path if missing
   if (!path) {
     const { data: prof } = await sb
@@ -80,7 +84,7 @@ export async function GET(req: NextRequest) {
 
     try {
       const p = await (await import("@/lib/learning-path")).generateLearningPath(sb, user.id, ip, course, mastery, notes);
-      path = p as any;
+      path = p as PathWithProgress;
       const next_topic = p.starting_topic || (Array.isArray(p.topics) && p.topics[0]?.name) || null;
       const difficulty = mastery < 35 ? "intro" : mastery < 55 ? "easy" : mastery < 75 ? "medium" : "hard";
       await sb
@@ -109,8 +113,8 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const topics = Array.isArray(path.topics) ? path.topics : [];
-  const progress = (path.progress ?? {}) as { deliveredByTopic?: Record<string, number>; deliveredIdsByTopic?: Record<string, string[]> };
+  const topics = (Array.isArray(path.topics) ? path.topics : []) as LearningPath["topics"];
+  const progress: PathProgress = path.progress ?? {};
   const currentTopic = (state?.next_topic as string | null) || path.starting_topic || topics[0]?.name;
   if (!currentTopic) return new Response(JSON.stringify({ error: "No topic" }), { status: 400 });
 
@@ -128,13 +132,13 @@ export async function GET(req: NextRequest) {
   const recent = (attempts ?? []).filter((a) => a.created_at && (now - +new Date(a.created_at)) < 72 * 3600_000);
   const pace: "slow" | "normal" | "fast" = recent.length >= 12 ? "fast" : recent.length >= 4 ? "normal" : "slow";
 
-  let lesson;
+  let lesson: Lesson;
   try {
     const recentIds = (progress.deliveredIdsByTopic?.[currentTopic] || []).slice(-20);
     lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentTopic, {
       pace,
       accuracyPct: accuracyPct ?? undefined,
-      difficultyPref: (state?.difficulty as any) ?? undefined,
+      difficultyPref: (state?.difficulty as Difficulty | undefined) ?? undefined,
       avoidIds: recentIds,
     });
   } catch (e) {
@@ -146,11 +150,11 @@ export async function GET(req: NextRequest) {
   // Honor estimated_lessons and update progress
   let nextTopic: string | null = currentTopic;
   const idx = topics.findIndex((t) => t.name === currentTopic);
-  const planned = idx >= 0 ? Math.max(1, Number((topics[idx] as any).estimated_lessons || 1)) : 1;
+  const planned = idx >= 0 ? Math.max(1, Number(topics[idx].estimated_lessons || 1)) : 1;
   const deliveredByTopic = progress.deliveredByTopic || {};
   const deliveredIdsByTopic = progress.deliveredIdsByTopic || {};
   deliveredByTopic[currentTopic] = (deliveredByTopic[currentTopic] || 0) + 1;
-  const lid = (lesson as any)?.id as string | undefined;
+  const lid = lesson.id as string | undefined;
   const list = deliveredIdsByTopic[currentTopic] || [];
   if (lid) {
     if (!list.includes(lid)) list.push(lid);
@@ -163,7 +167,7 @@ export async function GET(req: NextRequest) {
     else nextTopic = null;
   }
 
-  const newPath = { ...(path as any), progress: { deliveredByTopic, deliveredIdsByTopic } };
+  const newPath: PathWithProgress = { ...(path as PathWithProgress), progress: { deliveredByTopic, deliveredIdsByTopic } };
   await sb
     .from("user_subject_state")
     .update({ next_topic: nextTopic, path: newPath, updated_at: new Date().toISOString() })

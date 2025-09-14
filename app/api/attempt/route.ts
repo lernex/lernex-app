@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const { lesson_id, correct_count, total } = await req.json();
+    const { lesson_id, subject, correct_count, total } = await req.json();
 
     if (!lesson_id || typeof correct_count !== "number" || typeof total !== "number") {
       return new Response(JSON.stringify({ error: "Invalid payload" }), { status: 400 });
@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
     const { error } = await sb.from("attempts").insert({
       user_id: uid,
       lesson_id,
+      subject: typeof subject === "string" ? subject : null,
       correct_count,
       total,
     });

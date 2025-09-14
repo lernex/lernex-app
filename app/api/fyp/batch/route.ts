@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { generateLessonForTopic } from "@/lib/fyp";
 import { LearningPath } from "@/lib/learning-path";
+import type { Lesson } from "@/lib/schema";
+import type { Difficulty } from "@/types/placement";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,10 +13,13 @@ type PathProgress = {
   deliveredIdsByTopic?: Record<string, string[]>;
 };
 
+type PathWithProgress = LearningPath & { progress?: PathProgress };
+
 function getProgress(path: unknown): PathProgress {
-  const p: PathProgress = (path && typeof path === "object" && (path as any).progress) || {};
-  const deliveredByTopic = (p.deliveredByTopic && typeof p.deliveredByTopic === "object") ? p.deliveredByTopic as Record<string, number> : {};
-  const deliveredIdsByTopic = (p.deliveredIdsByTopic && typeof p.deliveredIdsByTopic === "object") ? p.deliveredIdsByTopic as Record<string, string[]> : {};
+  const hasProgress = (o: unknown): o is { progress?: PathProgress } => !!o && typeof o === "object" && "progress" in (o as object);
+  const p = (hasProgress(path) ? (path as { progress?: PathProgress }).progress : undefined) ?? {};
+  const deliveredByTopic = (p.deliveredByTopic && typeof p.deliveredByTopic === "object") ? (p.deliveredByTopic as Record<string, number>) : {};
+  const deliveredIdsByTopic = (p.deliveredIdsByTopic && typeof p.deliveredIdsByTopic === "object") ? (p.deliveredIdsByTopic as Record<string, string[]>) : {};
   return { deliveredByTopic, deliveredIdsByTopic };
 }
 
@@ -48,7 +53,7 @@ export async function GET(req: NextRequest) {
     .eq("subject", subject)
     .maybeSingle();
 
-  let path = stateRow?.path as LearningPath | (LearningPath & { progress?: PathProgress }) | null;
+  let path = stateRow?.path as PathWithProgress | null;
   if (!path) {
     // Auto-generate based on profile mapping and attempts
     const { data: prof } = await sb
@@ -74,7 +79,7 @@ export async function GET(req: NextRequest) {
     const notes = `Learner pace: ${pace}. Personalized for ${subject}.`;
     try {
       const gp = await (await import("@/lib/learning-path")).generateLearningPath(sb, user.id, ip, course, mastery, notes);
-      path = gp as any;
+      path = gp as PathWithProgress;
       const next_topic = gp.starting_topic || (Array.isArray(gp.topics) && gp.topics[0]?.name) || null;
       const difficulty = mastery < 35 ? "intro" : mastery < 55 ? "easy" : mastery < 75 ? "medium" : "hard";
       await sb.from("user_subject_state").upsert({
@@ -101,7 +106,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const topics = Array.isArray(path.topics) ? path.topics : [];
+  const topics = (Array.isArray(path.topics) ? path.topics : []) as LearningPath["topics"];
   if (!topics.length) return new Response(JSON.stringify({ error: "No topics in learning path" }), { status: 400 });
 
   const progress = getProgress(path);
@@ -123,17 +128,17 @@ export async function GET(req: NextRequest) {
   const recent = (attempts ?? []).filter((a) => a.created_at && (now - +new Date(a.created_at)) < 72 * 3600_000);
   const pace: "slow" | "normal" | "fast" = recent.length >= 12 ? "fast" : recent.length >= 4 ? "normal" : "slow";
 
-  const out: { topic: string; lesson: unknown }[] = [];
+  const out: { topic: string; lesson: Lesson }[] = [];
   let safetyCounter = 0;
   while (out.length < n && safetyCounter++ < n * 3) {
     const idx = topics.findIndex((t) => t.name === currentTopic);
     if (idx < 0) break;
-    const planned = Math.max(1, Number((topics[idx] as any).estimated_lessons || 1));
+    const planned = Math.max(1, Number(topics[idx].estimated_lessons || 1));
     const delivered = Math.max(0, Number(progress.deliveredByTopic?.[currentTopic] || 0));
     const recentIds = (progress.deliveredIdsByTopic?.[currentTopic] || []).slice(-20);
 
     // Generate the lesson
-    let lesson;
+    let lesson: Lesson;
     try {
       lesson = await generateLessonForTopic(
         sb,
@@ -144,7 +149,7 @@ export async function GET(req: NextRequest) {
         {
           pace,
           accuracyPct: accuracyPct ?? undefined,
-          difficultyPref: (stateRow?.difficulty as any) ?? undefined,
+          difficultyPref: (stateRow?.difficulty as Difficulty | undefined) ?? undefined,
           avoidIds: recentIds,
         }
       );
@@ -155,7 +160,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Update progress bookkeeping in-memory
-    const lid = (lesson as any).id as string | undefined;
+    const lid = lesson.id as string | undefined;
     progress.deliveredByTopic = progress.deliveredByTopic || {};
     progress.deliveredByTopic[currentTopic] = (progress.deliveredByTopic[currentTopic] || 0) + 1;
     progress.deliveredIdsByTopic = progress.deliveredIdsByTopic || {};
@@ -174,14 +179,14 @@ export async function GET(req: NextRequest) {
       if (idx + 1 < topics.length) {
         currentTopic = topics[idx + 1].name;
       } else {
-        currentTopic = null as any; // end of path
+        currentTopic = null; // end of path
         break;
       }
     }
   }
 
   // Persist updated progress and next_topic
-  const newPath = { ...(path as any), progress };
+  const newPath: PathWithProgress = { ...(path as PathWithProgress), progress };
   await sb
     .from("user_subject_state")
     .update({ path: newPath, next_topic: currentTopic ?? null, updated_at: new Date().toISOString() })

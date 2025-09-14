@@ -18,29 +18,6 @@ type ApiLesson = {
 
 type FypResponse = { topic: string; lesson: ApiLesson };
 
-async function fetchFyp(subject?: string): Promise<Lesson | null> {
-  try {
-    const url = subject ? `/api/fyp?subject=${encodeURIComponent(subject)}` : "/api/fyp";
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return null;
-    const data: FypResponse = await res.json();
-    const l = data?.lesson;
-    if (!l || !l.id) return null;
-    const mapped: Lesson = {
-      id: l.id,
-      subject: l.subject,
-      title: l.title,
-      content: l.content,
-      questions: Array.isArray(l.questions) ? l.questions : [],
-      difficulty: l.difficulty,
-      topic: l.topic || data.topic,
-    };
-    return mapped;
-  } catch {
-    return null;
-  }
-}
-
 async function fetchFypBatch(subject: string | null, n: number): Promise<Lesson[]> {
   const url = subject ? `/api/fyp/batch?subject=${encodeURIComponent(subject)}&n=${n}` : `/api/fyp/batch?n=${n}`;
   try {
@@ -127,7 +104,7 @@ export default function FypFeed() {
     } finally {
       fetching.current = false;
     }
-  }, [items.length, i, rotation.length]);
+  }, [items.length, i, rotation.length, nextSubject]);
 
   // Bootstrap
   useEffect(() => {
