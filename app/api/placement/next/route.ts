@@ -67,7 +67,13 @@ async function makeQuestion(
   if (state.done) return null;
   if (uid) {
     const ok = await checkUsageLimit(sb, uid);
-    if (!ok) return null;
+    if (!ok) {
+      console.warn("[placement] usage limit hit inside makeQuestion", {
+        subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
+        askedLen: state.asked?.length ?? 0, remainingLen: state.remaining?.length ?? 0,
+      });
+      return null;
+    }
   }
 
 const system = `
@@ -207,10 +213,19 @@ Create exactly one discriminative multiple-choice question from the course's app
     try {
       item = JSON.parse(extracted) as PlacementItem;
     } catch {
+      console.warn("[placement] parse failure after extractBalancedObject", {
+        subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
+        rawLen: raw?.length ?? 0,
+      });
       return null;
     }
   }
-  if (!isSafe(item.prompt)) return null;
+  if (!isSafe(item.prompt)) {
+    console.warn("[placement] prompt flagged by safety blocklist", {
+      subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
+    });
+    return null;
+  }
 
   // Normalize fields and difficulty fallback
   item.subject = state.subject;
@@ -222,8 +237,19 @@ Create exactly one discriminative multiple-choice question from the course's app
   item.difficulty = diff;
 
   // Ensure well-formed choices/correctIndex
-  if (!Array.isArray(item.choices) || typeof item.correctIndex !== "number") return null;
-  if (item.correctIndex < 0 || item.correctIndex >= item.choices.length) return null;
+  if (!Array.isArray(item.choices) || typeof item.correctIndex !== "number") {
+    console.warn("[placement] invalid item shape (choices/correctIndex)", {
+      subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
+    });
+    return null;
+  }
+  if (item.correctIndex < 0 || item.correctIndex >= item.choices.length) {
+    console.warn("[placement] correctIndex out of bounds", {
+      subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
+      choicesLen: item.choices.length, idx: item.correctIndex,
+    });
+    return null;
+  }
 
   // If model ignored instructions, retry a couple times
   if (avoid.some((a) => a.trim() === item.prompt.trim()) && depth < 2) {
@@ -301,15 +327,25 @@ export async function POST(req: Request) {
     }
 
     // 2) Produce the current question first, avoiding duplicates
-    let nowItem = await makeQuestion(state, sb, user.id, ip, state.asked);
-    // Retry once more if generation failed (transient model hiccup)
-    if (!nowItem) {
+    const MAX_TRIES = 3;
+    let nowItem: PlacementItem | null = null;
+    for (let i = 0; i < MAX_TRIES && !nowItem; i++) {
+      if (i > 0) {
+        console.debug(`[placement] retrying makeQuestion attempt=${i} state`, {
+          subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
+          askedLen: state.asked?.length ?? 0,
+        });
+      }
       nowItem = await makeQuestion(state, sb, user.id, ip, state.asked);
     }
     // If we could not generate a question but we are not truly finished,
     // return an error instead of { item: null } to avoid clients treating this
     // as completion and redirecting away mid-session.
     if (!nowItem && !(state.done && (!state.remaining || state.remaining.length === 0))) {
+      console.warn(`[placement] no question generated after ${MAX_TRIES} tries`, {
+        subject: state.subject, course: state.course, step: state.step, diff: state.difficulty,
+        askedLen: state.asked?.length ?? 0, remainingLen: state.remaining?.length ?? 0, okUsagePrecheck: ok,
+      });
       return new Response(
         JSON.stringify({ error: "Could not generate question. Please try again." }),
         { status: 503, headers: { "content-type": "application/json" } }
@@ -317,10 +353,12 @@ export async function POST(req: Request) {
     }
     if (nowItem) state.asked.push(nowItem.prompt);
 
-    // 3) Optionally prefetch branches (off by default to improve reliability)
-    const PREFETCH_BRANCHES = process.env.PLACEMENT_PREFETCH === "1";
-    let payload: PlacementNextResponse;
+    // 3) Optionally prefetch branches (on by default; set PLACEMENT_PREFETCH=0 to disable)
+    const PREFETCH_BRANCHES = process.env.PLACEMENT_PREFETCH !== "0";
+    type PlacementNextResponseDebug = PlacementNextResponse & { timings?: { nowMs: number; branchesMs: number } };
+    let payload: PlacementNextResponseDebug;
     if (PREFETCH_BRANCHES) {
+      const t0 = Date.now();
       const stateIfRight = nextState(state, true);
       const stateIfWrong = nextState(state, false);
       const avoidForBranches = state.asked;
@@ -328,6 +366,7 @@ export async function POST(req: Request) {
         makeQuestion(stateIfRight, sb, user.id, ip, avoidForBranches),
         makeQuestion(stateIfWrong, sb, user.id, ip, avoidForBranches),
       ]);
+      const t1 = Date.now();
       if (rightItem) stateIfRight.asked.push(rightItem.prompt);
       if (wrongItem) stateIfWrong.asked.push(wrongItem.prompt);
       payload = {
@@ -338,6 +377,8 @@ export async function POST(req: Request) {
           wrong: { state: stateIfWrong, item: wrongItem },
         },
       };
+      // Attach optional timings for client-side debugging
+      payload.timings = { nowMs: 0, branchesMs: t1 - t0 };
     } else {
       payload = { state, item: nowItem };
     }

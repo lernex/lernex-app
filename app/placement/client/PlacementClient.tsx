@@ -7,6 +7,8 @@ import FormattedText from "@/components/FormattedText";
 
 export default function PlacementClient() {
   const router = useRouter();
+  const DEBUG = process.env.NEXT_PUBLIC_PLACEMENT_DEBUG !== "0";
+  const dlog = (...args: unknown[]) => { if (DEBUG) console.debug("[placement]", ...args); };
 
   const [state, setState] = useState<PlacementState | null>(null);
   const [item, setItem] = useState<PlacementItem | null>(null);
@@ -34,19 +36,28 @@ export default function PlacementClient() {
       setLoading(true);
       setErr(null);
       try {
+        dlog("prime: POST /api/placement/next");
         const res = await fetch("/api/placement/next", { method: "POST" });
         const data: PlacementNextResponse | { error?: string } = await res.json();
         if (!res.ok) {
           // Narrow the union before reading .error
           const msg = "error" in data ? data.error ?? "Failed to start placement" : "Failed to start placement";
+          dlog("prime: non-OK", { status: res.status, msg });
           throw new Error(msg);
         }
         if ("error" in data) {
+          dlog("prime: error key present", data.error);
           throw new Error(data.error ?? "Failed to start placement");
         }
         if (!("state" in data)) {
+          dlog("prime: invalid response shape");
           throw new Error("Invalid response");
         }
+        const d = data as PlacementNextResponse;
+        dlog("prime: ok", {
+          step: d.state.step, diff: d.state.difficulty, course: d.state.course,
+          hasItem: !!d.item, hasBranches: !!d.branches,
+        });
         setState(data.state);
         setItem(data.item);
         setBranches(data.branches ?? null);
@@ -55,7 +66,9 @@ export default function PlacementClient() {
           router.replace("/app");
         }
       } catch (e) {
-        setErr(e instanceof Error ? e.message : "Unknown error");
+        const msg = e instanceof Error ? e.message : "Unknown error";
+        dlog("prime: catch", msg);
+        setErr(msg);
       } finally {
         setLoading(false);
       }
@@ -65,6 +78,7 @@ export default function PlacementClient() {
   // 2) Select answer and wait for user to move on
   const answer = (idx: number) => {
     if (!item || !state) return;
+    dlog("answer", { idx, correctIndex: item.correctIndex, correct: idx === item.correctIndex });
     setSelected(idx);
     const correct = idx === item.correctIndex;
     setQuestionTotal((t) => t + 1);
@@ -76,12 +90,13 @@ export default function PlacementClient() {
   };
 
     const nextQuestion = async () => {
-    if (!pendingAnswer || nextLoadingRef.current) return;
+    if (!pendingAnswer || nextLoadingRef.current) { dlog("nextQuestion: guard", { hasPending: !!pendingAnswer, loading: nextLoadingRef.current }); return; }
     nextLoadingRef.current = true;
     setNextLoading(true);
     const prev = pendingAnswer;
     const next = pendingNext;
 
+    dlog("nextQuestion", { hasPrefetch: !!next, hasItem: !!next?.item });
     // Use optimistic path only when we have a prefetched item
     if (next && next.item) {
       setState(next.state);
@@ -106,12 +121,14 @@ export default function PlacementClient() {
       setNextLoading(false);
       nextLoadingRef.current = false;
       const stepForPrefetch = next.state.step;
+      dlog("prefetch-advance: POST /api/placement/next");
       void fetch("/api/placement/next", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ state: prev.state, lastAnswer: prev.answer, lastItem: prev.item }),
       })
         .then(async (r) => {
+          dlog("prefetch-advance: res", { status: r.status });
           const data: PlacementNextResponse | { error?: string } = await r.json();
           if (!r.ok) throw new Error((("error" in data) && data.error) || "Failed prefetch");
           if (!("state" in data)) throw new Error("Invalid response");
@@ -123,11 +140,12 @@ export default function PlacementClient() {
             setBranches(data.branches ?? null);
           }
         })
-        .catch(() => {});
+        .catch((e) => { dlog("prefetch-advance: catch", e instanceof Error ? e.message : String(e)); });
     } else {
       // Fallback: no usable prefetched item, request synchronously
       try {
         setLoading(true);
+        dlog("sync-advance: POST /api/placement/next");
         const res = await fetch("/api/placement/next", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -135,8 +153,14 @@ export default function PlacementClient() {
         });
 
         const data: PlacementNextResponse | { error?: string } = await res.json();
-        if (!res.ok) throw new Error((("error" in data) && data.error) || "Failed");
+        if (!res.ok) {
+          const msg = (("error" in data) && data.error) || `HTTP ${res.status}`;
+          dlog("sync-advance: non-OK", { status: res.status, msg });
+          throw new Error(msg);
+        }
         if (!("state" in data)) throw new Error("Invalid response");
+        const d = data as PlacementNextResponse;
+        dlog("sync-advance: ok", { step: d.state.step, hasItem: !!d.item, hasBranches: !!d.branches });
         setState(data.state);
         setItem(data.item);
         setBranches(data.branches ?? null);
@@ -150,7 +174,9 @@ export default function PlacementClient() {
         setSelected(null);
         setPendingAnswer(null);
       } catch (e) {
-        setErr(e instanceof Error ? e.message : "Unknown error");
+        const msg = e instanceof Error ? e.message : "Unknown error";
+        dlog("sync-advance: catch", msg);
+        setErr(msg);
       } finally {
         setLoading(false);
         setNextLoading(false);
@@ -166,6 +192,29 @@ export default function PlacementClient() {
     return (
       <main className="min-h-screen grid place-items-center text-neutral-900 dark:text-white">
         <div className="text-red-500 dark:text-red-400">{err}</div>
+        <button
+          onClick={() => {
+            // Retry by re-calling the prime flow
+            setErr(null);
+            setLoading(true);
+            // mimic initial effect
+            fetch("/api/placement/next", { method: "POST" })
+              .then(async (r) => {
+                dlog("retry: res", { status: r.status });
+                const data: PlacementNextResponse | { error?: string } = await r.json();
+                if (!r.ok) throw new Error((("error" in data) && data.error) || `HTTP ${r.status}`);
+                if (!("state" in data)) throw new Error("Invalid response");
+                setState(data.state);
+                setItem(data.item);
+                setBranches(data.branches ?? null);
+              })
+              .catch((e) => setErr(e instanceof Error ? e.message : "Unknown error"))
+              .finally(() => setLoading(false));
+          }}
+          className="mt-3 rounded-xl border border-neutral-300 bg-white px-4 py-2 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700"
+        >
+          Retry
+        </button>
       </main>
     );
   }
