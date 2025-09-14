@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import Groq from "groq-sdk";
+import type { ChatCompletion } from "groq-sdk/resources/chat/completions";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 
@@ -56,7 +57,7 @@ Generate two or three multiple-choice questions with short choices. Use standard
     let raw = "";
 
     const ai = new Groq({ apiKey: groqApiKey });
-    let completion: any = null;
+    let completion: ChatCompletion | null = null;
     try {
       completion = await ai.chat.completions.create({
         model,
@@ -73,7 +74,7 @@ Generate two or three multiple-choice questions with short choices. Use standard
         ],
       });
       raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
-    } catch (err) {
+    } catch (err: unknown) {
       const e = err as unknown as { error?: { failed_generation?: string } };
       const failed = e?.error?.failed_generation;
       if (typeof failed === "string" && failed.trim().length > 0) {
@@ -96,7 +97,7 @@ Generate two or three multiple-choice questions with short choices. Use standard
             ],
           });
           raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
-        } catch {
+        } catch (e: unknown) {
           console.error("[quiz] groq completion failed twice");
           return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 });
         }
@@ -175,7 +176,7 @@ Generate two or three multiple-choice questions with short choices. Use standard
       headers: { "content-type": "application/json", "Cache-Control": "no-store" },
       status: 200,
     });
-  } catch (e) {
+  } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";
     return new Response(JSON.stringify({ error: msg }), { status: 500 });
   }

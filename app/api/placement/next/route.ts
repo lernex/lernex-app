@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import Groq from "groq-sdk";
+import type { ChatCompletion } from "groq-sdk/resources/chat/completions";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlacementState, PlacementItem, Difficulty, PlacementNextResponse } from "@/types/placement";
 import { supabaseServer } from "@/lib/supabase-server";
@@ -102,7 +103,7 @@ Create exactly one discriminative multiple-choice question from the course's app
 
   // Groq model; cap tokens for speed
   const model = "openai/gpt-oss-20b";
-  let completion: any = null;
+  let completion: ChatCompletion | null = null;
   let raw = "";
   try {
     completion = await ai.chat.completions.create({
@@ -117,7 +118,7 @@ Create exactly one discriminative multiple-choice question from the course's app
       ],
     });
     raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
-  } catch (err) {
+  } catch (err: unknown) {
     const e = err as unknown as { error?: { failed_generation?: string } };
     const failed = e?.error?.failed_generation;
     if (typeof failed === "string" && failed.trim().length > 0) {
@@ -137,7 +138,7 @@ Create exactly one discriminative multiple-choice question from the course's app
           ],
         });
         raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
-      } catch {
+      } catch (e2: unknown) {
         console.error("[placement] groq completion failed twice");
         return null;
       }
