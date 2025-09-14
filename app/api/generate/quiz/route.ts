@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     const src = text.slice(0, MAX_CHARS);
 
    const system = `
-Return only JSON matching exactly:
+Return only a valid JSON object matching exactly:
 {
   "id": string,
   "subject": string,
@@ -49,29 +49,61 @@ Return only JSON matching exactly:
     { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }
   ]
 }
-Generate two or three multiple-choice questions with short choices. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags and extra commentary. Always close any math delimiters you open; prefer inline math (\\( ... \\)) for expressions in sentences. Use vector notation with \\langle ... \\rangle and norms with \\|v\\| (not angle brackets or plain pipes). Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).
+Generate two or three multiple-choice questions with short choices. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags and extra commentary. Always close any math delimiters you open; prefer inline math (\\( ... \\)) for expressions in sentences. Use vector notation with \\langle ... \\rangle and norms with \\|v\\| (not angle brackets or plain pipes). Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix). Ensure all LaTeX braces { } are balanced and escape backslashes so the JSON remains valid.
 `.trim();
 
     const model = "openai/gpt-oss-20b";
-    let raw = "{}";
+    let raw = "";
 
     const ai = new Groq({ apiKey: groqApiKey });
-    const completion = await ai.chat.completions.create({
-      model,
-      temperature: 1,
-      max_tokens: MAX_TOKENS,
-      reasoning_effort: "low",
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system },
-        {
-          role: "user",
-          content: `Subject: ${subject}\nDifficulty: ${difficulty}\nSource Text:\n${src}\nCreate 2 or 3 fair multiple-choice questions based on the source.`,
-        },
-      ],
-    });
-    raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "{}";
-    if (user && completion.usage) {
+    let completion: any = null;
+    try {
+      completion = await ai.chat.completions.create({
+        model,
+        temperature: 1,
+        max_tokens: MAX_TOKENS,
+        reasoning_effort: "low",
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: system },
+          {
+            role: "user",
+            content: `Subject: ${subject}\nDifficulty: ${difficulty}\nSource Text:\n${src}\nCreate 2 or 3 fair multiple-choice questions based on the source.`,
+          },
+        ],
+      });
+      raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
+    } catch (err) {
+      const e = err as unknown as { error?: { failed_generation?: string } };
+      const failed = e?.error?.failed_generation;
+      if (typeof failed === "string" && failed.trim().length > 0) {
+        console.warn("[quiz] using failed_generation from JSON mode");
+        raw = failed;
+      } else {
+        // Retry without JSON mode
+        try {
+          completion = await ai.chat.completions.create({
+            model,
+            temperature: 1,
+            max_tokens: MAX_TOKENS,
+            reasoning_effort: "low",
+            messages: [
+              { role: "system", content: system },
+              {
+                role: "user",
+                content: `Subject: ${subject}\nDifficulty: ${difficulty}\nSource Text:\n${src}\nCreate 2 or 3 fair multiple-choice questions based on the source.`,
+              },
+            ],
+          });
+          raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
+        } catch {
+          console.error("[quiz] groq completion failed twice");
+          return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 });
+        }
+      }
+    }
+    if (!raw) raw = "{}";
+    if (user && completion?.usage) {
       const u = completion.usage;
       let mapped: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
       if (u && typeof u === "object") {

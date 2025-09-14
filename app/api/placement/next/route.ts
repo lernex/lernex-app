@@ -70,7 +70,7 @@ async function makeQuestion(
   }
 
 const system = `
-Return JSON:
+Return only a valid JSON object matching exactly:
 {
   "subject": string,
   "course": string,
@@ -83,7 +83,7 @@ Return JSON:
 Generate one concise multiple-choice question. For intro/easy use 2–3 choices; for medium/hard use 3–4 choices. Exactly one answer must be correct.
 Difficulty reflects how deep into the course's units the question is: "intro" covers foundational early units, "easy" early units, "medium" mid-course units, and "hard" late or advanced units.
 Keep strictly to the standard curriculum for the given course and avoid topics from more advanced classes.
-Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.
+Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Ensure all LaTeX braces { } are balanced and escape backslashes so the JSON remains valid.
 `.trim();
 
 const avoidText =
@@ -102,19 +102,49 @@ Create exactly one discriminative multiple-choice question from the course's app
 
   // Groq model; cap tokens for speed
   const model = "openai/gpt-oss-20b";
-  const completion = await ai.chat.completions.create({
-    model,
-    temperature: 1,
-    max_tokens: MAX_TOKENS,
-    reasoning_effort: "medium",
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-  });
+  let completion: any = null;
+  let raw = "";
+  try {
+    completion = await ai.chat.completions.create({
+      model,
+      temperature: 1,
+      max_tokens: MAX_TOKENS,
+      reasoning_effort: "medium",
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    });
+    raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
+  } catch (err) {
+    const e = err as unknown as { error?: { failed_generation?: string } };
+    const failed = e?.error?.failed_generation;
+    if (typeof failed === "string" && failed.trim().length > 0) {
+      console.warn("[placement] using failed_generation from JSON mode");
+      raw = failed;
+    } else {
+      // Retry without JSON mode
+      try {
+        completion = await ai.chat.completions.create({
+          model,
+          temperature: 1,
+          max_tokens: MAX_TOKENS,
+          reasoning_effort: "medium",
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+        });
+        raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
+      } catch {
+        console.error("[placement] groq completion failed twice");
+        return null;
+      }
+    }
+  }
 
-  if (uid && completion.usage) {
+  if (uid && completion?.usage) {
     const u = completion.usage;
     let mapped: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
     if (u && typeof u === "object") {
@@ -132,7 +162,7 @@ Create exactly one discriminative multiple-choice question from the course's app
     }
   }
 
-  const raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "{}";
+  if (!raw) raw = "{}";
   function extractBalancedObject(s: string): string | null {
     let i = 0;
     const n = s.length;
