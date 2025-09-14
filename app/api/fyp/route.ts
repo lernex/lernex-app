@@ -56,15 +56,25 @@ export async function GET(req: NextRequest) {
   };
   type PathWithProgress = LearningPath & { progress?: PathProgress };
   let path = state?.path as PathWithProgress | null;
-  // Auto-generate a learning path if missing
-  if (!path) {
+  // Auto-generate a learning path if missing or invalid
+  const missingOrInvalid = !path || !Array.isArray(path.topics) || path.topics.length === 0;
+  if (missingOrInvalid) {
     const { data: prof } = await sb
       .from("profiles")
       .select("level_map")
       .eq("id", user.id)
       .maybeSingle();
     const levelMap = (prof?.level_map || {}) as Record<string, string>;
-    const course = state?.course || levelMap[subject];
+    const findCourse = (subj: string | null): string | undefined => {
+      if (!subj) return undefined;
+      const direct = levelMap[subj];
+      if (direct) return direct;
+      const key = Object.keys(levelMap).find((k) => k.toLowerCase() === subj.toLowerCase());
+      if (key) return levelMap[key]!;
+      const firstKey = Object.keys(levelMap)[0];
+      return firstKey ? levelMap[firstKey] : undefined;
+    };
+    const course = state?.course || findCourse(subject);
     if (!course) return new Response(JSON.stringify({ error: "No course mapping for subject" }), { status: 400 });
 
     // Estimate mastery from recent attempts (subject-specific if available)
@@ -87,22 +97,9 @@ export async function GET(req: NextRequest) {
     const notes = `Learner pace: ${pace}. Personalized for ${subject}.`;
 
     try {
-      const p = await (await import("@/lib/learning-path")).generateLearningPath(sb, user.id, ip, course, mastery, notes);
+      const mod = await import("@/lib/learning-path");
+      const p = await mod.ensureLearningPath(sb, user.id, ip, subject, course, mastery, notes);
       path = p as PathWithProgress;
-      const next_topic = p.starting_topic || (Array.isArray(p.topics) && p.topics[0]?.name) || null;
-      const difficulty = mastery < 35 ? "intro" : mastery < 55 ? "easy" : mastery < 75 ? "medium" : "hard";
-      await sb
-        .from("user_subject_state")
-        .upsert({
-          user_id: user.id,
-          subject,
-          course,
-          mastery,
-          difficulty,
-          next_topic,
-          path: p,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "user_id,subject" });
       const { data: refreshed } = await sb
         .from("user_subject_state")
         .select("path, next_topic, difficulty, course")

@@ -43,6 +43,19 @@ export async function GET(req: NextRequest) {
       .limit(1)
       .maybeSingle();
     subject = first?.subject ?? null;
+
+    if (!subject) {
+      // Fall back to first interest with a mapped course
+      const { data: prof } = await sb
+        .from("profiles")
+        .select("interests, level_map")
+        .eq("id", user.id)
+        .maybeSingle();
+      const interests: string[] = Array.isArray(prof?.interests) ? (prof!.interests as string[]) : [];
+      const levelMap = (prof?.level_map || {}) as Record<string, string>;
+      const firstSubject = interests.find((s) => !!levelMap[s]);
+      subject = firstSubject ?? null;
+    }
   }
   if (!subject) return new Response(JSON.stringify({ error: "No subject" }), { status: 400 });
 
@@ -55,7 +68,8 @@ export async function GET(req: NextRequest) {
     .maybeSingle();
 
   let path = stateRow?.path as PathWithProgress | null;
-  if (!path) {
+  const missingOrInvalid = !path || !Array.isArray(path.topics) || path.topics.length === 0;
+  if (missingOrInvalid) {
     // Auto-generate based on profile mapping and attempts
     const { data: prof } = await sb
       .from("profiles")
@@ -63,7 +77,16 @@ export async function GET(req: NextRequest) {
       .eq("id", user.id)
       .maybeSingle();
     const levelMap = (prof?.level_map || {}) as Record<string, string>;
-    const course = stateRow?.course || levelMap[subject];
+    const findCourse = (subj: string | null): string | undefined => {
+      if (!subj) return undefined;
+      const direct = levelMap[subj];
+      if (direct) return direct;
+      const key = Object.keys(levelMap).find((k) => k.toLowerCase() === subj.toLowerCase());
+      if (key) return levelMap[key]!;
+      const firstKey = Object.keys(levelMap)[0];
+      return firstKey ? levelMap[firstKey] : undefined;
+    };
+    const course = stateRow?.course || findCourse(subject);
     if (!course) return new Response(JSON.stringify({ error: "No course mapping for subject" }), { status: 400 });
     const { data: attempts } = await sb
       .from("attempts")
@@ -79,20 +102,9 @@ export async function GET(req: NextRequest) {
     const pace = recent.length >= 12 ? "fast" : recent.length >= 4 ? "normal" : "slow";
     const notes = `Learner pace: ${pace}. Personalized for ${subject}.`;
     try {
-      const gp = await (await import("@/lib/learning-path")).generateLearningPath(sb, user.id, ip, course, mastery, notes);
+      const mod = await import("@/lib/learning-path");
+      const gp = await mod.ensureLearningPath(sb, user.id, ip, subject, course, mastery, notes);
       path = gp as PathWithProgress;
-      const next_topic = gp.starting_topic || (Array.isArray(gp.topics) && gp.topics[0]?.name) || null;
-      const difficulty = mastery < 35 ? "intro" : mastery < 55 ? "easy" : mastery < 75 ? "medium" : "hard";
-      await sb.from("user_subject_state").upsert({
-        user_id: user.id,
-        subject,
-        course,
-        mastery,
-        difficulty,
-        next_topic,
-        path: gp,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id,subject" });
       const { data: refreshed } = await sb
         .from("user_subject_state")
         .select("path, next_topic, difficulty, course")

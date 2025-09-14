@@ -46,8 +46,8 @@ Ensure the JSON is valid; avoid HTML; balance any LaTeX braces if present.`.trim
     completion = await client.chat.completions.create({
       model,
       temperature,
-      max_tokens: 1200,
-      reasoning_effort: "low",
+      max_tokens: 15000,
+      reasoning_effort: "high",
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: system },
@@ -64,8 +64,8 @@ Ensure the JSON is valid; avoid HTML; balance any LaTeX braces if present.`.trim
       completion = await client.chat.completions.create({
         model,
         temperature,
-        max_tokens: 1200,
-        reasoning_effort: "low",
+        max_tokens: 15000,
+        reasoning_effort: "high",
         messages: [
           { role: "system", content: system },
           { role: "user", content: userPrompt },
@@ -107,4 +107,53 @@ Ensure the JSON is valid; avoid HTML; balance any LaTeX braces if present.`.trim
     if (!extracted) throw new Error("Invalid learning path JSON");
     return JSON.parse(extracted) as LearningPath;
   }
+}
+
+/**
+ * Ensure a learning path exists for a user + subject + course, generating and persisting it if absent or invalid.
+ * Returns the path.
+ */
+export async function ensureLearningPath(
+  sb: SupabaseClient,
+  uid: string,
+  ip: string,
+  subject: string,
+  course: string,
+  mastery: number,
+  notes = ""
+) {
+  // Check for existing path
+  const { data: existing } = await sb
+    .from("user_subject_state")
+    .select("path, course, next_topic, difficulty")
+    .eq("user_id", uid)
+    .eq("subject", subject)
+    .maybeSingle();
+
+  const currentPath = existing?.path as LearningPath | null;
+  const valid = currentPath && Array.isArray(currentPath.topics) && currentPath.topics.length > 0;
+  if (valid && existing?.course === course) {
+    return currentPath as LearningPath;
+  }
+
+  // Generate fresh path if missing/invalid or course changed
+  const path = await generateLearningPath(sb, uid, ip, course, mastery, notes);
+  const next_topic = path.starting_topic || (Array.isArray(path.topics) && path.topics[0]?.name) || null;
+  const difficulty: "intro" | "easy" | "medium" | "hard" =
+    mastery < 35 ? "intro" : mastery < 55 ? "easy" : mastery < 75 ? "medium" : "hard";
+
+  await sb
+    .from("user_subject_state")
+    .upsert({
+      user_id: uid,
+      subject,
+      course,
+      mastery,
+      difficulty,
+      next_topic,
+      path,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id,subject" });
+
+  return path;
 }

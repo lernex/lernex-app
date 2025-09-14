@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
-import { generateLearningPath } from "@/lib/learning-path";
+import { ensureLearningPath } from "@/lib/learning-path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,9 +12,10 @@ export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
 
   const bodyText = await req.text();
-  let body: { subject?: string | null } = {};
+  let body: { subject?: string | null; force?: boolean } = {};
   try { body = bodyText ? JSON.parse(bodyText) : {}; } catch {}
   const onlySubject = body.subject ?? null;
+  const force = !!body.force;
 
   const { data: prof } = await sb
     .from("profiles")
@@ -55,19 +56,23 @@ export async function POST(req: NextRequest) {
     const notes = `Learner pace: ${pace}. Personalized for ${t.subject}. Use more real-world examples for engineering contexts when relevant.`;
 
     try {
-      const p = await generateLearningPath(sb, user.id, ip, t.course, mastery, notes);
-      const next_topic = p.starting_topic || (Array.isArray(p.topics) && p.topics[0]?.name) || null;
-      const difficulty = mastery < 35 ? "intro" : mastery < 55 ? "easy" : mastery < 75 ? "medium" : "hard";
-      await sb.from("user_subject_state").upsert({
-        user_id: user.id,
-        subject: t.subject,
-        course: t.course,
-        mastery,
-        difficulty,
-        next_topic,
-        path: p,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id,subject" });
+      if (!force) {
+        // Skip generation if a valid path already exists
+        const { data: existing } = await sb
+          .from("user_subject_state")
+          .select("path, course")
+          .eq("user_id", user.id)
+          .eq("subject", t.subject)
+          .maybeSingle();
+        const p0 = existing?.path as unknown;
+        const valid = p0 && typeof p0 === "object" && Array.isArray((p0 as any).topics) && (p0 as any).topics.length > 0;
+        if (valid && existing?.course === t.course) {
+          results.push({ subject: t.subject, ok: true });
+          continue;
+        }
+      }
+
+      await ensureLearningPath(sb, user.id, ip, t.subject, t.course, mastery, notes);
       results.push({ subject: t.subject, ok: true });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Server error";
@@ -77,4 +82,3 @@ export async function POST(req: NextRequest) {
 
   return new Response(JSON.stringify({ results }), { status: 200, headers: { "content-type": "application/json" } });
 }
-
