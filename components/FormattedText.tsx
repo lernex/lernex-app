@@ -77,7 +77,7 @@ function splitMathSegments(src: string): Seg[] {
   let i = 0;
   let start = 0;
   let inMath = false;
-  let opener: "\\(" | "\\[" | "$$" | null = null;
+  let opener: "\\(" | "\\[" | "$$" | "$" | null = null;
   const commit = (end: number) => { if (end > start) segs.push({ math: inMath, t: src.slice(start, end) }); start = end; };
   while (i < src.length) {
     if (!inMath) {
@@ -85,9 +85,20 @@ function splitMathSegments(src: string): Seg[] {
         commit(i);
         opener = src.startsWith("\\(", i) ? "\\(" : src.startsWith("\\[", i) ? "\\[" : "$$";
         inMath = true; i += opener.length;
+      } else if (src[i] === '$') {
+        // Support single-dollar inline math only when a matching '$' exists ahead
+        // within a reasonable window to avoid capturing currency like $100.
+        const next = src.indexOf('$', i + 1);
+        if (next !== -1 && next - i <= 240 && src[i + 1] !== '$') {
+          commit(i);
+          opener = '$';
+          inMath = true; i += 1;
+        } else {
+          i++;
+        }
       } else i++;
     } else {
-      const close = opener === "\\(" ? "\\)" : opener === "\\[" ? "\\]" : "$$";
+      const close = opener === "\\(" ? "\\)" : opener === "\\[" ? "\\]" : opener === "$$" ? "$$" : "$";
       if (src.startsWith(close, i)) { i += close.length; commit(i); inMath = false; opener = null; }
       else i++;
     }

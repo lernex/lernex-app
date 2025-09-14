@@ -9,7 +9,7 @@ import { checkUsageLimit, logUsage } from "@/lib/usage";
 
 const MAX_CHARS = 4300;
 // Allow a bit more room so the model can finish the JSON payload
-const MAX_TOKENS = 800;
+const MAX_TOKENS = 900;
 
 export async function POST(req: Request) {
   try {
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     const src = text.slice(0, MAX_CHARS);
 
    const system = `
-Return only a valid JSON object matching exactly:
+Return ONLY a valid JSON object (no prose) matching exactly:
 {
   "id": string,
   "subject": string,
@@ -50,7 +50,14 @@ Return only a valid JSON object matching exactly:
     { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }
   ]
 }
-Generate two or three multiple-choice questions with short choices. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags and extra commentary. Always close any math delimiters you open; prefer inline math (\\( ... \\)) for expressions in sentences. Use vector notation with \\langle ... \\rangle and norms with \\|v\\| (not angle brackets or plain pipes). Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix). Ensure all LaTeX braces { } are balanced and escape backslashes so the JSON remains valid.
+Rules:
+- Produce 2–3 multiple-choice questions.
+- Keep choices short (<= 8 words). Keep explanations concise (<= 25 words).
+- Use inline LaTeX with \\( ... \\) for math. Do NOT use plain $...$.
+- Always close math delimiters and balance braces { }.
+- Vector: \\langle a,b \\rangle; Norms: \\|v\\|; Matrices may use pmatrix with row breaks (\\).
+- Avoid HTML tags and code fences.
+- JSON must be valid; escape backslashes so LaTeX survives JSON, but logical content must not be double-escaped (macros should start with a single backslash at runtime).
 `.trim();
 
     const model = "openai/gpt-oss-20b";
@@ -61,7 +68,7 @@ Generate two or three multiple-choice questions with short choices. Use standard
     try {
       completion = await ai.chat.completions.create({
         model,
-        temperature: 1,
+        temperature: 0.4,
         max_tokens: MAX_TOKENS,
         reasoning_effort: "low",
         response_format: { type: "json_object" },
@@ -85,7 +92,7 @@ Generate two or three multiple-choice questions with short choices. Use standard
         try {
           completion = await ai.chat.completions.create({
             model,
-            temperature: 1,
+            temperature: 0.4,
             max_tokens: MAX_TOKENS,
             reasoning_effort: "low",
             messages: [
@@ -170,9 +177,46 @@ Generate two or three multiple-choice questions with short choices. Use standard
       }
     }
 
+    // Normalize/sanitize the quiz object to maximize front-end formatting success
+    const obj = parsed as {
+      id?: string;
+      subject?: string;
+      title?: string;
+      difficulty?: string;
+      questions?: { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown }[];
+    };
+    const coerceStr = (v: unknown) => (typeof v === "string" ? v : String(v ?? "").trim());
+    const normalizeMath = (s: string) => {
+      // Replace $...$ with \(...\) to align with our renderer
+      // Only replace when a matching single '$' exists ahead (avoid currency)
+      let out = s.replace(/\$(?!\$)([^$\n]{1,300})\$/g, (_m, inner) => `\\(${inner}\)`);
+      // Normalize double-backslashed delimiters
+      out = out.split("\\\\(").join("\\(").split("\\\\)").join("\\)");
+      out = out.split("\\\\[").join("\\[").split("\\\\]").join("\\]");
+      return out;
+    };
+    const sanitizeQuestion = (q: { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown }) => {
+      const prompt = normalizeMath(coerceStr(q.prompt));
+      let choices = Array.isArray(q.choices) ? q.choices.map(coerceStr) : [] as string[];
+      // Enforce reasonable choice counts
+      const diff = (obj.difficulty as string) ?? "easy";
+      const maxChoices = diff === "intro" || diff === "easy" ? 3 : 4;
+      choices = choices.filter((c) => c.length > 0).slice(0, Math.max(2, maxChoices));
+      choices = choices.map(normalizeMath);
+      // Coerce index (default to 0)
+      const rawIdx = (q as { correctIndex?: unknown }).correctIndex;
+      let idx = typeof rawIdx === "number" ? rawIdx : Number(rawIdx);
+      if (!Number.isFinite(idx) || idx < 0 || idx >= choices.length) idx = 0;
+      const explanation = normalizeMath(coerceStr(q.explanation));
+      return { prompt, choices, correctIndex: idx, explanation };
+    };
+    if (Array.isArray(obj.questions)) {
+      obj.questions = obj.questions.map(sanitizeQuestion);
+    }
+
     // Note: Bedrock usage logging is handled in the generation route; here we log only for OpenAI path above.
 
-    return new Response(JSON.stringify(parsed), {
+    return new Response(JSON.stringify(obj), {
       headers: { "content-type": "application/json", "Cache-Control": "no-store" },
       status: 200,
     });
