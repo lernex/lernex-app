@@ -65,7 +65,12 @@ export async function POST(req: NextRequest) {
           .eq("subject", t.subject)
           .maybeSingle();
         const p0 = existing?.path as unknown;
-        const valid = p0 && typeof p0 === "object" && Array.isArray((p0 as any).topics) && (p0 as any).topics.length > 0;
+        const hasTopics = (o: unknown): o is { topics: unknown[] } => {
+          if (!o || typeof o !== "object") return false;
+          const t = (o as { topics?: unknown }).topics;
+          return Array.isArray(t);
+        };
+        const valid = hasTopics(p0) && p0.topics.length > 0;
         if (valid && existing?.course === t.course) {
           results.push({ subject: t.subject, ok: true });
           continue;

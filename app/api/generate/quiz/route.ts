@@ -103,7 +103,7 @@ Rules:
             ],
           });
           raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
-        } catch (_e: unknown) {
+        } catch {
           return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 });
         }
       }

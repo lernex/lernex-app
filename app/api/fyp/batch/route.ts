@@ -147,7 +147,6 @@ export async function GET(req: NextRequest) {
     const idx = topics.findIndex((t) => t.name === currentTopic);
     if (idx < 0) break;
     const planned = Math.max(1, Number(topics[idx].estimated_lessons || 1));
-    const delivered = Math.max(0, Number(progress.deliveredByTopic?.[currentTopic] || 0));
     const recentIds = (progress.deliveredIdsByTopic?.[currentTopic] || []).slice(-20);
     const disliked = (progress.preferences?.disliked ?? []).slice(-20);
 

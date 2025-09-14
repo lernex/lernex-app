@@ -168,7 +168,7 @@ Create exactly one discriminative multiple-choice question from the course's app
           ],
         });
         raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
-      } catch (_e: unknown) { return null; }
+      } catch { return null; }
     }
   }
 

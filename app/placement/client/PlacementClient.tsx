@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PlacementItem, PlacementState, PlacementNextResponse } from "@/types/placement";
 import { useRouter } from "next/navigation";
 import FormattedText from "@/components/FormattedText";
@@ -8,7 +8,7 @@ import FormattedText from "@/components/FormattedText";
 export default function PlacementClient() {
   const router = useRouter();
   const DEBUG = process.env.NEXT_PUBLIC_PLACEMENT_DEBUG !== "0";
-  const dlog = (...args: unknown[]) => { if (DEBUG) console.debug("[placement]", ...args); };
+  const dlog = useCallback((...args: unknown[]) => { if (DEBUG) console.debug("[placement]", ...args); }, [DEBUG]);
 
   const [state, setState] = useState<PlacementState | null>(null);
   const [item, setItem] = useState<PlacementItem | null>(null);
@@ -73,7 +73,7 @@ export default function PlacementClient() {
         setLoading(false);
       }
     })();
-  }, [router]);
+  }, [router, dlog]);
 
   // 2) Select answer and wait for user to move on
   const answer = (idx: number) => {

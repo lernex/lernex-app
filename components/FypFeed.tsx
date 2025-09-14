@@ -16,7 +16,6 @@ type ApiLesson = {
   questions: { prompt: string; choices: string[]; correctIndex: number; explanation?: string }[];
 };
 
-type FypResponse = { topic: string; lesson: ApiLesson };
 
 async function fetchFypBatch(subject: string | null, n: number): Promise<Lesson[]> {
   const url = subject ? `/api/fyp/batch?subject=${encodeURIComponent(subject)}&n=${n}` : `/api/fyp/batch?n=${n}`;
@@ -104,7 +103,7 @@ export default function FypFeed() {
     } finally {
       fetching.current = false;
     }
-  }, [items.length, i, rotation.length, nextSubject]);
+  }, [items.length, i, nextSubject]);
 
   // Bootstrap
   useEffect(() => {
