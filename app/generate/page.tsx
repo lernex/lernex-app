@@ -49,7 +49,7 @@ export default function Generate() {
         body: JSON.stringify({ text, subject }),
       });
       const t1 = performance.now();
-      console.log("[client] headers-received", (t1 - t0).toFixed(1), "ms");
+      console.log("[client] request-sent", (t1 - t0).toFixed(1), "ms");
 
       // 2) in parallel, request quiz JSON (non-stream)
       const quizReq = fetch("/api/generate/quiz", {
@@ -63,6 +63,14 @@ export default function Generate() {
 
       // 1) handle streaming
       const res = await streamReq;
+      const t1b = performance.now();
+      console.log("[client] response-received", {
+        dt: (t1b - t0).toFixed(1) + "ms",
+        status: res.status,
+        ok: res.ok,
+        ct: res.headers.get("content-type"),
+        xab: res.headers.get("x-accel-buffering"),
+      });
       if (!res.ok || !res.body) {
         const msg = await res.text().catch(() => "");
         throw new Error(msg || "Stream failed");
@@ -72,17 +80,32 @@ export default function Generate() {
       let full = "";
 
       const streamPump = async () => {
+        console.log("[client] stream-start");
+        let first = true;
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
+          if (first) {
+            console.log("[client] stream-first-chunk", {
+              len: chunk.length,
+              dt: (performance.now() - t0).toFixed(1) + "ms",
+            });
+            first = false;
+          } else {
+            console.log("[client] stream-chunk", { len: chunk.length });
+          }
           full += chunk;
           setStreamed((s) => s + chunk);
         }
+        console.log("[client] stream-complete-bytes", { len: full.length });
         return full.trim();
       };
 
       const [content, quizObj] = await Promise.all([streamPump(), quizReq]);
+      if (!content) {
+        console.warn("[client] empty-content-from-stream, using fallback label");
+      }
 
       // 3) assemble Lesson object for your LessonCard + QuizBlock
       const assembled: Lesson = {

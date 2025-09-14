@@ -2,11 +2,13 @@
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
+import OpenAI from "openai";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit } from "@/lib/usage";
 
-const MAX_CHARS = 2200; // cap input to keep TTFB low
-const MAX_TOKENS = 380; // allow a bit more room to finish math
+// Raised limits per request
+const MAX_CHARS = 6000; // allow longer input passages
+const MAX_TOKENS = 1000; // larger output budget for complete lessons
 
 export async function POST(req: Request) {
   const t0 = Date.now();
@@ -18,14 +20,17 @@ export async function POST(req: Request) {
     if (uid) {
       const ok = await checkUsageLimit(sb, uid);
       if (!ok) {
+        console.warn("[gen/stream] usage-limit", { uid });
         return new Response("Usage limit exceeded", { status: 403 });
       }
     }
 
-    const { text, subject = "Algebra 1" } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { text, subject = "Algebra 1" } = body ?? {} as { text?: string; subject?: string };
 
     const fwApiKey = process.env.FIREWORKS_API_KEY;
     if (!fwApiKey) {
+      console.error("[gen/stream] missing FIREWORKS_API_KEY");
       return new Response("Missing FIREWORKS_API_KEY", { status: 500 });
     }
     if (typeof text !== "string" || text.trim().length < 20) {
@@ -34,144 +39,92 @@ export async function POST(req: Request) {
 
     const src = text.slice(0, MAX_CHARS);
     const model = "accounts/fireworks/models/gpt-oss-20b";
-    const endpoint = "https://api.fireworks.ai/inference/v1/chat/completions";
 
-    console.log("[gen/stream] request-start", { dt: 0 });
+    console.log("[gen/stream] request-start", { subject, inputLen: src.length, dt: 0 });
 
     const enc = new TextEncoder();
-    const body = new ReadableStream<Uint8Array>({
+    const ai = new OpenAI({ apiKey: fwApiKey, baseURL: "https://api.fireworks.ai/inference/v1" });
+
+    const system =
+      "Write a concise micro-lesson of 80-120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Always close any math delimiters you open and prefer inline math (\\( ... \\)) for short expressions. Use \\langle ... \\rangle for vectors and \\|v\\| for norms. Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).\nReasoning: low";
+
+    const streamPromise = ai.chat.completions.create({
+      model,
+      temperature: 1,
+      max_tokens: MAX_TOKENS,
+      stream: true,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
+      ],
+    });
+
+    const bodyStream = new ReadableStream<Uint8Array>({
       async start(controller) {
+        // Early tiny chunk to help proxies flush streaming
+        controller.enqueue(enc.encode("\n"));
+        let first = true;
+        let emitted = false;
+        const firstTimer = setTimeout(() => {
+          console.warn("[gen/stream] first-token-timeout", { dt: Date.now() - t0 });
+        }, 7000);
+
         try {
-          // Early tiny chunk to defeat buffering in some paths
-          controller.enqueue(enc.encode("\n"));
-
-          const sseRes = await fetch(endpoint, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${fwApiKey}`,
-              "Content-Type": "application/json",
-              Accept: "text/event-stream",
-            },
-            body: JSON.stringify({
-              model,
-              temperature: 1,
-              max_tokens: MAX_TOKENS,
-              stream: true,
-              messages: [
-                {
-                  role: "system",
-                  content:
-                    "Write a concise micro-lesson of 80-120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Always close any math delimiters you open and prefer inline math (\\( ... \\)) for short expressions. Use \\langle ... \\rangle for vectors and \\|v\\| for norms. Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).\nReasoning: low",
-                },
-                {
-                  role: "user",
-                  content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.`,
-                },
-              ],
-            }),
-          });
-
-          let first = true;
-          let emitted = false;
-          if (sseRes.ok && sseRes.body) {
-            const reader = sseRes.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = "";
-            while (true) {
-              const { value, done } = await reader.read();
-              if (done) break;
-              buffer += decoder.decode(value, { stream: true });
-
-              // Process complete SSE events separated by double newlines
-              let idx;
-              while ((idx = buffer.indexOf("\n\n")) !== -1) {
-                const event = buffer.slice(0, idx).trim();
-                buffer = buffer.slice(idx + 2);
-                const lines = event.split("\n");
-                for (const line of lines) {
-                  if (!line.startsWith("data:")) continue;
-                  const data = line.slice(5).trim();
-                  if (!data) continue;
-                  if (data === "[DONE]") {
-                    buffer = ""; // end of stream
-                    break;
-                  }
-                  try {
-                    const json = JSON.parse(data);
-                    const token = (json?.choices?.[0]?.delta?.content as string | undefined) || "";
-                    if (token) {
-                      emitted = true;
-                      if (first) {
-                        console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
-                        first = false;
-                      }
-                      controller.enqueue(enc.encode(token));
-                    }
-                  } catch {
-                    // ignore non-JSON lines
-                  }
-                }
-              }
+          const stream = await streamPromise;
+          console.log("[gen/stream] upstream-stream-ready", { dt: Date.now() - t0 });
+          for await (const chunk of stream) {
+            const delta = (chunk?.choices?.[0]?.delta?.content as string | undefined) ?? "";
+            if (!delta) continue;
+            emitted = true;
+            if (first) {
+              console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
+              clearTimeout(firstTimer);
+              first = false;
             }
+            controller.enqueue(enc.encode(delta));
           }
 
-          // Fallback: if stream yielded nothing or failed, fetch once non-streaming
           if (!emitted) {
+            console.warn("[gen/stream] no-tokens-from-stream", { dt: Date.now() - t0 });
+            // Fallback: non-streaming single request
             try {
-              const nonStream = await fetch(endpoint, {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${fwApiKey}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  model,
-                  temperature: 1,
-                  max_tokens: MAX_TOKENS,
-                  messages: [
-                    {
-                      role: "system",
-                      content:
-                        "Write a concise micro-lesson of 80-120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Always close any math delimiters you open and prefer inline math (\\( ... \\)) for short expressions. Use \\langle ... \\rangle for vectors and \\|v\\| for norms. Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).\nReasoning: low",
-                    },
-                    {
-                      role: "user",
-                      content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.`,
-                    },
-                  ],
-                }),
+              const nonStream = await ai.chat.completions.create({
+                model,
+                temperature: 1,
+                max_tokens: MAX_TOKENS,
+                messages: [
+                  { role: "system", content: system },
+                  { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
+                ],
               });
-              if (nonStream.ok) {
-                const json = await nonStream.json();
-                const txt = (json?.choices?.[0]?.message?.content as string | undefined) || "";
-                if (txt) controller.enqueue(enc.encode(txt));
-              }
+              const full = (nonStream?.choices?.[0]?.message?.content as string | undefined) ?? "";
+              if (full) controller.enqueue(enc.encode(full));
             } catch (err) {
-              console.error("[gen/stream] fallback failed", err);
+              console.error("[gen/stream] fallback-error", err);
             }
           }
 
           console.log("[gen/stream] done", { dt: Date.now() - t0 });
         } catch (e) {
-          console.error("[gen/stream] error", e);
-          // Avoid surfacing stream errors to HTTP; just close.
+          console.error("[gen/stream] stream-error", e);
+          // Swallow streaming errors; close cleanly so client resolves
         } finally {
+          try { clearTimeout(firstTimer); } catch {}
           controller.close();
         }
       },
     });
 
-    return new Response(body, {
+    return new Response(bodyStream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-store, no-transform",
+        "Cache-Control": "no-cache, no-transform",
         "X-Accel-Buffering": "no",
         "Connection": "keep-alive",
       },
     });
   } catch (e) {
-    console.error("[gen/stream] top-level error", e);
+    console.error("[gen/stream] top-level-error", e);
     return new Response("Server error", { status: 500 });
   }
 }
-
