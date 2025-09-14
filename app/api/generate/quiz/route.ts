@@ -8,8 +8,6 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 
 const MAX_CHARS = 4300;
-// Allow a bit more room so the model can finish the JSON payload
-const MAX_TOKENS = 900;
 
 export async function POST(req: Request) {
   try {
@@ -24,7 +22,7 @@ export async function POST(req: Request) {
       }
     }
     
-    const { text, subject = "Algebra 1", difficulty = "easy" } = await req.json();
+    const { text, subject = "Algebra 1", difficulty = "easy", mode = "mini" } = await req.json();
 
     const groqApiKey = process.env.GROQ_API_KEY;
     if (!groqApiKey) {
@@ -39,7 +37,14 @@ export async function POST(req: Request) {
 
     const src = text.slice(0, MAX_CHARS);
 
-   const system = `
+    // Question count guidance based on mode
+    const countRule = mode === "quick"
+      ? "Produce 0–1 multiple-choice questions. Prefer 0 if the user's request is a narrowly scoped factual question."
+      : mode === "full"
+        ? "Produce 3–5 multiple-choice questions."
+        : "Produce 2–3 multiple-choice questions.";
+
+    const system = `
 Return ONLY a valid JSON object (no prose) matching exactly:
 {
   "id": string,
@@ -51,7 +56,7 @@ Return ONLY a valid JSON object (no prose) matching exactly:
   ]
 }
 Rules:
-- Produce 2–3 multiple-choice questions.
+- ${countRule}
 - Keep choices short (<= 8 words). Keep explanations concise (<= 25 words).
 - Use inline LaTeX with \\( ... \\) for math. Do NOT use plain $...$.
 - Always close math delimiters and balance braces { }.
@@ -61,6 +66,7 @@ Rules:
 `.trim();
 
     const model = "openai/gpt-oss-20b";
+    const maxTokens = mode === "quick" ? 350 : mode === "full" ? 1300 : 850;
     let raw = "";
 
     const ai = new Groq({ apiKey: groqApiKey });
@@ -69,14 +75,14 @@ Rules:
       completion = await ai.chat.completions.create({
         model,
         temperature: 0.4,
-        max_tokens: MAX_TOKENS,
+        max_tokens: maxTokens,
         reasoning_effort: "low",
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
           {
             role: "user",
-            content: `Subject: ${subject}\nDifficulty: ${difficulty}\nSource Text:\n${src}\nCreate 2 or 3 fair multiple-choice questions based on the source.`,
+            content: `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nSource Text:\n${src}\nCreate fair multiple-choice questions based on the source, following the rules.`,
           },
         ],
       });
@@ -92,13 +98,13 @@ Rules:
           completion = await ai.chat.completions.create({
             model,
             temperature: 0.4,
-            max_tokens: MAX_TOKENS,
+            max_tokens: maxTokens,
             reasoning_effort: "low",
             messages: [
               { role: "system", content: system },
               {
                 role: "user",
-                content: `Subject: ${subject}\nDifficulty: ${difficulty}\nSource Text:\n${src}\nCreate 2 or 3 fair multiple-choice questions based on the source.`,
+                content: `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nSource Text:\n${src}\nCreate fair multiple-choice questions based on the source, following the rules.`,
               },
             ],
           });

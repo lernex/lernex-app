@@ -9,14 +9,7 @@ import FormattedText from "@/components/FormattedText";
 export default function Generate() {
   const [text, setText] = useState("");
   const [subject, setSubject] = useState("Algebra 1");
-  const subjects = [
-    "Algebra 1",
-    "Calculus",
-    "Physics",
-    "Chemistry",
-    "Biology",
-    "US History",
-  ];
+  const [mode, setMode] = useState<"quick" | "mini" | "full">("mini");
 
   // streaming text + assembled lesson
   const [streamed, setStreamed] = useState("");
@@ -54,7 +47,7 @@ export default function Generate() {
       const streamReq = fetch("/api/generate/stream", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text, subject }),
+        body: JSON.stringify({ text, subject, mode }),
       });
       const t1 = performance.now();
       console.log("[client] request-sent", (t1 - t0).toFixed(1), "ms");
@@ -63,7 +56,7 @@ export default function Generate() {
       const quizReq = fetch("/api/generate/quiz", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text, subject, difficulty: "easy" }),
+        body: JSON.stringify({ text, subject, difficulty: "easy", mode }),
       }).then(async (r) => {
         if (!r.ok) throw new Error((await r.text()) || "Quiz failed");
         return r.json();
@@ -175,14 +168,19 @@ export default function Generate() {
             </div>
           )}
 
+          {/* Response style selection */}
           <div className="flex flex-wrap gap-2 pt-1">
-            {subjects.map((s) => (
+            {[
+              { key: "quick", label: "Quick Question" },
+              { key: "mini", label: "Mini Lesson" },
+              { key: "full", label: "Full Lesson" },
+            ].map((opt) => (
               <button
-                key={s}
-                onClick={() => setSubject(s)}
-                className={`rounded-full border px-3 py-1.5 text-sm ${subject === s ? "bg-lernex-blue text-white border-blue-600" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700"}`}
+                key={opt.key}
+                onClick={() => setMode(opt.key as typeof mode)}
+                className={`rounded-full border px-3 py-1.5 text-sm ${mode === opt.key ? "bg-lernex-blue text-white border-blue-600" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700"}`}
               >
-                {s}
+                {opt.label}
               </button>
             ))}
           </div>

@@ -8,7 +8,6 @@ import { checkUsageLimit } from "@/lib/usage";
 
 // Raised limits per request
 const MAX_CHARS = 6000; // allow longer input passages
-const MAX_TOKENS = 1000; // larger output budget for complete lessons
 
 export async function POST(req: Request) {
   const t0 = Date.now();
@@ -26,7 +25,11 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { text, subject = "Algebra 1" } = body ?? {} as { text?: string; subject?: string };
+    const { text, subject = "Algebra 1", mode = "mini" } = (body ?? {}) as {
+      text?: string;
+      subject?: string;
+      mode?: "quick" | "mini" | "full";
+    };
 
     const groqApiKey = process.env.GROQ_API_KEY;
     if (!groqApiKey) {
@@ -40,23 +43,48 @@ export async function POST(req: Request) {
     const src = text.slice(0, MAX_CHARS);
     const model = "openai/gpt-oss-20b";
 
-    console.log("[gen/stream] request-start", { subject, inputLen: src.length, dt: 0 });
+    console.log("[gen/stream] request-start", { subject, inputLen: src.length, mode, dt: 0 });
 
     const enc = new TextEncoder();
     const ai = new Groq({ apiKey: groqApiKey });
 
-    const system =
-      "Write a concise micro-lesson of 80-120 words in exactly two short paragraphs. Do not use JSON, markdown, or code fences. Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Always close any math delimiters you open and prefer inline math (\\( ... \\)) for short expressions. Use \\langle ... \\rangle for vectors and \\|v\\| for norms. Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).";
+    // Adjust style and length based on mode
+    const systemQuick = [
+      "Answer the user's prompt directly in one very concise paragraph (30–60 words).",
+      "Do not add extra context beyond what is needed to answer.",
+      "Do not use JSON, markdown, or code fences; avoid HTML tags.",
+      "Use standard inline LaTeX like \\(...\\) where needed. Always close delimiters.",
+      "Use \\langle ... \\rangle for vectors and \\|v\\| for norms.",
+    ].join(" ");
+    const systemMini = [
+      "Write a concise micro-lesson of 80–120 words in exactly two short paragraphs.",
+      "Answer the user's question and provide a tiny bit of explanation for learning.",
+      "Do not use JSON, markdown, or code fences; avoid HTML tags.",
+      "Use standard inline LaTeX like \\(...\\) where needed. Always close delimiters.",
+      "Use \\langle ... \\rangle for vectors and \\|v\\| for norms.",
+      "Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).",
+    ].join(" ");
+    const systemFull = [
+      "Write an in-depth lesson of ~400–700 words across multiple short paragraphs.",
+      "Answer the user's question thoroughly, add background, key definitions, step-by-step reasoning, a small worked example, common pitfalls, and a short summary.",
+      "Do not use JSON, markdown, or code fences; avoid HTML tags.",
+      "Use standard inline LaTeX like \\(...\\) where needed. Always close delimiters.",
+      "Prefer inline math; for matrices, use pmatrix (use \\\\ for row breaks); use \\langle ... \\rangle for vectors and \\|v\\| for norms.",
+    ].join(" ");
+    const system = mode === "quick" ? systemQuick : mode === "full" ? systemFull : systemMini;
+
+    // Token budgets per mode
+    const maxTokens = mode === "quick" ? 300 : mode === "full" ? 1600 : 700;
 
     const streamPromise = ai.chat.completions.create({
       model,
       temperature: 1,
-      max_tokens: MAX_TOKENS,
+      max_tokens: maxTokens,
       reasoning_effort: "low",
       stream: true,
       messages: [
         { role: "system", content: system },
-        { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
+        { role: "user", content: `Subject: ${subject}\nMode: ${mode}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
       ],
     });
 
@@ -81,16 +109,16 @@ export async function POST(req: Request) {
           if (wrote || closed) return;
           console.warn("[gen/stream] fallback-trigger", { why, dt: Date.now() - t0 });
           try {
-              const nonStream = await ai.chat.completions.create({
-                model,
-                temperature: 1,
-                max_tokens: MAX_TOKENS,
-                reasoning_effort: "low",
-                messages: [
-                  { role: "system", content: system },
-                  { role: "user", content: `Subject: ${subject}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
-                ],
-              });
+            const nonStream = await ai.chat.completions.create({
+              model,
+              temperature: 1,
+              max_tokens: maxTokens,
+              reasoning_effort: "low",
+              messages: [
+                { role: "system", content: system },
+                { role: "user", content: `Subject: ${subject}\nMode: ${mode}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
+              ],
+            });
             const full = (nonStream?.choices?.[0]?.message?.content as string | undefined) ?? "";
             if (full) {
               wrote = true;
@@ -152,3 +180,4 @@ export async function POST(req: Request) {
     return new Response("Server error", { status: 500 });
   }
 }
+
