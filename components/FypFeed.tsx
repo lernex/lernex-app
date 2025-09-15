@@ -17,25 +17,43 @@ type ApiLesson = {
 };
 
 async function fetchFypOne(subject: string | null): Promise<Lesson | null> {
-  const url = subject ? `/api/fyp?subject=${encodeURIComponent(subject)}` : `/api/fyp`;
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return null;
-    const data = await res.json() as { topic?: string; lesson?: ApiLesson };
-    const l = data?.lesson;
-    if (!l) return null;
-    return {
-      id: l.id,
-      subject: l.subject,
-      title: l.title,
-      content: l.content,
-      questions: Array.isArray(l.questions) ? l.questions : [],
-      difficulty: l.difficulty,
-      topic: l.topic ?? data?.topic,
-    } as Lesson;
-  } catch {
-    return null;
+  const base = subject ? `/api/fyp?subject=${encodeURIComponent(subject)}` : `/api/fyp`;
+  const maxAttempts = 5;
+  let delay = 600;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const res = await fetch(base, { cache: "no-store" });
+      if (res.ok) {
+        const data = (await res.json()) as { topic?: string; lesson?: ApiLesson };
+        const l = data?.lesson;
+        if (!l) return null;
+        return {
+          id: l.id,
+          subject: l.subject,
+          title: l.title,
+          content: l.content,
+          questions: Array.isArray(l.questions) ? l.questions : [],
+          difficulty: l.difficulty,
+          topic: l.topic ?? data?.topic,
+        } as Lesson;
+      }
+      if (res.status === 202 || res.status === 409) {
+        // Backoff and retry
+        const jitter = Math.floor(Math.random() * 250);
+        await new Promise((r) => setTimeout(r, delay + jitter));
+        delay = Math.min(8000, Math.floor(delay * 1.8));
+        continue;
+      }
+      // Hard failures or auth
+      if (res.status === 401 || res.status === 403 || res.status >= 500) return null;
+    } catch {
+      // Network error; back off slightly then retry
+      const jitter = Math.floor(Math.random() * 200);
+      await new Promise((r) => setTimeout(r, delay + jitter));
+      delay = Math.min(8000, Math.floor(delay * 1.8));
+    }
   }
+  return null;
 }
 
 export default function FypFeed() {
@@ -69,6 +87,7 @@ export default function FypFeed() {
   const [initialized, setInitialized] = useState(false);
   const fetching = useRef(false);
   const subjIdxRef = useRef(0);
+  const cooldownRef = useRef(new Map<string | null, number>());
 
   const ensureBuffer = useCallback(async (minAhead = 3) => {
     if (fetching.current) return;
@@ -76,16 +95,31 @@ export default function FypFeed() {
     try {
       let needed = Math.max(0, minAhead - (items.length - i));
       let guard = 0;
+      const attempted = new Set<string | null>();
+      const now = Date.now();
       while (needed > 0 && guard++ < 12) {
         const idx = subjIdxRef.current % rotation.length;
         subjIdxRef.current = idx + 1;
         const subject = rotation[idx];
+        if (attempted.has(subject)) {
+          // Already tried this subject during this pass; break to avoid tight loops
+          break;
+        }
+        attempted.add(subject);
+        const until = cooldownRef.current.get(subject) ?? 0;
+        if (until > now) {
+          // Still cooling down; skip this subject this pass
+          continue;
+        }
         const one = await fetchFypOne(subject);
         if (one) {
           setItems((arr) => [...arr, one]);
           needed -= 1;
         } else {
-          // try next subject in rotation on next loop
+          // Back off this subject for a few seconds to prevent hammering
+          cooldownRef.current.set(subject, Date.now() + 8000);
+          // Break out to avoid repeatedly calling the same failing subject in this pass
+          break;
         }
       }
       setInitialized(true);
@@ -100,7 +134,7 @@ export default function FypFeed() {
   // Bootstrap
   useEffect(() => {
     if (!initialized) {
-      void ensureBuffer(4);
+      void ensureBuffer(1);
     }
   }, [initialized, ensureBuffer]);
 

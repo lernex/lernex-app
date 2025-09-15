@@ -4,6 +4,7 @@ import { generateLessonForTopic } from "@/lib/fyp";
 import type { LevelMap } from "@/lib/learning-path";
 import type { Lesson } from "@/lib/schema";
 import type { Difficulty } from "@/types/placement";
+import { acquireGenLock, releaseGenLock } from "@/lib/db-lock";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -78,7 +79,7 @@ export async function GET(req: NextRequest) {
       return firstKey ? levelMap[firstKey] : undefined;
     };
     const course = state?.course || findCourse(subject);
-    if (!course) return new Response(JSON.stringify({ error: "No course mapping for subject" }), { status: 400 });
+    if (!course) return new Response(JSON.stringify({ error: "Not ready: no course mapping for subject" }), { status: 409 });
 
     // Estimate mastery from recent attempts (subject-specific if available)
     const { data: attempts } = await sb
@@ -100,6 +101,24 @@ export async function GET(req: NextRequest) {
     const notes = `Learner pace: ${pace}. Personalized for ${subject}.`;
 
     try {
+      // Cross-instance DB lock. If not supported and busy, fallback to in-process lock inside ensureLearningPath.
+      const lock = await acquireGenLock(sb, user.id, subject);
+      if (!lock.supported && lock.reason === "error") {
+        // DB error unrelated to missing table
+        return new Response(JSON.stringify({ error: "Server error" }), { status: 500 });
+      }
+      if (!lock.acquired && lock.supported) {
+        // Someone else is generating; signal client to backoff and retry
+        return new Response(JSON.stringify({ status: "generating" }), { status: 202, headers: { "retry-after": "3" } });
+      }
+      if (!lock.supported) {
+        // No DB lock available; if our in-process lock is active, signal 202 too
+        const { isLearningPathGenerating } = await import("@/lib/learning-path");
+        if (isLearningPathGenerating(user.id, subject)) {
+          return new Response(JSON.stringify({ status: "generating" }), { status: 202, headers: { "retry-after": "3" } });
+        }
+      }
+
       const mod = await import("@/lib/learning-path");
       const p = await mod.ensureLearningPath(sb, user.id, ip, subject, course, mastery, notes);
       path = p as PathWithProgress;
@@ -110,9 +129,12 @@ export async function GET(req: NextRequest) {
         .eq("subject", subject)
         .maybeSingle();
       state = refreshed ?? state;
+      if (lock.acquired && lock.supported) await releaseGenLock(sb, user.id, subject);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Server error";
       const status = msg === "Usage limit exceeded" ? 403 : 500;
+      // Ensure lock release on failure
+      try { await releaseGenLock(sb, user.id, subject); } catch {}
       return new Response(JSON.stringify({ error: msg }), { status });
     }
   }

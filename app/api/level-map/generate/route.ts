@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { ensureLearningPath } from "@/lib/learning-path";
+import { acquireGenLock, releaseGenLock } from "@/lib/db-lock";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +57,15 @@ export async function POST(req: NextRequest) {
     const notes = `Learner pace: ${pace}. Personalized for ${t.subject}. Use more real-world examples for engineering contexts when relevant.`;
 
     try {
+      const lock = await acquireGenLock(sb, user.id, t.subject);
+      if (!lock.supported && lock.reason === "error") {
+        results.push({ subject: t.subject, ok: false, error: "DB error" });
+        continue;
+      }
+      if (!lock.acquired && lock.supported && !force) {
+        results.push({ subject: t.subject, ok: true });
+        continue;
+      }
       if (!force) {
         // Skip generation if a valid path already exists
         const { data: existing } = await sb
@@ -73,15 +83,18 @@ export async function POST(req: NextRequest) {
         const valid = hasTopics(p0) && p0.topics.length > 0;
         if (valid && existing?.course === t.course) {
           results.push({ subject: t.subject, ok: true });
+          if (lock.acquired && lock.supported) await releaseGenLock(sb, user.id, t.subject);
           continue;
         }
       }
 
       await ensureLearningPath(sb, user.id, ip, t.subject, t.course, mastery, notes);
       results.push({ subject: t.subject, ok: true });
+      if (lock.acquired && lock.supported) await releaseGenLock(sb, user.id, t.subject);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Server error";
       results.push({ subject: t.subject, ok: false, error: msg });
+      try { await releaseGenLock(sb, user.id, t.subject); } catch {}
     }
   }
 

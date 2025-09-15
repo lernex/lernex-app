@@ -2,6 +2,15 @@ import Groq from "groq-sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { checkUsageLimit, logUsage } from "./usage";
 
+// In-process lock to dedupe concurrent level-map generations per user+subject.
+// Note: Best-effort only (won't coordinate across server instances), but prevents
+// most duplicate generations triggered by rapid client retries.
+const generationLocks = new Map<string, Promise<LevelMap>>();
+
+export function isLearningPathGenerating(uid: string, subject: string) {
+  return generationLocks.has(`${uid}:${subject}`);
+}
+
 // New, richer level map schema
 export type LevelMap = {
   subject: string;
@@ -210,26 +219,52 @@ export async function ensureLearningPath(
     return currentPath as LevelMap;
   }
 
-  // Generate fresh map if missing/invalid or course changed
-  const map = await generateLearningPath(sb, uid, ip, subject, course, mastery, notes);
-  const firstTopic = map.topics?.[0];
-  const firstSub = firstTopic?.subtopics?.[0];
-  const next_topic = firstTopic && firstSub ? `${firstTopic.name} > ${firstSub.name}` : null;
-  const difficulty: "intro" | "easy" | "medium" | "hard" =
-    mastery < 35 ? "intro" : mastery < 55 ? "easy" : mastery < 75 ? "medium" : "hard";
+  const key = `${uid}:${subject}`;
+  const existingLock = generationLocks.get(key);
+  if (existingLock) {
+    // Another request is already generating; wait for it, then read fresh state.
+    await existingLock.catch(() => {});
+    const { data: after } = await sb
+      .from("user_subject_state")
+      .select("path, course")
+      .eq("user_id", uid)
+      .eq("subject", subject)
+      .maybeSingle();
+    const p = after?.path as LevelMap | null;
+    if (p && Array.isArray(p.topics) && p.topics.length > 0 && after?.course === course) return p;
+    // Fall through to try again if previous generation failed.
+  }
 
-  await sb
-    .from("user_subject_state")
-    .upsert({
-      user_id: uid,
-      subject,
-      course,
-      mastery,
-      difficulty,
-      next_topic,
-      path: map,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id,subject" });
+  // Generate fresh map if missing/invalid or course changed, with lock
+  const lock = (async () => {
+    const map = await generateLearningPath(sb, uid, ip, subject, course, mastery, notes);
+    const firstTopic = map.topics?.[0];
+    const firstSub = firstTopic?.subtopics?.[0];
+    const next_topic = firstTopic && firstSub ? `${firstTopic.name} > ${firstSub.name}` : null;
+    const difficulty: "intro" | "easy" | "medium" | "hard" =
+      mastery < 35 ? "intro" : mastery < 55 ? "easy" : mastery < 75 ? "medium" : "hard";
 
-  return map;
+    await sb
+      .from("user_subject_state")
+      .upsert({
+        user_id: uid,
+        subject,
+        course,
+        mastery,
+        difficulty,
+        next_topic,
+        path: map,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id,subject" });
+
+    return map;
+  })();
+
+  generationLocks.set(key, lock);
+  try {
+    const result = await lock;
+    return result;
+  } finally {
+    generationLocks.delete(key);
+  }
 }
