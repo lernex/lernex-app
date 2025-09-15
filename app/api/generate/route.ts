@@ -191,7 +191,11 @@ Rules:
 - No extra commentary or code fences.
 - If passage is too advanced for the difficulty, simplify the content.
 - Prefer 2–3 choices for intro/easy; 3–4 for medium/hard.
-- Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags. Always close any math delimiters you open and prefer inline math (\\( ... \\)) for short expressions.
+ - Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.
+ - Do NOT use single-dollar $...$ math; prefer \\( ... \\) for inline and \\[ ... \\] only if necessary.
+ - Always balance {} and math delimiters (\\( pairs with \\), \\[ with \\], $$ with $$).
+ - Wrap single-letter macro arguments in braces (e.g., \\vec{v}, \\mathbf{v}, \\hat{v}).
+ - Escape backslashes so LaTeX macros appear with a single backslash after JSON parsing; do not double-escape macros. Prefer \\\\ only for matrix row breaks in pmatrix.
 `.trim();
 
     const userPrompt = `

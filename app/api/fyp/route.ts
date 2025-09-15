@@ -275,7 +275,7 @@ export async function GET(req: NextRequest) {
     .eq("user_id", user.id)
     .eq("subject", subject);
 
-  try { console.debug(`[fyp][${reqId}] success`, { topic: currentLabel, lessonId: (lesson as any)?.id }); } catch {}
+  try { console.debug(`[fyp][${reqId}] success`, { topic: currentLabel, lessonId: lesson.id }); } catch {}
   return new Response(
     JSON.stringify({ topic: currentLabel, lesson }),
     { status: 200, headers: { "content-type": "application/json" } }

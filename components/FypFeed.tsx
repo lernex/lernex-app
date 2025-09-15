@@ -40,7 +40,7 @@ async function fetchFypOne(subject: string | null): Promise<Lesson | null> {
       }
       if (res.status === 202 || res.status === 409) {
         try {
-          const j = await res.json().catch(() => ({} as any));
+          const j: Record<string, unknown> = await res.json().catch(() => ({} as Record<string, unknown>));
           console.debug("[fyp] backoff", { subject, status: res.status, j });
         } catch {}
         // Backoff and retry
@@ -52,7 +52,7 @@ async function fetchFypOne(subject: string | null): Promise<Lesson | null> {
       // Hard failures or auth
       if (res.status === 401 || res.status === 403 || res.status >= 500) {
         try {
-          const j = await res.json().catch(() => ({} as any));
+          const j: Record<string, unknown> = await res.json().catch(() => ({} as Record<string, unknown>));
           console.warn("[fyp] hard-fail", { subject, status: res.status, j });
         } catch {}
         return null;

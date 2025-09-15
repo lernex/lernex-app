@@ -58,11 +58,12 @@ Return ONLY a valid JSON object (no prose) matching exactly:
 Rules:
 - ${countRule}
 - Keep choices short (<= 8 words). Keep explanations concise (<= 25 words).
-- Use inline LaTeX with \\( ... \\) for math. Do NOT use plain $...$.
-- Always close math delimiters and balance braces { }.
+- Use inline LaTeX with \\( ... \\) for math. Do NOT use single-dollar $...$ delimiters; prefer \\( ... \\) for inline and \\[ ... \\] only if necessary.
+- Always balance {} and math delimiters (\\( pairs with \\), \\[ with \\], $$ with $$).
 - Vector: \\langle a,b \\rangle; Norms: \\|v\\|; Matrices may use pmatrix with row breaks (\\).
 - Avoid HTML tags and code fences.
-- JSON must be valid; escape backslashes so LaTeX survives JSON, but logical content must not be double-escaped (macros should start with a single backslash at runtime).
+- Wrap single-letter macro arguments in braces (e.g., \\vec{v}, \\mathbf{v}, \\hat{v}).
+- JSON must be valid; escape backslashes so LaTeX survives JSON, and do not double-escape macros. After parsing, macros must start with a single backslash.
 `.trim();
 
     const model = "openai/gpt-oss-20b";

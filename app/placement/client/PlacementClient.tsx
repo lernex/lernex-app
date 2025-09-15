@@ -101,7 +101,7 @@ export default function PlacementClient() {
         setLoading(false);
       }
     })();
-  }, [router, dlog]);
+  }, [router, dlog, finishAndGo]);
 
   // 2) Select answer and wait for user to move on
   const answer = (idx: number) => {

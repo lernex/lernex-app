@@ -53,23 +53,34 @@ export async function POST(req: Request) {
       "Answer the user's prompt directly in one very concise paragraph (30–60 words).",
       "Do not add extra context beyond what is needed to answer.",
       "Do not use JSON, markdown, or code fences; avoid HTML tags.",
-      "Use standard inline LaTeX like \\(...\\) where needed. Always close delimiters.",
+      "Use standard inline LaTeX like \\(...\\) where needed.",
+      "Do NOT use single-dollar $...$ math; prefer \\(...\\) for inline (and \\[...\\] only if necessary).",
+      "Always balance {} and math delimiters (\\( with \\), \\[ with \\], $$ with $$).",
       "Use \\langle ... \\rangle for vectors and \\|v\\| for norms.",
+      "Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).",
+      "Wrap single-letter macro arguments in braces (e.g., \\vec{v}, \\mathbf{v}).",
     ].join(" ");
     const systemMini = [
       "Write a concise micro-lesson of 80–120 words in exactly two short paragraphs.",
       "Answer the user's question and provide a tiny bit of explanation for learning.",
       "Do not use JSON, markdown, or code fences; avoid HTML tags.",
-      "Use standard inline LaTeX like \\(...\\) where needed. Always close delimiters.",
+      "Use standard inline LaTeX like \\(...\\) where needed.",
+      "Do NOT use single-dollar $...$ math; prefer \\(...\\) for inline (and \\[...\\] only if necessary).",
+      "Always balance {} and math delimiters (\\( with \\), \\[ with \\], $$ with $$).",
       "Use \\langle ... \\rangle for vectors and \\|v\\| for norms.",
       "Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).",
+      "Wrap single-letter macro arguments in braces (e.g., \\vec{v}, \\mathbf{v}).",
     ].join(" ");
     const systemFull = [
       "Write an in-depth lesson of ~400–700 words across multiple short paragraphs.",
       "Answer the user's question thoroughly, add background, key definitions, step-by-step reasoning, a small worked example, common pitfalls, and a short summary.",
       "Do not use JSON, markdown, or code fences; avoid HTML tags.",
-      "Use standard inline LaTeX like \\(...\\) where needed. Always close delimiters.",
+      "Use standard inline LaTeX like \\(...\\) where needed.",
+      "Do NOT use single-dollar $...$ math; prefer \\(...\\) for inline (and \\[...\\] only if necessary).",
+      "Always balance {} and math delimiters (\\( with \\), \\[ with \\], $$ with $$).",
       "Prefer inline math; for matrices, use pmatrix (use \\\\ for row breaks); use \\langle ... \\rangle for vectors and \\|v\\| for norms.",
+      "Do not escape LaTeX macros with double backslashes except for matrix row breaks (e.g., \\ in pmatrix).",
+      "Wrap single-letter macro arguments in braces (e.g., \\vec{v}, \\mathbf{v}).",
     ].join(" ");
     const system = mode === "quick" ? systemQuick : mode === "full" ? systemFull : systemMini;
 
@@ -180,4 +191,3 @@ export async function POST(req: Request) {
     return new Response("Server error", { status: 500 });
   }
 }
-
