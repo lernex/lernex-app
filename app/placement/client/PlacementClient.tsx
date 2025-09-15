@@ -24,6 +24,10 @@ export default function PlacementClient() {
   const [selected, setSelected] = useState<number | null>(null);
   const [correctTotal, setCorrectTotal] = useState(0);
   const [questionTotal, setQuestionTotal] = useState(0);
+  const correctTotalRef = useRef(0);
+  const questionTotalRef = useRef(0);
+  useEffect(() => { correctTotalRef.current = correctTotal; }, [correctTotal]);
+  useEffect(() => { questionTotalRef.current = questionTotal; }, [questionTotal]);
 
   const stateRef = useRef<PlacementState | null>(null);
   useEffect(() => {
@@ -36,14 +40,16 @@ export default function PlacementClient() {
     if (finishingRef.current) { dlog("finish: already in-progress"); return; }
     finishingRef.current = true;
     try {
+      const ct = correctTotalRef.current;
+      const qt = questionTotalRef.current;
       dlog("finish: POST /api/placement/finish", {
         subject: finalState?.subject, course: finalState?.course,
-        correctTotal, questionTotal
+        correctTotal: ct, questionTotal: qt
       });
       const res = await fetch("/api/placement/finish", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ state: finalState, correctTotal, questionTotal }),
+        body: JSON.stringify({ state: finalState, correctTotal: ct, questionTotal: qt }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -56,10 +62,13 @@ export default function PlacementClient() {
     } finally {
       router.replace("/app");
     }
-  }, [router, correctTotal, questionTotal, dlog]);
+  }, [router, dlog]);
 
   // 1) Prime: load first question + prefetch branches
+  const primeRanRef = useRef(false);
   useEffect(() => {
+    if (primeRanRef.current) { dlog("prime: skip"); return; }
+    primeRanRef.current = true;
     (async () => {
       setLoading(true);
       setErr(null);

@@ -119,10 +119,19 @@ export async function GET(req: NextRequest) {
         // DB error unrelated to missing table
         return new Response(JSON.stringify({ error: "Server error" }), { status: 500 });
       }
-      if (!lock.acquired && lock.supported) {
-        // Someone else is generating; signal client to backoff and retry
-        try { console.debug(`[fyp][${reqId}] lock-busy -> 202`); } catch {}
-        return new Response(JSON.stringify({ status: "generating" }), { status: 202, headers: { "retry-after": "3" } });
+      if (lock.supported && !lock.acquired) {
+        if (lock.reason === "busy") {
+          // Someone else is generating; signal client to backoff and retry
+          try { console.debug(`[fyp][${reqId}] lock-busy -> 202`); } catch {}
+          return new Response(JSON.stringify({ status: "generating" }), { status: 202, headers: { "retry-after": "3" } });
+        } else if (lock.reason === "error") {
+          // Lock table exists but errored; fall back to in-process lock if active, otherwise proceed without lock
+          const { isLearningPathGenerating } = await import("@/lib/learning-path");
+          if (isLearningPathGenerating(user.id, subject)) {
+            try { console.debug(`[fyp][${reqId}] lock-error but in-process active -> 202`); } catch {}
+            return new Response(JSON.stringify({ status: "generating" }), { status: 202, headers: { "retry-after": "3" } });
+          }
+        }
       }
       if (!lock.supported) {
         // No DB lock available; if our in-process lock is active, signal 202 too
