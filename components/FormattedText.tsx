@@ -73,7 +73,9 @@ const MACROS = [
   // functions
   "log","sin","cos","tan","to","infty"
 ].join("|");
-const RE_DOUBLE_BEFORE_MACRO = new RegExp('\\\\(?=(' + MACROS + ')\\b)', 'g');
+// Match two or more backslashes before a macro (e.g., \\frac, \\\\alpha)
+// and collapse them down to a single backslash.
+const RE_DOUBLE_BEFORE_MACRO = new RegExp('(?:\\\\){2,}(?=(' + MACROS + ')\\b)', 'g');
 const RE_BARE_COMMON_MACROS = /(^|[^\\])(langle|rangle|mathbf|sqrt|frac|vec|binom)\b/g;
 const RE_ONE_LETTER_ARG = {
   mathbf: /\\mathbf([A-Za-z])(?![A-Za-z])/g,
@@ -199,12 +201,12 @@ function fixMacrosInMath(s: string) {
 }
 
 // Typeset helper reused by both effects. Returns a cancel function.
-function scheduleTypeset(el: HTMLElement, opts?: { delayMs?: number; rafs?: 1 | 2; srcOverride?: string }) {
+function scheduleTypeset(el: HTMLElement, opts?: { delayMs?: number; rafs?: 0 | 1 | 2; srcOverride?: string }) {
   devLog("typeset-schedule");
   let cancelled = false;
   const handles: { raf?: number; raf2?: number; timeout?: number } = {};
   const delayMs = Math.max(0, opts?.delayMs ?? 24);
-  const rafs: 1 | 2 = opts?.rafs ?? 1;
+  const rafs: 0 | 1 | 2 = opts?.rafs ?? 1;
 
   const runTypeset = () => {
     if (cancelled) return;
@@ -234,8 +236,11 @@ function scheduleTypeset(el: HTMLElement, opts?: { delayMs?: number; rafs?: 1 | 
         if (cancelled) return;
         handles.raf2 = requestAnimationFrame(() => runTypeset());
       });
-    } else {
+    } else if (rafs === 1) {
       handles.raf = requestAnimationFrame(() => runTypeset());
+    } else {
+      // rafs === 0: run immediately, no rAF hops
+      runTypeset();
     }
   };
 
@@ -314,6 +319,8 @@ function loadMathJax(srcOverride?: string) {
             const backoff = 200 * Math.pow(2, n);
             window.setTimeout(() => attempt(n + 1), backoff);
           } else {
+            // Reset so future calls can retry after a hard failure
+            mathJaxPromise = null;
             reject(new Error("Failed to load MathJax"));
           }
         };
@@ -333,12 +340,13 @@ type FormattedTextProps = {
   incremental?: boolean;
   finalize?: boolean;
   typesetDelayMs?: number; // delay before typeset; 24ms default
-  typesetRAFCount?: 1 | 2; // hops of requestAnimationFrame (default 1)
+  typesetRAFCount?: 0 | 1 | 2; // hops of requestAnimationFrame (default 1). 0 = immediate.
   typesetOnMount?: boolean; // bypass delay on the first typeset
   mathJaxSrc?: string; // override MathJax script src (CSP/offline)
   className?: string; // optional class
   as?: React.ElementType; // element type, default 'span'
   observer?: ObserverMode; // share IntersectionObserver by default
+  incrementalFlushChars?: number; // flush threshold in incremental mode (default 160)
 };
 
 // Shared IntersectionObserver to reduce per-instance overhead
@@ -379,6 +387,7 @@ function FormattedText({
   className,
   as = 'span',
   observer = 'shared',
+  incrementalFlushChars = 160,
 }: FormattedTextProps) {
   const ref = useRef<HTMLElement | null>(null);
   const firstTypesetRef = useRef<boolean>(true);
@@ -472,7 +481,7 @@ function FormattedText({
           if (!hasSentence && s.includes("\n\n")) hasSentence = true;
         }
 
-        const shouldFlush = hasCloser || hasSentence || finalize || (next.length - lastTypesetLenRef.current > 280);
+        const shouldFlush = hasCloser || hasSentence || finalize || (next.length - lastTypesetLenRef.current > incrementalFlushChars);
         if (shouldFlush && pendingRef.current) {
           el.insertAdjacentHTML("beforeend", pendingRef.current);
           lastHtmlRef.current = last + pendingRef.current;
@@ -504,7 +513,7 @@ function FormattedText({
     return () => {
       if (cancelTypesetRef.current) cancelTypesetRef.current();
     };
-  }, [html, incremental, finalize, typesetDelayMs, typesetOnMount, typesetRAFCount, mathJaxSrc]);
+  }, [html, incremental, finalize, typesetDelayMs, typesetOnMount, typesetRAFCount, mathJaxSrc, incrementalFlushChars]);
 
   // If parent signals completion, flush any remaining pending text
   useEffect(() => {
