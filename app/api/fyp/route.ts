@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { generateLessonForTopic } from "@/lib/fyp";
-import { LearningPath } from "@/lib/learning-path";
+import type { LevelMap } from "@/lib/learning-path";
 import type { Lesson } from "@/lib/schema";
 import type { Difficulty } from "@/types/placement";
 
@@ -53,10 +53,13 @@ export async function GET(req: NextRequest) {
     deliveredByTopic?: Record<string, number>;
     deliveredIdsByTopic?: Record<string, string[]>;
     preferences?: { liked?: string[]; disliked?: string[]; saved?: string[] };
+    topicIdx?: number;
+    subtopicIdx?: number;
+    deliveredMini?: number;
   };
-  type PathWithProgress = LearningPath & { progress?: PathProgress };
+  type PathWithProgress = LevelMap & { progress?: PathProgress };
   let path = state?.path as PathWithProgress | null;
-  // Auto-generate a learning path if missing or invalid
+  // Auto-generate a level map if missing or invalid
   const missingOrInvalid = !path || !Array.isArray(path.topics) || path.topics.length === 0;
   if (missingOrInvalid) {
     const { data: prof } = await sb
@@ -117,10 +120,29 @@ export async function GET(req: NextRequest) {
   if (!path || !Array.isArray(path.topics)) {
     return new Response(JSON.stringify({ error: "No learning path" }), { status: 400 });
   }
-  const topics = path.topics as LearningPath["topics"];
+  const topics = path.topics;
+  if (!topics.length) return new Response(JSON.stringify({ error: "No topics in level map" }), { status: 400 });
   const progress: PathProgress = path.progress ?? {};
-  const currentTopic = (state?.next_topic as string | null) || path.starting_topic || topics[0]?.name;
-  if (!currentTopic) return new Response(JSON.stringify({ error: "No topic" }), { status: 400 });
+
+  // Decode indices from progress, fall back to first
+  let topicIdx = Math.max(0, Math.min(progress.topicIdx ?? 0, topics.length - 1));
+  let subtopicIdx = Math.max(0, Math.min(progress.subtopicIdx ?? 0, (topics[topicIdx]?.subtopics?.length ?? 1) - 1));
+  let deliveredMini = Math.max(0, Number(progress.deliveredMini ?? 0));
+  // If no indices tracked yet, try to infer from next_topic string
+  if ((progress.topicIdx == null || progress.subtopicIdx == null) && typeof state?.next_topic === "string") {
+    const [tName, sName] = state.next_topic.split(">").map((x) => x.trim());
+    const tIdx = topics.findIndex((t) => t.name === tName);
+    if (tIdx >= 0) {
+      topicIdx = tIdx;
+      const subs = topics[tIdx]?.subtopics ?? [];
+      const sIdx = subs.findIndex((s) => s.name === sName);
+      if (sIdx >= 0) subtopicIdx = sIdx;
+    }
+  }
+  const curTopic = topics[topicIdx];
+  const curSub = curTopic?.subtopics?.[subtopicIdx];
+  if (!curTopic || !curSub) return new Response(JSON.stringify({ error: "Invalid level map indices" }), { status: 400 });
+  const currentLabel = `${curTopic.name} > ${curSub.name}`;
 
   // Personalization signals
   const { data: attempts } = await sb
@@ -138,9 +160,9 @@ export async function GET(req: NextRequest) {
 
   let lesson: Lesson;
   try {
-    const recentIds = (progress.deliveredIdsByTopic?.[currentTopic] || []).slice(-20);
+    const recentIds = (progress.deliveredIdsByTopic?.[currentLabel] || []).slice(-20);
     const disliked = (progress.preferences?.disliked ?? []).slice(-20);
-    lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentTopic, {
+    lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentLabel, {
       pace,
       accuracyPct: accuracyPct ?? undefined,
       difficultyPref: (state?.difficulty as Difficulty | undefined) ?? undefined,
@@ -152,35 +174,62 @@ export async function GET(req: NextRequest) {
     return new Response(JSON.stringify({ error: msg }), { status });
   }
 
-  // Honor estimated_lessons and update progress
-  let nextTopic: string | null = currentTopic;
-  const idx = topics.findIndex((t) => t.name === currentTopic);
-  const planned = idx >= 0 ? Math.max(1, Number(topics[idx].estimated_lessons || 1)) : 1;
+  // Honor mini_lessons per subtopic and update progress/indices
+  let nextTopicStr: string | null = currentLabel;
   const deliveredByTopic = progress.deliveredByTopic || {};
   const deliveredIdsByTopic = progress.deliveredIdsByTopic || {};
-  deliveredByTopic[currentTopic] = (deliveredByTopic[currentTopic] || 0) + 1;
+  deliveredByTopic[currentLabel] = (deliveredByTopic[currentLabel] || 0) + 1;
+  deliveredMini += 1;
+  const plannedMini = Math.max(1, Number(curSub.mini_lessons || 1));
   const lid = lesson.id as string | undefined;
-  const list = deliveredIdsByTopic[currentTopic] || [];
+  const list = deliveredIdsByTopic[currentLabel] || [];
   if (lid) {
     if (!list.includes(lid)) list.push(lid);
     while (list.length > 50) list.shift();
-    deliveredIdsByTopic[currentTopic] = list;
+    deliveredIdsByTopic[currentLabel] = list;
   }
-  const after = deliveredByTopic[currentTopic];
-  if (idx >= 0 && after >= planned) {
-    if (idx + 1 < topics.length) nextTopic = topics[idx + 1].name;
-    else nextTopic = null;
+  if (deliveredMini >= plannedMini) {
+    // Advance to next subtopic or topic
+    deliveredMini = 0;
+    if (subtopicIdx + 1 < (curTopic.subtopics?.length ?? 0)) {
+      subtopicIdx += 1;
+    } else {
+      subtopicIdx = 0;
+      if (topicIdx + 1 < topics.length) {
+        topicIdx += 1;
+      } else {
+        // End of map
+        nextTopicStr = null;
+      }
+    }
   }
 
-  const newPath: PathWithProgress = { ...(path as PathWithProgress), progress: { deliveredByTopic, deliveredIdsByTopic } };
+  // Recompute next label
+  const nextTopicObj = topics[topicIdx];
+  const nextSubObj = nextTopicObj?.subtopics?.[subtopicIdx];
+  if (nextTopicObj && nextSubObj) {
+    nextTopicStr = `${nextTopicObj.name} > ${nextSubObj.name}`;
+  }
+
+  const newPath: PathWithProgress = {
+    ...(path as PathWithProgress),
+    progress: {
+      ...(path.progress || {}),
+      deliveredByTopic,
+      deliveredIdsByTopic,
+      topicIdx,
+      subtopicIdx,
+      deliveredMini,
+    },
+  };
   await sb
     .from("user_subject_state")
-    .update({ next_topic: nextTopic, path: newPath, updated_at: new Date().toISOString() })
+    .update({ next_topic: nextTopicStr, path: newPath, updated_at: new Date().toISOString() })
     .eq("user_id", user.id)
     .eq("subject", subject);
 
   return new Response(
-    JSON.stringify({ topic: currentTopic, lesson }),
+    JSON.stringify({ topic: currentLabel, lesson }),
     { status: 200, headers: { "content-type": "application/json" } }
   );
 }

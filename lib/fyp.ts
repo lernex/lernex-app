@@ -47,7 +47,8 @@ export async function generateLessonForTopic(
 
   const system = `You are an adaptive tutor.
 Return only a valid JSON object matching LessonSchema with fields: id, subject, topic, title, content (30–80 words), difficulty, questions[ { prompt, choices[], correctIndex, explanation } ].
-Use standard inline LaTeX like \\( ... \\) when needed; avoid HTML tags. Ensure all LaTeX braces are balanced and escape backslashes so the JSON remains valid.`;
+If topic is of the form "Topic > Subtopic", focus the lesson tightly on the Subtopic while briefly tying back to Topic.
+Favor practical examples that relate to adjacent courses when obvious from the topic phrasing. Avoid HTML tags. Use inline LaTeX (\\( ... \\)) only when helpful; ensure JSON remains valid.`;
 
   const userPrompt = `Subject: ${subject}\nTopic: ${topic}\nLearner pace: ${pace}. ${accHint} ${diffHint} ${lenHint}
 ${avoidHint}

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { PlacementState } from "@/types/placement";
 import { supabaseServer } from "@/lib/supabase-server";
-import { generateLearningPath, LearningPath } from "@/lib/learning-path";
+import { generateLearningPath, type LevelMap } from "@/lib/learning-path";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,9 +24,9 @@ export async function POST(req: Request) {
   // Roll simple mastery estimate
   const acc = questionTotal > 0 ? correctTotal / questionTotal : 0.5;
   const difficulty = state.difficulty;
-  let path: LearningPath | null = null;
+  let path: LevelMap | null = null;
   try {
-    path = await generateLearningPath(sb, user.id, ip, state.course, Math.round(acc * 100));
+    path = await generateLearningPath(sb, user.id, ip, state.subject, state.course, Math.round(acc * 100));
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Server error";
     if (msg === "Usage limit exceeded") {
@@ -34,8 +34,10 @@ export async function POST(req: Request) {
     }
     path = null;
   }
-
-  const nextTopic = path?.starting_topic ?? null;
+  // First subtopic as starting point
+  const firstTopic = path?.topics?.[0];
+  const firstSub = firstTopic?.subtopics?.[0];
+  const nextTopic = firstTopic && firstSub ? `${firstTopic.name} > ${firstSub.name}` : null;
 
   // Write/Upsert user_subject_state
   await sb.from("user_subject_state").upsert({

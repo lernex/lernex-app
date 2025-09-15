@@ -2,43 +2,89 @@ import Groq from "groq-sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { checkUsageLimit, logUsage } from "./usage";
 
-export type LearningPath = {
+// New, richer level map schema
+export type LevelMap = {
+  subject: string;
   course: string;
-  starting_topic: string;
-  topics: { name: string; prerequisites: string[]; estimated_lessons: number }[];
+  topics: {
+    name: string;
+    subtopics: { name: string; mini_lessons: number; applications?: string[] }[];
+  }[];
+  cross_subjects?: { subject: string; course?: string; rationale?: string }[];
+  persona?: { pace?: "slow" | "normal" | "fast"; difficulty?: "intro" | "easy" | "medium" | "hard"; notes?: string };
+  // Progress will be embedded here so a single JSON blob captures state
+  progress?: {
+    topicIdx?: number;
+    subtopicIdx?: number;
+    deliveredMini?: number;
+    deliveredIdsByKey?: Record<string, string[]>; // key = `${topic} > ${subtopic}`
+    preferences?: { liked?: string[]; disliked?: string[]; saved?: string[] };
+  };
 };
 
 export async function generateLearningPath(
   sb: SupabaseClient,
   uid: string,
   ip: string,
+  subject: string,
   course: string,
   mastery: number,
   notes = ""
-
 ) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("Missing GROQ_API_KEY");
   const client = new Groq({ apiKey });
   const model = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
-  const temperature = Number(process.env.GROQ_TEMPERATURE ?? "1");
+  const temperature = Number(process.env.GROQ_TEMPERATURE ?? "0.8");
 
   if (uid) {
     const ok = await checkUsageLimit(sb, uid);
     if (!ok) throw new Error("Usage limit exceeded");
   }
 
-  const system = `You are a curriculum planner. Given a course name and user mastery, respond only with a valid JSON object matching the following structure:
-{
-  "course": string,
-  "starting_topic": string,
-  "topics": [
-    { "name": string, "prerequisites": string[], "estimated_lessons": number }
-  ]
-}
-Ensure the JSON is valid; avoid HTML; balance any LaTeX braces if present.`.trim();
+  // Pull co-subjects for cross-context links
+  const { data: prof } = await sb
+    .from("profiles")
+    .select("interests, level_map")
+    .eq("id", uid)
+    .maybeSingle();
+  const interests: string[] = Array.isArray(prof?.interests) ? (prof!.interests as string[]) : [];
+  const levelMap = (prof?.level_map || {}) as Record<string, string>;
+  const coSubjects = interests
+    .filter((s) => s && s !== subject)
+    .map((s) => ({ subject: s, course: levelMap[s] }))
+    .filter((x) => !!x.subject);
 
-  const userPrompt = `Course: ${course}\nMastery: ${mastery}%${notes ? `\nNotes: ${notes}` : ""}\nCreate a learning path in the specified format.`;
+  const system = `You are a curriculum planner generating a compact level map.
+Return only a VALID JSON object with this structure:
+{
+  "subject": string,            // overall subject e.g., "Math"
+  "course": string,             // specific class e.g., "Calculus II"
+  "topics": [                   // 6–12 coherent topics/units max
+    {
+      "name": string,
+      "subtopics": [            // 2–6 per topic
+        { "name": string, "mini_lessons": number, "applications": string[] }
+      ]
+    }
+  ],
+  "cross_subjects": [ { "subject": string, "course": string | null, "rationale": string } ],
+  "persona": { "pace": "slow|normal|fast", "difficulty": "intro|easy|medium|hard", "notes": string }
+}
+Constraints:
+- Keep names concise; no numbering prefixes.
+- mini_lessons: 1–4 each. Distribute based on difficulty and prerequisites.
+- applications: short real-world or cross-course hooks relevant to learner.
+- Do NOT include any HTML. If using LaTeX in names, escape braces properly.`.trim();
+
+  const userPrompt = [
+    `Subject: ${subject}`,
+    `Course: ${course}`,
+    `Estimated mastery: ${mastery}%`,
+    coSubjects.length ? `Other courses: ${coSubjects.map((c) => `${c.subject}${c.course ? ` (${c.course})` : ""}`).join(", ")}` : undefined,
+    notes ? `Notes: ${notes}` : undefined,
+    `Task: Create the level map JSON as per the schema. Keep it under ~9000 tokens.`,
+  ].filter(Boolean).join("\n");
 
   let raw = "";
   let completion: import("groq-sdk/resources/chat/completions").ChatCompletion | null = null;
@@ -46,7 +92,7 @@ Ensure the JSON is valid; avoid HTML; balance any LaTeX braces if present.`.trim
     completion = await client.chat.completions.create({
       model,
       temperature,
-      max_tokens: 15000,
+      max_tokens: 9000,
       reasoning_effort: "high",
       response_format: { type: "json_object" },
       messages: [
@@ -61,11 +107,12 @@ Ensure the JSON is valid; avoid HTML; balance any LaTeX braces if present.`.trim
     if (typeof failed === "string" && failed.trim().length > 0) {
       raw = failed;
     } else {
+      // Retry without explicit JSON mode
       completion = await client.chat.completions.create({
         model,
         temperature,
-        max_tokens: 15000,
-        reasoning_effort: "high",
+        max_tokens: 3000,
+        reasoning_effort: "medium",
         messages: [
           { role: "system", content: system },
           { role: "user", content: userPrompt },
@@ -100,18 +147,45 @@ Ensure the JSON is valid; avoid HTML; balance any LaTeX braces if present.`.trim
     }
     return null;
   }
+  let parsed: LevelMap;
   try {
-    return JSON.parse(raw) as LearningPath;
+    parsed = JSON.parse(raw) as LevelMap;
   } catch {
     const extracted = extractBalancedObject(raw);
-    if (!extracted) throw new Error("Invalid learning path JSON");
-    return JSON.parse(extracted) as LearningPath;
+    if (!extracted) throw new Error("Invalid level map JSON");
+    parsed = JSON.parse(extracted) as LevelMap;
   }
+
+  // Ensure required fields and sanitize unknowns
+  parsed.subject ||= subject;
+  parsed.course ||= course;
+  if (!Array.isArray(parsed.topics)) parsed.topics = [];
+  type RawTopic = { name?: unknown; subtopics?: unknown };
+  type RawSub = { name?: unknown; mini_lessons?: unknown; applications?: unknown };
+  parsed.topics = (parsed.topics as unknown as RawTopic[])
+    .map((t: RawTopic) => {
+      const tName = typeof t.name === "string" ? t.name.trim() : "";
+      const rawSubs = Array.isArray(t.subtopics) ? (t.subtopics as RawSub[]) : [];
+      const subtopics = rawSubs
+        .map((s: RawSub) => {
+          const sName = typeof s.name === "string" ? s.name.trim() : "";
+          const ml = Math.max(1, Math.min(4, Number((s.mini_lessons as number | string | undefined) ?? 1)));
+          const apps = Array.isArray(s.applications)
+            ? (s.applications as unknown[]).map((x) => String(x)).slice(0, 6)
+            : undefined;
+          return { name: sName, mini_lessons: ml, applications: apps };
+        })
+        .filter((s) => !!s.name);
+      return { name: tName, subtopics };
+    })
+    .filter((t) => t.name && t.subtopics.length);
+
+  return parsed;
 }
 
 /**
- * Ensure a learning path exists for a user + subject + course, generating and persisting it if absent or invalid.
- * Returns the path.
+ * Ensure a level map exists for a user + subject + course, generating and persisting it if absent or mismatched.
+ * Returns the map.
  */
 export async function ensureLearningPath(
   sb: SupabaseClient,
@@ -130,15 +204,17 @@ export async function ensureLearningPath(
     .eq("subject", subject)
     .maybeSingle();
 
-  const currentPath = existing?.path as LearningPath | null;
+  const currentPath = existing?.path as LevelMap | null;
   const valid = currentPath && Array.isArray(currentPath.topics) && currentPath.topics.length > 0;
   if (valid && existing?.course === course) {
-    return currentPath as LearningPath;
+    return currentPath as LevelMap;
   }
 
-  // Generate fresh path if missing/invalid or course changed
-  const path = await generateLearningPath(sb, uid, ip, course, mastery, notes);
-  const next_topic = path.starting_topic || (Array.isArray(path.topics) && path.topics[0]?.name) || null;
+  // Generate fresh map if missing/invalid or course changed
+  const map = await generateLearningPath(sb, uid, ip, subject, course, mastery, notes);
+  const firstTopic = map.topics?.[0];
+  const firstSub = firstTopic?.subtopics?.[0];
+  const next_topic = firstTopic && firstSub ? `${firstTopic.name} > ${firstSub.name}` : null;
   const difficulty: "intro" | "easy" | "medium" | "hard" =
     mastery < 35 ? "intro" : mastery < 55 ? "easy" : mastery < 75 ? "medium" : "hard";
 
@@ -151,9 +227,9 @@ export async function ensureLearningPath(
       mastery,
       difficulty,
       next_topic,
-      path,
+      path: map,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id,subject" });
 
-  return path;
+  return map;
 }

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
-import type { LearningPath } from "@/lib/learning-path";
+import type { LevelMap } from "@/lib/learning-path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ type PathProgress = {
   preferences?: { liked?: string[]; disliked?: string[]; saved?: string[] };
 };
 
-type PathWithProgress = LearningPath & { progress?: PathProgress };
+type PathWithProgress = LevelMap & { progress?: PathProgress };
 
 export async function POST(req: NextRequest) {
   const sb = supabaseServer();
@@ -65,4 +65,3 @@ export async function POST(req: NextRequest) {
 
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
 }
-

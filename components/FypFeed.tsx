@@ -16,28 +16,25 @@ type ApiLesson = {
   questions: { prompt: string; choices: string[]; correctIndex: number; explanation?: string }[];
 };
 
-
-async function fetchFypBatch(subject: string | null, n: number): Promise<Lesson[]> {
-  const url = subject ? `/api/fyp/batch?subject=${encodeURIComponent(subject)}&n=${n}` : `/api/fyp/batch?n=${n}`;
+async function fetchFypOne(subject: string | null): Promise<Lesson | null> {
+  const url = subject ? `/api/fyp?subject=${encodeURIComponent(subject)}` : `/api/fyp`;
   try {
     const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return [];
-    const data = await res.json() as { items?: { topic: string; lesson: ApiLesson }[] };
-    const arr = Array.isArray(data?.items) ? data.items : [];
-    return arr
-      .map((it) => it.lesson)
-      .filter(Boolean)
-      .map((l) => ({
-        id: l.id,
-        subject: l.subject,
-        title: l.title,
-        content: l.content,
-        questions: Array.isArray(l.questions) ? l.questions : [],
-        difficulty: l.difficulty,
-        topic: l.topic,
-      } as Lesson));
+    if (!res.ok) return null;
+    const data = await res.json() as { topic?: string; lesson?: ApiLesson };
+    const l = data?.lesson;
+    if (!l) return null;
+    return {
+      id: l.id,
+      subject: l.subject,
+      title: l.title,
+      content: l.content,
+      questions: Array.isArray(l.questions) ? l.questions : [],
+      difficulty: l.difficulty,
+      topic: l.topic ?? data?.topic,
+    } as Lesson;
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -79,16 +76,16 @@ export default function FypFeed() {
     try {
       let needed = Math.max(0, minAhead - (items.length - i));
       let guard = 0;
-      while (needed > 0 && guard++ < 6) {
+      while (needed > 0 && guard++ < 12) {
         const idx = subjIdxRef.current % rotation.length;
         subjIdxRef.current = idx + 1;
         const subject = rotation[idx];
-        const batch = await fetchFypBatch(subject, Math.min(needed, 5));
-        if (batch.length) {
-          setItems((arr) => [...arr, ...batch]);
-          needed -= batch.length;
+        const one = await fetchFypOne(subject);
+        if (one) {
+          setItems((arr) => [...arr, one]);
+          needed -= 1;
         } else {
-          // try next subject in rotation
+          // try next subject in rotation on next loop
         }
       }
       setInitialized(true);
