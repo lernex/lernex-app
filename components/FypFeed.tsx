@@ -23,6 +23,7 @@ async function fetchFypOne(subject: string | null): Promise<Lesson | null> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const res = await fetch(base, { cache: "no-store" });
+      try { console.debug("[fyp] fetch", { subject, attempt: attempt + 1, status: res.status }); } catch {}
       if (res.ok) {
         const data = (await res.json()) as { topic?: string; lesson?: ApiLesson };
         const l = data?.lesson;
@@ -38,6 +39,10 @@ async function fetchFypOne(subject: string | null): Promise<Lesson | null> {
         } as Lesson;
       }
       if (res.status === 202 || res.status === 409) {
+        try {
+          const j = await res.json().catch(() => ({} as any));
+          console.debug("[fyp] backoff", { subject, status: res.status, j });
+        } catch {}
         // Backoff and retry
         const jitter = Math.floor(Math.random() * 250);
         await new Promise((r) => setTimeout(r, delay + jitter));
@@ -45,10 +50,17 @@ async function fetchFypOne(subject: string | null): Promise<Lesson | null> {
         continue;
       }
       // Hard failures or auth
-      if (res.status === 401 || res.status === 403 || res.status >= 500) return null;
+      if (res.status === 401 || res.status === 403 || res.status >= 500) {
+        try {
+          const j = await res.json().catch(() => ({} as any));
+          console.warn("[fyp] hard-fail", { subject, status: res.status, j });
+        } catch {}
+        return null;
+      }
     } catch {
       // Network error; back off slightly then retry
       const jitter = Math.floor(Math.random() * 200);
+      try { console.warn("[fyp] network error; retry", { subject, delay }); } catch {}
       await new Promise((r) => setTimeout(r, delay + jitter));
       delay = Math.min(8000, Math.floor(delay * 1.8));
     }
@@ -97,10 +109,13 @@ export default function FypFeed() {
       let guard = 0;
       const attempted = new Set<string | null>();
       const now = Date.now();
+      let fetchedAny = false;
+      try { console.debug("[fyp] ensureBuffer", { minAhead, have: items.length - i, rotation }); } catch {}
       while (needed > 0 && guard++ < 12) {
         const idx = subjIdxRef.current % rotation.length;
         subjIdxRef.current = idx + 1;
         const subject = rotation[idx];
+        try { console.debug("[fyp] try-subject", { subject, idx, guard }); } catch {}
         if (attempted.has(subject)) {
           // Already tried this subject during this pass; break to avoid tight loops
           break;
@@ -114,6 +129,7 @@ export default function FypFeed() {
         const one = await fetchFypOne(subject);
         if (one) {
           setItems((arr) => [...arr, one]);
+          fetchedAny = true;
           needed -= 1;
         } else {
           // Back off this subject for a few seconds to prevent hammering
@@ -123,7 +139,7 @@ export default function FypFeed() {
         }
       }
       setInitialized(true);
-      if (items.length === 0) {
+      if (!fetchedAny && items.length === 0) {
         setError("Could not load your feed. Try again.");
       }
     } finally {

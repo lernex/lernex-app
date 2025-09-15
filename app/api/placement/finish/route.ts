@@ -11,6 +11,9 @@ export async function POST(req: Request) {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+  const uid = user.id;
+  const reqId = Math.random().toString(36).slice(2, 8);
+  try { console.debug(`[placement-finish][${reqId}] begin`, { uid: uid.slice(0,8), ip }); } catch {}
 
   const { state, correctTotal, questionTotal } = await req.json().catch(() => ({})) as {
     state: PlacementState;
@@ -27,12 +30,15 @@ export async function POST(req: Request) {
   let path: LevelMap | null = null;
   try {
     path = await generateLearningPath(sb, user.id, ip, state.subject, state.course, Math.round(acc * 100));
+    try { console.debug(`[placement-finish][${reqId}] generated path`, { subject: state.subject, course: state.course }); } catch {}
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Server error";
     if (msg === "Usage limit exceeded") {
+      try { console.warn(`[placement-finish][${reqId}] usage-limit`, { subject: state.subject, course: state.course }); } catch {}
       return NextResponse.json({ error: msg }, { status: 403 });
     }
     path = null;
+    try { console.error(`[placement-finish][${reqId}] generate error`, { msg }); } catch {}
   }
   // First subtopic as starting point
   const firstTopic = path?.topics?.[0];
@@ -62,6 +68,6 @@ export async function POST(req: Request) {
 
   // Clear the placement flag so /post-auth routes to /app next time
   await sb.from("profiles").update({ placement_ready: false }).eq("id", user.id);
-
+  try { console.debug(`[placement-finish][${reqId}] done`, { nextTopic }); } catch {}
   return NextResponse.json({ ok: true });
 }

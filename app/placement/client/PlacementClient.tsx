@@ -30,6 +30,34 @@ export default function PlacementClient() {
     stateRef.current = state;
   }, [state]);
 
+  // Finish handler: persist results, generate level map, clear placement flag
+  const finishingRef = useRef(false);
+  const finishAndGo = useCallback(async (finalState: PlacementState | null) => {
+    if (finishingRef.current) { dlog("finish: already in-progress"); return; }
+    finishingRef.current = true;
+    try {
+      dlog("finish: POST /api/placement/finish", {
+        subject: finalState?.subject, course: finalState?.course,
+        correctTotal, questionTotal
+      });
+      const res = await fetch("/api/placement/finish", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state: finalState, correctTotal, questionTotal }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        dlog("finish: non-OK", { status: res.status, j });
+      } else {
+        dlog("finish: ok");
+      }
+    } catch (e) {
+      dlog("finish: catch", e instanceof Error ? e.message : String(e));
+    } finally {
+      router.replace("/app");
+    }
+  }, [router, correctTotal, questionTotal, dlog]);
+
   // 1) Prime: load first question + prefetch branches
   useEffect(() => {
     (async () => {
@@ -61,9 +89,9 @@ export default function PlacementClient() {
         setState(data.state);
         setItem(data.item);
         setBranches(data.branches ?? null);
-        // Only redirect when truly finished (done and no remaining courses)
+        // Only finish + redirect when truly finished (done and no remaining courses)
         if (data.state.done && (!data.state.remaining || data.state.remaining.length === 0)) {
-          router.replace("/app");
+          void finishAndGo(data.state);
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Unknown error";
@@ -110,7 +138,7 @@ export default function PlacementClient() {
       }
 
       if (next.state.done && (!next.state.remaining || next.state.remaining.length === 0)) {
-        router.replace("/app");
+        void finishAndGo(next.state);
         setPendingAnswer(null);
         setNextLoading(false);
         nextLoadingRef.current = false;
@@ -169,7 +197,7 @@ export default function PlacementClient() {
           setQuestionTotal(0);
         }
         if (data.state?.done && (!data.state.remaining || data.state.remaining.length === 0)) {
-          router.replace("/app");
+          void finishAndGo(data.state);
         }
         setSelected(null);
         setPendingAnswer(null);

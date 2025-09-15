@@ -14,6 +14,9 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+  const uid = user.id;
+  const reqId = Math.random().toString(36).slice(2, 8);
+  try { console.debug(`[fyp][${reqId}] begin`, { uid: uid.slice(0,8), ip }); } catch {}
 
   const subjectParam = req.nextUrl.searchParams.get("subject");
 
@@ -41,7 +44,11 @@ export async function GET(req: NextRequest) {
       subject = firstSubject ?? null;
     }
   }
-  if (!subject) return new Response(JSON.stringify({ error: "No subject" }), { status: 400 });
+  if (!subject) {
+    try { console.warn(`[fyp][${reqId}] no-subject`, { uid: uid.slice(0,8), subjectParam }); } catch {}
+    return new Response(JSON.stringify({ error: "No subject" }), { status: 400 });
+  }
+  try { console.debug(`[fyp][${reqId}] subject`, { subject }); } catch {}
 
   let { data: state } = await sb
     .from("user_subject_state")
@@ -63,6 +70,7 @@ export async function GET(req: NextRequest) {
   // Auto-generate a level map if missing or invalid
   const missingOrInvalid = !path || !Array.isArray(path.topics) || path.topics.length === 0;
   if (missingOrInvalid) {
+    try { console.debug(`[fyp][${reqId}] path missing/invalid, attempting ensureLearningPath`); } catch {}
     const { data: prof } = await sb
       .from("profiles")
       .select("level_map")
@@ -79,7 +87,10 @@ export async function GET(req: NextRequest) {
       return firstKey ? levelMap[firstKey] : undefined;
     };
     const course = state?.course || findCourse(subject);
-    if (!course) return new Response(JSON.stringify({ error: "Not ready: no course mapping for subject" }), { status: 409 });
+    if (!course) {
+      try { console.warn(`[fyp][${reqId}] no-course-mapping`, { subject, levelMapKeys: Object.keys(levelMap) }); } catch {}
+      return new Response(JSON.stringify({ error: "Not ready: no course mapping for subject" }), { status: 409 });
+    }
 
     // Estimate mastery from recent attempts (subject-specific if available)
     const { data: attempts } = await sb
@@ -103,18 +114,21 @@ export async function GET(req: NextRequest) {
     try {
       // Cross-instance DB lock. If not supported and busy, fallback to in-process lock inside ensureLearningPath.
       const lock = await acquireGenLock(sb, user.id, subject);
+      try { console.debug(`[fyp][${reqId}] acquire-lock`, lock); } catch {}
       if (!lock.supported && lock.reason === "error") {
         // DB error unrelated to missing table
         return new Response(JSON.stringify({ error: "Server error" }), { status: 500 });
       }
       if (!lock.acquired && lock.supported) {
         // Someone else is generating; signal client to backoff and retry
+        try { console.debug(`[fyp][${reqId}] lock-busy -> 202`); } catch {}
         return new Response(JSON.stringify({ status: "generating" }), { status: 202, headers: { "retry-after": "3" } });
       }
       if (!lock.supported) {
         // No DB lock available; if our in-process lock is active, signal 202 too
         const { isLearningPathGenerating } = await import("@/lib/learning-path");
         if (isLearningPathGenerating(user.id, subject)) {
+          try { console.debug(`[fyp][${reqId}] in-process-lock -> 202`); } catch {}
           return new Response(JSON.stringify({ status: "generating" }), { status: 202, headers: { "retry-after": "3" } });
         }
       }
@@ -130,20 +144,26 @@ export async function GET(req: NextRequest) {
         .maybeSingle();
       state = refreshed ?? state;
       if (lock.acquired && lock.supported) await releaseGenLock(sb, user.id, subject);
+      try { console.debug(`[fyp][${reqId}] ensureLearningPath: ok`); } catch {}
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Server error";
       const status = msg === "Usage limit exceeded" ? 403 : 500;
       // Ensure lock release on failure
       try { await releaseGenLock(sb, user.id, subject); } catch {}
+      try { console.error(`[fyp][${reqId}] ensureLearningPath: error`, { msg, status }); } catch {}
       return new Response(JSON.stringify({ error: msg }), { status });
     }
   }
 
   if (!path || !Array.isArray(path.topics)) {
+    try { console.warn(`[fyp][${reqId}] no-learning-path after ensure`); } catch {}
     return new Response(JSON.stringify({ error: "No learning path" }), { status: 400 });
   }
   const topics = path.topics;
-  if (!topics.length) return new Response(JSON.stringify({ error: "No topics in level map" }), { status: 400 });
+  if (!topics.length) {
+    try { console.warn(`[fyp][${reqId}] empty-topics`); } catch {}
+    return new Response(JSON.stringify({ error: "No topics in level map" }), { status: 400 });
+  }
   const progress: PathProgress = path.progress ?? {};
 
   // Decode indices from progress, fall back to first
@@ -163,7 +183,10 @@ export async function GET(req: NextRequest) {
   }
   const curTopic = topics[topicIdx];
   const curSub = curTopic?.subtopics?.[subtopicIdx];
-  if (!curTopic || !curSub) return new Response(JSON.stringify({ error: "Invalid level map indices" }), { status: 400 });
+  if (!curTopic || !curSub) {
+    try { console.warn(`[fyp][${reqId}] invalid-indices`, { topicIdx, subtopicIdx }); } catch {}
+    return new Response(JSON.stringify({ error: "Invalid level map indices" }), { status: 400 });
+  }
   const currentLabel = `${curTopic.name} > ${curSub.name}`;
 
   // Personalization signals
@@ -190,9 +213,11 @@ export async function GET(req: NextRequest) {
       difficultyPref: (state?.difficulty as Difficulty | undefined) ?? undefined,
       avoidIds: [...recentIds, ...disliked],
     });
+    try { console.debug(`[fyp][${reqId}] lesson: ok`, { subject, currentLabel }); } catch {}
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Server error";
     const status = msg === "Usage limit exceeded" ? 403 : 500;
+    try { console.error(`[fyp][${reqId}] lesson: error`, { msg, status }); } catch {}
     return new Response(JSON.stringify({ error: msg }), { status });
   }
 
@@ -250,6 +275,7 @@ export async function GET(req: NextRequest) {
     .eq("user_id", user.id)
     .eq("subject", subject);
 
+  try { console.debug(`[fyp][${reqId}] success`, { topic: currentLabel, lessonId: (lesson as any)?.id }); } catch {}
   return new Response(
     JSON.stringify({ topic: currentLabel, lesson }),
     { status: 200, headers: { "content-type": "application/json" } }
