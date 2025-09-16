@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const { lesson_id, subject, correct_count, total } = await req.json();
+    const { lesson_id, subject, topic, correct_count, total } = await req.json();
 
     if (!lesson_id || typeof correct_count !== "number" || typeof total !== "number") {
       return new Response(JSON.stringify({ error: "Invalid payload" }), { status: 400 });
@@ -60,6 +60,73 @@ export async function POST(req: NextRequest) {
       points: ((prof?.points as number | null) ?? 0) + addPts,
       updated_at: new Date().toISOString(),
     }).eq("id", uid);
+
+    // Progress update: mark completion and advance to next subtopic when appropriate
+    if (typeof subject === 'string' && typeof topic === 'string') {
+      const { data: state } = await sb
+        .from('user_subject_state')
+        .select('path, next_topic')
+        .eq('user_id', uid)
+        .eq('subject', subject)
+        .maybeSingle();
+      type Sub = { name: string; mini_lessons: number; completed?: boolean };
+      type Topic = { name: string; completed?: boolean; subtopics?: Sub[] };
+      type Progress = { topicIdx?: number; subtopicIdx?: number; deliveredMini?: number };
+      const path = state?.path as { topics?: Topic[]; progress?: Progress } | null;
+      const topics = path?.topics ?? [];
+      const [tName, sName] = topic.split('>').map((x: string) => x.trim());
+      const ti = topics.findIndex((t) => t?.name === tName);
+      if (ti >= 0) {
+        const subs = (topics[ti]?.subtopics ?? []) as Sub[];
+        const si = subs.findIndex((s) => s?.name === sName);
+        if (si >= 0) {
+          const cur = subs[si]!;
+          const planned = Math.max(1, Number(cur.mini_lessons || 1));
+          const prog = (path?.progress ?? {}) as Progress;
+          const curDelivered = Math.max(0, Number(prog.deliveredMini ?? 0));
+          let deliveredMini = curDelivered + 1; // increment on quiz finish
+          let topicIdx = typeof prog.topicIdx === 'number' ? prog.topicIdx : ti;
+          let subtopicIdx = typeof prog.subtopicIdx === 'number' ? prog.subtopicIdx : si;
+          let nextTopicStr: string | null = `${tName} > ${sName}`;
+          if (deliveredMini >= planned) {
+            deliveredMini = 0;
+            subs[si] = { ...cur, completed: true };
+            topics[ti] = { ...(topics[ti] ?? {}), subtopics: subs, completed: subs.every((s) => s.completed === true) };
+            // Find next incomplete
+            let found: [number, number] | null = null;
+            for (let tj = ti; tj < topics.length && !found; tj++) {
+              const ss = (topics[tj]?.subtopics ?? []) as Sub[];
+              for (let sj = (tj === ti ? si + 1 : 0); sj < ss.length; sj++) {
+                if (ss[sj]?.completed !== true) { found = [tj, sj]; break; }
+              }
+            }
+            if (!found) {
+              for (let tj = 0; tj < ti && !found; tj++) {
+                const ss = (topics[tj]?.subtopics ?? []) as Sub[];
+                for (let sj = 0; sj < ss.length; sj++) {
+                  if (ss[sj]?.completed !== true) { found = [tj, sj]; break; }
+                }
+              }
+            }
+            if (found) {
+              topicIdx = found[0];
+              subtopicIdx = found[1];
+              const nt = topics[topicIdx];
+              const ns = (nt?.subtopics ?? [])[subtopicIdx];
+              if (nt && ns) nextTopicStr = `${nt.name} > ${ns.name}`;
+            } else {
+              nextTopicStr = null;
+            }
+          }
+          const newPath = { ...(path ?? {}), topics, progress: { ...(path?.progress ?? {}), topicIdx, subtopicIdx, deliveredMini } };
+          await sb
+            .from('user_subject_state')
+            .update({ next_topic: nextTopicStr, path: newPath, updated_at: new Date().toISOString() })
+            .eq('user_id', uid)
+            .eq('subject', subject);
+        }
+      }
+    }
 
     return new Response(JSON.stringify({ ok: true, addPts, newStreak }), { status: 200 });
   } catch (err) {

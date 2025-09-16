@@ -154,6 +154,18 @@ export default function FypFeed() {
     }
   }, [initialized, ensureBuffer]);
 
+  // Reset buffer when class selection changes significantly
+  const subjectsKey = useMemo(() => JSON.stringify(selectedSubjects), [selectedSubjects]);
+  useEffect(() => {
+    // Reset feed when user changes selected subjects (class switch/merge)
+    setItems([]);
+    setI(0);
+    setError(null);
+    setInitialized(false);
+    cooldownRef.current.clear();
+    subjIdxRef.current = 0;
+  }, [subjectsKey]);
+
   // Keep prefetching ahead
   useEffect(() => {
     if (items.length - i <= 2) void ensureBuffer(4);
@@ -203,7 +215,15 @@ export default function FypFeed() {
         <div className="absolute inset-0 flex items-center justify-center text-neutral-400">Loading your feed…</div>
       )}
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center text-red-500">{error}</div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-red-500">
+          <div>{error}</div>
+          <button
+            onClick={() => { setError(null); setInitialized(false); void ensureBuffer(1); }}
+            className="px-3 py-1.5 rounded-full text-sm border bg-neutral-50 dark:bg-neutral-800 text-neutral-600 hover:text-neutral-900 dark:text-neutral-200"
+          >
+            Retry
+          </button>
+        </div>
       )}
 
       {cur && (

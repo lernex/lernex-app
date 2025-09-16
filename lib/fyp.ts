@@ -18,6 +18,7 @@ export async function generateLessonForTopic(
     difficultyPref?: Difficulty;
     avoidIds?: string[];
     avoidTitles?: string[];
+    mapSummary?: string;
   }
 ) {
   const apiKey = process.env.GROQ_API_KEY;
@@ -50,9 +51,10 @@ Return only a valid JSON object matching this exact schema named LessonSchema wi
 If topic is of the form "Topic > Subtopic", focus the lesson tightly on the Subtopic while briefly tying back to Topic.
 Favor practical examples that relate to adjacent courses when obvious from the topic phrasing. Avoid HTML tags. DO NOT include markdown code fences. Use inline LaTeX (\\( ... \\)) only when helpful; ensure JSON remains valid.`;
 
+  const ctxHint = opts?.mapSummary ? `\nMap context: ${opts.mapSummary}` : "";
   const userPrompt = `Subject: ${subject}\nTopic: ${topic}\nLearner pace: ${pace}. ${accHint} ${diffHint} ${lenHint}
 ${avoidHint}
-Produce exactly one micro-lesson and 1–3 MCQs as specified. Return only the JSON object.`;
+Produce exactly one micro-lesson and 1–3 MCQs as specified.${ctxHint}\nReturn only the JSON object.`;
 
   async function callOnce(system: string, jsonMode = true) {
     // Returns [raw, usage]

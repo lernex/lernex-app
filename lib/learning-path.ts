@@ -17,7 +17,8 @@ export type LevelMap = {
   course: string;
   topics: {
     name: string;
-    subtopics: { name: string; mini_lessons: number; applications?: string[] }[];
+    completed?: boolean;
+    subtopics: { name: string; mini_lessons: number; applications?: string[]; completed?: boolean }[];
   }[];
   cross_subjects?: { subject: string; course?: string; rationale?: string }[];
   persona?: { pace?: "slow" | "normal" | "fast"; difficulty?: "intro" | "easy" | "medium" | "hard"; notes?: string };
@@ -234,8 +235,8 @@ Constraints:
   parsed.subject ||= subject;
   parsed.course ||= course;
   if (!Array.isArray(parsed.topics)) parsed.topics = [];
-  type RawTopic = { name?: unknown; subtopics?: unknown };
-  type RawSub = { name?: unknown; mini_lessons?: unknown; applications?: unknown };
+  type RawTopic = { name?: unknown; subtopics?: unknown; completed?: unknown };
+  type RawSub = { name?: unknown; mini_lessons?: unknown; applications?: unknown; completed?: unknown };
   parsed.topics = (parsed.topics as unknown as RawTopic[])
     .map((t: RawTopic) => {
       const tName = typeof t.name === "string" ? t.name.trim() : "";
@@ -247,10 +248,12 @@ Constraints:
           const apps = Array.isArray(s.applications)
             ? (s.applications as unknown[]).map((x) => String(x)).slice(0, 6)
             : undefined;
-          return { name: sName, mini_lessons: ml, applications: apps };
+          const completed = typeof s.completed === "boolean" ? s.completed : false;
+          return { name: sName, mini_lessons: ml, applications: apps, completed };
         })
         .filter((s) => !!s.name);
-      return { name: tName, subtopics };
+      const tCompleted = typeof t.completed === "boolean" ? t.completed : false;
+      return { name: tName, subtopics, completed: tCompleted && subtopics.length > 0 ? subtopics.every((s) => s.completed === true) : false };
     })
     .filter((t) => t.name && t.subtopics.length);
 

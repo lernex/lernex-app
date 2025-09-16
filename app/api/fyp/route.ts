@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
     deliveredByTopic?: Record<string, number>;
     deliveredIdsByTopic?: Record<string, string[]>;
     deliveredIdsByKey?: Record<string, string[]>; // tolerate older/newer schema key
+    deliveredTitlesByTopic?: Record<string, string[]>;
     preferences?: { liked?: string[]; disliked?: string[]; saved?: string[] };
     topicIdx?: number;
     subtopicIdx?: number;
@@ -176,7 +177,19 @@ export async function GET(req: NextRequest) {
   }
   const progress: PathProgress = path.progress ?? {};
 
-  // Decode indices from progress, fall back to first
+  // Helper: find first incomplete subtopic if completion flags exist
+  const findFirstIncomplete = () => {
+    for (let ti = 0; ti < topics.length; ti++) {
+      const subs = topics[ti]?.subtopics ?? [];
+      for (let si = 0; si < subs.length; si++) {
+        // Treat "completed !== true" as incomplete for robustness
+        if (subs[si]?.completed !== true) return [ti, si] as [number, number];
+      }
+    }
+    return null as null;
+  };
+
+  // Decode indices from progress, fall back to next_topic or first incomplete
   let topicIdx = Math.max(0, Math.min(progress.topicIdx ?? 0, topics.length - 1));
   let subtopicIdx = Math.max(0, Math.min(progress.subtopicIdx ?? 0, (topics[topicIdx]?.subtopics?.length ?? 1) - 1));
   let deliveredMini = Math.max(0, Number(progress.deliveredMini ?? 0));
@@ -189,6 +202,15 @@ export async function GET(req: NextRequest) {
       const subs = topics[tIdx]?.subtopics ?? [];
       const sIdx = subs.findIndex((s) => s.name === sName);
       if (sIdx >= 0) subtopicIdx = sIdx;
+    }
+  }
+  // If everything is at defaults or completion flags suggest an earlier/later spot, prefer first incomplete
+  const firstInc = findFirstIncomplete();
+  if (firstInc) {
+    const [ti, si] = firstInc;
+    // If current subtopic is already marked completed, jump to the first incomplete
+    if (topics[topicIdx]?.subtopics?.[subtopicIdx]?.completed === true) {
+      topicIdx = ti; subtopicIdx = si; deliveredMini = 0;
     }
   }
   const curTopic = topics[topicIdx];
@@ -220,12 +242,23 @@ export async function GET(req: NextRequest) {
       progress.deliveredIdsByKey?.[currentLabel] ||
       []
     ).slice(-20);
+    const recentTitles = (progress.deliveredTitlesByTopic?.[currentLabel] || []).slice(-20);
     const disliked = (progress.preferences?.disliked ?? []).slice(-20);
+    // Map position summary for extra personalization (tiny input, no extra cost)
+    type SubDone = { completed?: boolean };
+    const totalSubs = topics.reduce((sum, t) => sum + (t.subtopics?.length ?? 0), 0);
+    const doneSubs = topics.reduce((sum, t) => sum + ((t.subtopics?.filter((s) => (s as SubDone).completed === true)?.length) ?? 0), 0);
+    const compPct = totalSubs > 0 ? Math.round((doneSubs / totalSubs) * 100) : 0;
+    const plannedMini = Math.max(1, Number(curSub.mini_lessons || 1));
+    const mapSummary = `Course:${state?.course ?? ''}; Topic#${topicIdx+1}/${topics.length}; Sub#${subtopicIdx+1}/${curTopic?.subtopics?.length ?? 1}; Completed:${compPct}%; Mini:${deliveredMini}/${plannedMini}`;
+
     lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentLabel, {
       pace,
       accuracyPct: accuracyPct ?? undefined,
       difficultyPref: (state?.difficulty as Difficulty | undefined) ?? undefined,
       avoidIds: [...recentIds, ...disliked],
+      avoidTitles: recentTitles,
+      mapSummary,
     });
     try { console.debug(`[fyp][${reqId}] lesson: ok`, { subject, currentLabel }); } catch {}
   } catch (e) {
@@ -241,12 +274,12 @@ export async function GET(req: NextRequest) {
   }
 
   // Honor mini_lessons per subtopic and update progress/indices
-  let nextTopicStr: string | null = currentLabel;
+  const nextTopicStr: string | null = currentLabel;
   const deliveredByTopic = progress.deliveredByTopic || {};
   const deliveredIdsByTopic = progress.deliveredIdsByTopic || {};
+  const deliveredTitlesByTopic = progress.deliveredTitlesByTopic || {};
   deliveredByTopic[currentLabel] = (deliveredByTopic[currentLabel] || 0) + 1;
-  deliveredMini += 1;
-  const plannedMini = Math.max(1, Number(curSub.mini_lessons || 1));
+  // plannedMini used only for context in mapSummary; not needed here
   const lid = lesson.id as string | undefined;
   const list = deliveredIdsByTopic[currentLabel] || [];
   if (lid) {
@@ -254,35 +287,28 @@ export async function GET(req: NextRequest) {
     while (list.length > 50) list.shift();
     deliveredIdsByTopic[currentLabel] = list;
   }
-  if (deliveredMini >= plannedMini) {
-    // Advance to next subtopic or topic
-    deliveredMini = 0;
-    if (subtopicIdx + 1 < (curTopic.subtopics?.length ?? 0)) {
-      subtopicIdx += 1;
-    } else {
-      subtopicIdx = 0;
-      if (topicIdx + 1 < topics.length) {
-        topicIdx += 1;
-      } else {
-        // End of map
-        nextTopicStr = null;
-      }
-    }
+  const ttl = (deliveredTitlesByTopic[currentLabel] || []);
+  const ltitle = typeof lesson.title === 'string' ? lesson.title.trim() : null;
+  if (ltitle) {
+    if (!ttl.includes(ltitle)) ttl.push(ltitle);
+    while (ttl.length > 50) ttl.shift();
+    deliveredTitlesByTopic[currentLabel] = ttl;
   }
+  // Completion and advancement are handled on quiz finish (/api/attempt).
+  // Keep indices and deliveredMini unchanged here; leave topics as-is.
+  const updatedTopics = topics;
 
   // Recompute next label
-  const nextTopicObj = topics[topicIdx];
-  const nextSubObj = nextTopicObj?.subtopics?.[subtopicIdx];
-  if (nextTopicObj && nextSubObj) {
-    nextTopicStr = `${nextTopicObj.name} > ${nextSubObj.name}`;
-  }
+  // Keep nextTopicStr as current when not auto-advancing.
 
   const newPath: PathWithProgress = {
     ...(path as PathWithProgress),
+    topics: updatedTopics as unknown as PathWithProgress['topics'],
     progress: {
       ...(path.progress || {}),
       deliveredByTopic,
       deliveredIdsByTopic,
+      deliveredTitlesByTopic,
       topicIdx,
       subtopicIdx,
       deliveredMini,

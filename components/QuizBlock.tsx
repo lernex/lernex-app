@@ -157,7 +157,13 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
         fetch("/api/attempt", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ lesson_id: lesson.id, subject: lesson.subject, correct_count: correctCount, total: questions.length }),
+          body: JSON.stringify({
+            lesson_id: lesson.id,
+            subject: lesson.subject,
+            topic: lesson.topic ?? undefined,
+            correct_count: correctCount,
+            total: questions.length,
+          }),
         }).catch(() => {});
       } catch {}
       // Completion effects + summary
