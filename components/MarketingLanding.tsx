@@ -95,14 +95,22 @@ export default function MarketingLanding() {
     return target;
   }, []);
 
-  const [remaining, setRemaining] = useState<number>(() => Math.max(0, targetTimestamp - Date.now()));
+  // Avoid hydration mismatches by not using Date.now() during SSR.
+  const [remaining, setRemaining] = useState<number>(0);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const id = setInterval(() => {
-      setRemaining(Math.max(0, targetTimestamp - Date.now()));
-    }, 1000);
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    // Set immediately, then tick every second
+    const tick = () => setRemaining(Math.max(0, targetTimestamp - Date.now()));
+    tick();
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [targetTimestamp]);
+  }, [mounted, targetTimestamp]);
 
   const { days, hours, minutes, seconds } = useMemo(() => {
     const totalSeconds = Math.max(0, Math.floor(remaining / 1000));
