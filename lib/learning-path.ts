@@ -91,7 +91,7 @@ Return ONLY a VALID JSON object (no markdown fences, no comments) with this stru
 {
   "subject": string,            // overall subject e.g., "Math"
   "course": string,             // specific class e.g., "Calculus II"
-  "topics": [                   // 6–12 coherent topics/units max
+  "topics": [                   // 6–10 coherent topics/units max
     {
       "name": string,
       "subtopics": [            // 2–6 per topic
@@ -118,8 +118,8 @@ Constraints:
     `Learner pace (last 72h): ${pace}`,
     accSubj !== null ? `Recent accuracy in ${subject}: ${accSubj}%` : undefined,
     accAll !== null ? `Overall recent accuracy: ${accAll}%` : undefined,
-    coSubjects.length ? `Other courses: ${coSubjects.map((c) => `${c.subject}${c.course ? ` (${c.course})` : ""}`).join(", ")}` : undefined,
-    interests.length ? `Interests (prioritize cross-subject applications relevant to): ${interests.join(", ")}` : undefined,
+    coSubjects.length ? `Other courses: ${coSubjects.slice(0,3).map((c) => `${c.subject}${c.course ? ` (${c.course})` : ""}`).join(", ")}` : undefined,
+    interests.length ? `Interests (prioritize cross-subject applications relevant to): ${interests.slice(0,6).join(", ")}` : undefined,
     notes ? `Additional notes: ${notes}` : undefined,
     `Design goals:`,
     `- Tailor topic/subtopic ordering and mini_lessons to the learner's mastery and pace.`,
@@ -132,12 +132,13 @@ Constraints:
   let completion: import("groq-sdk/resources/chat/completions").ChatCompletion | null = null;
   let attemptsCount = 0;
   let fallbackUsed = false;
+  // Attempt 1: JSON mode, high effort, moderate max tokens
   try {
     attemptsCount += 1;
     completion = await client.chat.completions.create({
       model,
       temperature,
-      max_tokens: 9000,
+      max_tokens: 4500,
       reasoning_effort: "high",
       response_format: { type: "json_object" },
       messages: [
@@ -152,20 +153,43 @@ Constraints:
     if (typeof failed === "string" && failed.trim().length > 0) {
       raw = failed;
     } else {
-      // Retry without explicit JSON mode
-      attemptsCount += 1;
-      fallbackUsed = true;
-      completion = await client.chat.completions.create({
-        model,
-        temperature,
-        max_tokens: 3000,
-        reasoning_effort: "medium",
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: userPrompt },
-        ],
-      });
-      raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
+      // Attempt 2: Retry JSON mode once (transient errors)
+      try {
+        attemptsCount += 1;
+        completion = await client.chat.completions.create({
+          model,
+          temperature,
+          max_tokens: 4000,
+          reasoning_effort: "high",
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: userPrompt },
+          ],
+        });
+        raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
+      } catch (err2) {
+        const e2 = err2 as unknown as { error?: { failed_generation?: string } };
+        const failed2 = e2?.error?.failed_generation;
+        if (typeof failed2 === "string" && failed2.trim().length > 0) {
+          raw = failed2;
+        } else {
+          // Attempt 3: Fallback without explicit JSON mode
+          attemptsCount += 1;
+          fallbackUsed = true;
+          completion = await client.chat.completions.create({
+            model,
+            temperature,
+            max_tokens: 2200,
+            reasoning_effort: "medium",
+            messages: [
+              { role: "system", content: system },
+              { role: "user", content: userPrompt },
+            ],
+          });
+          raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
+        }
+      }
     }
   }
 
