@@ -60,6 +60,7 @@ export async function GET(req: NextRequest) {
   type PathProgress = {
     deliveredByTopic?: Record<string, number>;
     deliveredIdsByTopic?: Record<string, string[]>;
+    deliveredIdsByKey?: Record<string, string[]>; // tolerate older/newer schema key
     preferences?: { liked?: string[]; disliked?: string[]; saved?: string[] };
     topicIdx?: number;
     subtopicIdx?: number;
@@ -214,7 +215,11 @@ export async function GET(req: NextRequest) {
 
   let lesson: Lesson;
   try {
-    const recentIds = (progress.deliveredIdsByTopic?.[currentLabel] || []).slice(-20);
+    const recentIds = (
+      progress.deliveredIdsByTopic?.[currentLabel] ||
+      progress.deliveredIdsByKey?.[currentLabel] ||
+      []
+    ).slice(-20);
     const disliked = (progress.preferences?.disliked ?? []).slice(-20);
     lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentLabel, {
       pace,
@@ -225,6 +230,11 @@ export async function GET(req: NextRequest) {
     try { console.debug(`[fyp][${reqId}] lesson: ok`, { subject, currentLabel }); } catch {}
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Server error";
+    // Treat AI formatting hiccups as transient: ask client to retry instead of hard failing
+    if (msg === "Invalid lesson format from AI") {
+      try { console.warn(`[fyp][${reqId}] lesson: transient-format-error -> 202`); } catch {}
+      return new Response(JSON.stringify({ status: "generating" }), { status: 202, headers: { "retry-after": "2" } });
+    }
     const status = msg === "Usage limit exceeded" ? 403 : 500;
     try { console.error(`[fyp][${reqId}] lesson: error`, { msg, status }); } catch {}
     return new Response(JSON.stringify({ error: msg }), { status });
