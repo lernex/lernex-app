@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
 
 const features = [
   {
@@ -39,6 +40,79 @@ const benefits = [
 ];
 
 export default function MarketingLanding() {
+  // Compute the next Nov 1, 12:00 PM in Mountain Time (America/Denver)
+  const targetTimestamp = useMemo(() => {
+    const timeZone = 'America/Denver';
+
+    // Convert a local wall-clock time in a timeZone to a UTC timestamp without external libs.
+    // Strategy: format a guess timestamp in the target TZ, compute the wall-clock delta, adjust, repeat.
+    const localDateTimeToUtcMillis = (year: number, month: number, day: number, hour: number, minute = 0, second = 0) => {
+      const dtf = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      });
+
+      const targetUTCFields = Date.UTC(year, month - 1, day, hour, minute, second);
+
+      const adjustOnce = (t: number) => {
+        const parts = dtf.formatToParts(new Date(t));
+        const vals: Record<string, number> = {};
+        for (const p of parts) {
+          if (p.type !== 'literal') vals[p.type] = parseInt(p.value, 10);
+        }
+        const shownUTC = Date.UTC(
+          vals.year,
+          (vals.month || 1) - 1,
+          vals.day || 1,
+          vals.hour || 0,
+          vals.minute || 0,
+          vals.second || 0
+        );
+        // Shift the UTC timestamp by the difference in naive wall-clock minutes
+        return t + (targetUTCFields - shownUTC);
+      };
+
+      // Start with a naive UTC guess at the same wall-clock time
+      let guess = targetUTCFields;
+      // Two adjustments are sufficient to converge under normal conditions
+      guess = adjustOnce(guess);
+      guess = adjustOnce(guess);
+      return guess;
+    };
+
+    const now = new Date();
+    const year = now.getFullYear();
+    let target = localDateTimeToUtcMillis(year, 11, 1, 12, 0, 0);
+    if (Date.now() > target) {
+      target = localDateTimeToUtcMillis(year + 1, 11, 1, 12, 0, 0);
+    }
+    return target;
+  }, []);
+
+  const [remaining, setRemaining] = useState<number>(() => Math.max(0, targetTimestamp - Date.now()));
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setRemaining(Math.max(0, targetTimestamp - Date.now()));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [targetTimestamp]);
+
+  const { days, hours, minutes, seconds } = useMemo(() => {
+    const totalSeconds = Math.max(0, Math.floor(remaining / 1000));
+    const d = Math.floor(totalSeconds / (24 * 3600));
+    const h = Math.floor((totalSeconds % (24 * 3600)) / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return { days: d, hours: h, minutes: m, seconds: s };
+  }, [remaining]);
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-neutral-50 via-neutral-100 to-neutral-200 text-neutral-900 dark:from-neutral-900 dark:via-neutral-900/80 dark:to-neutral-950 dark:text-white">
       <section className="relative overflow-hidden">
@@ -146,6 +220,43 @@ export default function MarketingLanding() {
         >
           Start for free
         </Link>
+      </section>
+
+      {/* Countdown Section */}
+      <section className="mx-auto mb-16 max-w-5xl px-6">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+          className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/70 p-6 text-center shadow-md shadow-black/10 backdrop-blur dark:bg-white/5"
+        >
+          <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-r from-lernex-blue/20 via-lernex-purple/20 to-transparent" />
+          <h3 className="text-xl font-semibold tracking-wide text-neutral-800 dark:text-white">
+            days until release
+          </h3>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-neutral-900 dark:text-white">
+            <div className="flex min-w-[6.5rem] flex-col items-center rounded-xl bg-white/80 px-4 py-3 backdrop-blur dark:bg-white/10">
+              <div className="text-3xl font-extrabold tabular-nums">{days}</div>
+              <div className="text-xs uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Days</div>
+            </div>
+            <div className="flex min-w-[6.5rem] flex-col items-center rounded-xl bg-white/80 px-4 py-3 backdrop-blur dark:bg-white/10">
+              <div className="text-3xl font-extrabold tabular-nums">{hours.toString().padStart(2, '0')}</div>
+              <div className="text-xs uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Hours</div>
+            </div>
+            <div className="flex min-w-[6.5rem] flex-col items-center rounded-xl bg-white/80 px-4 py-3 backdrop-blur dark:bg-white/10">
+              <div className="text-3xl font-extrabold tabular-nums">{minutes.toString().padStart(2, '0')}</div>
+              <div className="text-xs uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Minutes</div>
+            </div>
+            <div className="flex min-w-[6.5rem] flex-col items-center rounded-xl bg-white/80 px-4 py-3 backdrop-blur dark:bg-white/10">
+              <div className="text-3xl font-extrabold tabular-nums">{seconds.toString().padStart(2, '0')}</div>
+              <div className="text-xs uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Seconds</div>
+            </div>
+          </div>
+          <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">
+            Target: Nov 1, 12:00 PM MT
+          </p>
+        </motion.div>
       </section>
     </main>
   );
