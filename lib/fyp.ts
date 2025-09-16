@@ -56,6 +56,7 @@ Favor practical examples that relate to adjacent courses when obvious from the t
 ${avoidHint}
 Produce exactly one micro-lesson and 1–3 MCQs as specified.${ctxHint}\nReturn only the JSON object.`;
 
+  const MAX_LESSON_TOKENS = Number(process.env.GROQ_LESSON_MAX_TOKENS ?? "1500");
   async function callOnce(system: string, jsonMode = true) {
     // Returns [raw, usage]
     let completion: import("groq-sdk/resources/chat/completions").ChatCompletion | null = null;
@@ -63,7 +64,7 @@ Produce exactly one micro-lesson and 1–3 MCQs as specified.${ctxHint}\nReturn 
       completion = await client.chat.completions.create({
         model,
         temperature,
-        max_tokens: 1200,
+        max_tokens: MAX_LESSON_TOKENS,
         reasoning_effort: "low",
         ...(jsonMode ? { response_format: { type: "json_object" as const } } : {}),
         messages: [

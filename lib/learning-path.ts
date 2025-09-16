@@ -47,6 +47,9 @@ export async function generateLearningPath(
   // Use a stronger default model for level map generation; allow override via env
   const model = process.env.GROQ_LEVEL_MODEL || process.env.GROQ_MODEL || "openai/gpt-oss-120b";
   const temperature = Number(process.env.GROQ_TEMPERATURE ?? "0.8");
+  const MAX_TOK_MAIN = Number(process.env.GROQ_LEVEL_MAX_TOKENS_MAIN ?? "5000");
+  const MAX_TOK_RETRY = Number(process.env.GROQ_LEVEL_MAX_TOKENS_RETRY ?? "4500");
+  const MAX_TOK_FALLBACK = Number(process.env.GROQ_LEVEL_MAX_TOKENS_FALLBACK ?? "2500");
 
   if (uid) {
     const ok = await checkUsageLimit(sb, uid);
@@ -133,13 +136,13 @@ Constraints:
   let completion: import("groq-sdk/resources/chat/completions").ChatCompletion | null = null;
   let attemptsCount = 0;
   let fallbackUsed = false;
-  // Attempt 1: JSON mode, high effort, moderate max tokens
+  // Attempt 1: JSON mode, high effort
   try {
     attemptsCount += 1;
     completion = await client.chat.completions.create({
       model,
       temperature,
-      max_tokens: 4500,
+      max_tokens: MAX_TOK_MAIN,
       reasoning_effort: "high",
       response_format: { type: "json_object" },
       messages: [
@@ -160,7 +163,7 @@ Constraints:
         completion = await client.chat.completions.create({
           model,
           temperature,
-          max_tokens: 4000,
+          max_tokens: MAX_TOK_RETRY,
           reasoning_effort: "high",
           response_format: { type: "json_object" },
           messages: [
@@ -181,7 +184,7 @@ Constraints:
           completion = await client.chat.completions.create({
             model,
             temperature,
-            max_tokens: 2200,
+            max_tokens: MAX_TOK_FALLBACK,
             reasoning_effort: "medium",
             messages: [
               { role: "system", content: system },
@@ -227,8 +230,27 @@ Constraints:
     parsed = JSON.parse(raw) as LevelMap;
   } catch {
     const extracted = extractBalancedObject(raw);
-    if (!extracted) throw new Error("Invalid level map JSON");
-    parsed = JSON.parse(extracted) as LevelMap;
+    if (!extracted) {
+      // Final repair attempt: ask model to output STRICT JSON only, compact
+      try {
+        attemptsCount += 1;
+        const repairSys = system + "\nFinal requirement: Respond with ONLY a single strict JSON object (no prose). If previous output was truncated, regenerate compactly (<= 10 topics, <= 4 subtopics each, applications <= 2).";
+        const repair = await client.chat.completions.create({
+          model,
+          temperature,
+          max_tokens: MAX_TOK_MAIN,
+          reasoning_effort: "high",
+          response_format: { type: "json_object" },
+          messages: [ { role: "system", content: repairSys }, { role: "user", content: userPrompt }],
+        });
+        raw = (repair.choices?.[0]?.message?.content as string | undefined) ?? "";
+        parsed = JSON.parse(raw) as LevelMap;
+      } catch {
+        throw new Error("Invalid level map JSON");
+      }
+    } else {
+      parsed = JSON.parse(extracted) as LevelMap;
+    }
   }
 
   // Ensure required fields and sanitize unknowns
@@ -237,6 +259,7 @@ Constraints:
   if (!Array.isArray(parsed.topics)) parsed.topics = [];
   type RawTopic = { name?: unknown; subtopics?: unknown; completed?: unknown };
   type RawSub = { name?: unknown; mini_lessons?: unknown; applications?: unknown; completed?: unknown };
+  // Clamp excessive topic lists defensively (keeps output reasonable if model ignored constraints)
   parsed.topics = (parsed.topics as unknown as RawTopic[])
     .map((t: RawTopic) => {
       const tName = typeof t.name === "string" ? t.name.trim() : "";
@@ -246,16 +269,17 @@ Constraints:
           const sName = typeof s.name === "string" ? s.name.trim() : "";
           const ml = Math.max(1, Math.min(4, Number((s.mini_lessons as number | string | undefined) ?? 1)));
           const apps = Array.isArray(s.applications)
-            ? (s.applications as unknown[]).map((x) => String(x)).slice(0, 6)
+            ? (s.applications as unknown[]).map((x) => String(x)).slice(0, 3)
             : undefined;
           const completed = typeof s.completed === "boolean" ? s.completed : false;
           return { name: sName, mini_lessons: ml, applications: apps, completed };
         })
         .filter((s) => !!s.name);
       const tCompleted = typeof t.completed === "boolean" ? t.completed : false;
-      return { name: tName, subtopics, completed: tCompleted && subtopics.length > 0 ? subtopics.every((s) => s.completed === true) : false };
+      return { name: tName, subtopics: subtopics.slice(0, 8), completed: tCompleted && subtopics.length > 0 ? subtopics.every((s) => s.completed === true) : false };
     })
-    .filter((t) => t.name && t.subtopics.length);
+    .filter((t) => t.name && t.subtopics.length)
+    .slice(0, 12);
 
   return parsed;
 }
