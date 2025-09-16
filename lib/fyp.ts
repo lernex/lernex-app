@@ -97,7 +97,6 @@ Produce exactly one micro-lesson and 1–3 MCQs as specified. Return only the JS
     baseSystem + "\nFinal attempt: Respond with ONLY a single JSON object matching the schema."
   ];
   let parsed: unknown | null = null;
-  let lastParseErr: Error | null = null;
   for (let attempt = 0; attempt < systems.length; attempt++) {
     try {
       const [r, u] = await callOnce(systems[attempt], /*jsonMode*/ true);
@@ -107,8 +106,7 @@ Produce exactly one micro-lesson and 1–3 MCQs as specified. Return only the JS
       try {
         const [r, u] = await callOnce(systems[attempt], /*jsonMode*/ false);
         raw = r; usage = u;
-      } catch (err) {
-        lastParseErr = err as Error;
+      } catch {
         continue; // move to next attempt
       }
     }
@@ -130,9 +128,9 @@ Produce exactly one micro-lesson and 1–3 MCQs as specified. Return only the JS
         return null;
       })();
       if (extracted) {
-        try { parsed = JSON.parse(extracted); } catch (err) { lastParseErr = err as Error; parsed = null; }
+        try { parsed = JSON.parse(extracted); } catch { parsed = null; }
       } else {
-        parsed = null; lastParseErr = new Error("Failed to extract JSON");
+        parsed = null;
       }
     }
     if (parsed) {
@@ -205,14 +203,20 @@ Produce exactly one micro-lesson and 1–3 MCQs as specified. Return only the JS
     ];
   } else {
     // Ensure each question has a valid correctIndex
-    norm.questions = (norm.questions as any[]).map((q) => {
-      const choices = Array.isArray(q?.choices) ? q.choices.map((c: unknown) => String(c)).slice(0, 6) : ["Yes", "No"];
-      let idx = typeof q?.correctIndex === "number" ? Math.max(0, Math.min(choices.length - 1, Math.floor(q.correctIndex))) : 0;
+    type NormQuestion = { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown };
+    norm.questions = (norm.questions as unknown[]).map((raw) => {
+      const q = raw as NormQuestion;
+      const choices = Array.isArray(q?.choices)
+        ? (q.choices as unknown[]).map((c) => String(c)).slice(0, 6)
+        : ["Yes", "No"];
+      const idx = typeof q?.correctIndex === "number"
+        ? Math.max(0, Math.min(choices.length - 1, Math.floor(q.correctIndex as number)))
+        : 0;
       return {
         prompt: String(q?.prompt ?? "Quick check"),
         choices,
         correctIndex: idx,
-        explanation: typeof q?.explanation === "string" ? q.explanation : undefined,
+        explanation: typeof q?.explanation === "string" ? (q.explanation as string) : undefined,
       };
     });
   }
