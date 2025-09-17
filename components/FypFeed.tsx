@@ -309,7 +309,7 @@ export default function FypFeed() {
   return (
     <div ref={containerRef} className="relative h-[calc(100vh-56px)] w-full max-w-md mx-auto overflow-hidden">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.18),transparent_40%),radial-gradient(circle_at_80%_80%,rgba(168,85,247,0.18),transparent_40%)]" />
-                  {!cur && !error && (
+      {!cur && !error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
           <div className="text-sm font-medium text-neutral-600 dark:text-neutral-200">
             {progressLabel}
@@ -323,7 +323,7 @@ export default function FypFeed() {
             </div>
             {(loadingInfo?.detail || loadingInfo?.subject) && (
               <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-                {loadingInfo?.detail ?? "Optimizing your feed…"}
+                {loadingInfo?.detail ?? "Optimizing your feed..."}
                 {loadingInfo?.subject ? ` (${loadingInfo.subject ?? "General"})` : null}
               </div>
             )}
