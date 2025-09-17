@@ -68,7 +68,19 @@ Rules:
 `.trim();
 
     const model = "openai/gpt-oss-20b";
-    const maxTokens = mode === "quick" ? 350 : mode === "full" ? 1300 : 850;
+    const quickMaxTokens = Math.min(
+      320,
+      Math.max(220, Number(process.env.GROQ_QUIZ_MAX_TOKENS_QUICK ?? "260") || 260),
+    );
+    const miniMaxTokens = Math.min(
+      900,
+      Math.max(360, Number(process.env.GROQ_QUIZ_MAX_TOKENS_MINI ?? "620") || 620),
+    );
+    const fullMaxTokens = Math.min(
+      1400,
+      Math.max(700, Number(process.env.GROQ_QUIZ_MAX_TOKENS_FULL ?? "1050") || 1050),
+    );
+    const maxTokens = mode === "quick" ? quickMaxTokens : mode === "full" ? fullMaxTokens : miniMaxTokens;
     let raw = "";
     let usedFallback = false;
 

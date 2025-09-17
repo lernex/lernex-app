@@ -145,6 +145,7 @@ Produce exactly one micro-lesson and 1–3 MCQs as specified.${ctxHint}\nReturn 
         }
         return validated.data;
       }
+      break;
     }
   }
 

@@ -169,6 +169,10 @@ export async function POST(req: NextRequest) {
     // Model/provider selection (Fireworks)
     const model = "openai/gpt-oss-20b";
     const temperature = 1;
+    const completionMaxTokens = Math.min(
+      1100,
+      Math.max(500, Number(process.env.GROQ_LESSON_MAX_TOKENS ?? "900") || 900),
+    );
 
     const system = `
 You create exactly one micro-lesson of 30–80 words and between one and three MCQs with explanations.
@@ -213,7 +217,7 @@ Generate the lesson and questions as specified. Output only the JSON object.
     const stream = await client.chat.completions.create({
       model,
       temperature,
-      max_tokens: 1200,
+      max_tokens: completionMaxTokens,
       reasoning_effort: "low",
       stream: true,
       messages: [

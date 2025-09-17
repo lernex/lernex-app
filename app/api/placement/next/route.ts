@@ -11,8 +11,10 @@ import { checkUsageLimit, logUsage } from "@/lib/usage";
 const ai = new Groq({
   apiKey: process.env.GROQ_API_KEY!,
 });
-// Increase token budget to reduce truncation/invalid JSON under longer prompts
-const MAX_TOKENS = 1500;
+const MAX_TOKENS = Math.min(
+  1200,
+  Math.max(600, Number(process.env.GROQ_PLACEMENT_MAX_TOKENS ?? "900") || 900),
+);
 
 // Safety
 const BLOCKLIST = [/suicide|self[-\s]?harm/i, /explicit|porn|sexual/i, /hate\s*speech|racial\s*slur/i, /bomb|weapon|make\s+drugs/i];
@@ -66,10 +68,6 @@ async function makeQuestion(
   depth = 0
 ): Promise<PlacementItem | null> {
   if (state.done) return null;
-  if (uid) {
-    const ok = await checkUsageLimit(sb, uid);
-    if (!ok) { return null; }
-  }
 // Keep two variants: a normal template and a tighter one for retries
 const systemNormal = `
 Return ONLY a valid JSON object (no prose) matching exactly:
@@ -111,11 +109,11 @@ Rules:
 `.trim();
 
   // Limit avoid list to keep token budget small
-  const MAX_AVOID = 5;
+  const MAX_AVOID = 3;
   const trimmedAvoid = (avoid || [])
     .slice(-MAX_AVOID)
     .map((a) => (typeof a === "string" ? a : String(a ?? "")))
-    .map((a) => (a.length > 160 ? a.slice(0, 160) : a));
+    .map((a) => (a.length > 100 ? a.slice(0, 100) : a));
 
   const avoidText =
     trimmedAvoid.length > 0
@@ -352,8 +350,8 @@ export async function POST(req: Request) {
     }
     if (nowItem) state.asked.push(nowItem.prompt);
 
-    // 3) Optionally prefetch branches (on by default; set PLACEMENT_PREFETCH=0 to disable)
-    const PREFETCH_BRANCHES = process.env.PLACEMENT_PREFETCH !== "0";
+    // 3) Optionally prefetch branches (opt-in via PLACEMENT_PREFETCH=1)
+    const PREFETCH_BRANCHES = process.env.PLACEMENT_PREFETCH === "1";
     type PlacementNextResponseDebug = PlacementNextResponse & { timings?: { nowMs: number; branchesMs: number } };
     let payload: PlacementNextResponseDebug;
     if (PREFETCH_BRANCHES) {

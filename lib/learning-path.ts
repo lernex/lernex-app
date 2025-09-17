@@ -47,9 +47,18 @@ export async function generateLearningPath(
   // Use a stronger default model for level map generation; allow override via env
   const model = process.env.GROQ_LEVEL_MODEL || process.env.GROQ_MODEL || "openai/gpt-oss-120b";
   const temperature = Number(process.env.GROQ_TEMPERATURE ?? "0.8");
-  const MAX_TOK_MAIN = Number(process.env.GROQ_LEVEL_MAX_TOKENS_MAIN ?? "5000");
-  const MAX_TOK_RETRY = Number(process.env.GROQ_LEVEL_MAX_TOKENS_RETRY ?? "4500");
-  const MAX_TOK_FALLBACK = Number(process.env.GROQ_LEVEL_MAX_TOKENS_FALLBACK ?? "2500");
+  const MAX_TOK_MAIN = Math.min(
+    4200,
+    Math.max(2000, Number(process.env.GROQ_LEVEL_MAX_TOKENS_MAIN ?? "3600") || 3600),
+  );
+  const MAX_TOK_RETRY = Math.min(
+    3600,
+    Math.max(1800, Number(process.env.GROQ_LEVEL_MAX_TOKENS_RETRY ?? "3200") || 3200),
+  );
+  const MAX_TOK_FALLBACK = Math.min(
+    2600,
+    Math.max(1200, Number(process.env.GROQ_LEVEL_MAX_TOKENS_FALLBACK ?? "1800") || 1800),
+  );
 
   if (uid) {
     const ok = await checkUsageLimit(sb, uid);

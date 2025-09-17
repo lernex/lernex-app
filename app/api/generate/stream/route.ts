@@ -84,8 +84,24 @@ export async function POST(req: Request) {
     ].join(" ");
     const system = mode === "quick" ? systemQuick : mode === "full" ? systemFull : systemMini;
 
-    // Token budgets per mode
-    const maxTokens = mode === "quick" ? 300 : mode === "full" ? 1600 : 700;
+    // Token budgets per mode (clamped to keep responses compact)
+    const quickMaxTokens = Math.min(
+      360,
+      Math.max(200, Number(process.env.GROQ_STREAM_MAX_TOKENS_QUICK ?? "240") || 240),
+    );
+    const miniMaxTokens = Math.min(
+      900,
+      Math.max(360, Number(process.env.GROQ_STREAM_MAX_TOKENS_MINI ?? "600") || 600),
+    );
+    const fullMaxTokens = Math.min(
+      1400,
+      Math.max(700, Number(process.env.GROQ_STREAM_MAX_TOKENS_FULL ?? "1100") || 1100),
+    );
+    const maxTokens = mode === "quick" ? quickMaxTokens : mode === "full" ? fullMaxTokens : miniMaxTokens;
+    const baseMessages = [
+      { role: "system", content: system },
+      { role: "user", content: `Subject: ${subject}\nMode: ${mode}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
+    ];
 
     const streamPromise = ai.chat.completions.create({
       model,
@@ -93,18 +109,17 @@ export async function POST(req: Request) {
       max_tokens: maxTokens,
       reasoning_effort: "low",
       stream: true,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: `Subject: ${subject}\nMode: ${mode}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
-      ],
+      messages: baseMessages,
     });
 
     const bodyStream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        // Early tiny chunk to help proxies flush streaming
         controller.enqueue(enc.encode("\n"));
-        let wrote = false; // true after we emit any model text (not the initial newline)
+        let wrote = false;
         let closed = false;
+        let fallbackNeeded = false;
+        let fallbackReason: string | null = null;
+        const startedAt = Date.now();
 
         const safeEnqueue = (s: string) => {
           if (!closed && s) controller.enqueue(enc.encode(s));
@@ -116,35 +131,11 @@ export async function POST(req: Request) {
           }
         };
 
-        const doFallback = async (why: string) => {
-          if (wrote || closed) return;
-          console.warn("[gen/stream] fallback-trigger", { why, dt: Date.now() - t0 });
-          try {
-            const nonStream = await ai.chat.completions.create({
-              model,
-              temperature: 1,
-              max_tokens: maxTokens,
-              reasoning_effort: "low",
-              messages: [
-                { role: "system", content: system },
-                { role: "user", content: `Subject: ${subject}\nMode: ${mode}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
-              ],
-            });
-            const full = (nonStream?.choices?.[0]?.message?.content as string | undefined) ?? "";
-            if (full) {
-              wrote = true;
-              safeEnqueue(full);
-            } else {
-              console.warn("[gen/stream] fallback-empty");
-            }
-          } catch (err) {
-            console.error("[gen/stream] fallback-error", err);
+        const firstTokenTimer = setTimeout(() => {
+          if (!wrote) {
+            fallbackNeeded = true;
+            fallbackReason = "first-token-timeout";
           }
-        };
-
-        const firstTimer = setTimeout(() => {
-          // If we haven't seen any model text after a few seconds, try fallback
-          void doFallback("first-token-timeout");
         }, 7000);
 
         try {
@@ -155,24 +146,47 @@ export async function POST(req: Request) {
             if (!delta) continue;
             if (!wrote) {
               console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
-              clearTimeout(firstTimer);
+              clearTimeout(firstTokenTimer);
+              fallbackNeeded = false;
+              fallbackReason = null;
             }
             wrote = true;
             safeEnqueue(delta);
           }
 
           if (!wrote) {
-            // No tokens emitted by stream; run fallback synchronously
-            await doFallback("no-tokens-from-stream");
+            fallbackNeeded = true;
+            fallbackReason = fallbackReason ?? "no-tokens-from-stream";
           }
 
           console.log("[gen/stream] done", { dt: Date.now() - t0 });
         } catch (e) {
           console.error("[gen/stream] stream-error", e);
-          // Try fallback on stream error
-          await doFallback("stream-error");
+          fallbackNeeded = true;
+          fallbackReason = "stream-error";
         } finally {
-          try { clearTimeout(firstTimer); } catch {}
+          try { clearTimeout(firstTokenTimer); } catch {}
+          if (!wrote && fallbackNeeded) {
+            console.warn("[gen/stream] fallback-trigger", { why: fallbackReason, dt: Date.now() - startedAt });
+            try {
+              const nonStream = await ai.chat.completions.create({
+                model,
+                temperature: 1,
+                max_tokens: maxTokens,
+                reasoning_effort: "low",
+                messages: baseMessages,
+              });
+              const full = (nonStream?.choices?.[0]?.message?.content as string | undefined) ?? "";
+              if (full) {
+                wrote = true;
+                safeEnqueue(full);
+              } else {
+                console.warn("[gen/stream] fallback-empty");
+              }
+            } catch (err) {
+              console.error("[gen/stream] fallback-error", err);
+            }
+          }
           doClose();
         }
       },
