@@ -1,5 +1,6 @@
-"use client";
+﻿"use client";
 import React, { useEffect, useMemo, useRef, memo } from "react";
+import { collapseMacroEscapes, normalizeLatexDelimiters } from "@/lib/latex";
 
 interface MathJaxWithConfig {
   typesetPromise?: (elements?: unknown[]) => Promise<void>;
@@ -55,27 +56,10 @@ const RE_TEX_GREEK = /\\(?:alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|th
 const RE_SUBSCRIPT = /([A-Za-z]+)_(\{[^}]+\}|\d+|[A-Za-z])/g;
 const RE_DOUBLE_BAR = /\|\|([^|]{1,80})\|\|/g;
 // Note: preserve these misencoded patterns to avoid unrelated changes
-const RE_ANGLE = /âŸ¨([^âŸ©]{1,80})âŸ©/g;
-const RE_SQRT = /âˆš\s*\(?([0-9A-Za-z+\-*/^\s,.]+?)\)?(?=(\s|[.,;:)\]]|$))/g;
+const RE_ANGLE = /\u27E8([^\u27E9]{1,80})\u27E9/g;
+const RE_SQRT = /\u221A\s*\(?([0-9A-Za-z+\-*/^\s,.]+?)\)?(?=(\s|[.,;:)\]]|$))/g;
 
-const MACROS = [
-  // formatting/accents/sets
-  "langle","rangle","vec","mathbf","mathbb","mathcal","hat","bar","underline","overline",
-  // operators and relations
-  "cdot","times","pm","leq","geq","neq","approx","sim","propto","forall","exists",
-  // structures
-  "frac","sqrt","binom","pmatrix","bmatrix","vmatrix","begin","end",
-  // greek letters
-  "alpha","beta","gamma","delta","epsilon","varepsilon","zeta","eta","theta","vartheta","iota","kappa","lambda","mu","nu","xi","pi","varpi","rho","varrho","sigma","varsigma","tau","upsilon","phi","varphi","chi","psi","omega",
-  "Gamma","Delta","Theta","Lambda","Xi","Pi","Sigma","Upsilon","Phi","Psi","Omega",
-  // calculus symbols
-  "nabla","partial","sum","prod","int","lim",
-  // functions
-  "log","sin","cos","tan","to","infty"
-].join("|");
-// Match two or more backslashes before a macro (e.g., \\frac, \\\\alpha)
-// and collapse them down to a single backslash.
-const RE_DOUBLE_BEFORE_MACRO = new RegExp('(?:\\\\){2,}(?=(' + MACROS + ')\\b)', 'g');
+
 const RE_BARE_COMMON_MACROS = /(^|[^\\])(langle|rangle|mathbf|sqrt|frac|vec|binom)\b/g;
 const RE_ONE_LETTER_ARG = {
   mathbf: /\\mathbf([A-Za-z])(?![A-Za-z])/g,
@@ -96,11 +80,7 @@ function escapeHtml(s: string) {
 }
 
 function normalizeBackslashes(src: string) {
-  return src
-    .split("\\\\(").join("\\(")
-    .split("\\\\)").join("\\)")
-    .split("\\\\[").join("\\[")
-    .split("\\\\]").join("\\]");
+  return normalizeLatexDelimiters(src);
 }
 
 function balanceDelimiters(src: string) {
@@ -189,7 +169,7 @@ function formatNonMath(s: string) {
 
 function fixMacrosInMath(s: string) {
   // Collapse accidental double-backslashes before common macros (not row breaks)
-  s = s.replace(RE_DOUBLE_BEFORE_MACRO, '\\');
+  s = collapseMacroEscapes(s);
   // If a macro name appears without a backslash in math (rare), add one
   s = s.replace(RE_BARE_COMMON_MACROS, '$1\\$2');
   // Normalize one-letter macro arguments like \mathbfv -> \mathbf{v}

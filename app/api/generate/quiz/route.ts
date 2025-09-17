@@ -1,4 +1,4 @@
-// app/api/generate/quiz/route.ts
+﻿// app/api/generate/quiz/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -6,6 +6,7 @@ import Groq from "groq-sdk";
 import type { ChatCompletion } from "groq-sdk/resources/chat/completions";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
+import { normalizeLatex, scanLatex, hasLatexIssues } from "@/lib/latex";
 
 const MAX_CHARS = 4300;
 
@@ -32,17 +33,17 @@ export async function POST(req: Request) {
       );
     }
     if (typeof text !== "string" || text.trim().length < 20) {
-      return new Response(JSON.stringify({ error: "Provide ≥ 20 characters" }), { status: 400 });
+      return new Response(JSON.stringify({ error: "Provide >= 20 characters" }), { status: 400 });
     }
 
     const src = text.slice(0, MAX_CHARS);
 
     // Question count guidance based on mode
     const countRule = mode === "quick"
-      ? "Produce 0–1 multiple-choice questions. Prefer 0 if the user's request is a narrowly scoped factual question."
+      ? "Produce 0-1 multiple-choice questions. Prefer 0 if the user''s request is a narrowly scoped factual question."
       : mode === "full"
-        ? "Produce 3–5 multiple-choice questions."
-        : "Produce 2–3 multiple-choice questions.";
+        ? "Produce 3-5 multiple-choice questions."
+        : "Produce 2-3 multiple-choice questions.";
 
     const system = `
 Return ONLY a valid JSON object (no prose) matching exactly:
@@ -69,6 +70,7 @@ Rules:
     const model = "openai/gpt-oss-20b";
     const maxTokens = mode === "quick" ? 350 : mode === "full" ? 1300 : 850;
     let raw = "";
+    let usedFallback = false;
 
     const ai = new Groq({ apiKey: groqApiKey });
     let completion: ChatCompletion | null = null;
@@ -83,7 +85,12 @@ Rules:
           { role: "system", content: system },
           {
             role: "user",
-            content: `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nSource Text:\n${src}\nCreate fair multiple-choice questions based on the source, following the rules.`,
+            content: `Subject: ${subject}
+Mode: ${mode}
+Difficulty: ${difficulty}
+Source Text:
+${src}
+Create fair multiple-choice questions based on the source, following the rules.`,
           },
         ],
       });
@@ -93,9 +100,11 @@ Rules:
       const failed = e?.error?.failed_generation;
       if (typeof failed === "string" && failed.trim().length > 0) {
         raw = failed;
+        usedFallback = true;
       } else {
         // Retry without JSON mode
         try {
+          usedFallback = true;
           completion = await ai.chat.completions.create({
             model,
             temperature: 0.4,
@@ -105,7 +114,12 @@ Rules:
               { role: "system", content: system },
               {
                 role: "user",
-                content: `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nSource Text:\n${src}\nCreate fair multiple-choice questions based on the source, following the rules.`,
+                content: `Subject: ${subject}
+Mode: ${mode}
+Difficulty: ${difficulty}
+Source Text:
+${src}
+Create fair multiple-choice questions based on the source, following the rules.`,
               },
             ],
           });
@@ -115,6 +129,7 @@ Rules:
         }
       }
     }
+
     if (!raw) raw = "{}";
     if (user && completion?.usage) {
       const u = completion.usage;
@@ -190,33 +205,75 @@ Rules:
       difficulty?: string;
       questions?: { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown }[];
     };
-    const coerceStr = (v: unknown) => (typeof v === "string" ? v : String(v ?? "").trim());
-    const normalizeMath = (s: string) => {
-      // Replace $...$ with \(...\) to align with our renderer
-      // Only replace when a matching single '$' exists ahead (avoid currency)
-      let out = s.replace(/\$(?!\$)([^$\n]{1,300})\$/g, (_m, inner) => `\\(${inner}\)`);
-      // Normalize double-backslashed delimiters
-      out = out.split("\\\\(").join("\\(").split("\\\\)").join("\\)");
-      out = out.split("\\\\[").join("\\[").split("\\\\]").join("\\]");
-      return out;
+    const coerceStr = (v: unknown) => {
+      if (typeof v === "string") return v;
+      if (v == null) return "";
+      return String(v).trim();
     };
-    const sanitizeQuestion = (q: { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown }) => {
-      const prompt = normalizeMath(coerceStr(q.prompt));
-      let choices = Array.isArray(q.choices) ? q.choices.map(coerceStr) : [] as string[];
-      // Enforce reasonable choice counts
-      const diff = (obj.difficulty as string) ?? "easy";
-      const maxChoices = diff === "intro" || diff === "easy" ? 3 : 4;
-      choices = choices.filter((c) => c.length > 0).slice(0, Math.max(2, maxChoices));
-      choices = choices.map(normalizeMath);
-      // Coerce index (default to 0)
-      const rawIdx = (q as { correctIndex?: unknown }).correctIndex;
-      let idx = typeof rawIdx === "number" ? rawIdx : Number(rawIdx);
-      if (!Number.isFinite(idx) || idx < 0 || idx >= choices.length) idx = 0;
-      const explanation = normalizeMath(coerceStr(q.explanation));
-      return { prompt, choices, correctIndex: idx, explanation };
+    const latexDiagnostics: { field: string; scan: ReturnType<typeof scanLatex> }[] = [];
+    const recordDiagnostics = (field: string, value: string) => {
+      if (!value) return;
+      const scan = scanLatex(value);
+      if (hasLatexIssues(scan)) {
+        latexDiagnostics.push({ field, scan });
+      }
     };
+    const normalizeField = (field: string, value: unknown) => {
+      const text = coerceStr(value);
+      const normalized = normalizeLatex(text);
+      recordDiagnostics(field, normalized);
+      return normalized;
+    };
+
+    obj.id = coerceStr(obj.id);
+    const normalizedSubject = normalizeField("subject", obj.subject ?? subject);
+    obj.subject = normalizedSubject || subject;
+    obj.title = normalizeField("title", obj.title);
+    const allowedDifficulty = new Set(["intro", "easy", "medium", "hard"]);
+    obj.difficulty = typeof obj.difficulty === "string" && allowedDifficulty.has(obj.difficulty)
+      ? obj.difficulty
+      : difficulty;
+
+    const sanitizeQuestion = (
+      rawQuestion: { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown } | null | undefined,
+      idx: number,
+    ) => {
+      const question = (rawQuestion ?? {}) as {
+        prompt?: unknown;
+        choices?: unknown;
+        correctIndex?: unknown;
+        explanation?: unknown;
+      };
+      const prompt = normalizeField("q" + idx + ".prompt", question.prompt);
+      const baseChoices = Array.isArray(question.choices) ? (question.choices as unknown[]).map(coerceStr) : [];
+      const maxChoices = obj.difficulty === "intro" || obj.difficulty === "easy" ? 3 : 4;
+      const trimmedChoices = baseChoices.filter((c) => c.length > 0).slice(0, Math.max(2, maxChoices));
+      const choices = trimmedChoices.map((choice, choiceIdx) => normalizeField("q" + idx + ".choices[" + choiceIdx + "]", choice));
+      const rawIdx = question.correctIndex;
+      let idxValue = typeof rawIdx === "number" ? rawIdx : Number(rawIdx);
+      if (!Number.isFinite(idxValue) || idxValue < 0 || idxValue >= choices.length) idxValue = 0;
+      const explanation = normalizeField("q" + idx + ".explanation", question.explanation);
+      return { prompt, choices, correctIndex: idxValue, explanation };
+    };
+
     if (Array.isArray(obj.questions)) {
-      obj.questions = obj.questions.map(sanitizeQuestion);
+      obj.questions = obj.questions.map((q, idx) => sanitizeQuestion(q, idx));
+    } else {
+      obj.questions = [];
+    }
+
+    if (latexDiagnostics.length > 0) {
+      console.warn("[quiz] latex-anomalies", {
+        quizId: obj.id,
+        fallback: usedFallback,
+        issues: latexDiagnostics.map(({ field, scan }) => ({
+          field,
+          doubleEscapedMacros: scan.doubleEscapedMacros,
+          unmatchedInlinePairs: scan.unmatchedInlinePairs,
+          unmatchedDisplayPairs: scan.unmatchedDisplayPairs,
+          oddDollarBlocks: scan.oddDollarBlocks,
+        })),
+      });
     }
 
     // Note: Bedrock usage logging is handled in the generation route; here we log only for OpenAI path above.
