@@ -125,6 +125,8 @@ export async function GET(req: NextRequest) {
     const recent = (attempts ?? []).filter((a) => a.created_at && (now - +new Date(a.created_at)) < 72 * 3600_000);
     const pace = recent.length >= 12 ? "fast" : recent.length >= 4 ? "normal" : "slow";
     const notes = `Learner pace: ${pace}. Personalized for ${subject}.`;
+    const { ensureLearningPath, isLearningPathGenerating, LearningPathPendingError } = await import("@/lib/learning-path");
+
 
     try {
       // Cross-instance DB lock. If not supported and busy, fallback to in-process lock inside ensureLearningPath.
@@ -141,7 +143,6 @@ export async function GET(req: NextRequest) {
           return progressResponse("3", "Another session is preparing your learning path", "Waiting for the current generation to finish.");
         } else if (lock.reason === "error") {
           // Lock table exists but errored; fall back to in-process lock if active, otherwise proceed without lock
-          const { isLearningPathGenerating } = await import("@/lib/learning-path");
           if (isLearningPathGenerating(user.id, subject)) {
             try { console.debug(`[fyp][${reqId}] lock-error but in-process active -> 202`); } catch {}
             return progressResponse("3", "Finishing an existing generation", "Re-using the map from a parallel request.");
@@ -150,15 +151,13 @@ export async function GET(req: NextRequest) {
       }
       if (!lock.supported) {
         // No DB lock available; if our in-process lock is active, signal 202 too
-        const { isLearningPathGenerating } = await import("@/lib/learning-path");
         if (isLearningPathGenerating(user.id, subject)) {
           try { console.debug(`[fyp][${reqId}] in-process-lock -> 202`); } catch {}
           return progressResponse("3", "Finalizing your learning path", "A previous request is still wrapping up.");
         }
       }
 
-      const mod = await import("@/lib/learning-path");
-      const p = await mod.ensureLearningPath(sb, user.id, ip, subject, course, mastery, notes);
+      const p = await ensureLearningPath(sb, user.id, ip, subject, course, mastery, notes);
       path = p as PathWithProgress;
       const { data: refreshed } = await sb
         .from("user_subject_state")
@@ -170,9 +169,14 @@ export async function GET(req: NextRequest) {
       if (lock.acquired && lock.supported) await releaseGenLock(sb, user.id, subject);
       try { console.debug(`[fyp][${reqId}] ensureLearningPath: ok`); } catch {}
     } catch (e) {
+      if (e instanceof LearningPathPendingError) {
+        try { await releaseGenLock(sb, user.id, subject); } catch {}
+        try { console.debug(`[fyp][${reqId}] ensureLearningPath: pending`, { retryAfter: e.retryAfterSeconds }); } catch {}
+        const retryAfter = String(e.retryAfterSeconds ?? 5);
+        return progressResponse(retryAfter, e.message, e.detail);
+      }
       const msg = e instanceof Error ? e.message : "Server error";
       const status = msg === "Usage limit exceeded" ? 403 : 500;
-      // Ensure lock release on failure
       try { await releaseGenLock(sb, user.id, subject); } catch {}
       try { console.error(`[fyp][${reqId}] ensureLearningPath: error`, { msg, status }); } catch {}
       return new Response(JSON.stringify({ error: msg }), { status });

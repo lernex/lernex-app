@@ -1,5 +1,5 @@
 import Groq from "groq-sdk";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient, PostgrestError } from "@supabase/supabase-js";
 import { checkUsageLimit, logUsage } from "./usage";
 // In-process lock to dedupe concurrent level-map generations per user+subject.
 // Note: Best-effort only (won't coordinate across server instances), but prevents
@@ -64,15 +64,192 @@ export type LevelMap = {
   }[];
   cross_subjects?: { subject: string; course?: string; rationale?: string }[];
   persona?: { pace?: "slow" | "normal" | "fast"; difficulty?: "intro" | "easy" | "medium" | "hard"; notes?: string };
-  // Progress will be embedded here so a single JSON blob captures state
   progress?: {
     topicIdx?: number;
     subtopicIdx?: number;
     deliveredMini?: number;
-    deliveredIdsByKey?: Record<string, string[]>; // key = `${topic} > ${subtopic}`
+    deliveredIdsByKey?: Record<string, string[]>;
     preferences?: { liked?: string[]; disliked?: string[]; saved?: string[] };
   };
 };
+
+const LEVEL_MAP_TABLE = "user_level_maps" as const;
+const LEVEL_MAP_PENDING_TIMEOUT_MS = 4 * 60 * 1000;
+const LEVEL_MAP_PENDING_RETRY_SECONDS = 5;
+
+type LevelMapStatus = "pending" | "ready" | "failed";
+
+type StoredLevelMap = {
+  map: LevelMap | null;
+  status: LevelMapStatus;
+  course: string | null;
+  error_reason: string | null;
+  updated_at: string | null;
+};
+
+export class LearningPathPendingError extends Error {
+  readonly retryAfterSeconds: number;
+  readonly detail?: string;
+
+  constructor(message: string, detail?: string, retryAfterSeconds = LEVEL_MAP_PENDING_RETRY_SECONDS) {
+    super(message);
+    this.name = "LearningPathPendingError";
+    this.retryAfterSeconds = retryAfterSeconds;
+    this.detail = detail;
+  }
+}
+
+function normalizeStoredLevelMap(row: Partial<StoredLevelMap> | null | undefined): StoredLevelMap {
+  return {
+    map: (row?.map as LevelMap | null) ?? null,
+    status: (row?.status as LevelMapStatus | undefined) ?? "pending",
+    course: (row?.course as string | null) ?? null,
+    error_reason: (row?.error_reason as string | null) ?? null,
+    updated_at: (row?.updated_at as string | null) ?? null,
+  };
+}
+
+async function getStoredLevelMap(
+  sb: SupabaseClient,
+  uid: string,
+  subject: string
+): Promise<StoredLevelMap | null> {
+  const { data, error } = await sb
+    .from(LEVEL_MAP_TABLE)
+    .select("map, status, course, error_reason, updated_at")
+    .eq("user_id", uid)
+    .eq("subject", subject)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return normalizeStoredLevelMap({
+    map: (data.map as LevelMap | null) ?? null,
+    status: (data.status as LevelMapStatus | null) ?? undefined,
+    course: (data.course as string | null) ?? null,
+    error_reason: (data.error_reason as string | null) ?? null,
+    updated_at: (data.updated_at as string | null) ?? null,
+  });
+}
+
+async function saveLevelMapRow(
+  sb: SupabaseClient,
+  uid: string,
+  subject: string,
+  course: string,
+  map: LevelMap
+) {
+  await sb
+    .from(LEVEL_MAP_TABLE)
+    .upsert(
+      {
+        user_id: uid,
+        subject,
+        course,
+        status: "ready" as LevelMapStatus,
+        map,
+        error_reason: null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,subject" }
+    );
+}
+
+async function markLevelMapFailed(
+  sb: SupabaseClient,
+  uid: string,
+  subject: string,
+  course: string,
+  reason: string
+) {
+  await sb
+    .from(LEVEL_MAP_TABLE)
+    .upsert(
+      {
+        user_id: uid,
+        subject,
+        course,
+        status: "failed" as LevelMapStatus,
+        map: null,
+        error_reason: reason.slice(0, 512),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,subject" }
+    );
+}
+
+async function claimLevelMapGeneration(
+  sb: SupabaseClient,
+  uid: string,
+  subject: string,
+  course: string
+) {
+  const nowIso = new Date().toISOString();
+  const pendingPayload = {
+    user_id: uid,
+    subject,
+    course,
+    status: "pending" as LevelMapStatus,
+    map: null,
+    error_reason: null,
+    updated_at: nowIso,
+  };
+  const insertAttempt = await sb
+    .from(LEVEL_MAP_TABLE)
+    .insert(pendingPayload)
+    .select("status")
+    .maybeSingle();
+  if (!insertAttempt.error) {
+    return;
+  }
+  const error = insertAttempt.error as PostgrestError;
+  if (error.code != "23505") {
+    throw error;
+  }
+  const updateAttempt = await sb
+    .from(LEVEL_MAP_TABLE)
+    .update({
+      status: "pending" as LevelMapStatus,
+      course,
+      map: null,
+      error_reason: null,
+      updated_at: nowIso,
+    })
+    .eq("user_id", uid)
+    .eq("subject", subject)
+    .neq("status", "pending")
+    .select("status")
+    .maybeSingle();
+  if (updateAttempt.error) {
+    throw updateAttempt.error;
+  }
+  if (!updateAttempt.data) {
+    throw new LearningPathPendingError(
+      "We are personalizing your learning path",
+      "Another request is already generating this map."
+    );
+  }
+}
+
+async function ensureStoredLevelMap(
+  sb: SupabaseClient,
+  uid: string,
+  subject: string,
+  course: string,
+  map: LevelMap,
+  stored: StoredLevelMap | null
+) {
+  if (stored && stored.status === "ready" && stored.map && stored.course === course) {
+    return;
+  }
+  await saveLevelMapRow(sb, uid, subject, course, map);
+}
+
+function isPendingFresh(row: StoredLevelMap | null) {
+  if (!row || row.status !== "pending") return false;
+  if (!row.updated_at) return true;
+  const ageMs = Date.now() - new Date(row.updated_at).getTime();
+  return ageMs < LEVEL_MAP_PENDING_TIMEOUT_MS;
+}
 
 export async function generateLearningPath(
   sb: SupabaseClient,
@@ -658,41 +835,28 @@ export async function ensureLearningPath(
   mastery: number,
   notes = ""
 ) {
-  // Check for existing path
   const { data: existing } = await sb
     .from("user_subject_state")
     .select("path, course, next_topic, difficulty")
     .eq("user_id", uid)
     .eq("subject", subject)
     .maybeSingle();
+
   const currentPath = existing?.path as LevelMap | null;
   const valid = currentPath && Array.isArray(currentPath.topics) && currentPath.topics.length > 0;
+  let stored = await getStoredLevelMap(sb, uid, subject);
+
   if (valid && existing?.course === course) {
+    await ensureStoredLevelMap(sb, uid, subject, course, currentPath as LevelMap, stored);
     return currentPath as LevelMap;
   }
-  const key = progressKey(uid, subject);
-  const existingLock = generationLocks.get(key);
-  if (existingLock) {
-    // Another request is already generating; wait for it, then read fresh state.
-    await existingLock.catch(() => {});
-    const { data: after } = await sb
-      .from("user_subject_state")
-      .select("path, course")
-      .eq("user_id", uid)
-      .eq("subject", subject)
-      .maybeSingle();
-    const p = after?.path as LevelMap | null;
-    if (p && Array.isArray(p.topics) && p.topics.length > 0 && after?.course === course) return p;
-    // Fall through to try again if previous generation failed.
-  }
-  // Generate fresh map if missing/invalid or course changed, with lock
-  const lock = (async () => {
-    const map = await generateLearningPath(sb, uid, ip, subject, course, mastery, notes);
-    updateLearningPathProgress(uid, subject, { phase: "Persisting learning path", pct: 0.95 });
+
+  if (stored && stored.status === "ready" && stored.map && (stored.course ?? course) === course) {
+    const map = stored.map;
     const firstTopic = map.topics?.[0];
     const firstSub = firstTopic?.subtopics?.[0];
-    const next_topic = firstTopic && firstSub ? `${firstTopic.name} > ${firstSub.name}` : null;
-    const difficulty: "intro" | "easy" | "medium" | "hard" =
+    const nextTopic = firstTopic && firstSub ? `${firstTopic.name} > ${firstSub.name}` : null;
+    const difficultyValue: "intro" | "easy" | "medium" | "hard" =
       mastery < 35 ? "intro" : mastery < 55 ? "easy" : mastery < 75 ? "medium" : "hard";
     await sb
       .from("user_subject_state")
@@ -701,14 +865,76 @@ export async function ensureLearningPath(
         subject,
         course,
         mastery,
-        difficulty,
-        next_topic,
+        difficulty: difficultyValue,
+        next_topic: nextTopic,
         path: map,
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id,subject" });
+    return map;
+  }
+
+  if (stored && stored.status === "pending" && (stored.course ?? course) === course && isPendingFresh(stored)) {
+    throw new LearningPathPendingError(
+      "We are personalizing your learning path",
+      "Another request is already generating this map."
+    );
+  }
+
+  const key = progressKey(uid, subject);
+  const existingLock = generationLocks.get(key);
+  if (existingLock) {
+    await existingLock.catch(() => {});
+    const { data: after } = await sb
+      .from("user_subject_state")
+      .select("path, course")
+      .eq("user_id", uid)
+      .eq("subject", subject)
+      .maybeSingle();
+    const p = after?.path as LevelMap | null;
+    if (p && Array.isArray(p.topics) && p.topics.length > 0 && after?.course === course) {
+      stored = stored ?? await getStoredLevelMap(sb, uid, subject);
+      await ensureStoredLevelMap(sb, uid, subject, course, p, stored);
+      return p;
+    }
+  }
+
+  const lock = (async () => {
+    await claimLevelMapGeneration(sb, uid, subject, course);
+
+    let map: LevelMap;
+    try {
+      map = await generateLearningPath(sb, uid, ip, subject, course, mastery, notes);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      try { await markLevelMapFailed(sb, uid, subject, course, message); } catch {}
+      throw err;
+    }
+
+    updateLearningPathProgress(uid, subject, { phase: "Persisting learning path", pct: 0.95 });
+    const firstTopic = map.topics?.[0];
+    const firstSub = firstTopic?.subtopics?.[0];
+    const nextTopic = firstTopic && firstSub ? `${firstTopic.name} > ${firstSub.name}` : null;
+    const difficultyValue: "intro" | "easy" | "medium" | "hard" =
+      mastery < 35 ? "intro" : mastery < 55 ? "easy" : mastery < 75 ? "medium" : "hard";
+
+    await saveLevelMapRow(sb, uid, subject, course, map);
+    await sb
+      .from("user_subject_state")
+      .upsert({
+        user_id: uid,
+        subject,
+        course,
+        mastery,
+        difficulty: difficultyValue,
+        next_topic: nextTopic,
+        path: map,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id,subject" });
+
     updateLearningPathProgress(uid, subject, { phase: "Learning path saved", pct: 1 });
     return map;
   })();
+
   generationLocks.set(key, lock);
   try {
     const result = await lock;
@@ -717,3 +943,4 @@ export async function ensureLearningPath(
     generationLocks.delete(key);
   }
 }
+
