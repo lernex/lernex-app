@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React, { useEffect, useMemo, useRef, memo } from "react";
 import { collapseMacroEscapes, normalizeLatexDelimiters } from "@/lib/latex";
 
@@ -55,9 +55,9 @@ const RE_TEX_COMMON = /\\(?:frac|sqrt|vec|mathbf|mathbb|mathcal|hat|bar|underlin
 const RE_TEX_GREEK = /\\(?:alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|vartheta|iota|kappa|lambda|mu|nu|xi|pi|varpi|rho|varrho|sigma|varsigma|tau|upsilon|phi|varphi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|infty|neq|approx|sim|propto|forall|exists|nabla|partial|cdot|times|pm|leq|geq)\b/g;
 const RE_SUBSCRIPT = /([A-Za-z]+)_(\{[^}]+\}|\d+|[A-Za-z])/g;
 const RE_DOUBLE_BAR = /\|\|([^|]{1,80})\|\|/g;
-// Note: preserve these misencoded patterns to avoid unrelated changes
-const RE_ANGLE = /\u27E8([^\u27E9]{1,80})\u27E9/g;
-const RE_SQRT = /\u221A\s*\(?([0-9A-Za-z+\-*/^\s,.]+?)\)?(?=(\s|[.,;:)\]]|$))/g;
+// Angle brackets ⟨...⟩ and square root √(...) using literal UTF-8 characters
+const RE_ANGLE = /⟨([^⟩]{1,80})⟩/g;
+const RE_SQRT = /√\s*\(?([0-9A-Za-z+\-*/^\s,.]+?)\)?(?=(\s|[.,;:)\]]|$))/g;
 
 
 const RE_BARE_COMMON_MACROS = /(^|[^\\])(langle|rangle|mathbf|sqrt|frac|vec|binom)\b/g;

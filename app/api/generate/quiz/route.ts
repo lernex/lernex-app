@@ -1,4 +1,4 @@
-﻿// app/api/generate/quiz/route.ts
+// app/api/generate/quiz/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 

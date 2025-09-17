@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import Groq from "groq-sdk";
+import type { ChatCompletionCreateParams } from "groq-sdk/resources/chat/completions";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit } from "@/lib/usage";
 
@@ -98,7 +99,8 @@ export async function POST(req: Request) {
       Math.max(700, Number(process.env.GROQ_STREAM_MAX_TOKENS_FULL ?? "1100") || 1100),
     );
     const maxTokens = mode === "quick" ? quickMaxTokens : mode === "full" ? fullMaxTokens : miniMaxTokens;
-    const baseMessages = [
+    // Explicitly type messages so literal roles don't widen to `string`.
+    const baseMessages: ChatCompletionCreateParams["messages"] = [
       { role: "system", content: system },
       { role: "user", content: `Subject: ${subject}\nMode: ${mode}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
     ];
