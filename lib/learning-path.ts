@@ -1,16 +1,58 @@
 import Groq from "groq-sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { checkUsageLimit, logUsage } from "./usage";
-
 // In-process lock to dedupe concurrent level-map generations per user+subject.
 // Note: Best-effort only (won't coordinate across server instances), but prevents
 // most duplicate generations triggered by rapid client retries.
 const generationLocks = new Map<string, Promise<LevelMap>>();
-
+type PathGenerationProgress = {
+  phase: string;
+  detail?: string;
+  pct?: number;
+  attempts?: number;
+  fallback?: boolean;
+  startedAt: number;
+  updatedAt: number;
+};
+const generationProgress = new Map<string, PathGenerationProgress>();
+const progressKey = (uid: string, subject: string) => `${uid}:${subject}`;
 export function isLearningPathGenerating(uid: string, subject: string) {
-  return generationLocks.has(`${uid}:${subject}`);
+  return generationLocks.has(progressKey(uid, subject));
 }
-
+export function getLearningPathProgress(uid: string, subject: string) {
+  const key = progressKey(uid, subject);
+  const record = generationProgress.get(key);
+  if (!record) return null;
+  if (Date.now() - record.updatedAt > 120_000) {
+    generationProgress.delete(key);
+    return null;
+  }
+  const { phase, detail, pct, attempts, fallback, startedAt, updatedAt } = record;
+  return { phase, detail, pct, attempts, fallback, startedAt, updatedAt };
+}
+export function updateLearningPathProgress(
+  uid: string,
+  subject: string,
+  patch: Partial<Omit<PathGenerationProgress, "startedAt" | "updatedAt">> & { pct?: number }
+) {
+  const key = progressKey(uid, subject);
+  const now = Date.now();
+  const prev = generationProgress.get(key);
+  const startedAt = prev?.startedAt ?? now;
+  const next: PathGenerationProgress = {
+    phase: patch.phase ?? prev?.phase ?? "preparing",
+    detail: patch.detail ?? prev?.detail,
+    pct: typeof patch.pct === "number" ? Math.max(0, Math.min(1, patch.pct)) : prev?.pct,
+    attempts: patch.attempts ?? prev?.attempts,
+    fallback: patch.fallback ?? prev?.fallback,
+    startedAt,
+    updatedAt: now,
+  };
+  generationProgress.set(key, next);
+}
+export function clearLearningPathProgress(uid: string, subject: string) {
+  generationProgress.delete(progressKey(uid, subject));
+}
 // New, richer level map schema
 export type LevelMap = {
   subject: string;
@@ -40,37 +82,44 @@ export async function generateLearningPath(
   course: string,
   mastery: number,
   notes = ""
-) {
+): Promise<LevelMap> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("Missing GROQ_API_KEY");
   const client = new Groq({ apiKey });
   // Use a stronger default model for level map generation; allow override via env
   const model = process.env.GROQ_LEVEL_MODEL || process.env.GROQ_MODEL || "openai/gpt-oss-120b";
   const temperature = Number(process.env.GROQ_TEMPERATURE ?? "0.8");
-  const MAX_TOK_MAIN = Math.min(
-    4200,
-    Math.max(2000, Number(process.env.GROQ_LEVEL_MAX_TOKENS_MAIN ?? "3600") || 3600),
-  );
-  const MAX_TOK_RETRY = Math.min(
-    3600,
-    Math.max(1800, Number(process.env.GROQ_LEVEL_MAX_TOKENS_RETRY ?? "3200") || 3200),
-  );
-  const MAX_TOK_FALLBACK = Math.min(
-    2600,
-    Math.max(1200, Number(process.env.GROQ_LEVEL_MAX_TOKENS_FALLBACK ?? "1800") || 1800),
-  );
+  const clampTokens = (value: unknown, fallback: number, min: number, max: number) => {
+    const num = Number(value);
+    const resolved = Number.isFinite(num) && num > 0 ? num : fallback;
+    return Math.max(min, Math.min(max, resolved));
+  };
+  const MAX_TOK_MAIN = clampTokens(process.env.GROQ_LEVEL_MAX_TOKENS_MAIN ?? "5000", 5000, 2600, 5400);
+  const MAX_TOK_RETRY = clampTokens(process.env.GROQ_LEVEL_MAX_TOKENS_RETRY ?? "4400", 4400, 2200, 5200);
+  const MAX_TOK_FALLBACK = clampTokens(process.env.GROQ_LEVEL_MAX_TOKENS_FALLBACK ?? "3600", 3600, 1600, 4200);
+
+  const touchProgress = (patch: Parameters<typeof updateLearningPathProgress>[2]) => {
+    updateLearningPathProgress(uid, subject, patch);
+  };
+
+  touchProgress({ phase: "Preparing learning path", pct: 0.05 });
 
   if (uid) {
     const ok = await checkUsageLimit(sb, uid);
-    if (!ok) throw new Error("Usage limit exceeded");
+    if (!ok) {
+      touchProgress({ phase: "Usage limit exceeded", pct: 1 });
+      throw new Error("Usage limit exceeded");
+    }
   }
 
-  // Pull co-subjects for cross-context links
+  touchProgress({ phase: "Gathering learner profile", pct: 0.1 });
+
   const { data: prof } = await sb
     .from("profiles")
     .select("interests, level_map")
     .eq("id", uid)
     .maybeSingle();
+
   const interests: string[] = Array.isArray(prof?.interests) ? (prof!.interests as string[]) : [];
   const levelMap = (prof?.level_map || {}) as Record<string, string>;
   const coSubjects = interests
@@ -78,36 +127,51 @@ export async function generateLearningPath(
     .map((s) => ({ subject: s, course: levelMap[s] }))
     .filter((x) => !!x.subject);
 
-  // Recent performance and pace to guide personalization
+  touchProgress({ phase: "Analyzing learner profile", pct: 0.18 });
+
   const { data: attempts } = await sb
     .from("attempts")
     .select("subject, correct_count, total, created_at")
     .eq("user_id", uid)
     .order("created_at", { ascending: false })
     .limit(100);
-  let correctAll = 0, totalAll = 0;
-  let correctSubj = 0, totalSubj = 0;
+
+  let correctAll = 0;
+  let totalAll = 0;
+  let correctSubj = 0;
+  let totalSubj = 0;
   const nowTs = Date.now();
   let recentCount72h = 0;
+
   (attempts ?? []).forEach((a) => {
-    const cc = a.correct_count ?? 0; const tt = a.total ?? 0;
-    correctAll += cc; totalAll += tt;
-    if (!a.subject || a.subject === subject) { correctSubj += cc; totalSubj += tt; }
-    if (a.created_at && (nowTs - +new Date(a.created_at)) < 72 * 3600_000) recentCount72h += 1;
+    const cc = a.correct_count ?? 0;
+    const tt = a.total ?? 0;
+    correctAll += cc;
+    totalAll += tt;
+    if (!a.subject || a.subject === subject) {
+      correctSubj += cc;
+      totalSubj += tt;
+    }
+    if (a.created_at && nowTs - +new Date(a.created_at) < 72 * 3_600_000) {
+      recentCount72h += 1;
+    }
   });
+
   const accAll = totalAll > 0 ? Math.round((correctAll / totalAll) * 100) : null;
   const accSubj = totalSubj > 0 ? Math.round((correctSubj / totalSubj) * 100) : null;
   const pace: "slow" | "normal" | "fast" = recentCount72h >= 12 ? "fast" : recentCount72h >= 4 ? "normal" : "slow";
 
+  touchProgress({ phase: "Synthesizing performance signals", pct: 0.28 });
+
   const system = `You are a curriculum planner generating a compact level map.
 Return ONLY a VALID JSON object (no markdown fences, no comments) with this structure and constraints:
 {
-  "subject": string,            // overall subject e.g., "Math"
-  "course": string,             // specific class e.g., "Calculus II"
-  "topics": [                   // 6–10 coherent topics/units max
+  "subject": string,
+  "course": string,
+  "topics": [
     {
       "name": string,
-      "subtopics": [            // 2–6 per topic
+      "subtopics": [
         { "name": string, "mini_lessons": number, "applications": string[] }
       ]
     }
@@ -117,12 +181,14 @@ Return ONLY a VALID JSON object (no markdown fences, no comments) with this stru
 }
 Constraints:
 - Output must be STRICT JSON using double quotes only (no trailing commas).
-- Keep names concise (<= 48 chars); no numbering prefixes.
-- mini_lessons: integer 1–4 each. Distribute based on difficulty and prerequisites.
-- applications: short real-world or cross-course hooks relevant to learner.
-- Progress logically from foundations to advanced concepts. Avoid redundancy.
-- Use naming that fits typical "${course}" syllabi when applicable.
-- Do NOT include any HTML. If using LaTeX in names, escape braces properly.`.trim();
+- Keep topic count between 6 and 9 (no filler topics) with 2-5 subtopics each.
+- mini_lessons: integer 1-4 per subtopic, scaled to difficulty and prerequisites.
+- applications: up to 2 concise real-world hooks relevant to the learner.
+- Order topics from foundations to advanced concepts without redundancy.
+- Use naming aligned with typical "${course}" syllabi when applicable.
+- Do NOT include any HTML. Escape braces if LaTeX is used.
+- Keep the response concise (under ~4800 tokens).
+`.trim();
 
   const userPrompt = [
     `Subject: ${subject}`,
@@ -131,23 +197,32 @@ Constraints:
     `Learner pace (last 72h): ${pace}`,
     accSubj !== null ? `Recent accuracy in ${subject}: ${accSubj}%` : undefined,
     accAll !== null ? `Overall recent accuracy: ${accAll}%` : undefined,
-    coSubjects.length ? `Other courses: ${coSubjects.slice(0,3).map((c) => `${c.subject}${c.course ? ` (${c.course})` : ""}`).join(", ")}` : undefined,
-    interests.length ? `Interests (prioritize cross-subject applications relevant to): ${interests.slice(0,6).join(", ")}` : undefined,
+    coSubjects.length ? `Other courses: ${coSubjects.slice(0, 3).map((c) => `${c.subject}${c.course ? ` (${c.course})` : ""}`).join(", ")}` : undefined,
+    interests.length ? `Interests (prioritize cross-subject applications relevant to): ${interests.slice(0, 6).join(", ")}` : undefined,
     notes ? `Additional notes: ${notes}` : undefined,
     `Design goals:`,
-    `- Tailor topic/subtopic ordering and mini_lessons to the learner's mastery and pace.`,
-    `- Embed cross_subjects that link ${subject} ideas to the listed courses/interests.`,
-    `- Keep the map compact but comprehensive (8–10 topics typical).`,
-    `Task: Create the level map JSON exactly as per the schema. Keep it under ~9000 tokens.`,
+    `- Tailor topic ordering and mini_lessons to the learner's mastery and pace.`,
+    `- Highlight cross_subjects that connect ${subject} concepts to the listed courses/interests.`,
+    `- Keep the map compact but comprehensive (avoid redundant units).`,
+    `Task: Create the level map JSON exactly as per the schema.`
   ].filter(Boolean).join("\n");
 
   let raw = "";
   let completion: import("groq-sdk/resources/chat/completions").ChatCompletion | null = null;
   let attemptsCount = 0;
   let fallbackUsed = false;
-  // Attempt 1: JSON mode, high effort
+  let deterministicFallback = false;
+
+  const syncAttemptProgress = () => {
+    const pct = Math.min(0.45 + attemptsCount * 0.08, 0.63);
+    touchProgress({ phase: "Requesting personalized map", pct, attempts: attemptsCount, fallback: fallbackUsed || deterministicFallback });
+  };
+
+  syncAttemptProgress();
+
   try {
     attemptsCount += 1;
+    syncAttemptProgress();
     completion = await client.chat.completions.create({
       model,
       temperature,
@@ -166,9 +241,9 @@ Constraints:
     if (typeof failed === "string" && failed.trim().length > 0) {
       raw = failed;
     } else {
-      // Attempt 2: Retry JSON mode once (transient errors)
       try {
         attemptsCount += 1;
+        syncAttemptProgress();
         completion = await client.chat.completions.create({
           model,
           temperature,
@@ -187,9 +262,9 @@ Constraints:
         if (typeof failed2 === "string" && failed2.trim().length > 0) {
           raw = failed2;
         } else {
-          // Attempt 3: Fallback without explicit JSON mode
           attemptsCount += 1;
           fallbackUsed = true;
+          syncAttemptProgress();
           completion = await client.chat.completions.create({
             model,
             temperature,
@@ -206,92 +281,369 @@ Constraints:
     }
   }
 
-  // Log attempts metric for admin visibility (cost-free model id)
-  try { await logUsage(sb, uid, ip, "metric/level-map-attempts", { input_tokens: attemptsCount, output_tokens: fallbackUsed ? 1 : 0 }); } catch {}
+  touchProgress({
+    phase: fallbackUsed ? "Repairing map output" : "Validating map output",
+    pct: fallbackUsed ? 0.7 : 0.66,
+    attempts: attemptsCount,
+    fallback: fallbackUsed || deterministicFallback,
+  });
+
+  try {
+    await logUsage(sb, uid, ip, "metric/level-map-attempts", { input_tokens: attemptsCount, output_tokens: fallbackUsed || deterministicFallback ? 1 : 0 });
+  } catch {}
 
   if (uid && completion?.usage) {
     const u = completion.usage as unknown as { prompt_tokens?: unknown; completion_tokens?: unknown };
-    const prompt = typeof u.prompt_tokens === "number" ? u.prompt_tokens : null;
+    const promptTokens = typeof u.prompt_tokens === "number" ? u.prompt_tokens : null;
     const completionTokens = typeof u.completion_tokens === "number" ? u.completion_tokens : null;
-    await logUsage(sb, uid, ip, model, { input_tokens: prompt, output_tokens: completionTokens });
+    await logUsage(sb, uid, ip, model, { input_tokens: promptTokens, output_tokens: completionTokens });
   }
 
   if (!raw) raw = "{}";
+
   function extractBalancedObject(s: string): string | null {
-    let i = 0, depth = 0, start = -1, inStr = false, escaped = false;
+    let i = 0;
+    let depth = 0;
+    let start = -1;
+    let inStr = false;
+    let escaped = false;
     const n = s.length;
     for (; i < n; i++) {
       const ch = s[i];
       if (inStr) {
-        if (escaped) { escaped = false; }
-        else if (ch === "\\") { escaped = true; }
-        else if (ch === '"') { inStr = false; }
+        if (escaped) {
+          escaped = false;
+        } else if (ch === "\\") {
+          escaped = true;
+        } else if (ch === '"') {
+          inStr = false;
+        }
         continue;
       }
-      if (ch === '"') { inStr = true; continue; }
-      if (ch === '{') { if (depth === 0) start = i; depth++; }
-      else if (ch === '}') { depth--; if (depth === 0 && start !== -1) return s.slice(start, i + 1); }
+      if (ch === '"') {
+        inStr = true;
+        continue;
+      }
+      if (ch === '{') {
+        if (depth === 0) start = i;
+        depth++;
+      } else if (ch === '}') {
+        depth--;
+        if (depth === 0 && start !== -1) return s.slice(start, i + 1);
+      }
     }
     return null;
   }
-  let parsed: LevelMap;
+
+  let parsed: LevelMap | null = null;
   try {
     parsed = JSON.parse(raw) as LevelMap;
   } catch {
     const extracted = extractBalancedObject(raw);
     if (!extracted) {
-      // Final repair attempt: ask model to output STRICT JSON only, compact
       try {
         attemptsCount += 1;
-        const repairSys = system + "\nFinal requirement: Respond with ONLY a single strict JSON object (no prose). If previous output was truncated, regenerate compactly (<= 10 topics, <= 4 subtopics each, applications <= 2).";
+        fallbackUsed = true;
+        touchProgress({ phase: "Repairing map output", pct: 0.72, attempts: attemptsCount, fallback: true });
+        const repairSys = system + "\nFinal requirement: Respond with ONLY a single strict JSON object (no prose). If previous output was truncated, regenerate compactly (<= 9 topics, <= 4 subtopics each, applications <= 2).";
         const repair = await client.chat.completions.create({
           model,
           temperature,
           max_tokens: MAX_TOK_MAIN,
           reasoning_effort: "high",
           response_format: { type: "json_object" },
-          messages: [ { role: "system", content: repairSys }, { role: "user", content: userPrompt }],
+          messages: [
+            { role: "system", content: repairSys },
+            { role: "user", content: userPrompt },
+          ],
         });
         raw = (repair.choices?.[0]?.message?.content as string | undefined) ?? "";
         parsed = JSON.parse(raw) as LevelMap;
       } catch {
-        throw new Error("Invalid level map JSON");
+        deterministicFallback = true;
+        touchProgress({ phase: "Using safe fallback map", pct: 0.78, attempts: attemptsCount, fallback: true });
+        parsed = buildFallbackLevelMap(subject, course, pace, mastery, interests, coSubjects, notes);
       }
     } else {
       parsed = JSON.parse(extracted) as LevelMap;
     }
   }
 
-  // Ensure required fields and sanitize unknowns
+  if (deterministicFallback) {
+    try {
+      await logUsage(sb, uid, ip, "metric/level-map-fallback", { input_tokens: attemptsCount, output_tokens: 0 });
+    } catch {}
+  }
+
+  if (!parsed) {
+    deterministicFallback = true;
+    touchProgress({ phase: "Using safe fallback map", pct: 0.78, attempts: attemptsCount, fallback: true });
+    parsed = buildFallbackLevelMap(subject, course, pace, mastery, interests, coSubjects, notes);
+  }
+
   parsed.subject ||= subject;
   parsed.course ||= course;
+
   if (!Array.isArray(parsed.topics)) parsed.topics = [];
+
   type RawTopic = { name?: unknown; subtopics?: unknown; completed?: unknown };
   type RawSub = { name?: unknown; mini_lessons?: unknown; applications?: unknown; completed?: unknown };
-  // Clamp excessive topic lists defensively (keeps output reasonable if model ignored constraints)
+
   parsed.topics = (parsed.topics as unknown as RawTopic[])
     .map((t: RawTopic) => {
-      const tName = typeof t.name === "string" ? t.name.trim() : "";
+      const topicName = typeof t.name === "string" ? t.name.trim() : "";
       const rawSubs = Array.isArray(t.subtopics) ? (t.subtopics as RawSub[]) : [];
       const subtopics = rawSubs
         .map((s: RawSub) => {
-          const sName = typeof s.name === "string" ? s.name.trim() : "";
+          const subName = typeof s.name === "string" ? s.name.trim() : "";
           const ml = Math.max(1, Math.min(4, Number((s.mini_lessons as number | string | undefined) ?? 1)));
-          const apps = Array.isArray(s.applications)
-            ? (s.applications as unknown[]).map((x) => String(x)).slice(0, 3)
-            : undefined;
+          const appsRaw = Array.isArray(s.applications)
+            ? (s.applications as unknown[]).map((x) => String(x).trim()).filter((x) => !!x)
+            : [];
+          const applications = appsRaw.slice(0, 2);
           const completed = typeof s.completed === "boolean" ? s.completed : false;
-          return { name: sName, mini_lessons: ml, applications: apps, completed };
+          return {
+            name: subName,
+            mini_lessons: ml,
+            applications: applications.length ? applications : undefined,
+            completed,
+          };
         })
         .filter((s) => !!s.name);
-      const tCompleted = typeof t.completed === "boolean" ? t.completed : false;
-      return { name: tName, subtopics: subtopics.slice(0, 8), completed: tCompleted && subtopics.length > 0 ? subtopics.every((s) => s.completed === true) : false };
+      const topicCompleted = typeof t.completed === "boolean" ? t.completed : false;
+      return {
+        name: topicName,
+        subtopics: subtopics.slice(0, 6),
+        completed: topicCompleted && subtopics.length > 0 ? subtopics.every((s) => s.completed === true) : false,
+      };
     })
     .filter((t) => t.name && t.subtopics.length)
-    .slice(0, 12);
+    .slice(0, 10);
+
+  const fallbackFlag = fallbackUsed || deterministicFallback;
+
+  const personaDifficulty: "intro" | "easy" | "medium" | "hard" =
+    mastery < 35 ? "intro" : mastery < 55 ? "easy" : mastery < 75 ? "medium" : "hard";
+
+  const personaNotes = [
+    typeof parsed.persona?.notes === "string" ? parsed.persona.notes.trim() : "",
+    notes?.trim() || "",
+    fallbackFlag ? "Includes safe fallback adjustments to avoid delays." : "",
+  ].filter(Boolean).join(" ").trim();
+
+  parsed.persona = {
+    pace,
+    difficulty: personaDifficulty,
+    ...(personaNotes ? { notes: personaNotes } : {}),
+  };
+
+  const crossSubjects =
+    Array.isArray(parsed.cross_subjects) && parsed.cross_subjects.length
+      ? parsed.cross_subjects
+      : coSubjects.slice(0, 3).map((c) => ({
+          subject: c.subject,
+          ...(c.course ? { course: c.course } : {}),
+          rationale: `Connect ${subject} with ${c.subject}${c.course ? ` (${c.course})` : ""} for richer projects.`,
+        }));
+
+  const normalizedCrossSubjects: NonNullable<LevelMap["cross_subjects"]> = [];
+  crossSubjects.forEach((entry) => {
+    const subj = typeof entry.subject === "string" ? entry.subject.trim() : "";
+    if (!subj) return;
+    const crs = typeof entry.course === "string" && entry.course.trim().length ? entry.course.trim() : undefined;
+    const rationale =
+      typeof entry.rationale === "string" && entry.rationale.trim()
+        ? entry.rationale.trim()
+        : `Relate ${subject} concepts to ${subj || "another field"}.`;
+    normalizedCrossSubjects.push(crs ? { subject: subj, course: crs, rationale } : { subject: subj, rationale });
+  });
+  parsed.cross_subjects = normalizedCrossSubjects.slice(0, 5);
+
+  touchProgress({ phase: "Finalizing personalized map", pct: 0.9, attempts: attemptsCount, fallback: fallbackFlag });
+  touchProgress({ phase: "Learning path ready", pct: 1, attempts: attemptsCount, fallback: fallbackFlag });
 
   return parsed;
 }
+
+function buildFallbackLevelMap(
+  subject: string,
+  course: string,
+  pace: "slow" | "normal" | "fast",
+  mastery: number,
+  interests: string[],
+  coSubjects: { subject: string; course?: string }[],
+  notes: string
+): LevelMap {
+  const canonicalSubject = subject || "Learning";
+  const canonicalCourse = course || `${canonicalSubject} Foundations`;
+  const clampMini = (value: number) => Math.max(1, Math.min(4, Math.round(value)));
+  const practiceWeight = pace === "slow" ? 3 : pace === "fast" ? 1 : 2;
+  const depthWeight = mastery < 50 ? 3 : mastery < 75 ? 2 : 1;
+  const interestSnippet = interests.slice(0, 2).filter(Boolean).join(" & ");
+
+  const blueprint: {
+    name: string;
+    subs: { name: string; mini: number; apps?: (string | undefined)[] }[];
+  }[] = [
+    {
+      name: "Orientation & Goals",
+      subs: [
+        {
+          name: `Why ${canonicalCourse} matters`,
+          mini: 1,
+          apps: [
+            `Spot ${canonicalSubject} in everyday life`,
+            interestSnippet ? `Connect with ${interestSnippet}` : undefined,
+          ],
+        },
+        {
+          name: "Setting learning objectives",
+          mini: practiceWeight,
+          apps: [`Define your ${canonicalSubject} goals`],
+        },
+      ],
+    },
+    {
+      name: `Core Concepts of ${canonicalSubject}`,
+      subs: [
+        {
+          name: "Essential vocabulary",
+          mini: depthWeight + 1,
+          apps: [`Explain ${canonicalSubject} basics to a peer`],
+        },
+        {
+          name: "Big ideas and frameworks",
+          mini: depthWeight + 1,
+          apps: [`Map ${canonicalSubject} concepts to real scenarios`],
+        },
+      ],
+    },
+    {
+      name: "Tools & Techniques",
+      subs: [
+        {
+          name: `Key tools for ${canonicalSubject}`,
+          mini: practiceWeight,
+          apps: [`Set up your ${canonicalSubject} toolkit`],
+        },
+        {
+          name: "Step-by-step workflows",
+          mini: practiceWeight + 1,
+          apps: [`Apply workflows to a mini task`],
+        },
+        {
+          name: "Frequent pitfalls to avoid",
+          mini: 1,
+          apps: [`Build resilient habits`],
+        },
+      ],
+    },
+    {
+      name: `Applied ${canonicalSubject} Practice`,
+      subs: [
+        {
+          name: "Guided exercises",
+          mini: practiceWeight + 1,
+          apps: [`Practice ${canonicalSubject} fundamentals`],
+        },
+        {
+          name: "Mini projects",
+          mini: practiceWeight + 1,
+          apps: [`Create a small ${canonicalSubject} portfolio piece`],
+        },
+      ],
+    },
+    {
+      name: "Interdisciplinary Connections",
+      subs: [
+        {
+          name: "Cross-subject links",
+          mini: 1,
+          apps: coSubjects.slice(0, 2).map((c) => `Bridge with ${c.subject}`),
+        },
+        {
+          name: "Real-world scenarios",
+          mini: practiceWeight,
+          apps: [`Apply ${canonicalSubject} to local problems`],
+        },
+      ],
+    },
+    {
+      name: "Reflection & Next Steps",
+      subs: [
+        {
+          name: "Progress checkpoint",
+          mini: 1,
+          apps: [`Assess ${canonicalSubject} mastery`],
+        },
+        {
+          name: "Extension plan",
+          mini: practiceWeight,
+          apps: [`Plan advanced ${canonicalSubject} routes`],
+        },
+      ],
+    },
+  ];
+
+  const topics = blueprint
+    .map(({ name, subs }) => {
+      const subtopics = subs
+        .map((sub) => {
+          const apps = (sub.apps ?? []).filter((a): a is string => !!a && a.trim().length > 0).slice(0, 2);
+          return {
+            name: sub.name,
+            mini_lessons: clampMini(sub.mini),
+            applications: apps.length ? apps : undefined,
+            completed: false,
+          };
+        })
+        .filter((s) => s.name.trim().length > 0);
+      return {
+        name,
+        completed: false,
+        subtopics,
+      };
+    })
+    .filter((topic) => topic.subtopics.length)
+    .slice(0, 6);
+
+  const cross_subjects = coSubjects.slice(0, 3).map((c) => ({
+    subject: c.subject,
+    ...(c.course ? { course: c.course } : {}),
+    rationale: `Connect ${canonicalSubject} with ${c.subject}${c.course ? ` (${c.course})` : ""} for richer projects.`,
+  }));
+
+  const personaNotes = [
+    notes?.trim() || "",
+    `Fallback plan tailored for a ${pace} pace.`,
+    pace === "slow"
+      ? "Includes extra guided practice to build confidence."
+      : pace === "fast"
+      ? "Includes stretch goals for rapid learners."
+      : "Balances practice and challenge.",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return {
+    subject: canonicalSubject,
+    course: canonicalCourse,
+    topics,
+    cross_subjects,
+    persona: {
+      pace,
+      difficulty: mastery < 35 ? "intro" : mastery < 55 ? "easy" : mastery < 75 ? "medium" : "hard",
+      ...(personaNotes ? { notes: personaNotes } : {}),
+    },
+    progress: {
+      topicIdx: 0,
+      subtopicIdx: 0,
+      deliveredMini: 0,
+    },
+  };
+}
+
 
 /**
  * Ensure a level map exists for a user + subject + course, generating and persisting it if absent or mismatched.
@@ -313,14 +665,12 @@ export async function ensureLearningPath(
     .eq("user_id", uid)
     .eq("subject", subject)
     .maybeSingle();
-
   const currentPath = existing?.path as LevelMap | null;
   const valid = currentPath && Array.isArray(currentPath.topics) && currentPath.topics.length > 0;
   if (valid && existing?.course === course) {
     return currentPath as LevelMap;
   }
-
-  const key = `${uid}:${subject}`;
+  const key = progressKey(uid, subject);
   const existingLock = generationLocks.get(key);
   if (existingLock) {
     // Another request is already generating; wait for it, then read fresh state.
@@ -335,16 +685,15 @@ export async function ensureLearningPath(
     if (p && Array.isArray(p.topics) && p.topics.length > 0 && after?.course === course) return p;
     // Fall through to try again if previous generation failed.
   }
-
   // Generate fresh map if missing/invalid or course changed, with lock
   const lock = (async () => {
     const map = await generateLearningPath(sb, uid, ip, subject, course, mastery, notes);
+    updateLearningPathProgress(uid, subject, { phase: "Persisting learning path", pct: 0.95 });
     const firstTopic = map.topics?.[0];
     const firstSub = firstTopic?.subtopics?.[0];
     const next_topic = firstTopic && firstSub ? `${firstTopic.name} > ${firstSub.name}` : null;
     const difficulty: "intro" | "easy" | "medium" | "hard" =
       mastery < 35 ? "intro" : mastery < 55 ? "easy" : mastery < 75 ? "medium" : "hard";
-
     await sb
       .from("user_subject_state")
       .upsert({
@@ -357,10 +706,9 @@ export async function ensureLearningPath(
         path: map,
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id,subject" });
-
+    updateLearningPathProgress(uid, subject, { phase: "Learning path saved", pct: 1 });
     return map;
   })();
-
   generationLocks.set(key, lock);
   try {
     const result = await lock;

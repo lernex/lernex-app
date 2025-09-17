@@ -16,7 +16,36 @@ type ApiLesson = {
   questions: { prompt: string; choices: string[]; correctIndex: number; explanation?: string }[];
 };
 
-async function fetchFypOne(subject: string | null): Promise<Lesson | null> {
+
+type ApiProgress = {
+  phase?: string;
+  detail?: string;
+  pct?: number;
+  attempts?: number;
+  fallback?: boolean;
+  startedAt?: number;
+  updatedAt?: number;
+};
+
+type FetchProgressInfo = {
+  subject: string | null;
+  status: number;
+  attempt: number;
+  retryAfter?: number;
+  progress: ApiProgress | null;
+};
+
+type LoadingState = {
+  phase: string;
+  detail?: string;
+  pct?: number;
+  attempts?: number;
+  fallback?: boolean;
+  subject?: string | null;
+  updatedAt: number;
+};
+
+async function fetchFypOne(subject: string | null, onProgress?: (info: FetchProgressInfo) => void): Promise<Lesson | null> {
   const base = subject ? `/api/fyp?subject=${encodeURIComponent(subject)}` : `/api/fyp`;
   const maxAttempts = 5;
   let delay = 600;
@@ -39,17 +68,27 @@ async function fetchFypOne(subject: string | null): Promise<Lesson | null> {
         } as Lesson;
       }
       if (res.status === 202 || res.status === 409) {
+        let payload: Record<string, unknown> = {};
         try {
-          const j: Record<string, unknown> = await res.json().catch(() => ({} as Record<string, unknown>));
-          console.debug("[fyp] backoff", { subject, status: res.status, j });
+          payload = await res.json().catch(() => ({} as Record<string, unknown>));
+          console.debug("[fyp] backoff", { subject, status: res.status, payload });
         } catch {}
-        // Backoff and retry
+        const progress = payload && typeof payload === "object" && 'progress' in payload && typeof (payload as { progress?: unknown }).progress === "object"
+          ? (payload as { progress?: ApiProgress | null }).progress ?? null
+          : null;
+        const retryAfter = Number(res.headers.get("retry-after") ?? "");
+        onProgress?.({
+          subject,
+          status: res.status,
+          attempt: attempt + 1,
+          retryAfter: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
+          progress,
+        });
         const jitter = Math.floor(Math.random() * 250);
         await new Promise((r) => setTimeout(r, delay + jitter));
         delay = Math.min(8000, Math.floor(delay * 1.8));
         continue;
       }
-      // Hard failures or auth
       if (res.status === 401 || res.status === 403 || res.status >= 500) {
         try {
           const j: Record<string, unknown> = await res.json().catch(() => ({} as Record<string, unknown>));
@@ -58,9 +97,9 @@ async function fetchFypOne(subject: string | null): Promise<Lesson | null> {
         return null;
       }
     } catch {
-      // Network error; back off slightly then retry
       const jitter = Math.floor(Math.random() * 200);
       try { console.warn("[fyp] network error; retry", { subject, delay }); } catch {}
+      onProgress?.({ subject, status: 0, attempt: attempt + 1, progress: null });
       await new Promise((r) => setTimeout(r, delay + jitter));
       delay = Math.min(8000, Math.floor(delay * 1.8));
     }
@@ -100,6 +139,19 @@ export default function FypFeed() {
   const fetching = useRef(false);
   const subjIdxRef = useRef(0);
   const cooldownRef = useRef(new Map<string | null, number>());
+  const [loadingInfo, setLoadingInfo] = useState<LoadingState | null>(null);
+  const [indeterminateTick, setIndeterminateTick] = useState(0);
+
+  useEffect(() => {
+    if (!loadingInfo || typeof loadingInfo.pct === "number") {
+      setIndeterminateTick(0);
+      return;
+    }
+    const id = window.setInterval(() => {
+      setIndeterminateTick((tick) => (tick + 1) % 30);
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [loadingInfo]);
 
   const ensureBuffer = useCallback(async (minAhead = 3) => {
     if (fetching.current) return;
@@ -110,6 +162,7 @@ export default function FypFeed() {
       const attempted = new Set<string | null>();
       const now = Date.now();
       let fetchedAny = false;
+      let sawProgress = false;
       try { console.debug("[fyp] ensureBuffer", { minAhead, have: items.length - i, rotation }); } catch {}
       while (needed > 0 && guard++ < 12) {
         const idx = subjIdxRef.current % rotation.length;
@@ -117,30 +170,65 @@ export default function FypFeed() {
         const subject = rotation[idx];
         try { console.debug("[fyp] try-subject", { subject, idx, guard }); } catch {}
         if (attempted.has(subject)) {
-          // Already tried this subject during this pass; break to avoid tight loops
           break;
         }
         attempted.add(subject);
         const until = cooldownRef.current.get(subject) ?? 0;
         if (until > now) {
-          // Still cooling down; skip this subject this pass
           continue;
         }
-        const one = await fetchFypOne(subject);
-        if (one) {
-          setItems((arr) => [...arr, one]);
+        const lesson = await fetchFypOne(subject, (info) => {
+          sawProgress = true;
+          const progress = info.progress;
+          const fallbackPhase = info.status === 409
+            ? "Waiting for course mapping"
+            : info.status === 202
+            ? "Preparing your learning path"
+            : "Retrying";
+          const fallbackDetail = info.status === 409
+            ? "Pick a course for this subject to continue."
+            : info.status === 202
+            ? undefined
+            : "Retrying after a temporary hiccup.";
+          if (!progress && info.status === 0) {
+            setLoadingInfo({
+              phase: "Reconnecting",
+              detail: "Retrying after a network hiccup.",
+              pct: undefined,
+              attempts: info.attempt,
+              fallback: false,
+              subject,
+              updatedAt: Date.now(),
+            });
+            return;
+          }
+          setLoadingInfo({
+            phase: progress?.phase ?? fallbackPhase,
+            detail: progress?.detail ?? fallbackDetail,
+            pct: typeof progress?.pct === "number" ? progress.pct : undefined,
+            attempts: progress?.attempts,
+            fallback: progress?.fallback,
+            subject: info.subject,
+            updatedAt: progress?.updatedAt ? Number(progress.updatedAt) : Date.now(),
+          });
+          setError(null);
+        });
+        if (lesson) {
+          setItems((arr) => [...arr, lesson]);
           fetchedAny = true;
           needed -= 1;
+          setLoadingInfo(null);
         } else {
-          // Back off this subject for a few seconds to prevent hammering
           cooldownRef.current.set(subject, Date.now() + 8000);
-          // Break out to avoid repeatedly calling the same failing subject in this pass
           break;
         }
       }
       setInitialized(true);
       if (!fetchedAny && items.length === 0) {
-        setError("Could not load your feed. Try again.");
+        if (!sawProgress) {
+          setError("Could not load your feed. Try again.");
+          setLoadingInfo(null);
+        }
       }
     } finally {
       fetching.current = false;
@@ -162,6 +250,7 @@ export default function FypFeed() {
     setI(0);
     setError(null);
     setInitialized(false);
+    setLoadingInfo(null);
     cooldownRef.current.clear();
     subjIdxRef.current = 0;
   }, [subjectsKey]);
@@ -207,18 +296,45 @@ export default function FypFeed() {
   const cur = items[i];
   const acc = cur ? accuracyBySubject[cur.subject] : undefined;
   const pct = acc?.total ? Math.round((acc.correct / acc.total) * 100) : null;
+  const progressPct = useMemo(() => {
+    if (!loadingInfo) return null;
+    if (typeof loadingInfo.pct === "number" && !Number.isNaN(loadingInfo.pct)) {
+      return Math.min(99, Math.max(5, Math.round(loadingInfo.pct * 100)));
+    }
+    return Math.min(95, 10 + indeterminateTick * 3);
+  }, [loadingInfo, indeterminateTick]);
+  const progressWidth = `${progressPct ?? 15}%`;
+  const progressLabel = loadingInfo?.phase ?? "Preparing your personalized feed";
 
   return (
     <div ref={containerRef} className="relative h-[calc(100vh-56px)] w-full max-w-md mx-auto overflow-hidden">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.18),transparent_40%),radial-gradient(circle_at_80%_80%,rgba(168,85,247,0.18),transparent_40%)]" />
-      {!cur && !error && (
-        <div className="absolute inset-0 flex items-center justify-center text-neutral-400">Loading your feedâ€¦</div>
+                  {!cur && !error && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
+          <div className="text-sm font-medium text-neutral-600 dark:text-neutral-200">
+            {progressLabel}
+          </div>
+          <div className="w-full max-w-xs">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200/70 dark:bg-neutral-800/60">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 transition-[width] duration-500 ease-out"
+                style={{ width: progressWidth }}
+              />
+            </div>
+            {(loadingInfo?.detail || loadingInfo?.subject) && (
+              <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                {loadingInfo?.detail ?? "Optimizing your feed…"}
+                {loadingInfo?.subject ? ` (${loadingInfo.subject ?? "General"})` : null}
+              </div>
+            )}
+          </div>
+        </div>
       )}
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-red-500">
           <div>{error}</div>
           <button
-            onClick={() => { setError(null); setInitialized(false); void ensureBuffer(1); }}
+            onClick={() => { setError(null); setLoadingInfo(null); setInitialized(false); void ensureBuffer(1); }}
             className="px-3 py-1.5 rounded-full text-sm border bg-neutral-50 dark:bg-neutral-800 text-neutral-600 hover:text-neutral-900 dark:text-neutral-200"
           >
             Retry

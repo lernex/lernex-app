@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { generateLessonForTopic } from "@/lib/fyp";
-import type { LevelMap } from "@/lib/learning-path";
+import { getLearningPathProgress, type LevelMap } from "@/lib/learning-path";
 import type { Lesson } from "@/lib/schema";
 import type { Difficulty } from "@/types/placement";
 import { acquireGenLock, releaseGenLock } from "@/lib/db-lock";
@@ -49,6 +49,19 @@ export async function GET(req: NextRequest) {
     return new Response(JSON.stringify({ error: "No subject" }), { status: 400 });
   }
   try { console.debug(`[fyp][${reqId}] subject`, { subject }); } catch {}
+
+  const buildProgressPayload = (phase?: string, detail?: string) => {
+    const progress = getLearningPathProgress(user.id, subject);
+    if (progress) return progress;
+    if (!phase && !detail) return null;
+    return { phase: phase ?? "Preparing your learning path", ...(detail ? { detail } : {}) };
+  };
+
+  const progressResponse = (retryAfter: string, phase?: string, detail?: string) =>
+    new Response(
+      JSON.stringify({ status: "generating", progress: buildProgressPayload(phase, detail) }),
+      { status: 202, headers: { "retry-after": retryAfter } }
+    );
 
   let { data: state } = await sb
     .from("user_subject_state")
@@ -125,13 +138,13 @@ export async function GET(req: NextRequest) {
         if (lock.reason === "busy") {
           // Someone else is generating; signal client to backoff and retry
           try { console.debug(`[fyp][${reqId}] lock-busy -> 202`); } catch {}
-          return new Response(JSON.stringify({ status: "generating" }), { status: 202, headers: { "retry-after": "3" } });
+          return progressResponse("3", "Another session is preparing your learning path", "Waiting for the current generation to finish.");
         } else if (lock.reason === "error") {
           // Lock table exists but errored; fall back to in-process lock if active, otherwise proceed without lock
           const { isLearningPathGenerating } = await import("@/lib/learning-path");
           if (isLearningPathGenerating(user.id, subject)) {
             try { console.debug(`[fyp][${reqId}] lock-error but in-process active -> 202`); } catch {}
-            return new Response(JSON.stringify({ status: "generating" }), { status: 202, headers: { "retry-after": "3" } });
+            return progressResponse("3", "Finishing an existing generation", "Re-using the map from a parallel request.");
           }
         }
       }
@@ -140,7 +153,7 @@ export async function GET(req: NextRequest) {
         const { isLearningPathGenerating } = await import("@/lib/learning-path");
         if (isLearningPathGenerating(user.id, subject)) {
           try { console.debug(`[fyp][${reqId}] in-process-lock -> 202`); } catch {}
-          return new Response(JSON.stringify({ status: "generating" }), { status: 202, headers: { "retry-after": "3" } });
+          return progressResponse("3", "Finalizing your learning path", "A previous request is still wrapping up.");
         }
       }
 
@@ -266,7 +279,7 @@ export async function GET(req: NextRequest) {
     // Treat AI formatting hiccups as transient: ask client to retry instead of hard failing
     if (msg === "Invalid lesson format from AI") {
       try { console.warn(`[fyp][${reqId}] lesson: transient-format-error -> 202`); } catch {}
-      return new Response(JSON.stringify({ status: "generating" }), { status: 202, headers: { "retry-after": "2" } });
+      return progressResponse("2", "Generating lesson content", "Retrying after formatting hiccup.");
     }
     const status = msg === "Usage limit exceeded" ? 403 : 500;
     try { console.error(`[fyp][${reqId}] lesson: error`, { msg, status }); } catch {}
