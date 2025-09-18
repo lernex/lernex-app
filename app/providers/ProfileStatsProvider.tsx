@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { PostgrestError, User } from "@supabase/supabase-js";
@@ -85,7 +85,7 @@ export function ProfileStatsProvider({ children }: { children: React.ReactNode }
         const next = payload.new as Record<string, unknown> | null | undefined;
         setStatsState(normalizeProfileStats(next ?? null));
       });
-    channel.subscribe().catch(() => {});
+    channel.subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
