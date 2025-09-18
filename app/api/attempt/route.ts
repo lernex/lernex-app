@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
-import { createClient } from "@supabase/supabase-js";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import type { Database } from "@/lib/types_db";
 
 export const dynamic = "force-dynamic";
 
@@ -12,20 +13,15 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: "Invalid payload" }), { status: 400 });
     }
 
-    const cookieStore = await cookies(); // ✅ Next 15 expects await here
-    const accessToken = cookieStore.get("sb-access-token")?.value ?? "";
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const sb = createClient(supabaseUrl, supabaseAnon, {
-      global: { headers: { Authorization: `Bearer ${accessToken}` } },
-    });
-
-    const { data: auth } = await sb.auth.getUser();
+    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const { data: auth } = await supabase.auth.getUser();
     const uid = auth?.user?.id;
-    if (!uid) return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
+    if (!uid) {
+      console.warn("[api/attempt] unauthorized: missing user session");
+      return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
+    }
 
-    const { error } = await sb.from("attempts").insert({
+    const { error } = await supabase.from("attempts").insert({
       user_id: uid,
       lesson_id,
       subject: typeof subject === "string" ? subject : null,
@@ -40,7 +36,7 @@ export async function POST(req: NextRequest) {
     // Update profile points + streak
     const today = new Date().toISOString().slice(0, 10);
     const nowIso = new Date().toISOString();
-    const { data: prof } = await sb
+    const { data: prof } = await supabase
       .from("profiles")
       .select("points, streak, last_study_date")
       .eq("id", uid)
@@ -71,7 +67,7 @@ export async function POST(req: NextRequest) {
       }
     }
     const addPts = Math.max(0, Number(correct_count) || 0) * 10;
-    const { data: updatedProfile, error: updateError } = await sb
+    const { data: updatedProfile, error: updateError } = await supabase
       .from("profiles")
       .update({
         last_study_date: today,
@@ -88,7 +84,7 @@ export async function POST(req: NextRequest) {
 
     // Progress update: mark completion and advance to next subtopic when appropriate
     if (typeof subject === 'string' && typeof topic === 'string') {
-      const { data: state } = await sb
+      const { data: state } = await supabase
         .from('user_subject_state')
         .select('path, next_topic')
         .eq('user_id', uid)
@@ -144,7 +140,7 @@ export async function POST(req: NextRequest) {
             }
           }
           const newPath = { ...(path ?? {}), topics, progress: { ...(path?.progress ?? {}), topicIdx, subtopicIdx, deliveredMini } };
-          await sb
+          await supabase
             .from('user_subject_state')
             .update({ next_topic: nextTopicStr, path: newPath, updated_at: new Date().toISOString() })
             .eq('user_id', uid)
