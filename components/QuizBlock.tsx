@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Lesson } from "@/types";
 import { useLernexStore } from "@/lib/store";
+import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
+import { normalizeProfileStats } from "@/lib/profile-stats";
 import FormattedText from "./FormattedText";
 
 // Lightweight SFX helpers (WebAudio)
@@ -96,6 +98,7 @@ type QuizBlockProps = {
 };
 
 export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBlockProps) {
+  const { stats, setStats, refresh } = useProfileStats();
   const recordAnswer = useLernexStore((s) => s.recordAnswer);
   // Normalize questions while keeping hooks unconditional
   const questions = Array.isArray(lesson.questions) ? lesson.questions : [];
@@ -155,19 +158,48 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
       setQ(qIndex + 1);
       setSel(null);
     } else {
-      try {
-        fetch("/api/attempt", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            lesson_id: lesson.id,
-            subject: lesson.subject,
-            topic: lesson.topic ?? undefined,
-            correct_count: correctCount,
-            total: questions.length,
-          }),
-        }).catch(() => {});
-      } catch {}
+      const attemptPayload = {
+        lesson_id: lesson.id,
+        subject: lesson.subject,
+        topic: lesson.topic ?? undefined,
+        correct_count: correctCount,
+        total: questions.length,
+      };
+      void (async () => {
+        try {
+          const res = await fetch("/api/attempt", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(attemptPayload),
+          });
+          const payload = (await res.json().catch(() => ({}))) as Record<string, unknown> | undefined;
+          if (!res.ok) {
+            console.warn("[quiz-block] attempt failed", { status: res.status, payload });
+            return;
+          }
+          const profileData = payload && typeof payload === "object" && "profile" in payload
+            ? (payload as { profile: Record<string, unknown> | null }).profile
+            : null;
+          if (profileData && typeof profileData === "object") {
+            setStats(normalizeProfileStats(profileData));
+          } else if (payload && typeof payload === "object" && typeof (payload as { addPts?: unknown }).addPts === "number") {
+            const addPts = Number((payload as { addPts: number }).addPts) || 0;
+            const newStreak = typeof (payload as { newStreak?: unknown }).newStreak === "number"
+              ? Number((payload as { newStreak: number }).newStreak)
+              : stats?.streak ?? 0;
+            const fallback = {
+              points: (stats?.points ?? 0) + addPts,
+              streak: newStreak,
+              last_study_date: new Date().toISOString().slice(0, 10),
+              updated_at: new Date().toISOString(),
+            };
+            setStats(normalizeProfileStats(fallback));
+          }
+          await refresh().catch(() => {});
+        } catch (err) {
+          console.warn("[quiz-block] attempt request error", err);
+        }
+      })();
       // Completion effects + summary
       try { playFanfare(); } catch {}
       try { confettiBurst(window.innerWidth / 2, window.innerHeight * 0.25, { count: 80, spread: 120, power: 12 }); } catch {}

@@ -4,9 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PlacementItem, PlacementState, PlacementNextResponse } from "@/types/placement";
 import { useRouter } from "next/navigation";
 import FormattedText from "@/components/FormattedText";
+import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
+import { normalizeProfileStats } from "@/lib/profile-stats";
 
 export default function PlacementClient() {
   const router = useRouter();
+  const { stats, setStats, refresh } = useProfileStats();
   const DEBUG = process.env.NEXT_PUBLIC_PLACEMENT_DEBUG !== "0";
   const dlog = useCallback((...args: unknown[]) => { if (DEBUG) console.debug("[placement]", ...args); }, [DEBUG]);
 
@@ -58,18 +61,39 @@ export default function PlacementClient() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ state: finalState, correctTotal: ct, questionTotal: qt }),
       });
-      const j = await res.json().catch(() => ({}));
+      const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        dlog("finish: non-OK", { status: res.status, j });
+        dlog("finish: non-OK", { status: res.status, payload });
       } else {
         dlog("finish: ok");
+        if (payload && typeof payload === "object") {
+          const profileData = "profile" in payload
+            ? (payload as { profile: Record<string, unknown> | null }).profile
+            : null;
+          if (profileData && typeof profileData === "object") {
+            setStats(normalizeProfileStats(profileData));
+          } else if (typeof (payload as { addPts?: unknown }).addPts === "number") {
+            const addPts = Number((payload as { addPts: number }).addPts) || 0;
+            const newStreakVal = typeof (payload as { newStreak?: unknown }).newStreak === "number"
+              ? Number((payload as { newStreak: number }).newStreak)
+              : stats?.streak ?? 0;
+            const fallback = {
+              points: (stats?.points ?? 0) + addPts,
+              streak: newStreakVal,
+              last_study_date: new Date().toISOString().slice(0, 10),
+              updated_at: new Date().toISOString(),
+            };
+            setStats(normalizeProfileStats(fallback));
+          }
+        }
+        await refresh().catch(() => {});
       }
     } catch (e) {
       dlog("finish: catch", e instanceof Error ? e.message : String(e));
     } finally {
       router.replace("/app");
     }
-  }, [router, dlog]);
+  }, [router, dlog, refresh, setStats, stats]);
 
   const prefetchNext = useCallback(async (payload: { state: PlacementState; item: PlacementItem; answer: number }, key: string) => {
     try { dlog("prefetch", { step: payload.state.step, key }); } catch {}

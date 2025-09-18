@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { PostgrestError, User } from "@supabase/supabase-js";
+import type { PostgrestError, SupabaseClient, User } from "@supabase/supabase-js";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { normalizeProfileStats, type ProfileStats } from "@/lib/profile-stats";
 
@@ -16,6 +16,74 @@ type ProfileStatsContextValue = {
 };
 
 const ProfileStatsContext = createContext<ProfileStatsContextValue | undefined>(undefined);
+
+function startOfUTCDay(date: Date) {
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
+
+function isoToday() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function ensureStreakForToday(
+  supabase: SupabaseClient,
+  userId: string,
+  stats: ProfileStats
+): Promise<ProfileStats> {
+  const todayStr = isoToday();
+  const today = new Date();
+  const last = stats.lastStudyDate;
+  let shouldUpdate = false;
+  let nextStreak = stats.streak > 0 ? stats.streak : 0;
+
+  if (!last) {
+    nextStreak = Math.max(1, nextStreak || 1);
+    shouldUpdate = true;
+  } else {
+    const lastDate = new Date(last);
+    if (!Number.isFinite(lastDate.getTime())) {
+      nextStreak = Math.max(1, nextStreak || 1);
+      shouldUpdate = true;
+    } else {
+      const diff = Math.floor(
+        (startOfUTCDay(today) - startOfUTCDay(lastDate)) / 86400000
+      );
+      if (diff === 0) {
+        if (nextStreak <= 0) {
+          nextStreak = 1;
+          shouldUpdate = true;
+        }
+      } else if (diff === 1) {
+        nextStreak = Math.max(nextStreak + 1, 1);
+        shouldUpdate = true;
+      } else if (diff > 1) {
+        nextStreak = 1;
+        shouldUpdate = true;
+      }
+    }
+  }
+
+  if (!shouldUpdate) return stats;
+
+  const updatedAt = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      last_study_date: todayStr,
+      streak: nextStreak,
+      updated_at: updatedAt,
+    })
+    .eq("id", userId)
+    .select("points, streak, last_study_date, updated_at")
+    .maybeSingle();
+
+  if (error) {
+    console.warn("[profile-stats] ensureStreakForToday update failed", error);
+    return stats;
+  }
+
+  return normalizeProfileStats((data as Record<string, unknown> | null | undefined) ?? null);
+}
 
 export function ProfileStatsProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => supabaseBrowser(), []);
@@ -62,7 +130,16 @@ export function ProfileStatsProvider({ children }: { children: React.ReactNode }
         .eq("id", userId)
         .maybeSingle();
       if (profileError) throw profileError;
-      setStatsState(normalizeProfileStats((data as Record<string, unknown> | null | undefined) ?? null));
+
+      let normalized = normalizeProfileStats((data as Record<string, unknown> | null | undefined) ?? null);
+      if (data) {
+        try {
+          normalized = await ensureStreakForToday(supabase, userId, normalized);
+        } catch (streakErr) {
+          console.warn("[profile-stats] ensureStreakForToday error", streakErr);
+        }
+      }
+      setStatsState(normalized);
       setError(null);
     } catch (err) {
       setError(err as PostgrestError | Error);

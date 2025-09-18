@@ -38,28 +38,53 @@ export async function POST(req: NextRequest) {
     }
 
     // Update profile points + streak
-    const today = new Date().toISOString().slice(0,10);
+    const today = new Date().toISOString().slice(0, 10);
+    const nowIso = new Date().toISOString();
     const { data: prof } = await sb
       .from("profiles")
       .select("points, streak, last_study_date")
       .eq("id", uid)
       .maybeSingle();
+    const currentPoints = (prof?.points as number | null) ?? 0;
     const last = (prof?.last_study_date as string | null) ?? null;
-    let newStreak = 1;
-    if (last) {
-      const d0 = new Date(today);
-      const d1 = new Date(last);
-      const diff = Math.floor((+d0 - +d1)/86400000);
-      if (diff === 0) newStreak = (prof?.streak as number | null) ?? 1;
-      else newStreak = diff === 1 ? (((prof?.streak as number | null) ?? 0) + 1) : 1;
+    const previousStreak = (prof?.streak as number | null) ?? 0;
+    let newStreak = previousStreak > 0 ? previousStreak : 0;
+    if (!last) {
+      newStreak = Math.max(1, newStreak || 1);
+    } else {
+      const lastDate = new Date(last);
+      if (!Number.isFinite(lastDate.getTime())) {
+        newStreak = Math.max(1, newStreak || 1);
+      } else {
+        const todayDate = new Date();
+        const diff = Math.floor((
+          Date.UTC(todayDate.getUTCFullYear(), todayDate.getUTCMonth(), todayDate.getUTCDate()) -
+          Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), lastDate.getUTCDate())
+        ) / 86400000);
+        if (diff === 0) {
+          newStreak = Math.max(newStreak, 1);
+        } else if (diff === 1) {
+          newStreak = Math.max(newStreak + 1, 1);
+        } else if (diff > 1) {
+          newStreak = 1;
+        }
+      }
     }
     const addPts = Math.max(0, Number(correct_count) || 0) * 10;
-    await sb.from("profiles").update({
-      last_study_date: today,
-      streak: newStreak,
-      points: ((prof?.points as number | null) ?? 0) + addPts,
-      updated_at: new Date().toISOString(),
-    }).eq("id", uid);
+    const { data: updatedProfile, error: updateError } = await sb
+      .from("profiles")
+      .update({
+        last_study_date: today,
+        streak: newStreak,
+        points: currentPoints + addPts,
+        updated_at: nowIso,
+      })
+      .eq("id", uid)
+      .select("points, streak, last_study_date, updated_at")
+      .maybeSingle();
+    if (updateError) {
+      return new Response(JSON.stringify({ error: updateError.message }), { status: 500 });
+    }
 
     // Progress update: mark completion and advance to next subtopic when appropriate
     if (typeof subject === 'string' && typeof topic === 'string') {
@@ -128,7 +153,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, addPts, newStreak }), { status: 200 });
+    return new Response(JSON.stringify({
+      ok: true,
+      addPts,
+      newStreak: (updatedProfile?.streak as number | null) ?? newStreak,
+      profile: updatedProfile ?? null,
+    }), { status: 200 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Server error";
     return new Response(JSON.stringify({ error: msg }), { status: 500 });

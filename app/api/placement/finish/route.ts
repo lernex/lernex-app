@@ -65,9 +65,61 @@ export async function POST(req: Request) {
     correct_count: correctTotal,
     total: questionTotal,
   });
+  const today = new Date().toISOString().slice(0, 10);
+  const nowIso = new Date().toISOString();
+  const { data: prof } = await sb
+    .from("profiles")
+    .select("points, streak, last_study_date")
+    .eq("id", user.id)
+    .maybeSingle();
+  const currentPoints = (prof?.points as number | null) ?? 0;
+  const last = (prof?.last_study_date as string | null) ?? null;
+  const previousStreak = (prof?.streak as number | null) ?? 0;
+  let newStreak = previousStreak > 0 ? previousStreak : 0;
+  if (!last) {
+    newStreak = Math.max(1, newStreak || 1);
+  } else {
+    const lastDate = new Date(last);
+    if (!Number.isFinite(lastDate.getTime())) {
+      newStreak = Math.max(1, newStreak || 1);
+    } else {
+      const todayDate = new Date();
+      const diff = Math.floor((
+        Date.UTC(todayDate.getUTCFullYear(), todayDate.getUTCMonth(), todayDate.getUTCDate()) -
+        Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), lastDate.getUTCDate())
+      ) / 86400000);
+      if (diff === 0) {
+        newStreak = Math.max(newStreak, 1);
+      } else if (diff === 1) {
+        newStreak = Math.max(newStreak + 1, 1);
+      } else if (diff > 1) {
+        newStreak = 1;
+      }
+    }
+  }
+  const addPts = Math.max(0, Number(correctTotal) || 0) * 10;
+  const { data: updatedProfile, error: updateError } = await sb
+    .from("profiles")
+    .update({
+      last_study_date: today,
+      streak: newStreak,
+      points: currentPoints + addPts,
+      updated_at: nowIso,
+    })
+    .eq("id", user.id)
+    .select("points, streak, last_study_date, updated_at")
+    .maybeSingle();
+  if (updateError) {
+    return NextResponse.json({ error: updateError.message }, { status: 500 });
+  }
 
   // Clear the placement flag so /post-auth routes to /app next time
   await sb.from("profiles").update({ placement_ready: false }).eq("id", user.id);
   try { console.debug(`[placement-finish][${reqId}] done`, { nextTopic }); } catch {}
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    addPts,
+    newStreak: (updatedProfile?.streak as number | null) ?? newStreak,
+    profile: updatedProfile ?? null,
+  });
 }
