@@ -8,6 +8,7 @@ import ThemeToggle from "./ThemeToggle";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import type { LucideIcon } from "lucide-react";
 import {
   Home,
   Diamond,
@@ -159,7 +160,12 @@ export default function NavBar() {
       },
     ] as const;
 
-    const navItems = [
+    const navItems: {
+      href: string;
+      label: string;
+      icon: LucideIcon;
+      exact?: boolean;
+    }[] = [
       { href: "/app", label: "Home", icon: Home, exact: true },
       { href: "/pricing", label: "Pricing", icon: Diamond },
       { href: "/generate", label: "Generate", icon: Sparkles },
@@ -169,7 +175,7 @@ export default function NavBar() {
       { href: "/friends", label: "Friends", icon: Users },
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/support", label: "Support", icon: LifeBuoy },
-    ] as const;
+    ];
 
     return (
       <>
