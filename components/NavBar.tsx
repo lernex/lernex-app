@@ -318,7 +318,7 @@ export default function NavBar() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 8, scale: 0.98 }}
                         transition={{ duration: 0.18 }}
-                        className="absolute right-0 top-full z-30 mt-3 w-56 rounded-xl border border-white/12 bg-gradient-to-br from-white/95 via-white/85 to-white/75 py-2 text-neutral-900 shadow-xl dark:from-lernex-charcoal/95 dark:via-lernex-charcoal/80 dark:to-lernex-charcoal/70 dark:text-white"
+                        className="absolute right-0 bottom-full z-30 mb-3 w-56 rounded-xl border border-white/12 bg-gradient-to-br from-white/95 via-white/85 to-white/75 py-2 text-neutral-900 shadow-xl dark:from-lernex-charcoal/95 dark:via-lernex-charcoal/80 dark:to-lernex-charcoal/70 dark:text-white"
                       >
                         <Link
                           href="/settings"
