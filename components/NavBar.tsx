@@ -13,13 +13,13 @@ import {
   Diamond,
   Sparkles,
   BookOpen,
-  FileText,
   Trophy,
   Medal,
   Users,
-  Bell,
   BarChart3,
   LifeBuoy,
+  Flame,
+  Star,
 } from "lucide-react";
 
 export default function NavBar() {
@@ -30,6 +30,9 @@ export default function NavBar() {
   const router = useRouter();
   const pathname = usePathname();
   const menuRef = useRef<HTMLDivElement>(null);
+  const sideNavRef = useRef<HTMLDivElement>(null);
+  const collapseTimerRef = useRef<number | null>(null);
+  const [navExpanded, setNavExpanded] = useState(false);
   const supabase = useMemo(() => supabaseBrowser(), []);
 
   // Routes that should always use the top nav. We treat `/` as an exact match
@@ -75,207 +78,285 @@ export default function NavBar() {
   }, [open]);
 
   useEffect(() => {
-    document.body.style.marginLeft = showSideNav ? "5rem" : "0";
+    document.body.style.marginLeft = "0";
     return () => {
       document.body.style.marginLeft = "0";
     };
-  }, [showSideNav]);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mql = window.matchMedia("(pointer: coarse)");
+    const sync = () => setNavExpanded(mql.matches);
+    sync();
+    const handler = () => sync();
+    if (typeof mql.addEventListener === "function") {
+      mql.addEventListener("change", handler);
+      return () => mql.removeEventListener("change", handler);
+    }
+    // Fallback for Safari
+    mql.addListener(handler);
+    return () => mql.removeListener(handler);
+  }, []);
+
+  useEffect(() => () => {
+    if (collapseTimerRef.current) {
+      window.clearTimeout(collapseTimerRef.current);
+    }
+  }, []);
 
   if (showSideNav) {
     const isActive = (href: string, exact = false) =>
       exact ? pathname === href : pathname.startsWith(href);
 
-    const baseIconClasses =
-      "group relative flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/50 text-neutral-700 shadow-sm transition hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 dark:bg-white/5 dark:text-white/90";
+    const handleNavEnter = () => {
+      if (collapseTimerRef.current) {
+        window.clearTimeout(collapseTimerRef.current);
+        collapseTimerRef.current = null;
+      }
+      setNavExpanded(true);
+    };
+
+    const handleNavLeave = () => {
+      if (collapseTimerRef.current) {
+        window.clearTimeout(collapseTimerRef.current);
+      }
+      collapseTimerRef.current = window.setTimeout(() => {
+        setNavExpanded(false);
+        collapseTimerRef.current = null;
+      }, 160);
+    };
+
+    const tileBase =
+      "relative flex w-full min-h-[3.25rem] items-center rounded-2xl border border-white/20 bg-gradient-to-br from-white/95 via-white/80 to-white/65 px-3 text-sm font-medium text-neutral-700 shadow-sm backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:from-white/10 dark:via-white/5 dark:to-white/0 dark:text-white/90";
     const activeClasses =
-      "!bg-lernex-blue/15 !text-lernex-blue !border-lernex-blue/30 dark:!bg-lernex-blue/20";
+      "border-lernex-blue/60 bg-gradient-to-br from-lernex-blue/20 via-lernex-blue/10 to-lernex-purple/15 text-lernex-blue dark:border-lernex-blue/50 dark:text-lernex-blue/90";
+    const iconShell =
+      "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-white/90 via-white/70 to-white/50 text-neutral-600 shadow-inner dark:from-white/10 dark:via-white/5 dark:to-white/0 dark:text-neutral-200";
+    const activeIconShell =
+      "from-lernex-blue/20 via-lernex-blue/10 to-lernex-purple/10 text-lernex-blue dark:from-lernex-blue/25 dark:via-lernex-blue/15 dark:to-lernex-purple/15 dark:text-lernex-blue/90";
+    const badgeBase =
+      "absolute -bottom-1 -right-1 min-w-[1.75rem] rounded-full px-1.5 py-0.5 text-center text-[11px] font-semibold shadow-sm";
+
+    const metrics = [
+      {
+        key: "streak",
+        label: "Streak",
+        value: streak ?? 0,
+        Icon: Flame,
+        iconTone:
+          "from-orange-300/35 via-orange-200/20 to-transparent text-orange-500 dark:text-orange-300",
+        badgeTone: "bg-orange-500/90 text-white dark:bg-orange-400/80",
+      },
+      {
+        key: "points",
+        label: "Points",
+        value: points ?? 0,
+        Icon: Star,
+        iconTone:
+          "from-amber-300/35 via-amber-200/20 to-transparent text-amber-500 dark:text-amber-300",
+        badgeTone: "bg-amber-500/90 text-white dark:bg-amber-400/80",
+      },
+    ] as const;
+
+    const navItems = [
+      { href: "/app", label: "Home", icon: Home, exact: true },
+      { href: "/pricing", label: "Pricing", icon: Diamond },
+      { href: "/generate", label: "Generate", icon: Sparkles },
+      { href: "/playlists", label: "Playlists", icon: BookOpen },
+      { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
+      { href: "/achievements", label: "Achievements", icon: Medal },
+      { href: "/friends", label: "Friends", icon: Users },
+      { href: "/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/support", label: "Support", icon: LifeBuoy },
+    ] as const;
 
     return (
-      <nav className="fixed left-0 top-0 z-20 flex h-screen w-20 flex-col justify-between border-r border-white/10 bg-gradient-to-b from-white/80 to-white/60 text-neutral-900 shadow-sm backdrop-blur-md transition-colors dark:from-lernex-charcoal/80 dark:to-lernex-charcoal/60 dark:text-white">
-        <div className="mt-4 flex flex-col items-center gap-6">
-          <Link
-            href={user ? "/app" : "/"}
-            className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent transition-colors hover:opacity-80"
-          >
-            Lernex
-          </Link>
-          <span className="rounded-full border border-neutral-200 bg-neutral-100 px-2 py-1 text-xs dark:border-white/10 dark:bg-white/5">
-            🔥 {streak}
-          </span>
-          <span className="rounded-full border border-neutral-200 bg-neutral-100 px-2 py-1 text-xs dark:border-white/10 dark:bg-white/5">
-            ⭐ {points}
-          </span>
-          {/* Quick home link */}
-          <Link
-            href="/app"
-            title="Home"
-            aria-label="Home"
-            className={`${baseIconClasses} ${isActive("/app", true) ? activeClasses : ""}`}
-            aria-current={isActive("/app", true) ? "page" : undefined}
-          >
-            <Home className="h-5 w-5" />
-          </Link>
-          {/* Primary actions */}
-          <Link
-            href="/pricing"
-            title="Pricing"
-            aria-label="Pricing"
-            className={`${baseIconClasses} ${isActive("/pricing") ? activeClasses : ""}`}
-            aria-current={isActive("/pricing") ? "page" : undefined}
-          >
-            <Diamond className="h-5 w-5" />
-          </Link>
-          <Link
-            href="/generate"
-            title="Generate"
-            aria-label="Generate"
-            className={`${baseIconClasses} ${isActive("/generate") ? activeClasses : ""}`}
-            aria-current={isActive("/generate") ? "page" : undefined}
-          >
-            <Sparkles className="h-5 w-5" />
-          </Link>
-          <Link
-            href="/playlists"
-            title="Playlists"
-            aria-label="Playlists"
-            className={`${baseIconClasses} ${isActive("/playlists") ? activeClasses : ""}`}
-            aria-current={isActive("/playlists") ? "page" : undefined}
-          >
-            <BookOpen className="h-5 w-5" />
-          </Link>
-          <Link
-            href="/docs"
-            title="Docs"
-            aria-label="Docs"
-            className={`${baseIconClasses} ${isActive("/docs") ? activeClasses : ""}`}
-            aria-current={isActive("/docs") ? "page" : undefined}
-          >
-            <FileText className="h-5 w-5" />
-          </Link>
-          <Link
-            href="/leaderboard"
-            title="Leaderboard"
-            aria-label="Leaderboard"
-            className={`${baseIconClasses} ${isActive("/leaderboard") ? activeClasses : ""}`}
-            aria-current={isActive("/leaderboard") ? "page" : undefined}
-          >
-            <Trophy className="h-5 w-5" />
-          </Link>
-          {/* Secondary ideas */}
-          <div className="mt-1 flex flex-col items-center gap-3">
-            <Link
-              href="/achievements"
-              title="Achievements"
-              aria-label="Achievements"
-              className={`${baseIconClasses} ${isActive("/achievements") ? activeClasses : ""}`}
-              aria-current={isActive("/achievements") ? "page" : undefined}
-            >
-              <Medal className="h-5 w-5" />
-            </Link>
-            <Link
-              href="/friends"
-              title="Friends"
-              aria-label="Friends"
-              className={`${baseIconClasses} ${isActive("/friends") ? activeClasses : ""}`}
-              aria-current={isActive("/friends") ? "page" : undefined}
-            >
-              <Users className="h-5 w-5" />
-            </Link>
-            <Link
-              href="/notifications"
-              title="Notifications"
-              aria-label="Notifications"
-              className={`${baseIconClasses} ${isActive("/notifications") ? activeClasses : ""}`}
-              aria-current={isActive("/notifications") ? "page" : undefined}
-            >
-              <Bell className="h-5 w-5" />
-            </Link>
-            <Link
-              href="/analytics"
-              title="Analytics"
-              aria-label="Analytics"
-              className={`${baseIconClasses} ${isActive("/analytics") ? activeClasses : ""}`}
-              aria-current={isActive("/analytics") ? "page" : undefined}
-            >
-              <BarChart3 className="h-5 w-5" />
-            </Link>
-            <Link
-              href="/support"
-              title="Support"
-              aria-label="Support"
-              className={`${baseIconClasses} ${isActive("/support") ? activeClasses : ""}`}
-              aria-current={isActive("/support") ? "page" : undefined}
-            >
-              <LifeBuoy className="h-5 w-5" />
-            </Link>
-          </div>
-        </div>
-        <div className="relative mb-4 flex flex-col items-center gap-3" ref={menuRef}>
-          <ThemeToggle className="bg-transparent text-neutral-900 dark:text-white text-xs px-2 py-1 border border-white/15 hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-lernex-blue/40" />
-          {user && (
-            <>
-              <button
-                onClick={() => setOpen((o) => !o)}
-                className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 shadow-sm transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 dark:border-white/10 dark:bg-white/5"
+      <>
+        <div
+          className="fixed left-0 top-0 z-[21] h-screen w-5 cursor-pointer"
+          onMouseEnter={handleNavEnter}
+          aria-hidden="true"
+        />
+        <motion.nav
+          ref={sideNavRef}
+          initial={false}
+          animate={{
+            x: navExpanded ? 0 : -232,
+            width: navExpanded ? 248 : 112,
+          }}
+          transition={{ type: "spring", stiffness: 320, damping: 32 }}
+          className="fixed left-0 top-0 z-[22] flex h-screen flex-col border-r border-white/10 bg-gradient-to-b from-white/90 via-white/80 to-white/65 text-neutral-900 shadow-xl backdrop-blur-xl transition-colors dark:from-lernex-charcoal/90 dark:via-lernex-charcoal/75 dark:to-lernex-charcoal/65 dark:text-white"
+          onMouseEnter={handleNavEnter}
+          onMouseLeave={handleNavLeave}
+          onFocusCapture={handleNavEnter}
+          onBlurCapture={(event) => {
+            if (!sideNavRef.current?.contains(event.relatedTarget as Node)) {
+              handleNavLeave();
+            }
+          }}
+        >
+          <div className="flex h-full flex-col">
+            <div className="flex items-center gap-3 px-4 pt-6">
+              <Link
+                href={user ? "/app" : "/"}
+                className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent transition-opacity hover:opacity-80"
               >
-                {user.user_metadata?.avatar_url ? (
-                  <Image src={user.user_metadata.avatar_url} alt="avatar" width={40} height={40} />
-                ) : (
-                  <span className="text-sm font-semibold">
-                    {user.email?.[0]?.toUpperCase()}
-                  </span>
-                )}
-              </button>
-              <AnimatePresence>
-                {open && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute left-14 bottom-0 mb-2 w-44 rounded-md border border-white/10 bg-gradient-to-br from-white to-neutral-100 py-2 text-neutral-900 shadow-lg dark:from-lernex-charcoal dark:to-neutral-900 dark:text-white"
+                Lernex
+              </Link>
+              {navExpanded && (
+                <span className="rounded-full bg-gradient-to-r from-lernex-blue/15 to-lernex-purple/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.25em] text-lernex-blue/80 dark:text-lernex-blue/70">
+                  Dashboard
+                </span>
+              )}
+            </div>
+            <div
+              className="mt-6 flex flex-col px-4"
+              style={{ gap: "clamp(0.65rem, 1.4vh, 1.1rem)" }}
+            >
+              {metrics.map(({ key, label, value, Icon, iconTone, badgeTone }) => {
+                const numeric = typeof value === "number" ? value : Number(value ?? 0);
+                const safeValue = Number.isFinite(numeric) ? numeric : 0;
+                const badgeText = safeValue > 999 ? "999+" : safeValue.toString();
+                const formattedValue = safeValue.toLocaleString();
+                return (
+                  <div
+                    key={key}
+                    className={`${tileBase} ${navExpanded ? "justify-start" : "justify-center"} gap-3`}
                   >
-                    <Link
-                      href="/settings"
-                      className="block px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
-                      onClick={() => setOpen(false)}
-                    >
-                      Settings
-                    </Link>
-                    <Link
-                      href="/profile"
-                      className="block px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
-                      onClick={() => setOpen(false)}
-                    >
-                      Profile
-                    </Link>
-                    <a
-                      href="https://lernex-1.gitbook.io/lernex"
-                      className="block px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={() => setOpen(false)}
-                    >
-                      Privacy
-                    </a>
-                    <ThemeToggle className="w-full bg-transparent px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20" />
-                    <button
-                      onClick={async () => {
-                        await supabase.auth.signOut();
-                        setOpen(false);
-                        router.replace("/login");
-                      }}
-                      className="block w-full px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
-                    >
-                      Logout
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </>
-          )}
-        </div>
-      </nav>
+                    <span className={`${iconShell} ${iconTone}`}>
+                      <Icon className="h-5 w-5" />
+                      <span className={`${badgeBase} ${badgeTone}`}>{badgeText}</span>
+                    </span>
+                    {navExpanded && (
+                      <div className="flex flex-col leading-tight">
+                        <span className="text-[10px] uppercase tracking-[0.26em] text-neutral-500 dark:text-neutral-400">
+                          {label}
+                        </span>
+                        <span className="text-base font-semibold text-neutral-900 dark:text-white">
+                          {formattedValue}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div
+              className="mt-6 flex flex-1 flex-col px-4"
+              style={{ gap: "clamp(0.85rem, 2vh, 1.35rem)" }}
+            >
+              {navItems.map(({ href, label, icon: Icon, exact }) => {
+                const active = isActive(href, exact);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    title={label}
+                    aria-label={label}
+                    aria-current={active ? "page" : undefined}
+                    className={`${tileBase} ${navExpanded ? "justify-start" : "justify-center"} gap-3 ${active ? activeClasses : ""}`}
+                  >
+                    <span className={`${iconShell} ${active ? activeIconShell : ""}`}>
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    {navExpanded && (
+                      <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+                        {label}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+            {user && (
+              <div className="px-4 pb-6">
+                <div
+                  className={`${tileBase} ${navExpanded ? "justify-start" : "justify-center"} gap-3`}
+                  ref={menuRef}
+                >
+                  <button
+                    onClick={() => setOpen((o) => !o)}
+                    className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/30 bg-white/80 shadow-inner transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 dark:border-white/15 dark:bg-white/10"
+                    aria-label="Account menu"
+                    aria-expanded={open}
+                  >
+                    {user.user_metadata?.avatar_url ? (
+                      <Image
+                        src={user.user_metadata.avatar_url}
+                        alt="avatar"
+                        width={44}
+                        height={44}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-sm font-semibold text-neutral-700 dark:text-white">
+                        {user.email?.[0]?.toUpperCase()}
+                      </span>
+                    )}
+                  </button>
+                  {navExpanded && (
+                    <div className="flex min-w-0 flex-1 flex-col text-left">
+                      <span className="truncate text-sm font-semibold text-neutral-900 dark:text-white">
+                        {user.user_metadata?.full_name ?? user.email}
+                      </span>
+                      <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                        Manage profile
+                      </span>
+                    </div>
+                  )}
+                  <AnimatePresence>
+                    {open && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                        transition={{ duration: 0.18 }}
+                        className="absolute right-0 top-full z-30 mt-3 w-56 rounded-xl border border-white/12 bg-gradient-to-br from-white/95 via-white/85 to-white/75 py-2 text-neutral-900 shadow-xl dark:from-lernex-charcoal/95 dark:via-lernex-charcoal/80 dark:to-lernex-charcoal/70 dark:text-white"
+                      >
+                        <Link
+                          href="/settings"
+                          className="block px-4 py-2 text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                          onClick={() => setOpen(false)}
+                        >
+                          Settings
+                        </Link>
+                        <Link
+                          href="/profile"
+                          className="block px-4 py-2 text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                          onClick={() => setOpen(false)}
+                        >
+                          Profile
+                        </Link>
+                        <a
+                          href="https://lernex-1.gitbook.io/lernex"
+                          className="block px-4 py-2 text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => setOpen(false)}
+                        >
+                          Privacy
+                        </a>
+                        <ThemeToggle className="w-full bg-transparent px-4 py-2 text-left text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20" />
+                        <button
+                          onClick={async () => {
+                            await supabase.auth.signOut();
+                            setOpen(false);
+                            router.replace("/login");
+                          }}
+                          className="block w-full px-4 py-2 text-left text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                        >
+                          Logout
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.nav>
+      </>
     );
   }
 

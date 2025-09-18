@@ -37,7 +37,8 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
     } catch {}
   };
 
-  const baseClass = "relative flex h-full flex-col overflow-hidden rounded-[28px] border border-neutral-200/70 bg-white/80 shadow-xl transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-2xl backdrop-blur dark:border-neutral-800/70 dark:bg-neutral-900/70";
+  const baseClass =
+    "relative flex h-full flex-col overflow-hidden rounded-[28px] border border-white/20 bg-gradient-to-br from-white/95 via-white/80 to-white/65 shadow-xl ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-2xl backdrop-blur-xl dark:border-white/10 dark:from-white/10 dark:via-white/5 dark:to-white/0";
   const rootClass = className ? baseClass + " " + className : baseClass;
 
   const helpfulClass = [
@@ -63,7 +64,7 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
 
   return (
     <div ref={cardRef} className={rootClass}>
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(96,165,250,0.18),transparent_55%),radial-gradient(circle_at_85%_80%,rgba(192,132,252,0.18),transparent_52%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.2),transparent_55%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.18),transparent_48%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.08),transparent_60%)]" />
       <div className="relative flex min-h-0 flex-1 flex-col gap-4 px-5 py-6 sm:px-6 md:py-7">
         <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">
           {lesson.subject}

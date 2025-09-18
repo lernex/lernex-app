@@ -393,7 +393,11 @@ export default function FypFeed() {
   const progressLabel = loadingInfo?.phase ?? "Preparing your personalized feed";
 
   return (
-    <div ref={containerRef} className="relative h-[calc(100vh-56px)] w-full max-w-3xl mx-auto px-2 sm:px-4 lg:px-6 overflow-hidden">
+    <div
+      ref={containerRef}
+      className="relative mx-auto h-[calc(100vh-56px)] w-full max-w-[420px] overflow-hidden px-3 sm:px-4"
+      style={{ maxWidth: "min(420px, 92vw)" }}
+    >
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.18),transparent_40%),radial-gradient(circle_at_80%_80%,rgba(168,85,247,0.18),transparent_40%)]" />
       <AnimatePresence>
         {showCompleteHint && (
@@ -460,10 +464,16 @@ export default function FypFeed() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -40, opacity: 0 }}
             transition={{ type: "spring", stiffness: 260, damping: 26 }}
-            className="absolute inset-0 flex flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8"
+            className="absolute inset-0 flex flex-col gap-5 px-3 py-6 sm:px-4"
           >
             <div className="flex-1 min-h-0">
-              <LessonCard lesson={cur} className="h-full" />
+              <div className="mx-auto flex h-full max-h-full w-full max-w-[380px] justify-center" style={{ maxWidth: "min(380px, 90vw)" }}>
+                <div className="relative h-full w-full" style={{ aspectRatio: "9 / 16" }}>
+                  <div className="absolute inset-0">
+                    <LessonCard lesson={cur} className="h-full" />
+                  </div>
+                </div>
+              </div>
             </div>
             {requiresQuiz && (
               <div className="flex flex-col gap-3">
