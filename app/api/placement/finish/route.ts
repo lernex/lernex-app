@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { PlacementState } from "@/types/placement";
 import { supabaseServer } from "@/lib/supabase-server";
+import type { Database } from "@/lib/types_db";
 import { generateLearningPath, type LevelMap } from "@/lib/learning-path";
 
 export const dynamic = "force-dynamic";
@@ -58,13 +59,38 @@ export async function POST(req: Request) {
   }, { onConflict: "user_id,subject" });
 
   // Log a compact attempts row
-  await sb.from("attempts").insert({
+  const baseAttempt: Database["public"]["Tables"]["attempts"]["Insert"] = {
     user_id: user.id,
-    subject: state.subject,
-    level: state.course,
     correct_count: correctTotal,
     total: questionTotal,
+  };
+  const subjectValue = typeof state.subject === "string" && state.subject.trim().length ? state.subject.trim() : null;
+  const courseValue = typeof state.course === "string" && state.course.trim().length ? state.course.trim() : null;
+  const buildAttempt = (includeSubject: boolean, includeLevel: boolean) => ({
+    ...baseAttempt,
+    ...(includeSubject && subjectValue ? { subject: subjectValue } : {}),
+    ...(includeLevel && courseValue ? { level: courseValue } : {}),
   });
+  let includeSubject = !!subjectValue;
+  let includeLevel = !!courseValue;
+  let attemptPayload = buildAttempt(includeSubject, includeLevel);
+  let { error: attemptError } = await sb.from("attempts").insert(attemptPayload);
+  if (attemptError?.code === "PGRST204" && includeSubject) {
+    console.warn("[placement-finish] subject column missing; retry without subject");
+    includeSubject = false;
+    attemptPayload = buildAttempt(includeSubject, includeLevel);
+    ({ error: attemptError } = await sb.from("attempts").insert(attemptPayload));
+  }
+  if (attemptError?.code === "PGRST204" && includeLevel) {
+    console.warn("[placement-finish] level column missing; retry without level");
+    includeLevel = false;
+    attemptPayload = buildAttempt(includeSubject, includeLevel);
+    ({ error: attemptError } = await sb.from("attempts").insert(attemptPayload));
+  }
+  if (attemptError) {
+    console.error("[placement-finish] attempts insert failed", attemptError);
+    return NextResponse.json({ error: attemptError.message }, { status: 500 });
+  }
   const today = new Date().toISOString().slice(0, 10);
   const nowIso = new Date().toISOString();
   const { data: prof } = await sb

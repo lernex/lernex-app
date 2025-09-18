@@ -21,13 +21,28 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
     }
 
-    const { error: insertError } = await supabase.from("attempts").insert({
+    const baseAttempt: Database["public"]["Tables"]["attempts"]["Insert"] = {
       user_id: uid,
-      lesson_id,
-      subject: typeof subject === "string" ? subject : null,
+      lesson_id: typeof lesson_id === "string" ? lesson_id : null,
       correct_count,
       total,
+    };
+    const subjectValue = typeof subject === "string" && subject.trim().length ? subject.trim() : null;
+
+    const buildAttempt = (includeSubject: boolean) => ({
+      ...baseAttempt,
+      ...(includeSubject && subjectValue ? { subject: subjectValue } : {}),
     });
+
+    let includeSubject = !!subjectValue;
+    let attemptPayload = buildAttempt(includeSubject);
+    let { error: insertError } = await supabase.from("attempts").insert(attemptPayload);
+    if (insertError?.code === "PGRST204" && includeSubject) {
+      console.warn("[api/attempt] subject column missing; retrying without subject");
+      includeSubject = false;
+      attemptPayload = buildAttempt(includeSubject);
+      ({ error: insertError } = await supabase.from("attempts").insert(attemptPayload));
+    }
     if (insertError) {
       console.error("[api/attempt] attempts insert failed", insertError);
       return new Response(
