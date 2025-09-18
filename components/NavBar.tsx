@@ -1,10 +1,10 @@
 "use client";
 import Link from "next/link";
-import { useLernexStore } from "@/lib/store";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { User } from "@supabase/supabase-js";
 import ThemeToggle from "./ThemeToggle";
+import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -24,7 +24,9 @@ import {
 } from "lucide-react";
 
 export default function NavBar() {
-  const { points, streak } = useLernexStore();
+  const { stats } = useProfileStats();
+  const points = stats?.points ?? 0;
+  const streak = stats?.streak ?? 0;
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [open, setOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);

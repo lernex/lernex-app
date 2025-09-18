@@ -1,12 +1,16 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useLernexStore } from "@/lib/store";
+import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import Image from "next/image";
 import Link from "next/link";
 
 export default function Profile() {
-  const { points, streak, accuracyBySubject } = useLernexStore();
+  const { accuracyBySubject } = useLernexStore();
+  const { stats } = useProfileStats();
+  const points = stats?.points ?? 0;
+  const streak = stats?.streak ?? 0;
   const [email, setEmail] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [username, setUsername] = useState<string>("");

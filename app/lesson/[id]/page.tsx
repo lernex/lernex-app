@@ -6,9 +6,11 @@ import { lessons } from "@/data/lessons";
 import LessonCard from "@/components/LessonCard";
 import QuizBlock from "@/components/QuizBlock";
 import { bumpStreakAndPoints } from "@/lib/user";
+import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
 
 export default function LessonPage() {
   const { id } = useParams<{ id: string }>();
+  const { setStats } = useProfileStats();
   const router = useRouter();
 
   const lesson = useMemo(() => lessons.find((l) => l.id === id), [id]);
@@ -27,7 +29,9 @@ export default function LessonPage() {
             lesson={lesson}
             onDone={(correctCount) => {
               // award cloud points: +10 per correct
-              bumpStreakAndPoints(correctCount * 10).catch(() => {});
+              bumpStreakAndPoints(correctCount * 10)
+                .then((updated) => { if (updated) setStats(updated); })
+                .catch(() => {});
               // go back to the vertical feed after a short beat
               setTimeout(() => router.push("/"), 200);
             }}

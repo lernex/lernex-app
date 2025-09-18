@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useLernexStore } from "@/lib/store";
+import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
 
 type ProfileRow = { id: string; username: string | null; points: number | null; streak: number | null };
 type RawProfile = { id?: unknown; username?: unknown; points?: unknown; streak?: unknown };
@@ -23,7 +24,10 @@ function normalizeProfiles(rows: unknown[] | null | undefined): ProfileRow[] {
 
 export default function Leaderboard() {
   const supabase = useMemo(() => supabaseBrowser(), []);
-  const { points, streak, accuracyBySubject } = useLernexStore();
+  const { accuracyBySubject } = useLernexStore();
+  const { stats } = useProfileStats();
+  const points = stats?.points ?? 0;
+  const streak = stats?.streak ?? 0;
   const bestSubject = Object.entries(accuracyBySubject).sort((a, b) => {
     const ap = a[1].total ? a[1].correct / a[1].total : 0;
     const bp = b[1].total ? b[1].correct / b[1].total : 0;

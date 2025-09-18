@@ -96,8 +96,6 @@ type QuizBlockProps = {
 };
 
 export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBlockProps) {
-  const addPoints = useLernexStore((s) => s.addPoints);
-  const bumpStreak = useLernexStore((s) => s.bumpStreakIfNewDay);
   const recordAnswer = useLernexStore((s) => s.recordAnswer);
   // Normalize questions while keeping hooks unconditional
   const questions = Array.isArray(lesson.questions) ? lesson.questions : [];
@@ -128,10 +126,8 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
     setSel(idx);
     const isCorrect = idx === q.correctIndex;
     recordAnswer(lesson.subject, isCorrect);
-    bumpStreak();
     if (isCorrect) {
       setCorrectCount((c) => c + 1);
-      addPoints(10);
       // SFX + confetti near the clicked button
       try {
         const btn = ev?.currentTarget as HTMLElement | undefined;
