@@ -3,7 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { Lesson } from "@/types";
 import FormattedText from "./FormattedText";
 
-export default function LessonCard({ lesson }: { lesson: Lesson }) {
+type LessonCardProps = {
+  lesson: Lesson;
+  className?: string;
+};
+
+export default function LessonCard({ lesson, className }: LessonCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -11,7 +16,7 @@ export default function LessonCard({ lesson }: { lesson: Lesson }) {
 
   // Mount guard: Once the lesson content is in the DOM, run a local
   // MathJax typeset against just this card to ensure stable formatting after
-  // the preview → card swap.
+  // the preview -> card swap.
   useEffect(() => {
     const el = cardRef.current;
     if (!el) return;
@@ -22,7 +27,7 @@ export default function LessonCard({ lesson }: { lesson: Lesson }) {
     });
   }, [lesson.id, lesson.content]);
 
-  const sendFeedback = async (action: "like"|"dislike"|"save") => {
+  const sendFeedback = async (action: "like" | "dislike" | "save") => {
     try {
       await fetch("/api/fyp/feedback", {
         method: "POST",
@@ -32,41 +37,76 @@ export default function LessonCard({ lesson }: { lesson: Lesson }) {
     } catch {}
   };
 
+  const baseClass = "relative flex h-full flex-col overflow-hidden rounded-[28px] border border-neutral-200/70 bg-white/80 shadow-xl transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-2xl backdrop-blur dark:border-neutral-800/70 dark:bg-neutral-900/70";
+  const rootClass = className ? baseClass + " " + className : baseClass;
+
+  const helpfulClass = [
+    "px-3 py-1.5 rounded-full border transition-shadow",
+    liked
+      ? "border-green-400/70 bg-green-50/80 text-green-700 shadow-sm dark:border-green-500/50 dark:bg-green-500/10 dark:text-green-300"
+      : "border-neutral-200/80 bg-neutral-100/80 text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700/70 dark:bg-neutral-800/60 dark:text-neutral-300 dark:hover:bg-neutral-800",
+  ].join(" ");
+
+  const saveClass = [
+    "px-3 py-1.5 rounded-full border transition-shadow",
+    saved
+      ? "border-amber-400/70 bg-amber-50/80 text-amber-700 shadow-sm dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-200"
+      : "border-neutral-200/80 bg-neutral-100/80 text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700/70 dark:bg-neutral-800/60 dark:text-neutral-300 dark:hover:bg-neutral-800",
+  ].join(" ");
+
+  const dislikeClass = [
+    "ml-auto px-3 py-1.5 rounded-full border transition-shadow",
+    disliked
+      ? "border-red-400/70 bg-red-50/80 text-red-700 shadow-sm dark:border-red-400/40 dark:bg-red-500/10 dark:text-red-200"
+      : "border-neutral-200/80 bg-neutral-100/80 text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700/70 dark:bg-neutral-800/60 dark:text-neutral-300 dark:hover:bg-neutral-800",
+  ].join(" ");
+
   return (
-     <div ref={cardRef} className="rounded-[28px] overflow-hidden border border-neutral-200 bg-white/80 backdrop-blur shadow-xl transition-transform hover:scale-[1.02] hover:shadow-2xl dark:border-neutral-800 dark:bg-neutral-900/80">
-      <div className="absolute inset-0 -z-10 bg-gradient-to-br from-lernex-blue/10 via-transparent to-lernex-purple/10" />
-      <div className="p-5 space-y-2">
-        <div className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+    <div ref={cardRef} className={rootClass}>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(96,165,250,0.18),transparent_55%),radial-gradient(circle_at_85%_80%,rgba(192,132,252,0.18),transparent_52%)]" />
+      <div className="relative flex min-h-0 flex-1 flex-col gap-4 px-5 py-6 sm:px-6 md:py-7">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">
           {lesson.subject}
         </div>
-        <h2 className="text-xl font-semibold">{lesson.title}</h2>
-        <p className="leading-relaxed whitespace-pre-wrap text-neutral-700 dark:text-neutral-300">
-          <FormattedText text={lesson.content} />
-        </p>
-        <div className="pt-3 flex items-center gap-2">
+        <h2 className="text-xl font-semibold leading-snug text-neutral-900 dark:text-white">{lesson.title}</h2>
+        <div className="relative flex-1 min-h-0">
+          <div className="lesson-scroll h-full overflow-y-auto pr-1 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+            <FormattedText text={lesson.content} />
+          </div>
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white via-white/80 to-transparent dark:from-neutral-900 dark:via-neutral-900/80" />
+        </div>
+        <div className="pt-2 flex flex-wrap items-center gap-2 text-sm">
           <button
             onClick={() => { setLiked(true); setDisliked(false); void sendFeedback("like"); }}
-            className={`px-3 py-1.5 rounded-full text-sm border transition ${liked ? "bg-green-100/70 border-green-300 text-green-800" : "bg-neutral-100/80 border-neutral-200 text-neutral-600 hover:bg-neutral-200"}`}
-            aria-label="Like"
+            className={helpfulClass}
+            aria-label="Mark lesson as helpful"
           >
-            👍 Helpful
+            Helpful
           </button>
           <button
             onClick={() => { setSaved((s) => !s); void sendFeedback("save"); }}
-            className={`px-3 py-1.5 rounded-full text-sm border transition ${saved ? "bg-amber-100/70 border-amber-300 text-amber-800" : "bg-neutral-100/80 border-neutral-200 text-neutral-600 hover:bg-neutral-200"}`}
-            aria-label="Save"
+            className={saveClass}
+            aria-label="Save lesson"
           >
-            📌 Save
+            {saved ? "Saved" : "Save"}
           </button>
           <button
             onClick={() => { setDisliked(true); setLiked(false); void sendFeedback("dislike"); }}
-            className={`px-3 py-1.5 rounded-full text-sm border transition ml-auto ${disliked ? "bg-red-100/70 border-red-300 text-red-800" : "bg-neutral-100/80 border-neutral-200 text-neutral-600 hover:bg-neutral-200"}`}
+            className={dislikeClass}
             aria-label="Not helpful"
           >
-            👎 Not helpful
+            Not helpful
           </button>
         </div>
       </div>
+      <style jsx>{`
+        .lesson-scroll::-webkit-scrollbar {
+          display: none;
+        }
+        .lesson-scroll {
+          scrollbar-width: none;
+        }
+      `}</style>
     </div>
   );
 }

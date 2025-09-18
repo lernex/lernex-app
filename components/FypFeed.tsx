@@ -141,6 +141,11 @@ export default function FypFeed() {
   const cooldownRef = useRef(new Map<string | null, number>());
   const [loadingInfo, setLoadingInfo] = useState<LoadingState | null>(null);
   const [indeterminateTick, setIndeterminateTick] = useState(0);
+  const [completedMap, setCompletedMap] = useState<Record<string, boolean>>({});
+  const [showCompleteHint, setShowCompleteHint] = useState(false);
+  const [autoAdvancing, setAutoAdvancing] = useState(false);
+  const autoAdvanceRef = useRef<number | null>(null);
+  const hintTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!loadingInfo || typeof loadingInfo.pct === "number") {
@@ -152,6 +157,11 @@ export default function FypFeed() {
     }, 500);
     return () => window.clearInterval(id);
   }, [loadingInfo]);
+
+  useEffect(() => () => {
+    if (autoAdvanceRef.current) window.clearTimeout(autoAdvanceRef.current);
+    if (hintTimeoutRef.current) window.clearTimeout(hintTimeoutRef.current);
+  }, []);
 
   const ensureBuffer = useCallback(async (minAhead = 3) => {
     if (fetching.current) return;
@@ -235,6 +245,14 @@ export default function FypFeed() {
     }
   }, [items.length, i, rotation]);
 
+  const triggerHint = useCallback(() => {
+    setShowCompleteHint(true);
+    if (hintTimeoutRef.current) window.clearTimeout(hintTimeoutRef.current);
+    hintTimeoutRef.current = window.setTimeout(() => {
+      setShowCompleteHint(false);
+    }, 2200);
+  }, []);
+
   // Bootstrap
   useEffect(() => {
     if (!initialized) {
@@ -251,6 +269,17 @@ export default function FypFeed() {
     setError(null);
     setInitialized(false);
     setLoadingInfo(null);
+    setCompletedMap({});
+    setShowCompleteHint(false);
+    setAutoAdvancing(false);
+    if (autoAdvanceRef.current) {
+      window.clearTimeout(autoAdvanceRef.current);
+      autoAdvanceRef.current = null;
+    }
+    if (hintTimeoutRef.current) {
+      window.clearTimeout(hintTimeoutRef.current);
+      hintTimeoutRef.current = null;
+    }
     cooldownRef.current.clear();
     subjIdxRef.current = 0;
   }, [subjectsKey]);
@@ -262,10 +291,65 @@ export default function FypFeed() {
 
   const prev = useCallback(() => {
     setI((x) => Math.max(0, x - 1));
+    setShowCompleteHint(false);
+    if (hintTimeoutRef.current) {
+      window.clearTimeout(hintTimeoutRef.current);
+      hintTimeoutRef.current = null;
+    }
   }, []);
-  const next = useCallback(() => {
-    setI((x) => Math.min(items.length - 1, x + 1));
-  }, [items.length]);
+  const next = useCallback((force = false) => {
+    let advanced = false;
+    setI((x) => {
+      const current = items[x];
+      if (!current) return x;
+      const requiresQuiz = Array.isArray(current.questions) && current.questions.length > 0;
+      const completed = !requiresQuiz || !!completedMap[current.id];
+      if (!force && !completed) {
+        triggerHint();
+        return x;
+      }
+      const nextIdx = Math.min(items.length - 1, x + 1);
+      if (nextIdx !== x) {
+        advanced = true;
+      }
+      return nextIdx;
+    });
+    if (advanced) {
+      setShowCompleteHint(false);
+      if (hintTimeoutRef.current) {
+        window.clearTimeout(hintTimeoutRef.current);
+        hintTimeoutRef.current = null;
+      }
+      if (autoAdvanceRef.current) {
+        window.clearTimeout(autoAdvanceRef.current);
+        autoAdvanceRef.current = null;
+      }
+      setAutoAdvancing(false);
+    }
+    return advanced;
+  }, [items, completedMap, triggerHint]);
+
+  const handleLessonComplete = useCallback((lesson: Lesson) => {
+    setCompletedMap((prev) => (prev[lesson.id] ? prev : { ...prev, [lesson.id]: true }));
+    setShowCompleteHint(false);
+    if (hintTimeoutRef.current) {
+      window.clearTimeout(hintTimeoutRef.current);
+      hintTimeoutRef.current = null;
+    }
+    if (autoAdvanceRef.current) {
+      window.clearTimeout(autoAdvanceRef.current);
+      autoAdvanceRef.current = null;
+    }
+    if (items.length - (i + 1) <= 2) {
+      void ensureBuffer(4);
+    }
+    setAutoAdvancing(true);
+    autoAdvanceRef.current = window.setTimeout(() => {
+      next(true);
+      setAutoAdvancing(false);
+      autoAdvanceRef.current = null;
+    }, 360);
+  }, [ensureBuffer, i, items.length, next]);
 
   // Keyboard navigation like the static feed
   useEffect(() => {
@@ -294,6 +378,8 @@ export default function FypFeed() {
   }, [next, prev]);
 
   const cur = items[i];
+  const requiresQuiz = cur ? Array.isArray(cur.questions) && cur.questions.length > 0 : false;
+  const currentCompleted = cur ? (!requiresQuiz || !!completedMap[cur.id]) : true;
   const acc = cur ? accuracyBySubject[cur.subject] : undefined;
   const pct = acc?.total ? Math.round((acc.correct / acc.total) * 100) : null;
   const progressPct = useMemo(() => {
@@ -307,8 +393,22 @@ export default function FypFeed() {
   const progressLabel = loadingInfo?.phase ?? "Preparing your personalized feed";
 
   return (
-    <div ref={containerRef} className="relative h-[calc(100vh-56px)] w-full max-w-md mx-auto overflow-hidden">
+    <div ref={containerRef} className="relative h-[calc(100vh-56px)] w-full max-w-3xl mx-auto px-2 sm:px-4 lg:px-6 overflow-hidden">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.18),transparent_40%),radial-gradient(circle_at_80%_80%,rgba(168,85,247,0.18),transparent_40%)]" />
+      <AnimatePresence>
+        {showCompleteHint && (
+          <motion.div
+            key="locked-hint"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="pointer-events-none absolute top-6 left-1/2 z-20 -translate-x-1/2 rounded-full bg-neutral-900/80 px-4 py-2 text-xs font-medium text-white shadow-lg backdrop-blur dark:bg-neutral-800/80"
+          >
+            Finish the quiz to unlock the next mini-lesson.
+          </motion.div>
+        )}
+      </AnimatePresence>
       {!cur && !error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
           <div className="text-sm font-medium text-neutral-600 dark:text-neutral-200">
@@ -346,34 +446,64 @@ export default function FypFeed() {
         <AnimatePresence initial={false} mode="wait">
           <motion.div
             key={cur.id}
-            drag="y"
+            drag={currentCompleted ? "y" : false}
             dragConstraints={{ top: 0, bottom: 0 }}
             onDragEnd={(_, info) => {
+              if (!currentCompleted) {
+                triggerHint();
+                return;
+              }
               if (info.offset.y < -120) next();
               if (info.offset.y > 120) prev();
             }}
-            initial={{ y: 50, opacity: 0 }}
+            initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -50, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 260, damping: 24 }}
-            className="absolute inset-0 px-4 py-5"
+            exit={{ y: -40, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 260, damping: 26 }}
+            className="absolute inset-0 flex flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8"
           >
-            <LessonCard lesson={cur} />
-            {Array.isArray(cur.questions) && cur.questions.length > 0 && (
-              <QuizBlock
-                lesson={cur}
-                onDone={() => {
-                  setTimeout(next, 250);
-                }}
-              />
+            <div className="flex-1 min-h-0">
+              <LessonCard lesson={cur} className="h-full" />
+            </div>
+            {requiresQuiz && (
+              <div className="flex flex-col gap-3">
+                <QuizBlock
+                  lesson={cur}
+                  showSummary={false}
+                  onDone={() => handleLessonComplete(cur)}
+                />
+                {!currentCompleted && (
+                  <div className="rounded-xl border border-dashed border-amber-300/60 bg-amber-50/70 px-4 py-2 text-sm text-amber-700 shadow-sm dark:border-amber-400/50 dark:bg-amber-500/10 dark:text-amber-200">
+                    Finish the quiz to unlock the next mini-lesson.
+                  </div>
+                )}
+              </div>
             )}
-            <div className="mt-3 text-xs text-neutral-400 text-center">
-              Tip: Swipe up/down, use mouse wheel, or arrow keys.
-              {pct !== null && <div>So far in <b>{cur.subject}</b>: {pct}% correct</div>}
+            {!requiresQuiz && (
+              <div className="rounded-xl border border-lime-300/60 bg-lime-50/70 px-4 py-2 text-sm text-lime-700 shadow-sm dark:border-lime-400/50 dark:bg-lime-500/10 dark:text-lime-200">
+                No quiz for this one - enjoy the lesson!
+              </div>
+            )}
+            <div className="mt-auto text-xs text-neutral-400 text-center dark:text-neutral-500">
+              <div className="flex flex-col items-center gap-1 sm:flex-row sm:justify-center sm:gap-3">
+                <span>Tip: Swipe up/down, use mouse wheel, or arrow keys.</span>
+                {autoAdvancing && (
+                  <span className="flex items-center gap-1 text-lernex-blue dark:text-lernex-blue/80">
+                    <span className="h-1.5 w-1.5 animate-ping rounded-full bg-current" />
+                    Preparing your next mini-lesson...
+                  </span>
+                )}
+              </div>
+              {pct !== null && (
+                <div className="mt-1">
+                  So far in <b>{cur.subject}</b>: {pct}% correct
+                </div>
+              )}
             </div>
           </motion.div>
         </AnimatePresence>
       )}
+
     </div>
   );
 }

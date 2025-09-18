@@ -15,11 +15,14 @@ export default function PlacementClient() {
   const [branches, setBranches] = useState<PlacementNextResponse["branches"] | null>(null);
   const [pendingNext, setPendingNext] = useState<{ state: PlacementState; item: PlacementItem | null } | null>(null);
   const [pendingAnswer, setPendingAnswer] = useState<{ state: PlacementState; item: PlacementItem; answer: number } | null>(null);
+  const prefetchKeyRef = useRef<string | null>(null);
+  const prefetchAbortRef = useRef<AbortController | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [nextLoading, setNextLoading] = useState(false);
   const nextLoadingRef = useRef(false);
+  const [prefetching, setPrefetching] = useState(false);
 
   const [selected, setSelected] = useState<number | null>(null);
   const [correctTotal, setCorrectTotal] = useState(0);
@@ -33,6 +36,10 @@ export default function PlacementClient() {
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(() => () => {
+    prefetchAbortRef.current?.abort();
+  }, []);
 
   // Finish handler: persist results, generate level map, clear placement flag
   const finishingRef = useRef(false);
@@ -63,6 +70,38 @@ export default function PlacementClient() {
       router.replace("/app");
     }
   }, [router, dlog]);
+
+  const prefetchNext = useCallback(async (payload: { state: PlacementState; item: PlacementItem; answer: number }, key: string) => {
+    try { dlog("prefetch", { step: payload.state.step, key }); } catch {}
+    prefetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    prefetchAbortRef.current = controller;
+    prefetchKeyRef.current = key;
+    try {
+      const res = await fetch("/api/placement/next", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state: payload.state, lastAnswer: payload.answer, lastItem: payload.item }),
+        signal: controller.signal,
+      });
+      const data: PlacementNextResponse | { error?: string } = await res.json();
+      if (prefetchKeyRef.current !== key) { return; }
+      if (!res.ok || !("state" in data)) { throw new Error((("error" in data) && data.error) || `HTTP ${res.status}`); }
+      const d = data as PlacementNextResponse;
+      setPendingNext({ state: d.state, item: d.item ?? null });
+      setBranches(d.branches ?? null);
+      setPrefetching(false);
+    } catch (e) {
+      if (controller.signal.aborted || prefetchKeyRef.current !== key) { return; }
+      dlog("prefetch: catch", e instanceof Error ? e.message : String(e));
+      setPrefetching(false);
+    } finally {
+      if (prefetchKeyRef.current === key) {
+        prefetchAbortRef.current = null;
+        prefetchKeyRef.current = null;
+      }
+    }
+  }, [dlog]);
 
   // 1) Prime: load first question + prefetch branches
   const primeRanRef = useRef(false);
@@ -114,20 +153,39 @@ export default function PlacementClient() {
 
   // 2) Select answer and wait for user to move on
   const answer = (idx: number) => {
-    if (!item || !state) return;
+    if (!item || !state || selected !== null) return;
     dlog("answer", { idx, correctIndex: item.correctIndex, correct: idx === item.correctIndex });
     setSelected(idx);
     const correct = idx === item.correctIndex;
     setQuestionTotal((t) => t + 1);
     if (correct) setCorrectTotal((c) => c + 1);
 
-    const next = correct ? branches?.right : branches?.wrong;
-    if (next && next.state) setPendingNext(next);
-    setPendingAnswer({ state, item, answer: idx });
+    const payload = { state, item, answer: idx };
+    setPendingAnswer(payload);
+
+    const branch = correct ? branches?.right : branches?.wrong;
+    const branchState = branch?.state ?? null;
+    const branchItem = branch?.item ?? null;
+    const hasImmediateNext = !!(branchState && (branchItem !== null || branchState?.done));
+
+    if (hasImmediateNext && branchState) {
+      setPendingNext({ state: branchState, item: branchItem });
+      setPrefetching(false);
+    } else {
+      if (branchState) {
+        setPendingNext({ state: branchState, item: branchItem });
+      } else {
+        setPendingNext(null);
+      }
+      setPrefetching(true);
+      const key = [state.subject, state.course, state.step, idx].join("-");
+      void prefetchNext(payload, key);
+    }
   };
 
-    const nextQuestion = async () => {
+  const nextQuestion = async () => {
     if (!pendingAnswer || nextLoadingRef.current) { dlog("nextQuestion: guard", { hasPending: !!pendingAnswer, loading: nextLoadingRef.current }); return; }
+    if (prefetching) { dlog("nextQuestion: prefetch in-flight; continuing"); }
     nextLoadingRef.current = true;
     setNextLoading(true);
     const prev = pendingAnswer;
@@ -180,6 +238,9 @@ export default function PlacementClient() {
         .catch((e) => { dlog("prefetch-advance: catch", e instanceof Error ? e.message : String(e)); });
     } else {
       // Fallback: no usable prefetched item, request synchronously
+      prefetchAbortRef.current?.abort();
+      prefetchKeyRef.current = null;
+      setPrefetching(false);
       try {
         setLoading(true);
         dlog("sync-advance: POST /api/placement/next");
@@ -223,7 +284,7 @@ export default function PlacementClient() {
   };
 
   if (loading && !item) {
-    return <div className="min-h-screen grid place-items-center text-neutral-900 dark:text-white">Loading placement…</div>;
+    return <div className="min-h-screen grid place-items-center text-neutral-900 dark:text-white">Loading placement...</div>;
   }
   if (err) {
     return (
@@ -261,7 +322,7 @@ export default function PlacementClient() {
     <main className="min-h-screen grid place-items-center text-neutral-900 dark:text-white bg-gradient-to-br from-blue-50 to-purple-50 dark:from-neutral-900 dark:to-neutral-800">
       <div className="w-full max-w-md px-4 py-6 space-y-4 rounded-2xl bg-white border border-neutral-200 shadow-lg dark:bg-neutral-900 dark:border-neutral-800">
         <div className="flex items-center justify-between text-sm text-neutral-500 dark:text-neutral-400">
-          <div>{state.subject} • {state.course}</div>
+          <div>{state.subject} - {state.course}</div>
           <div>Step {state.step} / {state.maxSteps}</div>
         </div>
         <div className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Difficulty: {state.difficulty}</div>
@@ -304,7 +365,7 @@ export default function PlacementClient() {
             <button
               onClick={nextQuestion}
               disabled={nextLoading}
-              className={`px-4 py-2 rounded-xl bg-lernex-blue text-white transition-transform transform animate-fade-in ${nextLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-lernex-blue/90 hover:scale-105"}`}
+              className={"px-4 py-2 rounded-xl bg-lernex-blue text-white transition-transform transform animate-fade-in " + (nextLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-lernex-blue/90 hover:scale-105") }
             >
               {nextLoading ? "Loading..." : "Next"}
             </button>

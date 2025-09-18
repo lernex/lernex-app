@@ -89,7 +89,13 @@ function confettiBurst(x: number, y: number, opts?: { count?: number; spread?: n
   }
 }
 
-export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: (correctCount: number) => void; }) {
+type QuizBlockProps = {
+  lesson: Lesson;
+  onDone: (correctCount: number) => void;
+  showSummary?: boolean;
+};
+
+export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBlockProps) {
   const addPoints = useLernexStore((s) => s.addPoints);
   const bumpStreak = useLernexStore((s) => s.bumpStreakIfNewDay);
   const recordAnswer = useLernexStore((s) => s.recordAnswer);
@@ -100,7 +106,7 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
   const [qIndex, setQ] = useState(0);
   const [selected, setSel] = useState<number | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
-  const [showSummary, setShowSummary] = useState(false);
+  const [showSummaryOverlay, setShowSummaryOverlay] = useState(false);
   const q = hasQuestions ? questions[qIndex] : undefined;
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -169,7 +175,7 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
       // Completion effects + summary
       try { playFanfare(); } catch {}
       try { confettiBurst(window.innerWidth / 2, window.innerHeight * 0.25, { count: 80, spread: 120, power: 12 }); } catch {}
-      setShowSummary(true);
+      if (showSummary) setShowSummaryOverlay(true);
       onDone(correctCount);
     }
   };
@@ -187,7 +193,7 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
 
   return hasQuestions && q ? (
     <>
-      <div ref={rootRef} className="rounded-[24px] bg-white/80 border border-neutral-200 p-5 mt-3 dark:bg-neutral-900/80 dark:border-neutral-800">
+      <div ref={rootRef} className="rounded-[24px] border border-neutral-200/70 bg-white/85 px-5 py-6 shadow-lg backdrop-blur transition-shadow duration-200 dark:border-neutral-800/70 dark:bg-neutral-900/80">
         <div className="mb-3 text-sm text-neutral-700 dark:text-neutral-300">
           <FormattedText text={q.prompt} />
         </div>
@@ -208,24 +214,24 @@ export default function QuizBlock({ lesson, onDone }: { lesson: Lesson; onDone: 
         </div>
       </div>
 
-      {showSummary && (
+      {showSummary && showSummaryOverlay && (
         <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-5 text-neutral-900 shadow-xl dark:border-neutral-800 dark:bg-neutral-900 dark:text-white">
             <div className="text-sm uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Lesson Complete</div>
-            <h3 className="mt-1 text-xl font-semibold">Great job! 🎉</h3>
+            <h3 className="mt-1 text-xl font-semibold">Great job!</h3>
             <div className="mt-3 text-sm">
               You answered <span className="font-semibold">{correctCount}</span> out of <span className="font-semibold">{questions.length}</span> correctly
               ({Math.round((correctCount / Math.max(1, questions.length)) * 100)}%).
             </div>
             <div className="mt-4 flex items-center gap-2">
               <button
-                onClick={() => { setShowSummary(false); }}
+                onClick={() => { setShowSummaryOverlay(false); }}
                 className="px-4 py-2 rounded-xl border border-neutral-300 bg-neutral-100 hover:bg-neutral-200 transition dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700"
               >
                 Close
               </button>
               <button
-                onClick={() => { setShowSummary(false); setQ(0); setSel(null); setCorrectCount(0); }}
+                onClick={() => { setShowSummaryOverlay(false); setQ(0); setSel(null); setCorrectCount(0); }}
                 className="ml-auto px-4 py-2 rounded-xl bg-lernex-blue hover:bg-blue-500 transition"
               >
                 Retry Quiz
