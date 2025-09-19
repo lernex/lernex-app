@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Lesson } from "@/types";
 import { useLernexStore } from "@/lib/store";
 import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
@@ -111,6 +111,31 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
   const q = hasQuestions ? questions[qIndex] : undefined;
   const rootRef = useRef<HTMLDivElement>(null);
 
+  const syncStatsFromPayload = useCallback((payload?: Record<string, unknown>) => {
+    if (!payload || typeof payload !== "object") return;
+    if ("profile" in payload) {
+      const profileData = (payload as { profile: unknown }).profile;
+      if (profileData && typeof profileData === "object") {
+        setStats(normalizeProfileStats(profileData as Record<string, unknown>));
+        return;
+      }
+    }
+    const addPtsValue = typeof (payload as { addPts?: unknown }).addPts === "number"
+      ? Number((payload as { addPts: number }).addPts)
+      : null;
+    if (addPtsValue === null) return;
+    const newStreakValue = typeof (payload as { newStreak?: unknown }).newStreak === "number"
+      ? Number((payload as { newStreak: number }).newStreak)
+      : null;
+    const fallback = {
+      points: (stats?.points ?? 0) + addPtsValue,
+      streak: newStreakValue ?? stats?.streak ?? 0,
+      last_study_date: new Date().toISOString().slice(0, 10),
+      updated_at: new Date().toISOString(),
+    };
+    setStats(normalizeProfileStats(fallback));
+  }, [setStats, stats]);
+
   // Ensure MathJax formats newly shown questions immediately after index
   // changes. This complements the per-element fallback in FormattedText and
   // helps when the entire question block swaps at once.
@@ -131,6 +156,29 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
     recordAnswer(lesson.subject, isCorrect);
     if (isCorrect) {
       setCorrectCount((c) => c + 1);
+      void (async () => {
+        try {
+          const res = await fetch("/api/attempt", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              event: "question-correct",
+              lesson_id: lesson.id,
+              subject: lesson.subject,
+              topic: lesson.topic ?? undefined,
+              correct_increment: 1,
+            }),
+          });
+          const payload = (await res.json().catch(() => ({}))) as Record<string, unknown> | undefined;
+          if (!res.ok) {
+            console.warn("[quiz-block] reward failed", { status: res.status, payload });
+            return;
+          }
+          syncStatsFromPayload(payload);
+        } catch (err) {
+          console.warn("[quiz-block] reward request error", err);
+        }
+      })();
       // SFX + confetti near the clicked button
       try {
         const btn = ev?.currentTarget as HTMLElement | undefined;
@@ -164,6 +212,8 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
         topic: lesson.topic ?? undefined,
         correct_count: correctCount,
         total: questions.length,
+        event: "lesson-finish",
+        skip_points: correctCount > 0,
       };
       void (async () => {
         try {
@@ -177,24 +227,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
             console.warn("[quiz-block] attempt failed", { status: res.status, payload });
             return;
           }
-          const profileData = payload && typeof payload === "object" && "profile" in payload
-            ? (payload as { profile: Record<string, unknown> | null }).profile
-            : null;
-          if (profileData && typeof profileData === "object") {
-            setStats(normalizeProfileStats(profileData));
-          } else if (payload && typeof payload === "object" && typeof (payload as { addPts?: unknown }).addPts === "number") {
-            const addPts = Number((payload as { addPts: number }).addPts) || 0;
-            const newStreak = typeof (payload as { newStreak?: unknown }).newStreak === "number"
-              ? Number((payload as { newStreak: number }).newStreak)
-              : stats?.streak ?? 0;
-            const fallback = {
-              points: (stats?.points ?? 0) + addPts,
-              streak: newStreak,
-              last_study_date: new Date().toISOString().slice(0, 10),
-              updated_at: new Date().toISOString(),
-            };
-            setStats(normalizeProfileStats(fallback));
-          }
+          syncStatsFromPayload(payload);
           await refresh().catch(() => {});
         } catch (err) {
           console.warn("[quiz-block] attempt request error", err);

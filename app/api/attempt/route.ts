@@ -9,123 +9,176 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const { lesson_id, subject, topic, correct_count, total } = await req.json();
-
-    const lessonIdRaw = typeof lesson_id === "string" ? lesson_id.trim() : "";
-    if (!lessonIdRaw || typeof correct_count !== "number" || typeof total !== "number") {
-      return new Response(JSON.stringify({ error: "Invalid payload" }), { status: 400 });
-    }
+    const body = (await req.json()) as Record<string, unknown> | null;
+    const {
+      lesson_id,
+      subject,
+      topic,
+      correct_count,
+      total,
+      event,
+      skip_points,
+      correct_increment,
+      points_per_correct,
+    } = (body ?? {}) as {
+      lesson_id?: unknown;
+      subject?: unknown;
+      topic?: unknown;
+      correct_count?: unknown;
+      total?: unknown;
+      event?: unknown;
+      skip_points?: unknown;
+      correct_increment?: unknown;
+      points_per_correct?: unknown;
+    };
 
     const supabase = createRouteHandlerClient<Database>({ cookies });
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth?.user?.id;
-    const normalizedLessonId = UUID_PATTERN.test(lessonIdRaw) ? lessonIdRaw : null;
-    const lessonSlug = normalizedLessonId ? null : lessonIdRaw;
     if (!uid) {
       console.warn("[api/attempt] unauthorized: missing user session");
       return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
     }
 
-    if (!normalizedLessonId && lessonSlug) {
-      console.info("[api/attempt] non-uuid lesson id; storing without lesson_id", { slug: lessonSlug });
-    }
-    const baseAttempt: Database["public"]["Tables"]["attempts"]["Insert"] = {
-      user_id: uid,
-      lesson_id: normalizedLessonId,
-      correct_count,
-      total,
-    };
     const subjectValue = typeof subject === "string" && subject.trim().length ? subject.trim() : null;
 
-    const buildAttempt = (includeSubject: boolean) => ({
-      ...baseAttempt,
-      ...(includeSubject && subjectValue ? { subject: subjectValue } : {}),
-    });
+    type EventType = "lesson-finish" | "question-correct";
+    const rawEvent = typeof event === "string" ? event : null;
+    const eventType: EventType = rawEvent === "question-correct" ? "question-correct" : "lesson-finish";
+    const skipPoints = eventType === "lesson-finish" && skip_points === true;
 
-    let includeSubject = !!subjectValue;
-    let attemptPayload = buildAttempt(includeSubject);
-    let { error: insertError } = await supabase.from("attempts").insert(attemptPayload);
-    if (insertError?.code === "PGRST204" && includeSubject) {
-      console.warn("[api/attempt] subject column missing; retrying without subject");
-      includeSubject = false;
-      attemptPayload = buildAttempt(includeSubject);
-      ({ error: insertError } = await supabase.from("attempts").insert(attemptPayload));
-    }
-    if (insertError) {
-      console.error("[api/attempt] attempts insert failed", insertError);
-      return new Response(
-        JSON.stringify({ error: insertError.message, hint: insertError.hint ?? null }),
-        { status: 500 }
-      );
-    }
+    let correctCountNumber = 0;
 
-    // Update profile points + streak
-    const today = new Date().toISOString().slice(0, 10);
-    const nowIso = new Date().toISOString();
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("points, streak, last_study_date")
-      .eq("id", uid)
-      .maybeSingle();
-    const currentPoints = (prof?.points as number | null) ?? 0;
-    const last = (prof?.last_study_date as string | null) ?? null;
-    const previousStreak = (prof?.streak as number | null) ?? 0;
-    let newStreak = previousStreak > 0 ? previousStreak : 0;
-    if (!last) {
-      newStreak = Math.max(1, newStreak || 1);
+    if (eventType === "lesson-finish") {
+      const lessonIdRaw = typeof lesson_id === "string" ? lesson_id.trim() : "";
+      if (!lessonIdRaw || typeof correct_count !== "number" || typeof total !== "number") {
+        return new Response(JSON.stringify({ error: "Invalid payload" }), { status: 400 });
+      }
+      correctCountNumber = Number(correct_count);
+      const normalizedLessonId = UUID_PATTERN.test(lessonIdRaw) ? lessonIdRaw : null;
+      const lessonSlug = normalizedLessonId ? null : lessonIdRaw;
+      if (!normalizedLessonId && lessonSlug) {
+        console.info("[api/attempt] non-uuid lesson id; storing without lesson_id", { slug: lessonSlug });
+      }
+
+      const totalNumber = Number(total);
+      const baseAttempt: Database["public"]["Tables"]["attempts"]["Insert"] = {
+        user_id: uid,
+        lesson_id: normalizedLessonId,
+        correct_count: correctCountNumber,
+        total: totalNumber,
+      };
+
+      const buildAttempt = (includeSubject: boolean) => ({
+        ...baseAttempt,
+        ...(includeSubject && subjectValue ? { subject: subjectValue } : {}),
+      });
+
+      let includeSubject = !!subjectValue;
+      let attemptPayload = buildAttempt(includeSubject);
+      let { error: insertError } = await supabase.from("attempts").insert(attemptPayload);
+      if (insertError?.code === "PGRST204" && includeSubject) {
+        console.warn("[api/attempt] subject column missing; retrying without subject");
+        includeSubject = false;
+        attemptPayload = buildAttempt(includeSubject);
+        ({ error: insertError } = await supabase.from("attempts").insert(attemptPayload));
+      }
+      if (insertError) {
+        console.error("[api/attempt] attempts insert failed", insertError);
+        return new Response(
+          JSON.stringify({ error: insertError.message, hint: insertError.hint ?? null }),
+          { status: 500 }
+        );
+      }
     } else {
-      const lastDate = new Date(last);
-      if (!Number.isFinite(lastDate.getTime())) {
+      correctCountNumber = typeof correct_count === "number" ? Number(correct_count) : 0;
+    }
+
+    const perCorrect =
+      typeof points_per_correct === "number" && Number.isFinite(points_per_correct) && points_per_correct > 0
+        ? Number(points_per_correct)
+        : 10;
+
+    const rawUnitsValue =
+      eventType === "question-correct"
+        ? Number(typeof correct_increment === "number" ? correct_increment : 1)
+        : Number(correctCountNumber);
+    const units = Number.isFinite(rawUnitsValue) ? Math.max(0, Math.floor(rawUnitsValue)) : 0;
+    const shouldAwardPoints = !skipPoints && units > 0;
+
+    let addPts = 0;
+    let updatedProfile: Record<string, unknown> | null = null;
+    let newStreak: number | null = null;
+
+    if (shouldAwardPoints) {
+      const today = new Date().toISOString().slice(0, 10);
+      const nowIso = new Date().toISOString();
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("points, streak, last_study_date")
+        .eq("id", uid)
+        .maybeSingle();
+      const currentPoints = (prof?.points as number | null) ?? 0;
+      const last = (prof?.last_study_date as string | null) ?? null;
+      const previousStreak = (prof?.streak as number | null) ?? 0;
+      newStreak = previousStreak > 0 ? previousStreak : 0;
+      if (!last) {
         newStreak = Math.max(1, newStreak || 1);
       } else {
-        const todayDate = new Date();
-        const diff = Math.floor(
-          (
-            Date.UTC(todayDate.getUTCFullYear(), todayDate.getUTCMonth(), todayDate.getUTCDate()) -
-            Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), lastDate.getUTCDate())
-          ) / 86400000
-        );
-        if (diff === 0) {
-          newStreak = Math.max(newStreak, 1);
-        } else if (diff === 1) {
-          newStreak = Math.max(newStreak + 1, 1);
-        } else if (diff > 1) {
-          newStreak = 1;
+        const lastDate = new Date(last);
+        if (!Number.isFinite(lastDate.getTime())) {
+          newStreak = Math.max(1, newStreak || 1);
+        } else {
+          const todayDate = new Date();
+          const diff = Math.floor(
+            (
+              Date.UTC(todayDate.getUTCFullYear(), todayDate.getUTCMonth(), todayDate.getUTCDate()) -
+              Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), lastDate.getUTCDate())
+            ) / 86400000
+          );
+          if (diff === 0) {
+            newStreak = Math.max(newStreak, 1);
+          } else if (diff === 1) {
+            newStreak = Math.max(newStreak + 1, 1);
+          } else if (diff > 1) {
+            newStreak = 1;
+          }
         }
       }
-    }
-    const addPts = Math.max(0, Number(correct_count) || 0) * 10;
-    const { data: updatedProfile, error: updateError } = await supabase
-      .from("profiles")
-      .update({
-        last_study_date: today,
-        streak: newStreak,
-        points: currentPoints + addPts,
-        updated_at: nowIso,
-      })
-      .eq("id", uid)
-      .select("points, streak, last_study_date, updated_at")
-      .maybeSingle();
-    if (updateError) {
-      console.error("[api/attempt] profiles update failed", updateError);
-      return new Response(
-        JSON.stringify({ error: updateError.message, hint: updateError.hint ?? null }),
-        { status: 500 }
-      );
+      addPts = units * perCorrect;
+      const { data: profile, error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          last_study_date: today,
+          streak: newStreak,
+          points: currentPoints + addPts,
+          updated_at: nowIso,
+        })
+        .eq("id", uid)
+        .select("points, streak, last_study_date, updated_at")
+        .maybeSingle();
+      if (updateError) {
+        console.error("[api/attempt] profiles update failed", updateError);
+        return new Response(
+          JSON.stringify({ error: updateError.message, hint: updateError.hint ?? null }),
+          { status: 500 }
+        );
+      }
+      updatedProfile = profile ?? null;
     }
 
-    // Progress update: mark completion and advance to next subtopic when appropriate
-    if (typeof subject === "string" && typeof topic === "string") {
+    const progressSubject = subjectValue ?? (typeof subject === "string" ? subject : null);
+    if (eventType === "lesson-finish" && progressSubject && typeof topic === "string") {
       const { data: state } = await supabase
         .from("user_subject_state")
         .select("path, next_topic")
         .eq("user_id", uid)
-        .eq("subject", subject)
+        .eq("subject", progressSubject)
         .maybeSingle();
       type Sub = { name: string; mini_lessons: number; completed?: boolean };
-      type Topic = { name: string; completed?: boolean; subtopics?: Sub[] };
+      type TopicEntry = { name: string; completed?: boolean; subtopics?: Sub[] };
       type Progress = { topicIdx?: number; subtopicIdx?: number; deliveredMini?: number };
-      const path = state?.path as { topics?: Topic[]; progress?: Progress } | null;
+      const path = state?.path as { topics?: TopicEntry[]; progress?: Progress } | null;
       const topics = path?.topics ?? [];
       const [tName, sName] = topic.split(">").map((x: string) => x.trim());
       const ti = topics.findIndex((t) => t?.name === tName);
@@ -137,7 +190,7 @@ export async function POST(req: NextRequest) {
           const planned = Math.max(1, Number(cur.mini_lessons || 1));
           const prog = (path?.progress ?? {}) as Progress;
           const curDelivered = Math.max(0, Number(prog.deliveredMini ?? 0));
-          let deliveredMini = curDelivered + 1; // increment on quiz finish
+          let deliveredMini = curDelivered + 1;
           let topicIdx = typeof prog.topicIdx === "number" ? prog.topicIdx : ti;
           let subtopicIdx = typeof prog.subtopicIdx === "number" ? prog.subtopicIdx : si;
           let nextTopicStr: string | null = `${tName} > ${sName}`;
@@ -149,7 +202,6 @@ export async function POST(req: NextRequest) {
               subtopics: subs,
               completed: subs.every((s) => s.completed === true),
             };
-            // Find next incomplete
             let found: [number, number] | null = null;
             for (let tj = ti; tj < topics.length && !found; tj++) {
               const ss = (topics[tj]?.subtopics ?? []) as Sub[];
@@ -190,7 +242,7 @@ export async function POST(req: NextRequest) {
             .from("user_subject_state")
             .update({ next_topic: nextTopicStr, path: newPath, updated_at: new Date().toISOString() })
             .eq("user_id", uid)
-            .eq("subject", subject);
+            .eq("subject", progressSubject);
           if (stateUpdateError) {
             console.error("[api/attempt] user_subject_state update failed", stateUpdateError);
           }

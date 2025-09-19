@@ -26,16 +26,38 @@ export default function ClassPicker() {
     return () => { alive = false; };
   }, []);
 
+  const normalizedSelection = useMemo(() => {
+    if (!selectedSubjects.length) return [];
+    const validSubjects = new Set(pairs.map((p) => p.subject));
+    const filtered = selectedSubjects.filter((s) => validSubjects.has(s));
+    return filtered;
+  }, [selectedSubjects, pairs]);
+
+  const currentPair = useMemo(() => {
+    if (normalizedSelection.length !== 1) return null;
+    return pairs.find((p) => p.subject === normalizedSelection[0]) ?? null;
+  }, [normalizedSelection, pairs]);
+
+  const isMixMode = normalizedSelection.length > 1;
+  const isAllMode = normalizedSelection.length === 0;
+
   const label = useMemo(() => {
-    if (selectedSubjects.length === 0) return "All";
-    if (selectedSubjects.length === 1) return selectedSubjects[0]!;
-    return "Merged";
-  }, [selectedSubjects]);
+    if (isAllMode) return "All";
+    if (isMixMode) return "Mix";
+    if (currentPair) return currentPair.course || currentPair.subject;
+    if (normalizedSelection.length === 1) return normalizedSelection[0]!;
+    return "Classes";
+  }, [isAllMode, isMixMode, currentPair, normalizedSelection]);
 
   const choose = (mode: "all" | "merge" | "one", subject?: string) => {
-    if (mode === "all") setSelectedSubjects([]); // let system pick from interests
-    else if (mode === "merge") setSelectedSubjects(pairs.map((p) => p.subject));
-    else if (mode === "one" && subject) setSelectedSubjects([subject]);
+    if (mode === "all") {
+      setSelectedSubjects([]);
+    } else if (mode === "merge") {
+      const subs = pairs.map((p) => p.subject).filter(Boolean);
+      setSelectedSubjects(subs);
+    } else if (mode === "one" && subject) {
+      setSelectedSubjects([subject]);
+    }
     setOpen(false);
   };
 
@@ -45,10 +67,13 @@ export default function ClassPicker() {
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="px-3 py-1.5 rounded-full text-sm border bg-white/80 dark:bg-neutral-900/80 text-neutral-700 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700 shadow-sm hover:shadow transition"
+        className="px-3 py-1.5 rounded-full text-sm border bg-white/85 dark:bg-neutral-900/85 text-neutral-700 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700 shadow-sm hover:shadow-md transition"
         title="Choose class feed"
       >
-        {label}
+        <span className="font-medium">{label}</span>
+        {currentPair && currentPair.course && currentPair.course !== currentPair.subject && (
+          <span className="ml-2 text-xs text-neutral-400 dark:text-neutral-500">{currentPair.subject}</span>
+        )}
         <span className="ml-1 inline-block align-middle text-neutral-400">▾</span>
       </button>
       {open && (
@@ -56,27 +81,52 @@ export default function ClassPicker() {
           <div className="px-3 py-2 text-xs uppercase tracking-wide text-neutral-400">Your classes</div>
           <div className="max-h-72 overflow-auto">
             {pairs.map((p) => {
-              const on = selectedSubjects.length === 1 && selectedSubjects[0] === p.subject;
+              const on = normalizedSelection.length === 1 && normalizedSelection[0] === p.subject;
               return (
                 <button
                   key={p.subject}
                   onClick={() => choose("one", p.subject)}
                   className={`w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800 ${on ? "bg-neutral-50 dark:bg-neutral-800" : ""}`}
                 >
-                  <div className="font-medium">{p.subject}</div>
-                  {p.course && <div className="text-xs text-neutral-500">{p.course}</div>}
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium">{p.course || p.subject}</div>
+                      {p.course && p.course !== p.subject && (
+                        <div className="text-xs text-neutral-500">{p.subject}</div>
+                      )}
+                    </div>
+                    {on && <span className="mt-1 inline-block h-2 w-2 rounded-full bg-lernex-blue" aria-hidden="true" />}
+                  </div>
                 </button>
               );
             })}
           </div>
           <div className="border-t border-neutral-200 dark:border-neutral-800" />
-          <div className="flex">
-            <button onClick={() => choose("all")} className="flex-1 px-4 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800">All</button>
-            <button onClick={() => choose("merge")} className="flex-1 px-4 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800 border-l border-neutral-200 dark:border-neutral-800">Merge</button>
+          <div className="px-2 py-2 text-xs uppercase tracking-wide text-neutral-400">Options</div>
+          <div className="pb-2">
+            <button
+              onClick={() => choose("merge")}
+              className={`w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800 ${isMixMode ? "bg-neutral-50 dark:bg-neutral-800" : ""}`}
+            >
+              <div className="flex items-center justify-between">
+                <span>Mix subjects</span>
+                {isMixMode && <span className="inline-block h-2 w-2 rounded-full bg-lernex-blue" aria-hidden="true" />}
+              </div>
+              <div className="text-xs text-neutral-500">Rotate through every class</div>
+            </button>
+            <button
+              onClick={() => choose("all")}
+              className={`w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800 ${isAllMode ? "bg-neutral-50 dark:bg-neutral-800" : ""}`}
+            >
+              <div className="flex items-center justify-between">
+                <span>All</span>
+                {isAllMode && <span className="inline-block h-2 w-2 rounded-full bg-lernex-blue" aria-hidden="true" />}
+              </div>
+              <div className="text-xs text-neutral-500">Let Lernex pick for you</div>
+            </button>
           </div>
         </div>
       )}
     </div>
   );
 }
-

@@ -255,7 +255,15 @@ Create exactly one discriminative multiple-choice question from the course's app
   const rawIdx = (item as unknown as { correctIndex: unknown }).correctIndex;
   let idx = typeof rawIdx === "number" ? rawIdx : Number(rawIdx);
   if (!Number.isFinite(idx) || idx < 0 || idx >= item.choices.length) { idx = 0; }
-  item.correctIndex = idx;
+  idx = Math.floor(idx);
+  const decoratedChoices = item.choices.map((choice, i) => ({ choice, originalIndex: i }));
+  for (let i = decoratedChoices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [decoratedChoices[i], decoratedChoices[j]] = [decoratedChoices[j], decoratedChoices[i]];
+  }
+  item.choices = decoratedChoices.map((entry) => entry.choice);
+  const newIndex = decoratedChoices.findIndex((entry) => entry.originalIndex === idx);
+  item.correctIndex = newIndex >= 0 ? newIndex : 0;
 
   // If model ignored instructions, retry a couple times
   if (avoid.some((a) => a.trim() === item.prompt.trim()) && depth < 2) {
