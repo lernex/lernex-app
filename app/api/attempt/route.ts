@@ -1,7 +1,9 @@
-﻿import { NextRequest } from "next/server";
+import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import type { Database } from "@/lib/types_db";
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const dynamic = "force-dynamic";
 
@@ -9,21 +11,27 @@ export async function POST(req: NextRequest) {
   try {
     const { lesson_id, subject, topic, correct_count, total } = await req.json();
 
-    if (!lesson_id || typeof correct_count !== "number" || typeof total !== "number") {
+    const lessonIdRaw = typeof lesson_id === "string" ? lesson_id.trim() : "";
+    if (!lessonIdRaw || typeof correct_count !== "number" || typeof total !== "number") {
       return new Response(JSON.stringify({ error: "Invalid payload" }), { status: 400 });
     }
 
     const supabase = createRouteHandlerClient<Database>({ cookies });
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth?.user?.id;
+    const normalizedLessonId = UUID_PATTERN.test(lessonIdRaw) ? lessonIdRaw : null;
+    const lessonSlug = normalizedLessonId ? null : lessonIdRaw;
     if (!uid) {
       console.warn("[api/attempt] unauthorized: missing user session");
       return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
     }
 
+    if (!normalizedLessonId && lessonSlug) {
+      console.info("[api/attempt] non-uuid lesson id; storing without lesson_id", { slug: lessonSlug });
+    }
     const baseAttempt: Database["public"]["Tables"]["attempts"]["Insert"] = {
       user_id: uid,
-      lesson_id: typeof lesson_id === "string" ? lesson_id : null,
+      lesson_id: normalizedLessonId,
       correct_count,
       total,
     };
