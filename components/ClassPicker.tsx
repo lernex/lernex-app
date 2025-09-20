@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { useLernexStore } from "@/lib/store";
 
 type Pair = { subject: string; course?: string };
@@ -49,6 +50,15 @@ export default function ClassPicker() {
     return "Classes";
   }, [isAllMode, isMixMode, currentPair, normalizedSelection]);
 
+  const subLabel = useMemo(() => {
+    if (isAllMode) return "Lernex picks for you";
+    if (isMixMode) return "Mixing your saved classes";
+    if (currentPair && currentPair.course && currentPair.course !== currentPair.subject) {
+      return currentPair.subject;
+    }
+    return null;
+  }, [isAllMode, isMixMode, currentPair]);
+
   const choose = (mode: "all" | "merge" | "one", subject?: string) => {
     if (mode === "all") {
       setSelectedSubjects([]);
@@ -67,62 +77,72 @@ export default function ClassPicker() {
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="px-3 py-1.5 rounded-full text-sm border bg-white/85 dark:bg-neutral-900/85 text-neutral-700 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700 shadow-sm hover:shadow-md transition"
-        title="Choose class feed"
+        className="group inline-flex min-w-[200px] items-center justify-between gap-3 rounded-full border border-neutral-200/70 bg-white/85 px-4 py-2 text-sm font-semibold text-neutral-700 shadow-[0_18px_38px_-24px_rgba(47,128,237,0.9)] backdrop-blur transition hover:border-lernex-blue/40 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/60 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:border-lernex-blue/60"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-state={open ? "open" : "closed"}
       >
-        <span className="font-medium">{label}</span>
-        {currentPair && currentPair.course && currentPair.course !== currentPair.subject && (
-          <span className="ml-2 text-xs text-neutral-400 dark:text-neutral-500">{currentPair.subject}</span>
-        )}
-        <span className="ml-1 inline-block align-middle text-neutral-400">▾</span>
+        <div className="flex flex-1 flex-col text-left leading-tight">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.4em] text-neutral-400 dark:text-white/50">
+            Class
+          </span>
+          <span className="text-sm font-semibold text-neutral-800 dark:text-white">{label}</span>
+          {subLabel && (
+            <span className="text-xs font-medium text-neutral-400 dark:text-neutral-400">{subLabel}</span>
+          )}
+        </div>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-neutral-400 transition-transform ${open ? "rotate-180 text-lernex-blue" : "group-hover:text-neutral-600 dark:group-hover:text-white"}`}
+        />
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-64 rounded-xl border bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 shadow-xl overflow-hidden z-20">
-          <div className="px-3 py-2 text-xs uppercase tracking-wide text-neutral-400">Your classes</div>
-          <div className="max-h-72 overflow-auto">
+        <div className="absolute right-0 mt-3 w-72 rounded-2xl border border-neutral-200/70 bg-white/95 p-3 text-neutral-900 shadow-[0_32px_90px_-50px_rgba(47,128,237,0.95)] backdrop-blur-xl dark:border-white/10 dark:bg-[#0b0f1a]/95 dark:text-white z-30">
+          <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-neutral-400 dark:text-neutral-500">
+            Your classes
+          </div>
+          <div className="max-h-72 space-y-1 overflow-auto pr-1">
             {pairs.map((p) => {
               const on = normalizedSelection.length === 1 && normalizedSelection[0] === p.subject;
               return (
                 <button
                   key={p.subject}
                   onClick={() => choose("one", p.subject)}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800 ${on ? "bg-neutral-50 dark:bg-neutral-800" : ""}`}
+                  className={`w-full rounded-xl px-4 py-3 text-left transition hover:bg-neutral-100 dark:hover:bg-white/10 ${on ? "bg-neutral-100 dark:bg-white/10" : ""}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="font-medium">{p.course || p.subject}</div>
+                      <div className="text-sm font-semibold">{p.course || p.subject}</div>
                       {p.course && p.course !== p.subject && (
-                        <div className="text-xs text-neutral-500">{p.subject}</div>
+                        <div className="text-xs text-neutral-500 dark:text-neutral-400">{p.subject}</div>
                       )}
                     </div>
-                    {on && <span className="mt-1 inline-block h-2 w-2 rounded-full bg-lernex-blue" aria-hidden="true" />}
+                    {on && <span className="mt-1 inline-block h-2.5 w-2.5 rounded-full bg-lernex-blue" aria-hidden="true" />}
                   </div>
                 </button>
               );
             })}
           </div>
-          <div className="border-t border-neutral-200 dark:border-neutral-800" />
-          <div className="px-2 py-2 text-xs uppercase tracking-wide text-neutral-400">Options</div>
-          <div className="pb-2">
+          <div className="mt-3 border-t border-neutral-200/70 dark:border-white/10" />
+          <div className="mt-3 grid gap-2">
             <button
               onClick={() => choose("merge")}
-              className={`w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800 ${isMixMode ? "bg-neutral-50 dark:bg-neutral-800" : ""}`}
+              className={`w-full rounded-xl px-4 py-3 text-left transition hover:bg-neutral-100 dark:hover:bg-white/10 ${isMixMode ? "bg-neutral-100 dark:bg-white/10" : ""}`}
             >
-              <div className="flex items-center justify-between">
-                <span>Mix subjects</span>
-                {isMixMode && <span className="inline-block h-2 w-2 rounded-full bg-lernex-blue" aria-hidden="true" />}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold">Mix subjects</span>
+                {isMixMode && <span className="inline-block h-2.5 w-2.5 rounded-full bg-lernex-blue" aria-hidden="true" />}
               </div>
-              <div className="text-xs text-neutral-500">Rotate through every class</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400">Rotate through every class</div>
             </button>
             <button
               onClick={() => choose("all")}
-              className={`w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800 ${isAllMode ? "bg-neutral-50 dark:bg-neutral-800" : ""}`}
+              className={`w-full rounded-xl px-4 py-3 text-left transition hover:bg-neutral-100 dark:hover:bg-white/10 ${isAllMode ? "bg-neutral-100 dark:bg-white/10" : ""}`}
             >
-              <div className="flex items-center justify-between">
-                <span>All</span>
-                {isAllMode && <span className="inline-block h-2 w-2 rounded-full bg-lernex-blue" aria-hidden="true" />}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold">All</span>
+                {isAllMode && <span className="inline-block h-2.5 w-2.5 rounded-full bg-lernex-blue" aria-hidden="true" />}
               </div>
-              <div className="text-xs text-neutral-500">Let Lernex pick for you</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400">Let Lernex pick for you</div>
             </button>
           </div>
         </div>

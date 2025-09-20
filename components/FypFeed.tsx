@@ -398,7 +398,14 @@ export default function FypFeed() {
       className="relative mx-auto h-[calc(100vh-56px)] w-full max-w-[420px] overflow-hidden px-3 sm:px-4"
       style={{ maxWidth: "min(420px, 92vw)" }}
     >
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.18),transparent_40%),radial-gradient(circle_at_80%_80%,rgba(168,85,247,0.18),transparent_40%)]" />
+      <div className="pointer-events-none absolute inset-0 -z-20 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.26),transparent_45%),radial-gradient(circle_at_80%_80%,rgba(168,85,247,0.28),transparent_55%),radial-gradient(circle_at_50%_100%,rgba(32,211,238,0.18),transparent_70%)]" />
+        <div className="absolute -left-32 top-[-22%] h-[420px] w-[420px] rounded-full bg-lernex-blue/20 blur-3xl opacity-70" />
+        <div className="absolute -right-28 bottom-[-26%] h-[360px] w-[360px] rounded-full bg-lernex-purple/30 blur-3xl opacity-70" />
+        <div className="absolute inset-[-55%] bg-[radial-gradient(circle,rgba(255,255,255,0.1),transparent_65%)] opacity-25 blur-3xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(140deg,rgba(255,255,255,0.08),rgba(255,255,255,0))] opacity-35" />
+      </div>
+      <div className="pointer-events-none absolute inset-0 -z-10 rounded-[40px] border border-white/10 opacity-20" />
       <AnimatePresence>
         {showCompleteHint && (
           <motion.div
