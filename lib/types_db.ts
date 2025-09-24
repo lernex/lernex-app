@@ -98,6 +98,57 @@ export interface Database {
         };
         Relationships: [];
       };
+      playlists: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          description: string | null;
+          is_public: boolean | null;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          name: string;
+          description?: string | null;
+          is_public?: boolean | null;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          description?: string | null;
+          is_public?: boolean | null;
+          created_at?: string | null;
+        };
+        Relationships: [];
+      };
+      playlist_items: {
+        Row: {
+          id: string;
+          playlist_id: string;
+          lesson_id: string;
+          position: number | null;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          playlist_id: string;
+          lesson_id: string;
+          position?: number | null;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          playlist_id?: string;
+          lesson_id?: string;
+          position?: number | null;
+          created_at?: string | null;
+        };
+        Relationships: [];
+      };
       attempts: {
         Row: {
           user_id: string;
