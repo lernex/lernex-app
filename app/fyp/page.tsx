@@ -5,10 +5,12 @@ import SubjectChips from '@/components/SubjectChips';
 import ClassPicker from '@/components/ClassPicker';
 import FypProgress from '@/components/FypProgress';
 import { ProfileBasicsProvider } from '@/app/providers/ProfileBasicsProvider';
+import WelcomeTourOverlay from '@/components/WelcomeTourOverlay';
 
 export default function FypPage() {
   return (
     <ProfileBasicsProvider>
+      <WelcomeTourOverlay />
       <main className="min-h-[calc(100vh-56px)]">
         <div className="relative mx-auto w-full max-w-[420px]" style={{ maxWidth: "min(420px, 92vw)" }}>
           {/* Top controls */}

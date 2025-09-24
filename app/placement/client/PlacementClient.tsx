@@ -91,7 +91,10 @@ export default function PlacementClient() {
     } catch (e) {
       dlog("finish: catch", e instanceof Error ? e.message : String(e));
     } finally {
-      router.replace("/app");
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem("lernex:show-welcome-tour", "1");
+      }
+      router.replace("/app?welcome=1");
     }
   }, [router, dlog, refresh, setStats, stats]);
 

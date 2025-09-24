@@ -179,6 +179,10 @@ export default function NavBar() {
       { href: "/support", label: "Support", icon: LifeBuoy },
     ];
 
+    const NAV_WIDTH_EXPANDED = 248;
+    const NAV_WIDTH_COLLAPSED = 96;
+    const NAV_COLLAPSED_SHIFT = 20;
+
     return (
       <>
         <div
@@ -190,8 +194,8 @@ export default function NavBar() {
           ref={sideNavRef}
           initial={false}
           animate={{
-            x: navExpanded ? 0 : -232,
-            width: navExpanded ? 248 : 112,
+            x: navExpanded ? 0 : -NAV_COLLAPSED_SHIFT,
+            width: navExpanded ? NAV_WIDTH_EXPANDED : NAV_WIDTH_COLLAPSED,
           }}
           transition={{ type: "spring", stiffness: 320, damping: 32 }}
           className="fixed left-0 top-0 z-[22] flex h-screen flex-col border-r border-white/10 bg-gradient-to-b from-white/90 via-white/80 to-white/65 text-neutral-900 shadow-xl backdrop-blur-xl transition-colors dark:from-lernex-charcoal/90 dark:via-lernex-charcoal/75 dark:to-lernex-charcoal/65 dark:text-white"
@@ -208,9 +212,17 @@ export default function NavBar() {
             <div className="flex items-center gap-3 px-4 pt-6">
               <Link
                 href={user ? "/app" : "/"}
-                className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent transition-opacity hover:opacity-80"
+                aria-label="Lernex home"
+                className="group flex items-center gap-2"
               >
-                Lernex
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-r from-lernex-blue to-lernex-purple text-lg font-semibold text-white shadow-inner transition-transform duration-200 group-hover:scale-[1.03]">
+                  L
+                </span>
+                {navExpanded && (
+                  <span className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent transition-opacity group-hover:opacity-80">
+                    Lernex
+                  </span>
+                )}
               </Link>
               {navExpanded && (
                 <span className="rounded-full bg-gradient-to-r from-lernex-blue/15 to-lernex-purple/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.25em] text-lernex-blue/80 dark:text-lernex-blue/70">
@@ -507,3 +519,4 @@ export default function NavBar() {
     </nav>
   );
 }
+

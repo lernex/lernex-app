@@ -4,6 +4,7 @@ import ClassPicker from "@/components/ClassPicker";
 import Link from "next/link";
 import { useLernexStore } from "@/lib/store";
 import { ProfileBasicsProvider } from "@/app/providers/ProfileBasicsProvider";
+import WelcomeTourOverlay from "@/components/WelcomeTourOverlay";
 import type { ProfileBasics } from "@/lib/profile-basics";
 
 type AppFeedClientProps = {
@@ -16,6 +17,7 @@ export default function AppFeedClient({ initialProfile }: AppFeedClientProps) {
 
   return (
     <ProfileBasicsProvider initialData={initialProfile ?? undefined}>
+      <WelcomeTourOverlay />
       <main className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-[#05060f]">
         <div className="absolute inset-0 -z-20 bg-gradient-to-b from-[#080c1d] via-[#05060f] to-[#02030a]" />
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_15%_15%,rgba(47,128,237,0.28),transparent_55%),radial-gradient(circle_at_85%_25%,rgba(155,81,224,0.24),transparent_55%),radial-gradient(circle_at_50%_85%,rgba(39,174,96,0.18),transparent_65%)]" />
