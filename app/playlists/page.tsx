@@ -15,6 +15,8 @@ type PlaylistRow = {
 export default function Playlists() {
   const [rows, setRows] = useState<PlaylistRow[]>([]);
   const [name, setName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void refresh();
@@ -31,10 +33,41 @@ export default function Playlists() {
 
   async function create() {
     const trimmed = name.trim();
-    if (!trimmed) return;
-    await supabase.from("playlists").insert({ name: trimmed });
-    setName("");
-    await refresh();
+    if (!trimmed || creating) return;
+    setError(null);
+    setCreating(true);
+    try {
+      const { data, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+
+      const userId = data.session?.user?.id;
+      if (!userId) {
+        setError("Sign in to create playlists.");
+        return;
+      }
+
+      const { error: insertError } = await supabase
+        .from("playlists")
+        .insert({ name: trimmed, user_id: userId });
+
+      if (insertError) throw insertError;
+
+      setName("");
+      await refresh();
+    } catch (err) {
+      console.error("Failed to create playlist", err);
+      const code =
+        typeof err === "object" && err !== null && "code" in err
+          ? (err as { code?: string }).code
+          : undefined;
+      setError(
+        code === "42501"
+          ? "Sign in to create playlists."
+          : "Could not create playlist. Please try again."
+      );
+    } finally {
+      setCreating(false);
+    }
   }
 
   return (
@@ -52,11 +85,16 @@ export default function Playlists() {
           />
           <button
             onClick={create}
-            className="px-4 py-2 rounded-xl bg-lernex-blue hover:bg-blue-500 transition text-white"
+            disabled={creating}
+            className="px-4 py-2 rounded-xl bg-lernex-blue hover:bg-blue-500 transition text-white disabled:cursor-not-allowed disabled:opacity-70"
           >
-            Create
+            {creating ? "Creating..." : "Create"}
           </button>
         </div>
+
+        {error ? (
+          <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+        ) : null}
 
         <div className="grid gap-2">
           {rows.map((p) => (
