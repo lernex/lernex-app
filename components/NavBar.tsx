@@ -180,8 +180,8 @@ export default function NavBar() {
     ];
 
     const NAV_WIDTH_EXPANDED = 248;
-    const NAV_WIDTH_COLLAPSED = 96;
-    const NAV_COLLAPSED_SHIFT = 20;
+    const NAV_WIDTH_COLLAPSED = 120;
+    const NAV_COLLAPSED_SHIFT = 12;
 
     return (
       <>
@@ -197,7 +197,7 @@ export default function NavBar() {
             x: navExpanded ? 0 : -NAV_COLLAPSED_SHIFT,
             width: navExpanded ? NAV_WIDTH_EXPANDED : NAV_WIDTH_COLLAPSED,
           }}
-          transition={{ type: "spring", stiffness: 320, damping: 32 }}
+          transition={{ type: "spring", stiffness: 220, damping: 28 }}
           className="fixed left-0 top-0 z-[22] flex h-screen flex-col border-r border-white/10 bg-gradient-to-b from-white/90 via-white/80 to-white/65 text-neutral-900 shadow-xl backdrop-blur-xl transition-colors dark:from-lernex-charcoal/90 dark:via-lernex-charcoal/75 dark:to-lernex-charcoal/65 dark:text-white"
           onMouseEnter={handleNavEnter}
           onMouseLeave={handleNavLeave}
@@ -213,22 +213,24 @@ export default function NavBar() {
               <Link
                 href={user ? "/app" : "/"}
                 aria-label="Lernex home"
-                className="group flex items-center gap-2"
+                className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent transition-opacity hover:opacity-80"
               >
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-r from-lernex-blue to-lernex-purple text-lg font-semibold text-white shadow-inner transition-transform duration-200 group-hover:scale-[1.03]">
-                  L
-                </span>
-                {navExpanded && (
-                  <span className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent transition-opacity group-hover:opacity-80">
-                    Lernex
-                  </span>
-                )}
+                Lernex
               </Link>
-              {navExpanded && (
-                <span className="rounded-full bg-gradient-to-r from-lernex-blue/15 to-lernex-purple/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.25em] text-lernex-blue/80 dark:text-lernex-blue/70">
-                  Dashboard
-                </span>
-              )}
+              <AnimatePresence initial={false}>
+                {navExpanded && (
+                  <motion.span
+                    key="dashboard-chip"
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -8 }}
+                    transition={{ duration: 0.18, ease: "easeOut" }}
+                    className="rounded-full bg-gradient-to-r from-lernex-blue/15 to-lernex-purple/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.25em] text-lernex-blue/80 dark:text-lernex-blue/70"
+                  >
+                    Dashboard
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </div>
             <div
               className="mt-6 flex flex-col px-4"
@@ -242,22 +244,31 @@ export default function NavBar() {
                 return (
                   <div
                     key={key}
-                    className={`${tileBase} ${navExpanded ? "justify-start" : "justify-center"} gap-3`}
+                    className={`${tileBase} ${navExpanded ? "justify-start gap-3" : "justify-center gap-0"}`}
                   >
                     <span className={`${iconShell} ${iconTone}`}>
                       <Icon className="h-5 w-5" />
                       <span className={`${badgeBase} ${badgeTone}`}>{badgeText}</span>
                     </span>
-                    {navExpanded && (
-                      <div className="flex flex-col leading-tight">
-                        <span className="text-[10px] uppercase tracking-[0.26em] text-neutral-500 dark:text-neutral-400">
-                          {label}
-                        </span>
-                        <span className="text-base font-semibold text-neutral-900 dark:text-white">
-                          {formattedValue}
-                        </span>
-                      </div>
-                    )}
+                    <AnimatePresence initial={false}>
+                      {navExpanded && (
+                        <motion.div
+                          key={`metric-${key}`}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -8 }}
+                          transition={{ duration: 0.18, ease: "easeOut" }}
+                          className="flex flex-col leading-tight"
+                        >
+                          <span className="text-[10px] uppercase tracking-[0.26em] text-neutral-500 dark:text-neutral-400">
+                            {label}
+                          </span>
+                          <span className="text-base font-semibold text-neutral-900 dark:text-white">
+                            {formattedValue}
+                          </span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 );
               })}
@@ -275,16 +286,25 @@ export default function NavBar() {
                     title={label}
                     aria-label={label}
                     aria-current={active ? "page" : undefined}
-                    className={`${tileBase} ${navExpanded ? "justify-start" : "justify-center"} gap-3 ${active ? activeClasses : ""}`}
+                    className={`${tileBase} ${navExpanded ? "justify-start gap-3" : "justify-center gap-0"} ${active ? activeClasses : ""}`}
                   >
                     <span className={`${iconShell} ${active ? activeIconShell : ""}`}>
                       <Icon className="h-5 w-5" />
                     </span>
-                    {navExpanded && (
-                      <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
-                        {label}
-                      </span>
-                    )}
+                    <AnimatePresence initial={false}>
+                      {navExpanded && (
+                        <motion.span
+                          key={`label-${href}`}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -8 }}
+                          transition={{ duration: 0.18, ease: "easeOut" }}
+                          className="text-sm font-medium text-neutral-700 dark:text-neutral-200"
+                        >
+                          {label}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
                   </Link>
                 );
               })}
@@ -292,7 +312,7 @@ export default function NavBar() {
             {user && (
               <div className="px-4 pb-6">
                 <div
-                  className={`${tileBase} ${navExpanded ? "justify-start" : "justify-center"} gap-3`}
+                  className={`${tileBase} ${navExpanded ? "justify-start gap-3" : "justify-center gap-0"}`}
                   ref={menuRef}
                 >
                   <button
@@ -315,16 +335,25 @@ export default function NavBar() {
                       </span>
                     )}
                   </button>
-                  {navExpanded && (
-                    <div className="flex min-w-0 flex-1 flex-col text-left">
-                      <span className="truncate text-sm font-semibold text-neutral-900 dark:text-white">
-                        {user.user_metadata?.full_name ?? user.email}
-                      </span>
-                      <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                        Manage profile
-                      </span>
-                    </div>
-                  )}
+                  <AnimatePresence initial={false}>
+                    {navExpanded && (
+                      <motion.div
+                        key="account-meta"
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -8 }}
+                        transition={{ duration: 0.18, ease: "easeOut" }}
+                        className="flex min-w-0 flex-1 flex-col text-left"
+                      >
+                        <span className="truncate text-sm font-semibold text-neutral-900 dark:text-white">
+                          {user.user_metadata?.full_name ?? user.email}
+                        </span>
+                        <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                          Manage profile
+                        </span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   <AnimatePresence>
                     {open && (
                       <motion.div
@@ -519,4 +548,5 @@ export default function NavBar() {
     </nav>
   );
 }
+
 
