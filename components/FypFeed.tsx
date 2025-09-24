@@ -5,6 +5,7 @@ import LessonCard from "./LessonCard";
 import QuizBlock from "./QuizBlock";
 import { Lesson } from "@/types";
 import { useLernexStore } from "@/lib/store";
+import { useProfileBasics } from "@/app/providers/ProfileBasicsProvider";
 
 type ApiLesson = {
   id: string;
@@ -45,13 +46,50 @@ type LoadingState = {
   updatedAt: number;
 };
 
-async function fetchFypOne(subject: string | null, onProgress?: (info: FetchProgressInfo) => void): Promise<Lesson | null> {
+function parseRetryAfterSeconds(raw: string | null): number | null {
+  if (!raw) return null;
+  const asNumber = Number(raw);
+  if (Number.isFinite(asNumber)) {
+    return asNumber > 0 ? asNumber : null;
+  }
+  const asDate = Date.parse(raw);
+  if (!Number.isNaN(asDate)) {
+    const diffMs = asDate - Date.now();
+    return diffMs > 0 ? diffMs / 1000 : null;
+  }
+  return null;
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise<void>((resolve, reject) => {
+    const abort = () => {
+      window.clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === "AbortError";
+}
+
+async function fetchFypOne(subject: string | null, opts: { onProgress?: (info: FetchProgressInfo) => void; signal?: AbortSignal } = {}): Promise<Lesson | null> {
   const base = subject ? `/api/fyp?subject=${encodeURIComponent(subject)}` : `/api/fyp`;
   const maxAttempts = 5;
   let delay = 600;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const res = await fetch(base, { cache: "no-store" });
+      const res = await fetch(base, { cache: "no-store", signal: opts.signal });
       try { console.debug("[fyp] fetch", { subject, attempt: attempt + 1, status: res.status }); } catch {}
       if (res.ok) {
         const data = (await res.json()) as { topic?: string; lesson?: ApiLesson };
@@ -76,17 +114,23 @@ async function fetchFypOne(subject: string | null, onProgress?: (info: FetchProg
         const progress = payload && typeof payload === "object" && 'progress' in payload && typeof (payload as { progress?: unknown }).progress === "object"
           ? (payload as { progress?: ApiProgress | null }).progress ?? null
           : null;
-        const retryAfter = Number(res.headers.get("retry-after") ?? "");
-        onProgress?.({
+        const retryAfterSeconds = parseRetryAfterSeconds(res.headers.get("retry-after"));
+        opts.onProgress?.({
           subject,
           status: res.status,
           attempt: attempt + 1,
-          retryAfter: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
+          retryAfter: retryAfterSeconds ?? undefined,
           progress,
         });
         const jitter = Math.floor(Math.random() * 250);
-        await new Promise((r) => setTimeout(r, delay + jitter));
-        delay = Math.min(8000, Math.floor(delay * 1.8));
+        if (retryAfterSeconds != null) {
+          const waitMs = Math.max(0, Math.round(retryAfterSeconds * 1000)) + jitter;
+          await sleep(waitMs, opts.signal);
+          delay = Math.max(600, Math.min(8000, waitMs));
+        } else {
+          await sleep(delay + jitter, opts.signal);
+          delay = Math.min(8000, Math.floor(delay * 1.8));
+        }
         continue;
       }
       if (res.status === 401 || res.status === 403 || res.status >= 500) {
@@ -96,11 +140,12 @@ async function fetchFypOne(subject: string | null, onProgress?: (info: FetchProg
         } catch {}
         return null;
       }
-    } catch {
+    } catch (err) {
+      if (isAbortError(err)) throw err;
       const jitter = Math.floor(Math.random() * 200);
       try { console.warn("[fyp] network error; retry", { subject, delay }); } catch {}
-      onProgress?.({ subject, status: 0, attempt: attempt + 1, progress: null });
-      await new Promise((r) => setTimeout(r, delay + jitter));
+      opts.onProgress?.({ subject, status: 0, attempt: attempt + 1, progress: null });
+      await sleep(delay + jitter, opts.signal);
       delay = Math.min(8000, Math.floor(delay * 1.8));
     }
   }
@@ -109,22 +154,8 @@ async function fetchFypOne(subject: string | null, onProgress?: (info: FetchProg
 
 export default function FypFeed() {
   const { selectedSubjects, accuracyBySubject } = useLernexStore();
-
-  const [interests, setInterests] = useState<string[]>([]);
-  const loadingInterests = useRef(false);
-  useEffect(() => {
-    if (loadingInterests.current) return;
-    loadingInterests.current = true;
-    (async () => {
-      try {
-        const r = await fetch("/api/profile/me", { cache: "no-store" });
-        if (!r.ok) return;
-        const j = await r.json();
-        const arr = Array.isArray(j?.interests) ? j.interests as string[] : [];
-        setInterests(arr);
-      } catch {}
-    })();
-  }, []);
+  const { data: profileBasics } = useProfileBasics();
+  const interests = profileBasics.interests;
 
   const rotation = useMemo<(string | null)[]>(() => {
     // Prefer explicit selections; otherwise fall back to interests; if empty, use [null] to indicate default subject
@@ -146,6 +177,15 @@ export default function FypFeed() {
   const [autoAdvancing, setAutoAdvancing] = useState(false);
   const autoAdvanceRef = useRef<number | null>(null);
   const hintTimeoutRef = useRef<number | null>(null);
+  const activeAbortRef = useRef<AbortController | null>(null);
+  const requestSeqRef = useRef(0);
+  const indexRef = useRef(0);
+  const MAX_LOOKBACK = 3;
+  const MAX_BUFFER_SIZE = 8;
+
+  useEffect(() => {
+    indexRef.current = i;
+  }, [i]);
 
   useEffect(() => {
     if (!loadingInfo || typeof loadingInfo.pct === "number") {
@@ -161,89 +201,144 @@ export default function FypFeed() {
   useEffect(() => () => {
     if (autoAdvanceRef.current) window.clearTimeout(autoAdvanceRef.current);
     if (hintTimeoutRef.current) window.clearTimeout(hintTimeoutRef.current);
+    activeAbortRef.current?.abort();
   }, []);
 
+  const appendLesson = useCallback((lesson: Lesson) => {
+    setItems((prev) => {
+      const existingIdx = prev.findIndex((item) => item.id === lesson.id);
+      const base = existingIdx >= 0
+        ? [...prev.slice(0, existingIdx), ...prev.slice(existingIdx + 1)]
+        : prev;
+      const next = [...base, lesson];
+      const currentIndex = indexRef.current;
+      const desiredStart = Math.max(0, currentIndex - MAX_LOOKBACK);
+      const overflowStart = Math.max(0, next.length - MAX_BUFFER_SIZE);
+      const keepStart = Math.max(desiredStart, overflowStart);
+      if (keepStart <= 0) return next;
+      const trimmed = next.slice(keepStart);
+      const removed = keepStart;
+      if (removed > 0) {
+        indexRef.current = Math.max(0, currentIndex - removed);
+        setI((prevIdx) => Math.max(0, prevIdx - removed));
+        setCompletedMap((prevMap) => {
+          const allowed = new Set(trimmed.map((item) => item.id));
+          const nextMap: Record<string, boolean> = {};
+          let changed = false;
+          for (const key of Object.keys(prevMap)) {
+            if (allowed.has(key)) {
+              nextMap[key] = prevMap[key];
+            } else {
+              changed = true;
+            }
+          }
+          return changed ? nextMap : prevMap;
+        });
+      }
+      return trimmed;
+    });
+  }, [MAX_BUFFER_SIZE, MAX_LOOKBACK, setCompletedMap, setI]);
+
   const ensureBuffer = useCallback(async (minAhead = 3) => {
-    if (fetching.current) return;
+    if (fetching.current || rotation.length === 0) return;
     fetching.current = true;
+    const requestToken = requestSeqRef.current;
+    const controller = new AbortController();
+    activeAbortRef.current = controller;
+    let bufferAhead = Math.max(0, items.length - i);
+    let needed = Math.max(0, minAhead - bufferAhead);
+    let guard = 0;
+    const attempted = new Set<string | null>();
+    let fetchedAny = false;
+    let sawProgress = false;
+    let lastRetryAfterSeconds: number | null = null;
+    try { console.debug("[fyp] ensureBuffer", { minAhead, have: bufferAhead, rotation }); } catch {}
     try {
-      let needed = Math.max(0, minAhead - (items.length - i));
-      let guard = 0;
-      const attempted = new Set<string | null>();
-      const now = Date.now();
-      let fetchedAny = false;
-      let sawProgress = false;
-      try { console.debug("[fyp] ensureBuffer", { minAhead, have: items.length - i, rotation }); } catch {}
-      while (needed > 0 && guard++ < 12) {
+      while (needed > 0 && guard++ < 12 && requestSeqRef.current === requestToken) {
         const idx = subjIdxRef.current % rotation.length;
         subjIdxRef.current = idx + 1;
         const subject = rotation[idx];
         try { console.debug("[fyp] try-subject", { subject, idx, guard }); } catch {}
-        if (attempted.has(subject)) {
-          break;
-        }
+        if (attempted.has(subject)) break;
         attempted.add(subject);
-        const until = cooldownRef.current.get(subject) ?? 0;
-        if (until > now) {
+        const cooldownUntil = cooldownRef.current.get(subject) ?? 0;
+        if (cooldownUntil > Date.now()) {
           continue;
         }
-        const lesson = await fetchFypOne(subject, (info) => {
-          sawProgress = true;
-          const progress = info.progress;
-          const fallbackPhase = info.status === 409
-            ? "Waiting for course mapping"
-            : info.status === 202
-            ? "Preparing your learning path"
-            : "Retrying";
-          const fallbackDetail = info.status === 409
-            ? "Pick a course for this subject to continue."
-            : info.status === 202
-            ? undefined
-            : "Retrying after a temporary hiccup.";
-          if (!progress && info.status === 0) {
+        lastRetryAfterSeconds = null;
+        const lesson = await fetchFypOne(subject, {
+          signal: controller.signal,
+          onProgress: (info) => {
+            sawProgress = true;
+            lastRetryAfterSeconds = info.retryAfter ?? null;
+            const progress = info.progress;
+            const fallbackPhase = info.status === 409
+              ? "Waiting for course mapping"
+              : info.status === 202
+              ? "Preparing your learning path"
+              : "Retrying";
+            const fallbackDetail = info.status === 409
+              ? "Pick a course for this subject to continue."
+              : info.status === 202
+              ? undefined
+              : "Retrying after a temporary hiccup.";
+            if (!progress && info.status === 0) {
+              setLoadingInfo({
+                phase: "Reconnecting",
+                detail: "Retrying after a network hiccup.",
+                pct: undefined,
+                attempts: info.attempt,
+                fallback: false,
+                subject,
+                updatedAt: Date.now(),
+              });
+              return;
+            }
             setLoadingInfo({
-              phase: "Reconnecting",
-              detail: "Retrying after a network hiccup.",
-              pct: undefined,
-              attempts: info.attempt,
-              fallback: false,
-              subject,
-              updatedAt: Date.now(),
+              phase: progress?.phase ?? fallbackPhase,
+              detail: progress?.detail ?? fallbackDetail,
+              pct: typeof progress?.pct === "number" ? progress.pct : undefined,
+              attempts: progress?.attempts,
+              fallback: progress?.fallback,
+              subject: info.subject,
+              updatedAt: progress?.updatedAt ? Number(progress.updatedAt) : Date.now(),
             });
-            return;
-          }
-          setLoadingInfo({
-            phase: progress?.phase ?? fallbackPhase,
-            detail: progress?.detail ?? fallbackDetail,
-            pct: typeof progress?.pct === "number" ? progress.pct : undefined,
-            attempts: progress?.attempts,
-            fallback: progress?.fallback,
-            subject: info.subject,
-            updatedAt: progress?.updatedAt ? Number(progress.updatedAt) : Date.now(),
-          });
-          setError(null);
+            setError(null);
+          },
         });
+        if (requestSeqRef.current !== requestToken) break;
         if (lesson) {
-          setItems((arr) => [...arr, lesson]);
+          appendLesson(lesson);
           fetchedAny = true;
-          needed -= 1;
+          bufferAhead += 1;
+          needed = Math.max(0, minAhead - bufferAhead);
           setLoadingInfo(null);
         } else {
-          cooldownRef.current.set(subject, Date.now() + 8000);
+          const cooldownMs = lastRetryAfterSeconds != null ? lastRetryAfterSeconds * 1000 : 8000;
+          cooldownRef.current.set(subject, Date.now() + cooldownMs);
           break;
         }
       }
       setInitialized(true);
-      if (!fetchedAny && items.length === 0) {
-        if (!sawProgress) {
-          setError("Could not load your feed. Try again.");
-          setLoadingInfo(null);
-        }
+      if (!fetchedAny && items.length === 0 && !sawProgress) {
+        setError("Could not load your feed. Try again.");
+        setLoadingInfo(null);
+      }
+    } catch (err) {
+      if (isAbortError(err)) return;
+      console.warn("[fyp] ensureBuffer error", err);
+      if (items.length === 0) {
+        setError("Could not load your feed. Try again.");
       }
     } finally {
-      fetching.current = false;
+      if (activeAbortRef.current === controller) {
+        activeAbortRef.current = null;
+      }
+      if (requestSeqRef.current === requestToken) {
+        fetching.current = false;
+      }
     }
-  }, [items.length, i, rotation]);
+  }, [appendLesson, i, items.length, rotation]);
 
   const triggerHint = useCallback(() => {
     setShowCompleteHint(true);
@@ -272,6 +367,13 @@ export default function FypFeed() {
     setCompletedMap({});
     setShowCompleteHint(false);
     setAutoAdvancing(false);
+    requestSeqRef.current += 1;
+    if (activeAbortRef.current) {
+      activeAbortRef.current.abort();
+      activeAbortRef.current = null;
+    }
+    fetching.current = false;
+    indexRef.current = 0;
     if (autoAdvanceRef.current) {
       window.clearTimeout(autoAdvanceRef.current);
       autoAdvanceRef.current = null;

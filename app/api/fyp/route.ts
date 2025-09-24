@@ -70,6 +70,7 @@ export async function GET(req: NextRequest) {
     .eq("subject", subject)
     .maybeSingle();
 
+  type CachedLesson = Lesson & { cachedAt?: string };
   type PathProgress = {
     deliveredByTopic?: Record<string, number>;
     deliveredIdsByTopic?: Record<string, string[]>;
@@ -79,6 +80,7 @@ export async function GET(req: NextRequest) {
     topicIdx?: number;
     subtopicIdx?: number;
     deliveredMini?: number;
+    lessonCache?: Record<string, CachedLesson[]>;
   };
   type PathWithProgress = LevelMap & { progress?: PathProgress };
   let path = state?.path as PathWithProgress | null;
@@ -252,43 +254,72 @@ export async function GET(req: NextRequest) {
   const recent = (attempts ?? []).filter((a) => a.created_at && (now - +new Date(a.created_at)) < 72 * 3600_000);
   const pace: "slow" | "normal" | "fast" = recent.length >= 12 ? "fast" : recent.length >= 4 ? "normal" : "slow";
 
-  let lesson: Lesson;
-  try {
-    const recentIds = (
-      progress.deliveredIdsByTopic?.[currentLabel] ||
-      progress.deliveredIdsByKey?.[currentLabel] ||
-      []
-    ).slice(-20);
-    const recentTitles = (progress.deliveredTitlesByTopic?.[currentLabel] || []).slice(-20);
-    const disliked = (progress.preferences?.disliked ?? []).slice(-20);
-    // Map position summary for extra personalization (tiny input, no extra cost)
-    type SubDone = { completed?: boolean };
-    const totalSubs = topics.reduce((sum, t) => sum + (t.subtopics?.length ?? 0), 0);
-    const doneSubs = topics.reduce((sum, t) => sum + ((t.subtopics?.filter((s) => (s as SubDone).completed === true)?.length) ?? 0), 0);
-    const compPct = totalSubs > 0 ? Math.round((doneSubs / totalSubs) * 100) : 0;
-    const plannedMini = Math.max(1, Number(curSub.mini_lessons || 1));
-    const mapSummary = `Course:${state?.course ?? ''}; Topic#${topicIdx+1}/${topics.length}; Sub#${subtopicIdx+1}/${curTopic?.subtopics?.length ?? 1}; Completed:${compPct}%; Mini:${deliveredMini}/${plannedMini}`;
+  const recentIds = (
+    progress.deliveredIdsByTopic?.[currentLabel] ||
+    progress.deliveredIdsByKey?.[currentLabel] ||
+    []
+  ).slice(-20);
+  const recentTitles = (progress.deliveredTitlesByTopic?.[currentLabel] || []).slice(-20);
+  const disliked = (progress.preferences?.disliked ?? []).slice(-20);
+  type SubDone = { completed?: boolean };
+  const totalSubs = topics.reduce((sum, t) => sum + (t.subtopics?.length ?? 0), 0);
+  const doneSubs = topics.reduce((sum, t) => sum + ((t.subtopics?.filter((s) => (s as SubDone).completed === true)?.length) ?? 0), 0);
+  const compPct = totalSubs > 0 ? Math.round((doneSubs / totalSubs) * 100) : 0;
+  const plannedMini = Math.max(1, Number(curSub.mini_lessons || 1));
+  const mapSummary = `Course:${state?.course ?? ''}; Topic#${topicIdx+1}/${topics.length}; Sub#${subtopicIdx+1}/${curTopic?.subtopics?.length ?? 1}; Completed:${compPct}%; Mini:${deliveredMini}/${plannedMini}`;
 
-    lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentLabel, {
-      pace,
-      accuracyPct: accuracyPct ?? undefined,
-      difficultyPref: (state?.difficulty as Difficulty | undefined) ?? undefined,
-      avoidIds: [...recentIds, ...disliked],
-      avoidTitles: recentTitles,
-      mapSummary,
-    });
-    try { console.debug(`[fyp][${reqId}] lesson: ok`, { subject, currentLabel }); } catch {}
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server error";
-    // Treat AI formatting hiccups as transient: ask client to retry instead of hard failing
-    if (msg === "Invalid lesson format from AI") {
-      try { console.warn(`[fyp][${reqId}] lesson: transient-format-error -> 202`); } catch {}
-      return progressResponse("2", "Generating lesson content", "Retrying after formatting hiccup.");
+  const cacheByTopic = (progress.lessonCache ?? {}) as Record<string, CachedLesson[]>;
+  const cachedCandidatesRaw = cacheByTopic[currentLabel];
+  const cachedCandidates: CachedLesson[] = Array.isArray(cachedCandidatesRaw) ? [...cachedCandidatesRaw] : [];
+  const avoidLessonIds = [...recentIds, ...disliked].filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const avoidIdSet = new Set(avoidLessonIds);
+
+  let lesson: Lesson;
+  const cacheHit = cachedCandidates.find((entry) => {
+    if (!entry) return false;
+    const cachedId = typeof entry.id === 'string' ? entry.id : null;
+    if (cachedId && avoidIdSet.has(cachedId)) return false;
+    const cachedTitle = typeof entry.title === 'string' ? entry.title.trim() : '';
+    if (cachedTitle && recentTitles.includes(cachedTitle)) return false;
+    return true;
+  });
+
+  let usedCache = false;
+  if (cacheHit) {
+    lesson = cacheHit;
+    usedCache = true;
+  } else {
+    try {
+      lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentLabel, {
+        pace,
+        accuracyPct: accuracyPct ?? undefined,
+        difficultyPref: (state?.difficulty as Difficulty | undefined) ?? undefined,
+        avoidIds: Array.from(avoidIdSet),
+        avoidTitles: recentTitles,
+        mapSummary,
+      });
+      try { console.debug(`[fyp][${reqId}] lesson: ok`, { subject, currentLabel }); } catch {}
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Server error";
+      if (msg === "Invalid lesson format from AI") {
+        try { console.warn(`[fyp][${reqId}] lesson: transient-format-error -> 202`); } catch {}
+        return progressResponse("2", "Generating lesson content", "Retrying after formatting hiccup.");
+      }
+      const status = msg === "Usage limit exceeded" ? 403 : 500;
+      try { console.error(`[fyp][${reqId}] lesson: error`, { msg, status }); } catch {}
+      return new Response(JSON.stringify({ error: msg }), { status });
     }
-    const status = msg === "Usage limit exceeded" ? 403 : 500;
-    try { console.error(`[fyp][${reqId}] lesson: error`, { msg, status }); } catch {}
-    return new Response(JSON.stringify({ error: msg }), { status });
   }
+
+  if (usedCache) {
+    try { console.debug(`[fyp][${reqId}] lesson: cache-hit`, { subject, currentLabel, lessonId: lesson.id }); } catch {}
+  }
+
+  const stampedLesson: CachedLesson = { ...lesson, cachedAt: new Date().toISOString() };
+  const nextCache = [stampedLesson, ...cachedCandidates.filter((entry) => entry && entry.id !== stampedLesson.id)];
+  while (nextCache.length > 5) nextCache.pop();
+  cacheByTopic[currentLabel] = nextCache;
+  progress.lessonCache = cacheByTopic;
 
   // Honor mini_lessons per subtopic and update progress/indices
   const nextTopicStr: string | null = currentLabel;
@@ -326,6 +357,7 @@ export async function GET(req: NextRequest) {
       deliveredByTopic,
       deliveredIdsByTopic,
       deliveredTitlesByTopic,
+      lessonCache: cacheByTopic,
       topicIdx,
       subtopicIdx,
       deliveredMini,

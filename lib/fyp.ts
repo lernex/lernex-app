@@ -3,6 +3,43 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { LessonSchema } from "./schema";
 import { checkUsageLimit, logUsage } from "./usage";
 
+const LESSON_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["id", "subject", "topic", "title", "content", "difficulty", "questions"],
+  properties: {
+    id: { type: "string", minLength: 1 },
+    subject: { type: "string", minLength: 1 },
+    topic: { type: "string", minLength: 1 },
+    title: { type: "string", minLength: 1 },
+    content: { type: "string", minLength: 30, maxLength: 600 },
+    difficulty: { type: "string", enum: ["intro", "easy", "medium", "hard"] },
+    questions: {
+      type: "array",
+      minItems: 1,
+      maxItems: 3,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["prompt", "choices", "correctIndex"],
+        properties: {
+          prompt: { type: "string", minLength: 1 },
+          choices: {
+            type: "array",
+            minItems: 2,
+            maxItems: 6,
+            items: { type: "string", minLength: 1 }
+          },
+          correctIndex: { type: "integer", minimum: 0 },
+          explanation: { type: "string", minLength: 3, maxLength: 280 }
+        }
+      }
+    },
+    mediaUrl: { type: "string", format: "uri" },
+    mediaType: { type: "string", enum: ["image", "video"] }
+  }
+} as const;
+
 type Pace = "slow" | "normal" | "fast";
 type Difficulty = "intro" | "easy" | "medium" | "hard";
 
@@ -25,7 +62,8 @@ export async function generateLessonForTopic(
   if (!apiKey) throw new Error("Missing GROQ_API_KEY");
   const client = new Groq({ apiKey });
   const model = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
-  const temperature = Number(process.env.GROQ_TEMPERATURE ?? "1");
+  const envTemp = Number(process.env.GROQ_TEMPERATURE ?? "0.6");
+  const temperature = Number.isFinite(envTemp) ? Math.min(1, Math.max(0, envTemp)) : 0.6;
 
   if (uid) {
     const ok = await checkUsageLimit(sb, uid);
@@ -38,35 +76,48 @@ export async function generateLessonForTopic(
   const avoidIds = (opts?.avoidIds ?? []).slice(-20);
   const avoidTitles = (opts?.avoidTitles ?? []).slice(-20);
 
-  const lenHint = pace === "fast" ? "Aim near 30–45 words." : pace === "slow" ? "Aim near 60–80 words." : "Aim near 45–65 words.";
+  const lenHint = pace === "fast"
+    ? "Aim near 30-45 words."
+    : pace === "slow"
+    ? "Aim near 60-80 words."
+    : "Aim near 45-65 words.";
   const accHint = acc !== null ? `Recent accuracy ~${acc}%.` : "";
   const diffHint = diffPref ? `Target difficulty around: ${diffPref}.` : "";
   const avoidHint = [
-    avoidIds.length ? `Avoid reusing these lesson IDs: ${avoidIds.map((x) => '"'+x+'"').join(', ')}.` : "",
-    avoidTitles.length ? `Avoid reusing these lesson titles: ${avoidTitles.map((x) => '"'+x+'"').join(', ')}.` : "",
+    avoidIds.length ? `Avoid reusing these lesson IDs: ${avoidIds.map((x) => '"' + x + '"').join(', ')}.` : "",
+    avoidTitles.length ? `Avoid reusing these lesson titles: ${avoidTitles.map((x) => '"' + x + '"').join(', ')}.` : "",
   ].filter(Boolean).join(" ");
 
   const baseSystem = `You are an adaptive tutor.
-Return only a valid JSON object matching this exact schema named LessonSchema with fields: id, subject, topic, title, content (30–80 words), difficulty, questions[ { prompt, choices[], correctIndex, explanation } ].
-If topic is of the form "Topic > Subtopic", focus the lesson tightly on the Subtopic while briefly tying back to Topic.
-Favor practical examples that relate to adjacent courses when obvious from the topic phrasing. Avoid HTML tags. DO NOT include markdown code fences. Use inline LaTeX (\\( ... \\)) only when helpful; ensure JSON remains valid.`;
+Return only a valid JSON object that matches LessonSchema with fields: id, subject, topic, title, content, difficulty, questions[].
+Constraints:
+- content must contain 30-80 words of plain text (no HTML tags, no markdown fences).
+- difficulty must be one of "intro", "easy", "medium", "hard".
+- questions must include 1-3 entries; each entry must have a prompt, exactly four plain-text choices, correctIndex (0-based), and optional explanation (<=280 chars).
+If the topic is written as "Topic > Subtopic", focus on the Subtopic while briefly tying back to the Topic. Favor practical, course-linked examples when obvious. Use inline LaTeX (\\( ... \\)) sparingly and ensure the JSON stays valid.`;
 
   const ctxHint = opts?.mapSummary ? `\nMap context: ${opts.mapSummary}` : "";
   const userPrompt = `Subject: ${subject}\nTopic: ${topic}\nLearner pace: ${pace}. ${accHint} ${diffHint} ${lenHint}
 ${avoidHint}
-Produce exactly one micro-lesson and 1–3 MCQs as specified.${ctxHint}\nReturn only the JSON object.`;
+Generate one micro-lesson and 1-3 multiple-choice questions following the constraints.${ctxHint}\nReturn only the JSON object.`;
 
   const MAX_LESSON_TOKENS = Number(process.env.GROQ_LESSON_MAX_TOKENS ?? "1500");
-  async function callOnce(system: string, jsonMode = true) {
-    // Returns [raw, usage]
+  type ResponseMode = "json_schema" | "json_object" | "none";
+
+  async function callOnce(system: string, mode: ResponseMode) {
     let completion: import("groq-sdk/resources/chat/completions").ChatCompletion | null = null;
+    const responseFormat = mode === "json_schema"
+      ? { response_format: { type: "json_schema" as const, json_schema: { name: "lesson_schema", schema: LESSON_JSON_SCHEMA } } }
+      : mode === "json_object"
+      ? { response_format: { type: "json_object" as const } }
+      : {};
     try {
       completion = await client.chat.completions.create({
         model,
         temperature,
         max_tokens: MAX_LESSON_TOKENS,
         reasoning_effort: "low",
-        ...(jsonMode ? { response_format: { type: "json_object" as const } } : {}),
+        ...responseFormat,
         messages: [
           { role: "system", content: system },
           { role: "user", content: userPrompt },
@@ -78,7 +129,6 @@ Produce exactly one micro-lesson and 1–3 MCQs as specified.${ctxHint}\nReturn 
       if (typeof failed === "string" && failed.trim().length > 0) {
         return [failed, null] as const;
       }
-      // Re-throw to allow caller to retry differently
       throw err;
     }
     const raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
@@ -92,52 +142,42 @@ Produce exactly one micro-lesson and 1–3 MCQs as specified.${ctxHint}\nReturn 
 
   let raw = "";
   let usage: { input_tokens: number | null; output_tokens: number | null } | null = null;
-
-  // Up to 3 attempts with increasingly strict guidance
-  const systems = [
-    baseSystem,
-    baseSystem + "\nImportant: Output must be STRICT JSON with double quotes only. No markdown, no comments.",
-    baseSystem + "\nFinal attempt: Respond with ONLY a single JSON object matching the schema."
-  ];
   let parsed: unknown | null = null;
-  for (let attempt = 0; attempt < systems.length; attempt++) {
+  let lastCandidate: unknown | null = null;
+
+  const attemptPlans: { system: string; mode: ResponseMode }[] = [
+    { system: baseSystem, mode: "json_schema" },
+    { system: baseSystem, mode: "json_object" },
+    { system: baseSystem + "\nImportant: Output must be STRICT JSON with double quotes only. No markdown, no comments.", mode: "json_schema" },
+    { system: baseSystem + "\nImportant: Output must be STRICT JSON with double quotes only. No markdown, no comments.", mode: "json_object" },
+    { system: baseSystem + "\nFinal attempt: Respond with ONLY a single JSON object matching the schema.", mode: "json_schema" },
+    { system: baseSystem + "\nFinal attempt: Respond with only the JSON object and nothing else.", mode: "none" },
+  ];
+
+  for (const plan of attemptPlans) {
     try {
-      const [r, u] = await callOnce(systems[attempt], /*jsonMode*/ true);
-      raw = r; usage = u;
+      const [r, u] = await callOnce(plan.system, plan.mode);
+      raw = r;
+      usage = u;
     } catch {
-      // Fallback without enforced JSON mode
-      try {
-        const [r, u] = await callOnce(systems[attempt], /*jsonMode*/ false);
-        raw = r; usage = u;
-      } catch {
-        continue; // move to next attempt
-      }
+      continue;
     }
     if (!raw) continue;
-    // Parse as JSON or extract object from text
     try {
       parsed = JSON.parse(raw);
     } catch {
-      const extracted = (() => {
-        let i = 0, depth = 0, start = -1, inStr = false, escaped = false;
-        const n = raw.length;
-        for (; i < n; i++) {
-          const ch = raw[i]!;
-          if (inStr) { if (escaped) { escaped = false; } else if (ch === "\\") { escaped = true; } else if (ch === '"') { inStr = false; } continue; }
-          if (ch === '"') { inStr = true; continue; }
-          if (ch === '{') { if (depth === 0) start = i; depth++; }
-          else if (ch === '}') { depth--; if (depth === 0 && start !== -1) return raw.slice(start, i + 1); }
+      if (plan.mode !== "none") {
+        const extracted = extractBalancedObject(raw);
+        if (extracted) {
+          try { parsed = JSON.parse(extracted); } catch { parsed = null; }
+        } else {
+          parsed = null;
         }
-        return null;
-      })();
-      if (extracted) {
-        try { parsed = JSON.parse(extracted); } catch { parsed = null; }
       } else {
         parsed = null;
       }
     }
     if (parsed) {
-      // Try validate; if ok, log usage and break; otherwise continue attempts
       const validated = LessonSchema.safeParse(parsed);
       if (validated.success) {
         if (uid && usage) {
@@ -145,9 +185,10 @@ Produce exactly one micro-lesson and 1–3 MCQs as specified.${ctxHint}\nReturn 
         }
         return validated.data;
       }
-      break;
+      lastCandidate = parsed;
     }
   }
+  parsed = lastCandidate;
 
   // If we reach here, parsed may still be non-conforming or null. Try normalization once more.
   if (!raw) raw = "{}";
@@ -168,12 +209,14 @@ Produce exactly one micro-lesson and 1–3 MCQs as specified.${ctxHint}\nReturn 
     }
     return null;
   }
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    const extracted = extractBalancedObject(raw);
-    if (!extracted) throw new Error("Invalid lesson format from AI");
-    parsed = JSON.parse(extracted);
+  if (!parsed) {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      const extracted = extractBalancedObject(raw);
+      if (!extracted) throw new Error("Invalid lesson format from AI");
+      parsed = JSON.parse(extracted);
+    }
   }
 
   // Validate, allow a light normalization pass for common issues
@@ -229,3 +272,5 @@ Produce exactly one micro-lesson and 1–3 MCQs as specified.${ctxHint}\nReturn 
   if (revalidated.success) return revalidated.data;
   throw new Error("Invalid lesson format from AI");
 }
+
+

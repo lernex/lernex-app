@@ -21,7 +21,7 @@ export const LATEX_MACRO_NAMES = [
 export const LATEX_MACRO_PATTERN = LATEX_MACRO_NAMES.join("|");
 const RE_DOUBLE_BEFORE_MACRO = new RegExp(`(?:\\\\){2,}(?=(?:${LATEX_MACRO_PATTERN})\\b)`, "g");
 const RE_DOUBLE_ESCAPED_MACRO = new RegExp(`\\\\(${LATEX_MACRO_PATTERN})\\b`, "g");
-const RE_INLINE_DOLLARS = /\$(?!\$)([^$\n]{1,300})\$/g;
+const RE_INLINE_DOLLARS = /(?<!\\)\$(?!\$)([^$\n]{1,300}?)(?<!\\)\$/g;
 
 export type LatexNormalizeOptions = {
   convertInlineMath?: boolean;

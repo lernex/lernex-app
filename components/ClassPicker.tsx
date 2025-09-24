@@ -1,31 +1,20 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useLernexStore } from "@/lib/store";
+import { useProfileBasics } from "@/app/providers/ProfileBasicsProvider";
 
 type Pair = { subject: string; course?: string };
 
 export default function ClassPicker() {
   const { selectedSubjects, setSelectedSubjects } = useLernexStore();
-  const [pairs, setPairs] = useState<Pair[]>([]);
   const [open, setOpen] = useState(false);
+  const { data: profileBasics } = useProfileBasics();
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const r = await fetch("/api/profile/me", { cache: "no-store" });
-        if (!r.ok) return;
-        const j = await r.json();
-        const lm = (j?.level_map || {}) as Record<string, string>;
-        const ints: string[] = Array.isArray(j?.interests) ? j.interests : [];
-        const uniqSubs = Array.from(new Set(ints.filter(Boolean)));
-        const out: Pair[] = uniqSubs.map((s) => ({ subject: s, course: lm[s] }));
-        if (alive) setPairs(out);
-      } catch {}
-    })();
-    return () => { alive = false; };
-  }, []);
+  const pairs = useMemo<Pair[]>(() => {
+    const levelMap = profileBasics.levelMap;
+    return profileBasics.interests.map((subject) => ({ subject, course: levelMap[subject] }));
+  }, [profileBasics]);
 
   const normalizedSelection = useMemo(() => {
     if (!selectedSubjects.length) return [];

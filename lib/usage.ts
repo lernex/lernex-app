@@ -9,6 +9,7 @@ const PRICES: Record<string, { input: number; output: number }> = {
   // Groq OSS 120B (heavier, stricter JSON)
   "gpt-oss-120b": { input: 0.15 / 1_000_000, output: 0.75 / 1_000_000 },
   "openai/gpt-oss-120b": { input: 0.15 / 1_000_000, output: 0.75 / 1_000_000 },
+  "grok-4-fast-reasoning": { input: 0.2 / 1_000_000, output: 0.5 / 1_000_000 },
 };
 
 export function calcCost(model: string, inputTokens = 0, outputTokens = 0) {

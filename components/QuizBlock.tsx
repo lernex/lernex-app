@@ -156,29 +156,6 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
     recordAnswer(lesson.subject, isCorrect);
     if (isCorrect) {
       setCorrectCount((c) => c + 1);
-      void (async () => {
-        try {
-          const res = await fetch("/api/attempt", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              event: "question-correct",
-              lesson_id: lesson.id,
-              subject: lesson.subject,
-              topic: lesson.topic ?? undefined,
-              correct_increment: 1,
-            }),
-          });
-          const payload = (await res.json().catch(() => ({}))) as Record<string, unknown> | undefined;
-          if (!res.ok) {
-            console.warn("[quiz-block] reward failed", { status: res.status, payload });
-            return;
-          }
-          syncStatsFromPayload(payload);
-        } catch (err) {
-          console.warn("[quiz-block] reward request error", err);
-        }
-      })();
       // SFX + confetti near the clicked button
       try {
         const btn = ev?.currentTarget as HTMLElement | undefined;
@@ -214,6 +191,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
         total: questions.length,
         event: "lesson-finish",
         skip_points: correctCount > 0,
+        points_per_correct: 10,
       };
       void (async () => {
         try {

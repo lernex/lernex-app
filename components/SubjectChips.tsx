@@ -1,26 +1,13 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useLernexStore } from "@/lib/store";
+import { useProfileBasics } from "@/app/providers/ProfileBasicsProvider";
 
 export default function SubjectChips() {
   const { selectedSubjects, setSelectedSubjects } = useLernexStore();
-  const [interests, setInterests] = useState<string[]>([]);
+  const { data: profileBasics } = useProfileBasics();
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const r = await fetch("/api/profile/me", { cache: "no-store" });
-        if (!r.ok) return;
-        const j = await r.json();
-        const arr = Array.isArray(j?.interests) ? (j.interests as string[]) : [];
-        if (alive) setInterests(arr);
-      } catch {}
-    })();
-    return () => { alive = false; };
-  }, []);
-
-  const options = useMemo(() => interests, [interests]);
+  const options = useMemo(() => profileBasics.interests, [profileBasics.interests]);
 
   if (!options.length) return null;
 
@@ -60,4 +47,3 @@ export default function SubjectChips() {
     </div>
   );
 }
-

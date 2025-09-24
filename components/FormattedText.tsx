@@ -151,11 +151,17 @@ function splitMathSegments(src: string): Seg[] {
 
 function formatNonMath(s: string) {
   const wrap = (tex: string) => `\\(${tex}\\)`;
-  let out = escapeHtml(s)
+  const codeReplacements: Record<string, string> = {};
+  let codeIndex = 0;
+  const withPlaceholders = s.replace(RE_CODE, (_match, inner: string) => {
+    const key = `__CODE_SPAN_${codeIndex++}__`;
+    codeReplacements[key] = `<code>${escapeHtml(inner)}</code>`;
+    return key;
+  });
+  let out = escapeHtml(withPlaceholders)
     .replace(RE_BOLD_A, "<strong>$1</strong>")
     .replace(RE_BOLD_B, "<strong>$1</strong>")
-    .replace(RE_DEL, "<del>$1</del>")
-    .replace(RE_CODE, "<code>$1</code>");
+    .replace(RE_DEL, "<del>$1</del>");
   // Conservatively wrap common TeX fragments that appear in plain text
   out = out.replace(RE_BEGIN_END, (m) => wrap(m));
   out = out.replace(RE_TEX_COMMON, (m) => wrap(m));
@@ -164,6 +170,9 @@ function formatNonMath(s: string) {
   out = out.replace(RE_DOUBLE_BAR, (_m, inner) => wrap(`\\| ${inner.trim()} \\|`));
   out = out.replace(RE_ANGLE, (_m, inner) => wrap(`\\langle ${inner.trim()} \\rangle`));
   out = out.replace(RE_SQRT, (_m, inner) => wrap(`\\sqrt{${inner.trim()}}`));
+  for (const key of Object.keys(codeReplacements)) {
+    out = out.split(key).join(codeReplacements[key]);
+  }
   return out;
 }
 
@@ -196,11 +205,28 @@ function scheduleTypeset(el: HTMLElement, opts?: { delayMs?: number; rafs?: 0 | 
       .then(() => {
         const MathJax = window.MathJax; if (!MathJax) { devLog("no-mathjax"); return; }
         const parent = el.parentElement ?? undefined;
-        const tryLocal = () => MathJax.typesetPromise?.([el]).catch(() => {});
-        const tryParent = () => parent ? MathJax.typesetPromise?.([parent]).catch(() => {}) : Promise.resolve();
-        const tryGlobal = () => MathJax.typesetPromise?.().catch(() => {});
-        const run = () => (tryLocal() as Promise<void> | undefined)
-          ?.then(() => { if (!el.querySelector("mjx-container")) return tryParent(); })
+        const invokeTypeset = (targets?: HTMLElement[]) => {
+          const fn = MathJax.typesetPromise;
+          if (typeof fn !== "function") return Promise.resolve();
+          let result: unknown;
+          try {
+            result = fn.call(MathJax, targets);
+          } catch (error) {
+            devLog("typeset-invoke-error", error);
+            return Promise.resolve();
+          }
+          if (result && typeof (result as Promise<void>).then === "function") {
+            return (result as Promise<void>).catch((err) => {
+              devLog("typeset-promise-error", err);
+            });
+          }
+          return Promise.resolve();
+        };
+        const tryLocal = () => invokeTypeset([el]);
+        const tryParent = () => (parent ? invokeTypeset([parent]) : Promise.resolve());
+        const tryGlobal = () => invokeTypeset();
+        const run = () => tryLocal()
+          .then(() => { if (!el.querySelector("mjx-container")) return tryParent(); })
           .then(() => { if (!el.querySelector("mjx-container")) return tryGlobal(); })
           .then(() => devLog(el.querySelector("mjx-container") ? "typeset-done" : "typeset-fallback-global-done"))
           .catch((e) => devLog("typeset-error", e));

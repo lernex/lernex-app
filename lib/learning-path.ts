@@ -1,4 +1,4 @@
-import Groq from "groq-sdk";
+import OpenAI from "openai";
 import type { SupabaseClient, PostgrestError } from "@supabase/supabase-js";
 import { checkUsageLimit, logUsage } from "./usage";
 // In-process lock to dedupe concurrent level-map generations per user+subject.
@@ -260,20 +260,23 @@ export async function generateLearningPath(
   mastery: number,
   notes = ""
 ): Promise<LevelMap> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("Missing GROQ_API_KEY");
-  const client = new Groq({ apiKey });
+  const apiKey = process.env.GROK_API_KEY;
+  if (!apiKey) throw new Error("Missing GROK_API_KEY");
+  const client = new OpenAI({
+    apiKey,
+    baseURL: process.env.GROK_BASE_URL || "https://api.x.ai/v1",
+  });
   // Use a stronger default model for level map generation; allow override via env
-  const model = process.env.GROQ_LEVEL_MODEL || process.env.GROQ_MODEL || "openai/gpt-oss-120b";
-  const temperature = Number(process.env.GROQ_TEMPERATURE ?? "0.8");
+  const model = process.env.GROK_LEVEL_MODEL || process.env.GROK_MODEL || "grok-4-fast-reasoning";
+  const temperature = Number(process.env.GROK_TEMPERATURE ?? process.env.GROQ_TEMPERATURE ?? "0.8");
   const clampTokens = (value: unknown, fallback: number, min: number, max: number) => {
     const num = Number(value);
     const resolved = Number.isFinite(num) && num > 0 ? num : fallback;
     return Math.max(min, Math.min(max, resolved));
   };
-  const MAX_TOK_MAIN = clampTokens(process.env.GROQ_LEVEL_MAX_TOKENS_MAIN ?? "5000", 5000, 2600, 5400);
-  const MAX_TOK_RETRY = clampTokens(process.env.GROQ_LEVEL_MAX_TOKENS_RETRY ?? "4400", 4400, 2200, 5200);
-  const MAX_TOK_FALLBACK = clampTokens(process.env.GROQ_LEVEL_MAX_TOKENS_FALLBACK ?? "3600", 3600, 1600, 4200);
+  const MAX_TOK_MAIN = clampTokens(process.env.GROK_LEVEL_MAX_TOKENS_MAIN ?? process.env.GROQ_LEVEL_MAX_TOKENS_MAIN ?? "5500", 5500, 3000, 5900);
+  const MAX_TOK_RETRY = clampTokens(process.env.GROK_LEVEL_MAX_TOKENS_RETRY ?? process.env.GROQ_LEVEL_MAX_TOKENS_RETRY ?? "4900", 4900, 2600, 5600);
+  const MAX_TOK_FALLBACK = clampTokens(process.env.GROK_LEVEL_MAX_TOKENS_FALLBACK ?? process.env.GROQ_LEVEL_MAX_TOKENS_FALLBACK ?? "4100", 4100, 2100, 4700);
 
   const touchProgress = (patch: Parameters<typeof updateLearningPathProgress>[2]) => {
     updateLearningPathProgress(uid, subject, patch);
@@ -385,7 +388,7 @@ Constraints:
   ].filter(Boolean).join("\n");
 
   let raw = "";
-  let completion: import("groq-sdk/resources/chat/completions").ChatCompletion | null = null;
+  let completion: OpenAI.Chat.Completions.ChatCompletion | null = null;
   let attemptsCount = 0;
   let fallbackUsed = false;
   let deterministicFallback = false;
@@ -404,7 +407,6 @@ Constraints:
       model,
       temperature,
       max_tokens: MAX_TOK_MAIN,
-      reasoning_effort: "high",
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: system },
@@ -425,7 +427,6 @@ Constraints:
           model,
           temperature,
           max_tokens: MAX_TOK_RETRY,
-          reasoning_effort: "high",
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: system },
@@ -446,7 +447,6 @@ Constraints:
             model,
             temperature,
             max_tokens: MAX_TOK_FALLBACK,
-            reasoning_effort: "medium",
             messages: [
               { role: "system", content: system },
               { role: "user", content: userPrompt },
@@ -527,7 +527,6 @@ Constraints:
           model,
           temperature,
           max_tokens: MAX_TOK_MAIN,
-          reasoning_effort: "high",
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: repairSys },
