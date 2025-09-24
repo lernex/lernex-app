@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 import Link from "next/link";
 
 type PlaylistRow = {
@@ -13,23 +13,51 @@ type PlaylistRow = {
 };
 
 export default function Playlists() {
+  const supabase = useMemo(() => supabaseBrowser(), []);
   const [rows, setRows] = useState<PlaylistRow[]>([]);
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    void refresh();
-  }, []);
+    let active = true;
+    supabase.auth.getSession().then(({ data, error }) => {
+      console.debug('[playlists] getSession result', { hasSession: !!data?.session, error });
+      if (!active) return;
+      if (error) {
+        console.error('[playlists] session fetch failed', error);
+        return;
+      }
+      setUserId(data?.session?.user?.id ?? null);
+    });
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      console.debug('[playlists] onAuthStateChange', { event, hasSession: !!session });
+      setUserId(session?.user?.id ?? null);
+    });
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
+  }, [supabase]);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     const { data, error } = await supabase
       .from("playlists")
       .select("id, name, description, is_public, created_at")
       .order("created_at", { ascending: false });
 
-    if (!error && data) setRows(data as PlaylistRow[]);
-  }
+    if (error) {
+      console.error('[playlists] refresh failed', error);
+      return;
+    }
+
+    if (data) setRows(data as PlaylistRow[]);
+  }, [supabase]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   async function create() {
     const trimmed = name.trim();
@@ -37,18 +65,24 @@ export default function Playlists() {
     setError(null);
     setCreating(true);
     try {
-      const { data, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
+      let id = userId;
+      if (!id) {
+        console.warn('[playlists] missing cached user id, refetching session');
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        console.debug('[playlists] second session fetch', { hasSession: !!sessionData?.session, sessionError });
+        if (sessionError) throw sessionError;
+        id = sessionData.session?.user?.id ?? null;
+        setUserId(id);
+      }
 
-      const userId = data.session?.user?.id;
-      if (!userId) {
+      if (!id) {
         setError("Sign in to create playlists.");
         return;
       }
 
       const { error: insertError } = await supabase
         .from("playlists")
-        .insert({ name: trimmed, user_id: userId });
+        .insert({ name: trimmed, user_id: id });
 
       if (insertError) throw insertError;
 

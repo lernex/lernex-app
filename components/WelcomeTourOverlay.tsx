@@ -21,7 +21,7 @@ const TOUR_STEPS: TourStep[] = [
     id: "path",
     title: "Your learning path is unlocking",
     description: "We just crunched the placement quiz to spot your strengths and the exact concepts to work on next.",
-    highlight: "Hang tight while we stitch together your personalized map in the background — this tour keeps things moving.",
+    highlight: "Hang tight while we stitch together your personalized map in the background â€” this tour keeps things moving.",
     gradient: "from-lernex-blue/80 via-lernex-purple/70 to-teal-400/70",
     accent: "from-lernex-blue/25 to-lernex-purple/30",
     Icon: Sparkles,
@@ -29,8 +29,8 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: "feed",
     title: "Meet your For You feed",
-    description: "Every card here is tuned to the subjects you care about. We’ll surface warm-ups, quick wins, and stretch challenges automatically.",
-    highlight: "Add or swap classes anytime — the feed reshapes instantly to keep you in the flow.",
+    description: "Every card here is tuned to the subjects you care about. Weâ€™ll surface warm-ups, quick wins, and stretch challenges automatically.",
+    highlight: "Add or swap classes anytime â€” the feed reshapes instantly to keep you in the flow.",
     gradient: "from-purple-500/60 via-lernex-blue/60 to-sky-400/60",
     accent: "from-purple-500/30 to-sky-400/25",
     Icon: Compass,
@@ -39,7 +39,7 @@ const TOUR_STEPS: TourStep[] = [
     id: "start",
     title: "Daily momentum, unlocked",
     description: "Point boosts, streak tracking, and gentle nudges help you keep a steady rhythm. Tapping into a lesson now sets the tone for the week.",
-    highlight: "Ready when you are — let’s explore your new path and pick the first lesson together.",
+    highlight: "Ready when you are â€” letâ€™s explore your new path and pick the first lesson together.",
     gradient: "from-emerald-400/60 via-lernex-blue/60 to-lernex-purple/60",
     accent: "from-emerald-400/30 to-lernex-blue/25",
     Icon: PartyPopper,
@@ -264,3 +264,4 @@ export default function WelcomeTourOverlay() {
     </AnimatePresence>
   );
 }
+
