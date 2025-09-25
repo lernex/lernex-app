@@ -66,12 +66,12 @@ const RE_SQRT = /√\s*\(?([0-9A-Za-z+\-*/^\s,.]+?)\)?(?=(\s|[.,;:)\]]|$))/g;
 const MATH_TRIGGER_RE = /(\$|\\\(|\\\[|\\begin|√|⟨|_\{|\\\^)/;
 
 const SINGLE_DOLLAR_MAX_DISTANCE = 240;
-const TEX_SYMBOL_MACRO_PATTERN = LATEX_TEXT_SYMBOL_MACROS.join("|");
-const RE_TEX_SYMBOLS = new RegExp('\\(?:' + TEX_SYMBOL_MACRO_PATTERN + ')\\b', 'g');
-const BARE_MACRO_PATTERN = LATEX_TEXT_BARE_MACROS.join("|");
-const RE_BARE_MACROS = new RegExp('(^|[^\\])(' + BARE_MACRO_PATTERN + ')\\b', 'g');
-const SINGLE_LETTER_MACRO_PATTERN = LATEX_TEXT_SINGLE_LETTER_MACROS.join("|");
-const RE_SINGLE_LETTER_ARG = new RegExp('\\(' + SINGLE_LETTER_MACRO_PATTERN + ')([A-Za-z])(?![A-Za-z])', 'g');
+const SYMBOL_MACRO_SET = new Set(LATEX_TEXT_SYMBOL_MACROS);
+const BARE_MACRO_SET = new Set(LATEX_TEXT_BARE_MACROS);
+const SINGLE_LETTER_MACRO_SET = new Set(LATEX_TEXT_SINGLE_LETTER_MACROS);
+const RE_BACKSLASH_MACRO = /\\([A-Za-z]+)/g;
+const RE_BARE_MACROS = /(^|[^\\])([A-Za-z]+)\b/g;
+const RE_SINGLE_LETTER_ARG = /\\([A-Za-z]+)([A-Za-z])(?![A-Za-z])/g;
 
 const BRACED_MACRO_ARG_COUNTS: Record<string, number> = Object.fromEntries(
   LATEX_TEXT_BRACED_MACROS.map((name) => [name, 1])
@@ -474,7 +474,9 @@ function formatNonMath(s: string) {
   // Conservatively wrap common TeX fragments that appear in plain text
   out = out.replace(RE_BEGIN_END, (m) => wrap(m));
   out = wrapBracedMacros(out, wrap);
-  out = out.replace(RE_TEX_SYMBOLS, (m) => wrap(m));
+  out = out.replace(RE_BACKSLASH_MACRO, (match, name: string) =>
+    SYMBOL_MACRO_SET.has(name) ? wrap(match) : match
+  );
   out = out.replace(RE_SUBSCRIPT, (_m, a, b) => wrap(`${a}_${b}`));
   out = out.replace(RE_DOUBLE_BAR, (_m, inner) => wrap(`\\| ${inner.trim()} \\|`));
   out = out.replace(RE_ANGLE, (_m, inner) => wrap(`\\langle ${inner.trim()} \\rangle`));
@@ -489,9 +491,13 @@ function fixMacrosInMath(s: string) {
   // Collapse accidental double-backslashes before common macros (not row breaks)
   s = collapseMacroEscapes(s);
   // If a macro name appears without a backslash in math (rare), add one
-  s = s.replace(RE_BARE_MACROS, (_m, prefix: string, macro: string) => `${prefix}\\${macro}`);
+  s = s.replace(RE_BARE_MACROS, (match, prefix: string, macro: string) =>
+    BARE_MACRO_SET.has(macro) ? `${prefix}\\${macro}` : match
+  );
   // Normalize one-letter macro arguments like \mathbfv -> \mathbf{v}
-  s = s.replace(RE_SINGLE_LETTER_ARG, (_m, macro: string, letter: string) => `\\${macro}{${letter}}`);
+  s = s.replace(RE_SINGLE_LETTER_ARG, (match, macro: string, letter: string) =>
+    SINGLE_LETTER_MACRO_SET.has(macro) ? `\\${macro}{${letter}}` : match
+  );
   return s;
 }
 
