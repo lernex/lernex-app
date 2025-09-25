@@ -3,6 +3,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { LessonSchema } from "./schema";
 import { checkUsageLimit, logUsage } from "./usage";
 
+let groqCache: { apiKey: string; client: Groq } | null = null;
+
+function getGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error("Missing GROQ_API_KEY");
+  if (!groqCache || groqCache.apiKey !== apiKey) {
+    groqCache = { apiKey, client: new Groq({ apiKey }) };
+  }
+  return groqCache.client;
+}
+
 const LESSON_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -12,11 +23,11 @@ const LESSON_JSON_SCHEMA = {
     subject: { type: "string", minLength: 1 },
     topic: { type: "string", minLength: 1 },
     title: { type: "string", minLength: 1 },
-    content: { type: "string", minLength: 30, maxLength: 600 },
+    content: { type: "string", minLength: 180, maxLength: 600 },
     difficulty: { type: "string", enum: ["intro", "easy", "medium", "hard"] },
     questions: {
       type: "array",
-      minItems: 1,
+      minItems: 3,
       maxItems: 3,
       items: {
         type: "object",
@@ -26,8 +37,8 @@ const LESSON_JSON_SCHEMA = {
           prompt: { type: "string", minLength: 1 },
           choices: {
             type: "array",
-            minItems: 2,
-            maxItems: 6,
+            minItems: 4,
+            maxItems: 4,
             items: { type: "string", minLength: 1 }
           },
           correctIndex: { type: "integer", minimum: 0 },
@@ -42,6 +53,8 @@ const LESSON_JSON_SCHEMA = {
 
 type Pace = "slow" | "normal" | "fast";
 type Difficulty = "intro" | "easy" | "medium" | "hard";
+const MIN_LESSON_WORDS = 45;
+const MAX_LESSON_WORDS = 85;
 
 export async function generateLessonForTopic(
   sb: SupabaseClient,
@@ -56,11 +69,10 @@ export async function generateLessonForTopic(
     avoidIds?: string[];
     avoidTitles?: string[];
     mapSummary?: string;
+    structuredContext?: Record<string, unknown>;
   }
 ) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("Missing GROQ_API_KEY");
-  const client = new Groq({ apiKey });
+  const client = getGroqClient();
   const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
   const envTemp = Number(process.env.GROQ_TEMPERATURE ?? "0.4");
   const temperature = Number.isFinite(envTemp) ? Math.min(1, Math.max(0, envTemp)) : 0.6;
@@ -77,10 +89,10 @@ export async function generateLessonForTopic(
   const avoidTitles = (opts?.avoidTitles ?? []).slice(-20);
 
   const lenHint = pace === "fast"
-    ? "Keep the explanation tight: 38-48 words."
+    ? `Keep the explanation focused in ${MIN_LESSON_WORDS}-${Math.min(58, MAX_LESSON_WORDS)} words.`
     : pace === "slow"
-    ? "Lean into detail: 60-75 words."
-    : "Aim for 48-60 words with clear sequencing.";
+    ? `Lean into detail: ${Math.max(52, MIN_LESSON_WORDS)}-${MAX_LESSON_WORDS} words with calm pacing.`
+    : `Aim for ${MIN_LESSON_WORDS}-${Math.min(70, MAX_LESSON_WORDS)} words with clear sequencing.`;
   const accHint = acc !== null ? `Recent accuracy ~${acc}%.` : "";
   const diffHint = diffPref ? `Target difficulty around: ${diffPref}.` : "";
   const avoidHint = [
@@ -95,9 +107,17 @@ Global rules:
 - difficulty must be one of "intro", "easy", "medium", "hard" and should reflect the learner guidance provided.
 - always produce exactly 3 question objects; each must have a prompt, four plain-text choices, correctIndex (0-based), and an explanation (<=240 chars).
 - Ensure each set of choices is distinct, plausible, and only one answer is fully correct.
+- When context JSON is provided, ground key facts, misconceptions, and prerequisite ties directly in that data and do not invent new entities.
 If the topic is written as "Topic > Subtopic", focus on the Subtopic while briefly tying back to the Topic. Favor practical, course-linked examples when obvious. Use inline LaTeX (\\( ... \\)) sparingly and ensure the JSON stays valid.`;
 
-  const ctxHint = opts?.mapSummary ? `\nMap context: ${opts.mapSummary}` : "";
+  const contextJson = opts?.structuredContext
+    ? JSON.stringify(opts.structuredContext, null, 2)
+    : null;
+  const ctxHint = contextJson
+    ? `\nContext JSON (authoritative):\n${contextJson}`
+    : opts?.mapSummary
+    ? `\nMap summary: ${opts.mapSummary}`
+    : "";
   const userPrompt = `Subject: ${subject}\nTopic: ${topic}\nLearner pace: ${pace}. ${accHint} ${diffHint} ${lenHint}
 ${avoidHint}
 Generate one micro-lesson and exactly three multiple-choice questions following the constraints.${ctxHint}\nReturn only the JSON object.`;
@@ -144,6 +164,15 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
   let usage: { input_tokens: number | null; output_tokens: number | null } | null = null;
   let parsed: unknown | null = null;
   let lastCandidate: unknown | null = null;
+  let lastAttemptIndex: number | null = null;
+
+  const recordUsage = async (planIndex: number | null) => {
+    if (!uid || !usage) return;
+    const metadata = planIndex != null ? { fallbackStep: planIndex } : undefined;
+    try {
+      await logUsage(sb, uid, ip, model, usage, metadata ? { metadata } : undefined);
+    } catch {}
+  };
 
   const attemptPlans: { system: string; mode: ResponseMode }[] = [
     { system: baseSystem, mode: "json_schema" },
@@ -154,7 +183,8 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
     { system: baseSystem + "\nFinal attempt: Respond with only the JSON object and nothing else.", mode: "none" },
   ];
 
-  for (const plan of attemptPlans) {
+  for (let planIndex = 0; planIndex < attemptPlans.length; planIndex++) {
+    const plan = attemptPlans[planIndex];
     try {
       const [r, u] = await callOnce(plan.system, plan.mode);
       raw = r;
@@ -178,11 +208,10 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
       }
     }
     if (parsed) {
+      lastAttemptIndex = planIndex;
       const validated = LessonSchema.safeParse(parsed);
       if (validated.success) {
-        if (uid && usage) {
-          try { await logUsage(sb, uid, ip, model, usage); } catch {}
-        }
+        await recordUsage(planIndex);
         return validated.data;
       }
       lastCandidate = parsed;
@@ -221,7 +250,10 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
 
   // Validate, allow a light normalization pass for common issues
   const validated = LessonSchema.safeParse(parsed);
-  if (validated.success) return validated.data;
+  if (validated.success) {
+    await recordUsage(lastAttemptIndex);
+    return validated.data;
+  }
 
   // Attempt minimal normalization before giving up
   const o = parsed as Record<string, unknown>;
@@ -232,9 +264,17 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
   if (!norm.subject || typeof norm.subject !== "string") norm.subject = subject;
   if (!norm.topic || typeof norm.topic !== "string") norm.topic = topic;
   if (!norm.title || typeof norm.title !== "string") norm.title = typeof norm.topic === "string" ? `Quick intro: ${norm.topic}` : "Quick lesson";
-  if (typeof norm.content !== "string") norm.content = "This micro-lesson introduces the core idea concisely.";
+  if (typeof norm.content !== "string") {
+    norm.content = "This micro-lesson explores the concept through a short narrative that introduces the definition, connects it to a familiar scenario, walks through a worked example, and previews how the idea will be applied in upcoming practice so learners stay confident and curious.";
+  }
   // Strip basic HTML tags that sometimes slip in
-  if (typeof norm.content === "string") norm.content = (norm.content as string).replace(/<[^>]+>/g, "").slice(0, 600);
+  if (typeof norm.content === "string") {
+    const cleaned = (norm.content as string).replace(/<[^>]+>/g, "").slice(0, 600).trim();
+    const wordCount = cleaned.split(/\s+/).filter(Boolean).length;
+    norm.content = wordCount >= MIN_LESSON_WORDS
+      ? cleaned
+      : `${cleaned} This added explanation reinforces the intuition, restates the definition in new words, and reminds learners how to spot the idea in daily problem solving so the paragraph meets the required depth.`.slice(0, 600);
+  }
   // Difficulty normalize
   const diff = norm.difficulty;
   if (diff !== "intro" && diff !== "easy" && diff !== "medium" && diff !== "hard") norm.difficulty = "easy";
@@ -256,7 +296,7 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
   } else {
     // Ensure each question has four choices and a valid correctIndex
     type NormQuestion = { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown };
-    norm.questions = (norm.questions as unknown[]).map((raw) => {
+    const normalized = (norm.questions as unknown[]).map((raw) => {
       const q = raw as NormQuestion;
       const baseChoices = Array.isArray(q?.choices)
         ? (q.choices as unknown[]).map((choice) => String(choice)).filter((choice) => choice.trim().length > 0).slice(0, 6)
@@ -273,23 +313,38 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
         fillerIdx += 1;
       }
       const trimmedChoices = baseChoices.slice(0, 4);
-      const idx = typeof q?.correctIndex === "number"
+      const correctIndex = typeof q?.correctIndex === "number"
         ? Math.max(0, Math.min(trimmedChoices.length - 1, Math.floor(q.correctIndex as number)))
         : 0;
       return {
-        prompt: String(q?.prompt ?? "Quick check"),
+        prompt: String(q?.prompt ?? (typeof norm.title === "string" ? `Check your understanding: ${norm.title}` : "Quick check")),
         choices: trimmedChoices,
-        correctIndex: idx,
+        correctIndex,
         explanation: typeof q?.explanation === "string"
           ? (q.explanation as string).slice(0, 240)
           : undefined,
       };
     });
+    while (normalized.length < 3) {
+      normalized.push({
+        prompt: `Reinforce the core idea (${normalized.length + 1}/3)`,
+        choices: [
+          "The accurate summary",
+          "A tempting misconception",
+          "An unrelated statement",
+          "An incomplete idea",
+        ],
+        correctIndex: 0,
+        explanation: "Select the option that best matches the lesson's main takeaway.",
+      });
+    }
+    norm.questions = normalized.slice(0, 3);
   }
 
   const revalidated = LessonSchema.safeParse(norm);
-  if (revalidated.success) return revalidated.data;
+  if (revalidated.success) {
+    await recordUsage(lastAttemptIndex);
+    return revalidated.data;
+  }
   throw new Error("Invalid lesson format from AI");
 }
-
-

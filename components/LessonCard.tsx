@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Lesson } from "@/types";
 import FormattedText from "./FormattedText";
 
@@ -8,33 +8,48 @@ type LessonCardProps = {
   className?: string;
 };
 
+const MATH_TRIGGER_RE = /(\$|\\\(|\\\[|\\begin|√|⟨|_\{|\\\^)/;
+
 export default function LessonCard({ lesson, className }: LessonCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [disliked, setDisliked] = useState(false);
+  const shouldTypesetLesson = useMemo(() => {
+    const contentHasMath = typeof lesson.content === "string" && MATH_TRIGGER_RE.test(lesson.content);
+    const titleHasMath = typeof lesson.title === "string" && MATH_TRIGGER_RE.test(lesson.title);
+    return contentHasMath || titleHasMath;
+  }, [lesson.content, lesson.title]);
 
   // Mount guard: Once the lesson content is in the DOM, run a local
   // MathJax typeset against just this card to ensure stable formatting after
   // the preview -> card swap.
   useEffect(() => {
+    if (!shouldTypesetLesson) return;
     const el = cardRef.current;
     if (!el) return;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.MathJax?.typesetPromise?.([el]).catch(() => {});
-      });
+    const handle = window.requestAnimationFrame(() => {
+      window.MathJax?.typesetPromise?.([el]).catch(() => {});
     });
-  }, [lesson.id, lesson.content]);
+    return () => window.cancelAnimationFrame(handle);
+  }, [lesson.id, lesson.content, shouldTypesetLesson]);
 
   const sendFeedback = async (action: "like" | "dislike" | "save") => {
     try {
-      await fetch("/api/fyp/feedback", {
+      const res = await fetch("/api/fyp/feedback", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ subject: lesson.subject, lesson_id: lesson.id, action }),
       });
-    } catch {}
+      if (!res.ok) {
+        console.warn("[lesson-card] feedback failed", { action, status: res.status });
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.warn("[lesson-card] feedback request error", error);
+      return false;
+    }
   };
 
   const baseClass =
@@ -78,21 +93,50 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
         </div>
         <div className="pt-2 flex flex-wrap items-center gap-2 text-sm">
           <button
-            onClick={() => { setLiked(true); setDisliked(false); void sendFeedback("like"); }}
+            onClick={() => {
+              const prevLiked = liked;
+              const prevDisliked = disliked;
+              setLiked(true);
+              setDisliked(false);
+              void sendFeedback("like").then((ok) => {
+                if (!ok) {
+                  setLiked(prevLiked);
+                  setDisliked(prevDisliked);
+                }
+              });
+            }}
             className={helpfulClass}
             aria-label="Mark lesson as helpful"
           >
             Helpful
           </button>
           <button
-            onClick={() => { setSaved((s) => !s); void sendFeedback("save"); }}
+            onClick={() => {
+              const prevSaved = saved;
+              const nextSaved = !prevSaved;
+              setSaved(nextSaved);
+              void sendFeedback("save").then((ok) => {
+                if (!ok) setSaved(prevSaved);
+              });
+            }}
             className={saveClass}
             aria-label="Save lesson"
           >
             {saved ? "Saved" : "Save"}
           </button>
           <button
-            onClick={() => { setDisliked(true); setLiked(false); void sendFeedback("dislike"); }}
+            onClick={() => {
+              const prevLiked = liked;
+              const prevDisliked = disliked;
+              setDisliked(true);
+              setLiked(false);
+              void sendFeedback("dislike").then((ok) => {
+                if (!ok) {
+                  setDisliked(prevDisliked);
+                  setLiked(prevLiked);
+                }
+              });
+            }}
             className={dislikeClass}
             aria-label="Not helpful"
           >

@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Lesson } from "@/types";
 import { useLernexStore } from "@/lib/store";
 import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
@@ -14,6 +14,9 @@ function getAudio() {
     if (!audioCtx) {
       const Ctor = ((window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) ?? window.AudioContext;
       audioCtx = Ctor ? new Ctor() : null;
+    }
+    if (audioCtx && audioCtx.state === "suspended") {
+      void audioCtx.resume().catch(() => {});
     }
   } catch {
     audioCtx = null;
@@ -59,7 +62,11 @@ function playFanfare() {
 // Tiny confetti burst using Web Animations API
 function confettiBurst(x: number, y: number, opts?: { count?: number; spread?: number; power?: number; colors?: string[] }) {
   if (typeof document === "undefined") return;
-  const count = opts?.count ?? 24;
+  if (typeof window !== "undefined") {
+    const prefersReduce = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (prefersReduce?.matches) return;
+  }
+  const count = Math.max(6, Math.min(40, opts?.count ?? 18));
   const spread = opts?.spread ?? 60; // degrees
   const power = opts?.power ?? 9; // px multiplier
   const colors = opts?.colors ?? ["#60a5fa", "#34d399", "#fbbf24", "#f472b6", "#a78bfa"];
@@ -97,6 +104,8 @@ type QuizBlockProps = {
   showSummary?: boolean;
 };
 
+const MATH_TRIGGER_RE = /(\$|\\\(|\\\[|\\begin|√|⟨|_\{|\\\^)/;
+
 export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBlockProps) {
   const { stats, setStats, refresh } = useProfileStats();
   const recordAnswer = useLernexStore((s) => s.recordAnswer);
@@ -109,6 +118,12 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
   const [correctCount, setCorrectCount] = useState(0);
   const [showSummaryOverlay, setShowSummaryOverlay] = useState(false);
   const q = hasQuestions ? questions[qIndex] : undefined;
+  const needsMathTypeset = useMemo(() => {
+    if (!q) return false;
+    if (MATH_TRIGGER_RE.test(q.prompt)) return true;
+    if (q.choices.some((choice) => MATH_TRIGGER_RE.test(choice))) return true;
+    return typeof q.explanation === "string" && MATH_TRIGGER_RE.test(q.explanation);
+  }, [q]);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setQ(0);
@@ -147,13 +162,14 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
   // changes. This complements the per-element fallback in FormattedText and
   // helps when the entire question block swaps at once.
   useEffect(() => {
+    if (!needsMathTypeset) return;
     const el = rootRef.current;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.MathJax?.typesetPromise?.(el ? [el] : undefined).catch(() => {});
-      });
+    if (!el) return;
+    const handle = window.requestAnimationFrame(() => {
+      window.MathJax?.typesetPromise?.([el]).catch(() => {});
     });
-  }, [qIndex]);
+    return () => window.cancelAnimationFrame(handle);
+  }, [qIndex, needsMathTypeset]);
 
   const choose = (idx: number, ev?: React.MouseEvent<HTMLButtonElement>) => {
     if (selected !== null) return;
@@ -176,12 +192,13 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
     // Ensure formatting stays intact after the immediate UI update when
     // button classes change (avoids transient unformatted state in some
     // browsers during reflow).
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
+    if (needsMathTypeset) {
+      window.requestAnimationFrame(() => {
         const el = rootRef.current;
-        window.MathJax?.typesetPromise?.(el ? [el] : undefined).catch(() => {});
+        if (!el) return;
+        window.MathJax?.typesetPromise?.([el]).catch(() => {});
       });
-    });
+    }
   };
 
   const next = () => {

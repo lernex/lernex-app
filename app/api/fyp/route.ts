@@ -63,6 +63,56 @@ export async function GET(req: NextRequest) {
       { status: 202, headers: { "retry-after": retryAfter } }
     );
 
+  const MAX_CACHE_AGE_MS = 7 * 24 * 3600_000;
+  const METRICS_REFRESH_MS = 10 * 60 * 1000;
+  type AttemptRow = {
+    subject?: string | null;
+    correct_count?: number | null;
+    total?: number | null;
+    created_at?: string | null;
+  };
+  let attemptRows: AttemptRow[] | null = null;
+  const loadAttempts = async () => {
+    if (attemptRows) return attemptRows;
+    const { data } = await sb
+      .from("attempts")
+      .select("subject, correct_count, total, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(120);
+    attemptRows = (data ?? []) as AttemptRow[];
+    return attemptRows;
+  };
+  const computeSubjectMastery = (rows: AttemptRow[], subjectName: string) => {
+    let correct = 0;
+    let total = 0;
+    for (const row of rows) {
+      if (row.subject && row.subject !== subjectName) continue;
+      correct += row.correct_count ?? 0;
+      total += row.total ?? 0;
+    }
+    return { correct, total };
+  };
+  const computePerformanceRollup = (rows: AttemptRow[]) => {
+    let correct = 0;
+    let total = 0;
+    const now = Date.now();
+    let recent = 0;
+    for (const row of rows) {
+      const c = row.correct_count ?? 0;
+      const t = row.total ?? 0;
+      correct += c;
+      total += t;
+      const ts = row.created_at ? +new Date(row.created_at) : null;
+      if (ts && now - ts < 72 * 3600_000) recent += 1;
+    }
+    const accuracyPct = total > 0 ? Math.round((correct / total) * 100) : null;
+    const pace: "slow" | "normal" | "fast" = recent >= 12 ? "fast" : recent >= 4 ? "normal" : "slow";
+    return { accuracyPct, pace, sampleSize: total, recentSample: recent };
+  };
+  const toPace = (value: unknown): "slow" | "normal" | "fast" =>
+    value === "fast" ? "fast" : value === "normal" ? "normal" : "slow";
+
   let { data: state } = await sb
     .from("user_subject_state")
     .select("path, next_topic, difficulty, course")
@@ -81,6 +131,13 @@ export async function GET(req: NextRequest) {
     subtopicIdx?: number;
     deliveredMini?: number;
     lessonCache?: Record<string, CachedLesson[]>;
+    metrics?: {
+      accuracyPct?: number | null;
+      pace?: "slow" | "normal" | "fast";
+      computedAt?: string;
+      sampleSize?: number;
+      recentSample?: number;
+    };
   };
   type PathWithProgress = LevelMap & { progress?: PathProgress };
   let path = state?.path as PathWithProgress | null;
@@ -110,22 +167,12 @@ export async function GET(req: NextRequest) {
     }
 
     // Estimate mastery from recent attempts (subject-specific if available)
-    const { data: attempts } = await sb
-      .from("attempts")
-      .select("subject, correct_count, total, created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(100);
-    let correct = 0, total = 0;
-    (attempts ?? []).forEach((a) => {
-      if (!a.subject || a.subject === subject) { correct += a.correct_count ?? 0; total += a.total ?? 0; }
-    });
+    const attemptsData = await loadAttempts();
+    const { correct, total } = computeSubjectMastery(attemptsData, subject);
     const mastery = total > 0 ? Math.round((correct / total) * 100) : 50;
 
-    // Pace heuristic from activity density
-    const now = Date.now();
-    const recent = (attempts ?? []).filter((a) => a.created_at && (now - +new Date(a.created_at)) < 72 * 3600_000);
-    const pace = recent.length >= 12 ? "fast" : recent.length >= 4 ? "normal" : "slow";
+    const rollup = computePerformanceRollup(attemptsData);
+    const pace = rollup.pace;
     const notes = `Learner pace: ${pace}. Personalized for ${subject}.`;
     const { ensureLearningPath, isLearningPathGenerating, LearningPathPendingError } = await import("@/lib/learning-path");
 
@@ -240,19 +287,28 @@ export async function GET(req: NextRequest) {
   }
   const currentLabel = `${curTopic.name} > ${curSub.name}`;
 
-  // Personalization signals
-  const { data: attempts } = await sb
-    .from("attempts")
-    .select("correct_count,total,created_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(50);
-  let correct = 0, total = 0;
-  (attempts ?? []).forEach((a) => { correct += a.correct_count ?? 0; total += a.total ?? 0; });
-  const accuracyPct = total > 0 ? Math.round((correct / total) * 100) : null;
-  const now = Date.now();
-  const recent = (attempts ?? []).filter((a) => a.created_at && (now - +new Date(a.created_at)) < 72 * 3600_000);
-  const pace: "slow" | "normal" | "fast" = recent.length >= 12 ? "fast" : recent.length >= 4 ? "normal" : "slow";
+  const baseMetrics = progress.metrics ?? null;
+  const metricsAgeMs = baseMetrics?.computedAt ? Date.now() - +new Date(baseMetrics.computedAt) : Number.POSITIVE_INFINITY;
+  const metricsFresh = Number.isFinite(metricsAgeMs) && metricsAgeMs < METRICS_REFRESH_MS;
+  let accuracyPct: number | null = typeof baseMetrics?.accuracyPct === "number" ? Math.round(baseMetrics.accuracyPct) : null;
+  let pace: "slow" | "normal" | "fast" = toPace(baseMetrics?.pace);
+  let performanceSampleSize: number | null = baseMetrics?.sampleSize ?? null;
+  let performanceRecentSample: number | null = baseMetrics?.recentSample ?? null;
+  if (!metricsFresh) {
+    const attemptsData = await loadAttempts();
+    const performance = computePerformanceRollup(attemptsData);
+    accuracyPct = performance.accuracyPct;
+    pace = performance.pace;
+    performanceSampleSize = performance.sampleSize;
+    performanceRecentSample = performance.recentSample;
+    progress.metrics = {
+      accuracyPct,
+      pace,
+      computedAt: new Date().toISOString(),
+      sampleSize: performance.sampleSize,
+      recentSample: performance.recentSample,
+    };
+  }
 
   const recentIds = (
     progress.deliveredIdsByTopic?.[currentLabel] ||
@@ -268,7 +324,52 @@ export async function GET(req: NextRequest) {
   const plannedMini = Math.max(1, Number(curSub.mini_lessons || 1));
   const mapSummary = `Course:${state?.course ?? ''}; Topic#${topicIdx+1}/${topics.length}; Sub#${subtopicIdx+1}/${curTopic?.subtopics?.length ?? 1}; Completed:${compPct}%; Mini:${deliveredMini}/${plannedMini}`;
 
-  const cacheByTopic = (progress.lessonCache ?? {}) as Record<string, CachedLesson[]>;
+  const structuredContext = {
+    subject,
+    course: state?.course ?? null,
+    topic: {
+      name: curTopic.name,
+      index: topicIdx + 1,
+      total: topics.length,
+    },
+    subtopic: {
+      name: curSub.name,
+      index: subtopicIdx + 1,
+      total: curTopic.subtopics?.length ?? 1,
+      plannedMini,
+      deliveredMini,
+      applications: Array.isArray(curSub.applications) ? curSub.applications.slice(0, 2) : undefined,
+    },
+    completion: {
+      curriculumPercent: compPct,
+    },
+    performance: {
+      accuracyPct,
+      pace,
+      sampleSize: performanceSampleSize,
+      recentSample: performanceRecentSample,
+      computedAt: progress.metrics?.computedAt ?? baseMetrics?.computedAt ?? null,
+    },
+    recentLessons: {
+      deliveredIds: recentIds,
+      deliveredTitles: recentTitles,
+      disliked,
+    },
+  };
+
+  const rawCache = (progress.lessonCache ?? {}) as Record<string, CachedLesson[]>;
+  const nowMs = Date.now();
+  const cacheByTopic: Record<string, CachedLesson[]> = {};
+  for (const [label, entries] of Object.entries(rawCache)) {
+    if (!Array.isArray(entries) || entries.length === 0) continue;
+    const fresh = entries.filter((entry) => {
+      if (!entry?.cachedAt) return false;
+      const ts = +new Date(entry.cachedAt);
+      return Number.isFinite(ts) && nowMs - ts <= MAX_CACHE_AGE_MS;
+    });
+    if (fresh.length) cacheByTopic[label] = fresh;
+  }
+  progress.lessonCache = cacheByTopic;
   const cachedCandidatesRaw = cacheByTopic[currentLabel];
   const cachedCandidates: CachedLesson[] = Array.isArray(cachedCandidatesRaw) ? [...cachedCandidatesRaw] : [];
   const avoidLessonIds = [...recentIds, ...disliked].filter((id): id is string => typeof id === 'string' && id.length > 0);
@@ -297,6 +398,7 @@ export async function GET(req: NextRequest) {
         avoidIds: Array.from(avoidIdSet),
         avoidTitles: recentTitles,
         mapSummary,
+        structuredContext,
       });
       try { console.debug(`[fyp][${reqId}] lesson: ok`, { subject, currentLabel }); } catch {}
     } catch (e) {

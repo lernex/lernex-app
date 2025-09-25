@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { ChevronDown } from "lucide-react";
 import { useLernexStore } from "@/lib/store";
 import { useProfileBasics } from "@/app/providers/ProfileBasicsProvider";
@@ -7,8 +7,7 @@ import { useProfileBasics } from "@/app/providers/ProfileBasicsProvider";
 type Pair = { subject: string; course?: string };
 
 export default function ClassPicker() {
-  const { selectedSubjects, setSelectedSubjects } = useLernexStore();
-  const [open, setOpen] = useState(false);
+  const { selectedSubjects, setSelectedSubjects, classPickerOpen: open, setClassPickerOpen } = useLernexStore();
   const { data: profileBasics } = useProfileBasics();
 
   const pairs = useMemo<Pair[]>(() => {
@@ -50,14 +49,14 @@ export default function ClassPicker() {
 
   const choose = (mode: "all" | "merge" | "one", subject?: string) => {
     if (mode === "all") {
-      setSelectedSubjects([]);
+        setSelectedSubjects([]);
     } else if (mode === "merge") {
       const subs = pairs.map((p) => p.subject).filter(Boolean);
       setSelectedSubjects(subs);
     } else if (mode === "one" && subject) {
       setSelectedSubjects([subject]);
     }
-    setOpen(false);
+    setClassPickerOpen(false);
   };
 
   if (!pairs.length) return null;
@@ -65,7 +64,7 @@ export default function ClassPicker() {
   return (
     <div className="relative">
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setClassPickerOpen(!open)}
         className="group inline-flex min-w-[200px] items-center justify-between gap-3 rounded-full border border-neutral-200/70 bg-white/85 px-4 py-2 text-sm font-semibold text-neutral-700 shadow-[0_18px_38px_-24px_rgba(47,128,237,0.9)] backdrop-blur transition hover:border-lernex-blue/40 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/60 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:border-lernex-blue/60"
         aria-haspopup="menu"
         aria-expanded={open}

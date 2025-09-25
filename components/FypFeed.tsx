@@ -153,7 +153,7 @@ async function fetchFypOne(subject: string | null, opts: { onProgress?: (info: F
 }
 
 export default function FypFeed() {
-  const { selectedSubjects, accuracyBySubject } = useLernexStore();
+  const { selectedSubjects, accuracyBySubject, autoAdvanceEnabled, setAutoAdvanceEnabled, setClassPickerOpen } = useLernexStore();
   const { data: profileBasics } = useProfileBasics();
   const interests = profileBasics.interests;
 
@@ -169,7 +169,7 @@ export default function FypFeed() {
   const [initialized, setInitialized] = useState(false);
   const fetching = useRef(false);
   const subjIdxRef = useRef(0);
-  const cooldownRef = useRef(new Map<string | null, number>());
+  const cooldownRef = useRef(new Map<string | null, { until: number; backoffMs: number }>());
   const [loadingInfo, setLoadingInfo] = useState<LoadingState | null>(null);
   const [indeterminateTick, setIndeterminateTick] = useState(0);
   const [completedMap, setCompletedMap] = useState<Record<string, boolean>>({});
@@ -248,23 +248,25 @@ export default function FypFeed() {
     let bufferAhead = Math.max(0, items.length - i);
     let needed = Math.max(0, minAhead - bufferAhead);
     let guard = 0;
-    const attempted = new Set<string | null>();
     let fetchedAny = false;
     let sawProgress = false;
     let lastRetryAfterSeconds: number | null = null;
+    const maxGuard = rotation.length === 1 ? Math.max(6, minAhead * 4) : rotation.length * 4;
+    let consecutiveCooldownSkips = 0;
     try { console.debug("[fyp] ensureBuffer", { minAhead, have: bufferAhead, rotation }); } catch {}
     try {
-      while (needed > 0 && guard++ < 12 && requestSeqRef.current === requestToken) {
+      while (needed > 0 && guard++ < maxGuard && requestSeqRef.current === requestToken) {
         const idx = subjIdxRef.current % rotation.length;
         subjIdxRef.current = idx + 1;
         const subject = rotation[idx];
         try { console.debug("[fyp] try-subject", { subject, idx, guard }); } catch {}
-        if (attempted.has(subject)) break;
-        attempted.add(subject);
-        const cooldownUntil = cooldownRef.current.get(subject) ?? 0;
-        if (cooldownUntil > Date.now()) {
+        const cooldown = cooldownRef.current.get(subject);
+        if (cooldown && cooldown.until > Date.now()) {
+          consecutiveCooldownSkips += 1;
+          if (consecutiveCooldownSkips >= rotation.length) break;
           continue;
         }
+        consecutiveCooldownSkips = 0;
         lastRetryAfterSeconds = null;
         const lesson = await fetchFypOne(subject, {
           signal: controller.signal,
@@ -272,13 +274,15 @@ export default function FypFeed() {
             sawProgress = true;
             lastRetryAfterSeconds = info.retryAfter ?? null;
             const progress = info.progress;
+            const normalizedSubject = info.subject ?? subject ?? null;
+            const subjectLabel = normalizedSubject ? `${normalizedSubject}` : "this class";
             const fallbackPhase = info.status === 409
               ? "Waiting for course mapping"
               : info.status === 202
               ? "Preparing your learning path"
               : "Retrying";
             const fallbackDetail = info.status === 409
-              ? "Pick a course for this subject to continue."
+              ? `Select a course for ${subjectLabel} to continue.`
               : info.status === 202
               ? undefined
               : "Retrying after a temporary hiccup.";
@@ -300,7 +304,7 @@ export default function FypFeed() {
               pct: typeof progress?.pct === "number" ? progress.pct : undefined,
               attempts: progress?.attempts,
               fallback: progress?.fallback,
-              subject: info.subject,
+              subject: normalizedSubject,
               updatedAt: progress?.updatedAt ? Number(progress.updatedAt) : Date.now(),
             });
             setError(null);
@@ -308,15 +312,22 @@ export default function FypFeed() {
         });
         if (requestSeqRef.current !== requestToken) break;
         if (lesson) {
+          cooldownRef.current.delete(subject);
           appendLesson(lesson);
           fetchedAny = true;
           bufferAhead += 1;
           needed = Math.max(0, minAhead - bufferAhead);
+          consecutiveCooldownSkips = 0;
           setLoadingInfo(null);
         } else {
-          const cooldownMs = lastRetryAfterSeconds != null ? lastRetryAfterSeconds * 1000 : 8000;
-          cooldownRef.current.set(subject, Date.now() + cooldownMs);
-          break;
+          const prevBackoff = cooldown?.backoffMs ?? 1500;
+          const fallbackBackoff = Math.min(8000, Math.max(1200, Math.round(prevBackoff * 1.6)));
+          const retryMs = lastRetryAfterSeconds != null
+            ? Math.max(800, Math.round(lastRetryAfterSeconds * 1000))
+            : fallbackBackoff;
+          cooldownRef.current.set(subject, { until: Date.now() + retryMs, backoffMs: retryMs });
+          consecutiveCooldownSkips += 1;
+          if (consecutiveCooldownSkips >= rotation.length) break;
         }
       }
       setInitialized(true);
@@ -445,13 +456,17 @@ export default function FypFeed() {
     if (items.length - (i + 1) <= 2) {
       void ensureBuffer(4);
     }
+    if (!autoAdvanceEnabled) {
+      setAutoAdvancing(false);
+      return;
+    }
     setAutoAdvancing(true);
     autoAdvanceRef.current = window.setTimeout(() => {
       next(true);
       setAutoAdvancing(false);
       autoAdvanceRef.current = null;
-    }, 360);
-  }, [ensureBuffer, i, items.length, next]);
+    }, 1100);
+  }, [autoAdvanceEnabled, ensureBuffer, i, items.length, next]);
 
   // Keyboard navigation like the static feed
   useEffect(() => {
@@ -493,12 +508,19 @@ export default function FypFeed() {
   }, [loadingInfo, indeterminateTick]);
   const progressWidth = `${progressPct ?? 15}%`;
   const progressLabel = loadingInfo?.phase ?? "Preparing your personalized feed";
+  const waitingForCourse = Boolean(
+    loadingInfo && (
+      (loadingInfo.phase && loadingInfo.phase.toLowerCase().includes("course")) ||
+      (loadingInfo.detail && loadingInfo.detail.toLowerCase().includes("course"))
+    )
+  );
+  const shouldOfferClassPicker = waitingForCourse || (selectedSubjects.length === 0 && items.length === 0 && !fetching.current);
 
   return (
     <div
       ref={containerRef}
-      className="relative mx-auto w-full max-w-[420px] px-3 sm:px-4 lg:max-w-5xl lg:px-6 lg:pt-4 h-[calc(100vh-56px)] overflow-hidden lg:overflow-visible"
-      style={{ maxWidth: "min(420px, 92vw)" }}
+      className="relative mx-auto w-full max-w-[640px] px-3 sm:px-4 lg:max-w-5xl lg:px-6 lg:pt-4 h-[calc(100vh-56px)] overflow-hidden lg:overflow-visible"
+      style={{ maxWidth: "min(640px, 94vw)" }}
     >
       <div className="pointer-events-none absolute inset-0 -z-20 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.26),transparent_45%),radial-gradient(circle_at_80%_80%,rgba(168,85,247,0.28),transparent_55%),radial-gradient(circle_at_50%_100%,rgba(32,211,238,0.18),transparent_70%)]" />
@@ -540,6 +562,22 @@ export default function FypFeed() {
                 {loadingInfo?.subject ? ` (${loadingInfo.subject ?? "General"})` : null}
               </div>
             )}
+            {shouldOfferClassPicker && (
+              <div className="mt-3 flex flex-col items-center gap-2">
+                <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                  {waitingForCourse
+                    ? `Select a course for ${loadingInfo?.subject ?? "this class"} to keep new lessons coming.`
+                    : "Pick a class to start your personalized feed."}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setClassPickerOpen(true)}
+                  className="rounded-full border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
+                >
+                  Open class picker
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -577,7 +615,7 @@ export default function FypFeed() {
           >
             <div className="flex flex-1 flex-col gap-5 lg:flex-row lg:items-start lg:gap-6">
               <div className="flex-1 min-h-0">
-                <div className="mx-auto flex h-full max-h-full w-full max-w-[420px] justify-center lg:max-w-none">
+                <div className="mx-auto flex h-full max-h-full w-full max-w-[560px] justify-center lg:max-w-none">
                   <LessonCard lesson={cur} className="h-full lg:h-auto" />
                 </div>
               </div>
@@ -605,6 +643,14 @@ export default function FypFeed() {
             <div className="mt-auto text-xs text-neutral-400 text-center dark:text-neutral-500">
               <div className="flex flex-col items-center gap-1 sm:flex-row sm:justify-center sm:gap-3">
                 <span>Tip: Swipe up/down, use mouse wheel, or arrow keys.</span>
+                <button
+                  type="button"
+                  onClick={() => setAutoAdvanceEnabled(!autoAdvanceEnabled)}
+                  className="rounded-full border border-neutral-300 bg-neutral-50 px-2.5 py-1 text-xs font-medium text-neutral-600 transition hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                  aria-pressed={autoAdvanceEnabled}
+                >
+                  Auto-advance: {autoAdvanceEnabled ? "On" : "Off"}
+                </button>
                 {autoAdvancing && (
                   <span className="flex items-center gap-1 text-lernex-blue dark:text-lernex-blue/80">
                     <span className="h-1.5 w-1.5 animate-ping rounded-full bg-current" />

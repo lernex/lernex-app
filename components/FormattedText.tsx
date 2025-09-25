@@ -63,6 +63,7 @@ const RE_DOUBLE_BAR = /\|\|([^|]{1,80})\|\|/g;
 // Angle brackets ⟨...⟩ and square root √(...) using literal UTF-8 characters
 const RE_ANGLE = /⟨([^⟩]{1,80})⟩/g;
 const RE_SQRT = /√\s*\(?([0-9A-Za-z+\-*/^\s,.]+?)\)?(?=(\s|[.,;:)\]]|$))/g;
+const MATH_TRIGGER_RE = /(\$|\\\(|\\\[|\\begin|√|⟨|_\{|\\\^)/;
 
 const SINGLE_DOLLAR_MAX_DISTANCE = 240;
 const TEX_SYMBOL_MACRO_PATTERN = LATEX_TEXT_SYMBOL_MACROS.join("|");
@@ -714,6 +715,7 @@ function FormattedText({
     devLog("html-ready", { len: out.length });
     return out;
   }, [text]);
+  const containsMath = useMemo(() => MATH_TRIGGER_RE.test(html), [html]);
 
   // Incremental mode: append only the delta to avoid wiping previous MathJax output
   const lastHtmlRef = useRef<string>("");
@@ -775,8 +777,12 @@ function FormattedText({
           pendingRef.current = "";
 
           if (cancelTypesetRef.current) cancelTypesetRef.current();
-          const immediate = firstTypesetRef.current && typesetOnMount;
-          cancelTypesetRef.current = scheduleTypeset(el, { delayMs: immediate ? 0 : typesetDelayMs, rafs: typesetRAFCount, srcOverride: mathJaxSrc });
+          if (containsMath) {
+            const immediate = firstTypesetRef.current && typesetOnMount;
+            cancelTypesetRef.current = scheduleTypeset(el, { delayMs: immediate ? 0 : typesetDelayMs, rafs: typesetRAFCount, srcOverride: mathJaxSrc });
+          } else {
+            cancelTypesetRef.current = null;
+          }
           firstTypesetRef.current = false;
           lastTypesetLenRef.current = next.length;
         }
@@ -791,8 +797,12 @@ function FormattedText({
       pendingRef.current = "";
       lastTypesetLenRef.current = 0;
       if (cancelTypesetRef.current) cancelTypesetRef.current();
-      const immediate = firstTypesetRef.current && typesetOnMount;
-      cancelTypesetRef.current = scheduleTypeset(el, { delayMs: immediate ? 0 : typesetDelayMs, rafs: typesetRAFCount, srcOverride: mathJaxSrc });
+      if (containsMath) {
+        const immediate = firstTypesetRef.current && typesetOnMount;
+        cancelTypesetRef.current = scheduleTypeset(el, { delayMs: immediate ? 0 : typesetDelayMs, rafs: typesetRAFCount, srcOverride: mathJaxSrc });
+      } else {
+        cancelTypesetRef.current = null;
+      }
       firstTypesetRef.current = false;
       lastTypesetLenRef.current = next.length;
     }
@@ -800,7 +810,7 @@ function FormattedText({
     return () => {
       if (cancelTypesetRef.current) cancelTypesetRef.current();
     };
-  }, [html, incremental, finalize, typesetDelayMs, typesetOnMount, typesetRAFCount, mathJaxSrc, incrementalFlushChars]);
+  }, [html, incremental, finalize, typesetDelayMs, typesetOnMount, typesetRAFCount, mathJaxSrc, incrementalFlushChars, containsMath]);
 
   // If parent signals completion, flush any remaining pending text
   useEffect(() => {
@@ -813,8 +823,12 @@ function FormattedText({
       lastHtmlRef.current += pendingRef.current;
       pendingRef.current = "";
       if (cancelTypesetRef.current) cancelTypesetRef.current();
-      const immediate = firstTypesetRef.current && typesetOnMount;
-      cancelTypesetRef.current = scheduleTypeset(el, { delayMs: immediate ? 0 : typesetDelayMs, rafs: typesetRAFCount, srcOverride: mathJaxSrc });
+      if (containsMath) {
+        const immediate = firstTypesetRef.current && typesetOnMount;
+        cancelTypesetRef.current = scheduleTypeset(el, { delayMs: immediate ? 0 : typesetDelayMs, rafs: typesetRAFCount, srcOverride: mathJaxSrc });
+      } else {
+        cancelTypesetRef.current = null;
+      }
       firstTypesetRef.current = false;
       lastTypesetLenRef.current = lastHtmlRef.current.length;
     }
@@ -822,13 +836,17 @@ function FormattedText({
     inlineDepthRef.current = 0;
     displayDepthRef.current = 0;
     inSingleRef.current = false;
-  }, [finalize, incremental, typesetDelayMs, typesetOnMount, typesetRAFCount, mathJaxSrc]);
+  }, [finalize, incremental, typesetDelayMs, typesetOnMount, typesetRAFCount, mathJaxSrc, containsMath]);
 
   // Normal mode: rely on React to set innerHTML, then typeset after paint
   useEffect(() => {
     if (incremental) return; // handled above
     const el = ref.current as HTMLElement | null;
     if (!el) return;
+    if (!containsMath) {
+      firstTypesetRef.current = false;
+      return;
+    }
 
     let cancelTypeset = scheduleTypeset(el, { delayMs: (firstTypesetRef.current && typesetOnMount) ? 0 : typesetDelayMs, rafs: typesetRAFCount, srcOverride: mathJaxSrc });
     firstTypesetRef.current = false;
@@ -850,7 +868,7 @@ function FormattedText({
         })();
 
     return () => { try { cleanup(); } catch {} try { cancelTypeset(); } catch {} };
-  }, [html, incremental, typesetDelayMs, typesetOnMount, typesetRAFCount, mathJaxSrc, observer]);
+  }, [html, incremental, typesetDelayMs, typesetOnMount, typesetRAFCount, mathJaxSrc, observer, containsMath]);
 
   const Tag: React.ElementType = as;
   return incremental ? (

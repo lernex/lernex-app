@@ -12,7 +12,7 @@ export default function FypPage() {
     <ProfileBasicsProvider>
       <WelcomeTourOverlay />
       <main className="min-h-[calc(100vh-56px)]">
-        <div className="relative mx-auto w-full max-w-[420px]" style={{ maxWidth: "min(420px, 92vw)" }}>
+        <div className="relative mx-auto w-full max-w-[640px]" style={{ maxWidth: "min(640px, 94vw)" }}>
           {/* Top controls */}
           <div className="flex items-center justify-between px-4 pt-3 pb-1">
             <div className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Your Feed</div>

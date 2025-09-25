@@ -7,6 +7,10 @@ type State = {
   accuracyBySubject: Record<string, Accuracy>;
   setSelectedSubjects: (subs: string[]) => void;
   recordAnswer: (subject: string, correct: boolean) => void;
+  autoAdvanceEnabled: boolean;
+  setAutoAdvanceEnabled: (enabled: boolean) => void;
+  classPickerOpen: boolean;
+  setClassPickerOpen: (open: boolean) => void;
 };
 
 export const useLernexStore = create<State>()(
@@ -14,6 +18,8 @@ export const useLernexStore = create<State>()(
     (set) => ({
       selectedSubjects: [],
       accuracyBySubject: {},
+      autoAdvanceEnabled: true,
+      classPickerOpen: false,
       setSelectedSubjects: (subs) => set({ selectedSubjects: subs }),
       recordAnswer: (subject, isCorrect) =>
         set((state) => {
@@ -28,6 +34,8 @@ export const useLernexStore = create<State>()(
             },
           };
         }),
+      setAutoAdvanceEnabled: (enabled) => set({ autoAdvanceEnabled: enabled }),
+      setClassPickerOpen: (open) => set({ classPickerOpen: open }),
     }),
     { name: "lernex-store" }
   )

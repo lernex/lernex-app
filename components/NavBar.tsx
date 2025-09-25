@@ -132,7 +132,9 @@ export default function NavBar() {
 
     const tileBase =
       "relative flex w-full min-h-[2.75rem] items-center rounded-2xl border border-white/15 bg-gradient-to-br from-white/95 via-white/80 to-white/65 px-3 text-sm font-medium text-neutral-700 shadow-sm backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:from-white/10 dark:via-white/5 dark:to-white/0 dark:text-white/90";
-    const tilePadding = navExpanded ? "pr-3.5" : "pr-2.5";
+    const tilePaddingExpanded = "pl-3 pr-3.5";
+    const tilePaddingCollapsed = "pl-2.5 pr-1.5";
+    const tilePadding = navExpanded ? tilePaddingExpanded : tilePaddingCollapsed;
 
     const activeClasses =
       "border-lernex-blue/60 bg-gradient-to-br from-lernex-blue/20 via-lernex-blue/10 to-lernex-purple/15 text-lernex-blue dark:border-lernex-blue/50 dark:text-lernex-blue/90";
@@ -182,13 +184,13 @@ export default function NavBar() {
     ];
 
     const NAV_WIDTH_EXPANDED = 248;
-    const NAV_WIDTH_COLLAPSED = 120;
+    const NAV_WIDTH_COLLAPSED = 112;
     const NAV_COLLAPSED_SHIFT = 8;
 
     return (
       <>
         <div
-          className="fixed left-0 top-0 z-[21] h-screen w-5 cursor-pointer"
+          className="fixed left-0 top-0 z-[21] h-[100dvh] w-5 cursor-pointer"
           onMouseEnter={handleNavEnter}
           aria-hidden="true"
         />
@@ -200,7 +202,7 @@ export default function NavBar() {
             width: navExpanded ? NAV_WIDTH_EXPANDED : NAV_WIDTH_COLLAPSED,
           }}
           transition={{ type: "spring", stiffness: 210, damping: 28 }}
-          className="fixed left-0 top-0 z-[22] flex h-screen flex-col border-r border-white/10 bg-gradient-to-b from-white/90 via-white/80 to-white/65 text-neutral-900 shadow-xl backdrop-blur-xl transition-colors dark:from-lernex-charcoal/90 dark:via-lernex-charcoal/75 dark:to-lernex-charcoal/65 dark:text-white"
+          className="fixed left-0 top-0 z-[22] flex h-[100dvh] max-h-screen flex-col overflow-hidden border-r border-white/10 bg-gradient-to-b from-white/90 via-white/80 to-white/65 text-neutral-900 shadow-xl backdrop-blur-xl transition-colors dark:from-lernex-charcoal/90 dark:via-lernex-charcoal/75 dark:to-lernex-charcoal/65 dark:text-white"
           onMouseEnter={handleNavEnter}
           onMouseLeave={handleNavLeave}
           onFocusCapture={handleNavEnter}
@@ -210,7 +212,7 @@ export default function NavBar() {
             }
           }}
         >
-          <div className="flex h-full flex-col">
+          <div className="flex h-full flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-5 pt-6">
               <Link
                 href={user ? "/app" : "/"}
@@ -235,78 +237,83 @@ export default function NavBar() {
               </AnimatePresence>
             </div>
             <div
-              className="mt-6 flex flex-col px-5"
-              style={{ gap: "clamp(0.65rem, 1.4vh, 1.1rem)" }}
+              className="mt-6 flex flex-1 flex-col overflow-y-auto px-5 pb-6"
+              style={{ gap: "clamp(1.25rem, 3vh, 1.75rem)" }}
             >
-              {metrics.map(({ key, label, value, Icon, iconTone, badgeTone }) => {
-                const numeric = typeof value === "number" ? value : Number(value ?? 0);
-                const safeValue = Number.isFinite(numeric) ? numeric : 0;
-                const badgeText = safeValue > 999 ? "999+" : safeValue.toString();
-                const formattedValue = safeValue.toLocaleString();
-                return (
-                  <div
-                    key={key}
-                    className={`${tileBase} ${tilePadding}`}
-                  >
-                    <span className={`${iconShell} ${iconTone}`}>
-                      <Icon className="h-5 w-5" />
-                      <span className={`${badgeBase} ${badgeTone}`}>{badgeText}</span>
-                    </span>
-                    <motion.div
-                      initial={false}
-                      animate={
-                        navExpanded
-                          ? { opacity: 1, maxWidth: 168, marginLeft: 12 }
-                          : { opacity: 0, maxWidth: 0, marginLeft: 0 }
-                      }
-                      transition={{ duration: 0.24, ease: "easeOut" }}
-                      className="flex min-w-0 flex-col leading-tight overflow-hidden"
+              <div
+                className="flex flex-col"
+                style={{ gap: "clamp(0.65rem, 1.4vh, 1.1rem)" }}
+              >
+                {metrics.map(({ key, label, value, Icon, iconTone, badgeTone }) => {
+                  const numeric = typeof value === "number" ? value : Number(value ?? 0);
+                  const safeValue = Number.isFinite(numeric) ? numeric : 0;
+                  const badgeText = safeValue > 999 ? "999+" : safeValue.toString();
+                  const formattedValue = safeValue.toLocaleString();
+                  return (
+                    <div
+                      key={key}
+                      className={`${tileBase} ${tilePadding}`}
                     >
-                      <span className="text-[10px] uppercase tracking-[0.26em] text-neutral-500 dark:text-neutral-400">
+                      <span className={`${iconShell} ${iconTone}`}>
+                        <Icon className="h-5 w-5" />
+                        <span className={`${badgeBase} ${badgeTone}`}>{badgeText}</span>
+                      </span>
+                      <motion.div
+                        initial={false}
+                        animate={
+                          navExpanded
+                            ? { opacity: 1, maxWidth: 168, marginLeft: 12 }
+                            : { opacity: 0, maxWidth: 0, marginLeft: 0 }
+                        }
+                        transition={{ duration: 0.24, ease: "easeOut" }}
+                        className="flex min-w-0 flex-col overflow-hidden leading-tight"
+                      >
+                        <span className="text-[10px] uppercase tracking-[0.26em] text-neutral-500 dark:text-neutral-400">
+                          {label}
+                        </span>
+                        <span className="text-base font-semibold text-neutral-900 dark:text-white">
+                          {formattedValue}
+                        </span>
+                      </motion.div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div
+                className="flex flex-col"
+                style={{ gap: "clamp(0.85rem, 2vh, 1.35rem)" }}
+              >
+                {navItems.map(({ href, label, icon: Icon, exact }) => {
+                  const active = isActive(href, exact);
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      title={label}
+                      aria-label={label}
+                      aria-current={active ? "page" : undefined}
+                      className={`${tileBase} ${tilePadding} ${active ? activeClasses : ""}`}
+                    >
+                      <span className={`${iconShell} ${active ? activeIconShell : ""}`}>
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <motion.span
+                        initial={false}
+                        animate={
+                          navExpanded
+                            ? { opacity: 1, maxWidth: 160, marginLeft: 12 }
+                            : { opacity: 0, maxWidth: 0, marginLeft: 0 }
+                        }
+                        transition={{ duration: 0.24, ease: "easeOut" }}
+                        className="min-w-0 text-sm font-medium text-neutral-700 dark:text-neutral-200"
+                        style={{ display: "inline-block" }}
+                      >
                         {label}
-                      </span>
-                      <span className="text-base font-semibold text-neutral-900 dark:text-white">
-                        {formattedValue}
-                      </span>
-                    </motion.div>
-                  </div>
-                );
-              })}
-            </div>
-            <div
-              className="mt-6 flex flex-1 flex-col px-5"
-              style={{ gap: "clamp(0.85rem, 2vh, 1.35rem)" }}
-            >
-              {navItems.map(({ href, label, icon: Icon, exact }) => {
-                const active = isActive(href, exact);
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    title={label}
-                    aria-label={label}
-                    aria-current={active ? "page" : undefined}
-                    className={`${tileBase} ${tilePadding} ${active ? activeClasses : ""}`}
-                  >
-                    <span className={`${iconShell} ${active ? activeIconShell : ""}`}>
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <motion.span
-                      initial={false}
-                      animate={
-                        navExpanded
-                          ? { opacity: 1, maxWidth: 160, marginLeft: 12 }
-                          : { opacity: 0, maxWidth: 0, marginLeft: 0 }
-                      }
-                      transition={{ duration: 0.24, ease: "easeOut" }}
-                      className="min-w-0 text-sm font-medium text-neutral-700 dark:text-neutral-200"
-                      style={{ display: "inline-block" }}
-                    >
-                      {label}
-                    </motion.span>
-                  </Link>
-                );
-              })}
+                      </motion.span>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
             {user && (
               <div className="px-5 pb-6">

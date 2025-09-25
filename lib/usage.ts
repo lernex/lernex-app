@@ -48,20 +48,39 @@ export async function updateUserTotalCost(sb: SupabaseClient, userId: string) {
   await sb.from("profiles").update({ total_cost: total }).eq("id", userId);
 }
 
+type LogUsageOptions = {
+  metadata?: Record<string, unknown>;
+};
+
 export async function logUsage(
   sb: SupabaseClient,
   userId: string | null,
   ip: string | null,
   model: string,
-  usage: { input_tokens?: number | null; output_tokens?: number | null }
+  usage: { input_tokens?: number | null; output_tokens?: number | null },
+  opts: LogUsageOptions = {}
 ) {
-  await sb.from("usage_logs").insert({
+  const baseRow = {
     user_id: userId,
     ip,
     model,
     input_tokens: usage.input_tokens ?? null,
     output_tokens: usage.output_tokens ?? null,
-  });
+  };
+  const row = opts.metadata ? { ...baseRow, metadata: opts.metadata } : baseRow;
+  try {
+    await sb.from("usage_logs").insert(row as Record<string, unknown>);
+  } catch (error) {
+    if (opts.metadata) {
+      try {
+        await sb.from("usage_logs").insert(baseRow as Record<string, unknown>);
+      } catch (fallbackError) {
+        throw fallbackError;
+      }
+    } else {
+      throw error;
+    }
+  }
 
   if (userId) {
     await updateUserTotalCost(sb, userId);
