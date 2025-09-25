@@ -2,20 +2,152 @@
 // Keep macros and heuristics in sync with FormattedText so MathJax receives
 // consistently formatted input regardless of origin.
 
+const LATEX_ACCENT_MACROS = [
+  "vec",
+  "mathbf",
+  "mathbb",
+  "mathcal",
+  "hat",
+  "bar",
+  "underline",
+  "overline",
+] as const;
+
+const LATEX_STRUCTURE_MACROS = [
+  "frac",
+  "sqrt",
+  "binom",
+  "pmatrix",
+  "bmatrix",
+  "vmatrix",
+] as const;
+
+const LATEX_SET_MACROS = [
+  "langle",
+  "rangle",
+] as const;
+
+const LATEX_SYMBOL_MACROS = [
+  "cdot",
+  "times",
+  "pm",
+  "leq",
+  "geq",
+  "neq",
+  "approx",
+  "sim",
+  "propto",
+  "forall",
+  "exists",
+] as const;
+
+const LATEX_GREEK_LOWER = [
+  "alpha",
+  "beta",
+  "gamma",
+  "delta",
+  "epsilon",
+  "varepsilon",
+  "zeta",
+  "eta",
+  "theta",
+  "vartheta",
+  "iota",
+  "kappa",
+  "lambda",
+  "mu",
+  "nu",
+  "xi",
+  "pi",
+  "varpi",
+  "rho",
+  "varrho",
+  "sigma",
+  "varsigma",
+  "tau",
+  "upsilon",
+  "phi",
+  "varphi",
+  "chi",
+  "psi",
+  "omega",
+] as const;
+
+const LATEX_GREEK_UPPER = [
+  "Gamma",
+  "Delta",
+  "Theta",
+  "Lambda",
+  "Xi",
+  "Pi",
+  "Sigma",
+  "Upsilon",
+  "Phi",
+  "Psi",
+  "Omega",
+] as const;
+
+const LATEX_CALCULUS_MACROS = [
+  "nabla",
+  "partial",
+  "sum",
+  "prod",
+  "int",
+  "lim",
+] as const;
+
+const LATEX_FUNCTION_MACROS = [
+  "log",
+  "sin",
+  "cos",
+  "tan",
+  "to",
+] as const;
+
+const LATEX_ENVIRONMENT_MACROS = [
+  "begin",
+  "end",
+] as const;
+
+export const LATEX_TEXT_BRACED_MACROS = [
+  ...LATEX_STRUCTURE_MACROS,
+  ...LATEX_ACCENT_MACROS,
+] as const;
+
+export const LATEX_TEXT_SYMBOL_MACROS = [
+  ...LATEX_GREEK_LOWER,
+  ...LATEX_GREEK_UPPER,
+  ...LATEX_SYMBOL_MACROS,
+  "infty",
+] as const;
+
+export const LATEX_TEXT_BARE_MACROS = [
+  ...LATEX_SET_MACROS,
+  "mathbf",
+  "sqrt",
+  "frac",
+  "vec",
+  "binom",
+] as const;
+
+export const LATEX_TEXT_SINGLE_LETTER_MACROS = [
+  "mathbf",
+  "vec",
+  "hat",
+  "bar",
+] as const;
+
 export const LATEX_MACRO_NAMES = [
-  // formatting/accents/sets
-  "langle","rangle","vec","mathbf","mathbb","mathcal","hat","bar","underline","overline",
-  // operators and relations
-  "cdot","times","pm","leq","geq","neq","approx","sim","propto","forall","exists",
-  // structures
-  "frac","sqrt","binom","pmatrix","bmatrix","vmatrix","begin","end",
-  // greek letters
-  "alpha","beta","gamma","delta","epsilon","varepsilon","zeta","eta","theta","vartheta","iota","kappa","lambda","mu","nu","xi","pi","varpi","rho","varrho","sigma","varsigma","tau","upsilon","phi","varphi","chi","psi","omega",
-  "Gamma","Delta","Theta","Lambda","Xi","Pi","Sigma","Upsilon","Phi","Psi","Omega",
-  // calculus symbols
-  "nabla","partial","sum","prod","int","lim",
-  // functions and misc
-  "log","sin","cos","tan","to","infty"
+  ...LATEX_SET_MACROS,
+  ...LATEX_ACCENT_MACROS,
+  ...LATEX_SYMBOL_MACROS,
+  ...LATEX_STRUCTURE_MACROS,
+  ...LATEX_GREEK_LOWER,
+  ...LATEX_GREEK_UPPER,
+  ...LATEX_CALCULUS_MACROS,
+  ...LATEX_FUNCTION_MACROS,
+  ...LATEX_ENVIRONMENT_MACROS,
+  "infty",
 ] as const;
 
 export const LATEX_MACRO_PATTERN = LATEX_MACRO_NAMES.join("|");

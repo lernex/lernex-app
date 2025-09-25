@@ -1,6 +1,13 @@
 "use client";
 import React, { useEffect, useMemo, useRef, memo } from "react";
-import { collapseMacroEscapes, normalizeLatexDelimiters } from "@/lib/latex";
+import {
+  collapseMacroEscapes,
+  normalizeLatexDelimiters,
+  LATEX_TEXT_BRACED_MACROS,
+  LATEX_TEXT_SYMBOL_MACROS,
+  LATEX_TEXT_BARE_MACROS,
+  LATEX_TEXT_SINGLE_LETTER_MACROS,
+} from "@/lib/latex";
 
 interface MathJaxWithConfig {
   typesetPromise?: (elements?: unknown[]) => Promise<void>;
@@ -51,22 +58,40 @@ const RE_BOLD_B = /__([^_]+)__/g;
 const RE_DEL = /~~([^~]+)~~/g;
 const RE_CODE = /`([^`]+)`/g;
 const RE_BEGIN_END = /\\begin\{([^}]+)\}[\s\S]*?\\end\{\1\}/g;
-const RE_TEX_COMMON = /\\(?:frac|sqrt|vec|mathbf|mathbb|mathcal|hat|bar|underline|overline|binom|pmatrix|bmatrix|vmatrix)\b(?:\{[^{}]*\}){1,2}/g;
-const RE_TEX_GREEK = /\\(?:alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|vartheta|iota|kappa|lambda|mu|nu|xi|pi|varpi|rho|varrho|sigma|varsigma|tau|upsilon|phi|varphi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|infty|neq|approx|sim|propto|forall|exists|nabla|partial|cdot|times|pm|leq|geq)\b/g;
 const RE_SUBSCRIPT = /([A-Za-z]+)_(\{[^}]+\}|\d+|[A-Za-z])/g;
 const RE_DOUBLE_BAR = /\|\|([^|]{1,80})\|\|/g;
 // Angle brackets ⟨...⟩ and square root √(...) using literal UTF-8 characters
 const RE_ANGLE = /⟨([^⟩]{1,80})⟩/g;
 const RE_SQRT = /√\s*\(?([0-9A-Za-z+\-*/^\s,.]+?)\)?(?=(\s|[.,;:)\]]|$))/g;
 
+const SINGLE_DOLLAR_MAX_DISTANCE = 240;
+const TEX_SYMBOL_MACRO_PATTERN = LATEX_TEXT_SYMBOL_MACROS.join("|");
+const RE_TEX_SYMBOLS = new RegExp(`\\(?:${TEX_SYMBOL_MACRO_PATTERN})\\b`, "g");
+const BARE_MACRO_PATTERN = LATEX_TEXT_BARE_MACROS.join("|");
+const RE_BARE_MACROS = new RegExp(`(^|[^\\])(${BARE_MACRO_PATTERN})\\b`, "g");
+const SINGLE_LETTER_MACRO_PATTERN = LATEX_TEXT_SINGLE_LETTER_MACROS.join("|");
+const RE_SINGLE_LETTER_ARG = new RegExp(`\\(${SINGLE_LETTER_MACRO_PATTERN})([A-Za-z])(?![A-Za-z])`, "g");
 
-const RE_BARE_COMMON_MACROS = /(^|[^\\])(langle|rangle|mathbf|sqrt|frac|vec|binom)\b/g;
-const RE_ONE_LETTER_ARG = {
-  mathbf: /\\mathbf([A-Za-z])(?![A-Za-z])/g,
-  vec: /\\vec([A-Za-z])(?![A-Za-z])/g,
-  hat: /\\hat([A-Za-z])(?![A-Za-z])/g,
-  bar: /\\bar([A-Za-z])(?![A-Za-z])/g,
-} as const;
+const BRACED_MACRO_ARG_COUNTS: Record<string, number> = Object.fromEntries(
+  LATEX_TEXT_BRACED_MACROS.map((name) => [name, 1])
+);
+for (const name of ["frac", "binom"]) {
+  BRACED_MACRO_ARG_COUNTS[name] = 2;
+}
+
+const MACROS_ALLOW_SINGLE_TOKEN = new Set([
+  "vec",
+  "mathbf",
+  "mathbb",
+  "mathcal",
+  "hat",
+  "bar",
+  "underline",
+  "overline",
+]);
+
+const MACROS_WITH_OPTIONAL_BRACKET = new Set(["sqrt"]);
+const BRACED_MACRO_SET = new Set(LATEX_TEXT_BRACED_MACROS);
 
 // Utilities kept outside React so they aren't re-created every render
 function escapeHtml(s: string) {
@@ -83,22 +108,275 @@ function normalizeBackslashes(src: string) {
   return normalizeLatexDelimiters(src);
 }
 
+function countPrecedingBackslashes(text: string, index: number) {
+  let count = 0;
+  for (let i = index - 1; i >= 0; i--) {
+    if (text[i] === "\\") count++;
+    else break;
+  }
+  return count;
+}
+
+function isEscaped(text: string, index: number) {
+  return (countPrecedingBackslashes(text, index) % 2) === 1;
+}
+
+function skipWhitespace(text: string, index: number) {
+  let i = index;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === undefined || !/\s/.test(ch)) break;
+    i++;
+  }
+  return i;
+}
+
+function consumeBraceGroup(text: string, start: number): number | null {
+  if (text[start] !== "{") return null;
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "{" && !isEscaped(text, i)) depth++;
+    else if (ch === "}" && !isEscaped(text, i)) {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+  }
+  return null;
+}
+
+function consumeBracketGroup(text: string, start: number): number | null {
+  if (text[start] !== "[") return null;
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "[" && !isEscaped(text, i)) depth++;
+    else if (ch === "]" && !isEscaped(text, i)) {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+  }
+  return null;
+}
+
+function readMacroName(text: string, start: number): { name: string; end: number } | null {
+  let end = start;
+  while (end < text.length && /[A-Za-z]/.test(text[end]!)) end++;
+  if (end === start) return null;
+  return { name: text.slice(start, end), end };
+}
+
+function consumeMacro(text: string, start: number, macroName: string): number | null {
+  if (!BRACED_MACRO_SET.has(macroName)) return null;
+  let cursor = skipWhitespace(text, start + 1 + macroName.length);
+  if (MACROS_WITH_OPTIONAL_BRACKET.has(macroName)) {
+    if (text[cursor] === "[") {
+      const optionalEnd = consumeBracketGroup(text, cursor);
+      if (optionalEnd == null) return null;
+      cursor = skipWhitespace(text, optionalEnd);
+    }
+  }
+  let consumed = 0;
+  const requiredArgs = BRACED_MACRO_ARG_COUNTS[macroName] ?? 0;
+  while (consumed < requiredArgs) {
+    cursor = skipWhitespace(text, cursor);
+    if (cursor >= text.length) return null;
+    if (text[cursor] === "{") {
+      const groupEnd = consumeBraceGroup(text, cursor);
+      if (groupEnd == null) return null;
+      cursor = groupEnd;
+    } else if (MACROS_ALLOW_SINGLE_TOKEN.has(macroName)) {
+      if (cursor >= text.length) return null;
+      cursor += 1;
+    } else {
+      return null;
+    }
+    consumed++;
+  }
+  return cursor;
+}
+
+function findPrevNonWhitespace(text: string, index: number) {
+  for (let i = index; i >= 0; i--) {
+    const ch = text[i];
+    if (ch == null) break;
+    if (!/\s/.test(ch)) return ch;
+  }
+  return null;
+}
+
+function findNextNonWhitespace(text: string, index: number) {
+  for (let i = index; i < text.length; i++) {
+    const ch = text[i];
+    if (!/\s/.test(ch)) return ch;
+  }
+  return null;
+}
+
+function isLikelyDisplayDelimiter(text: string, index: number) {
+  const immediateNext = text[index + 2] ?? "";
+  if (/[0-9]/.test(immediateNext)) return false;
+  const prev = findPrevNonWhitespace(text, index - 1);
+  if (prev === "$") return false;
+  const next = findNextNonWhitespace(text, index + 2);
+  if (prev && /[0-9]/.test(prev) && next && /[0-9]/.test(next)) return false;
+  return true;
+}
+
+function isLikelyCurrency(text: string, index: number) {
+  const nextChar = text[index + 1] ?? "";
+  return /[0-9]/.test(nextChar);
+}
+
+function findClosingSingleDollar(text: string, start: number, maxDistance = SINGLE_DOLLAR_MAX_DISTANCE) {
+  const limit = Math.min(text.length, start + maxDistance);
+  for (let i = start; i < limit; i++) {
+    if (text[i] !== '$') continue;
+    if (text[i + 1] === '$') { i++; continue; }
+    if (isEscaped(text, i)) continue;
+    return i;
+  }
+  return -1;
+}
+
+function wrapBracedMacros(src: string, wrap: (tex: string) => string) {
+  let out = "";
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    if (ch === '\\') {
+      const macro = readMacroName(src, i + 1);
+      if (macro) {
+        if (BRACED_MACRO_SET.has(macro.name)) {
+          const end = consumeMacro(src, i, macro.name);
+          if (end != null) {
+            out += wrap(src.slice(i, end));
+            i = end;
+            continue;
+          }
+        }
+      }
+    }
+    out += ch;
+    i += 1;
+  }
+  return out;
+}
+
+type MathBoundaryState = {
+  inlineDepth: number;
+  displayDepth: number;
+  singleOpen: boolean;
+};
+
+function scanMathState(text: string, startIndex: number, state: MathBoundaryState, markOutsideClose: () => void) {
+  for (let i = startIndex; i < text.length;) {
+    if (text.startsWith("\\(", i) && !isEscaped(text, i)) {
+      state.inlineDepth += 1;
+      i += 2;
+      continue;
+    }
+    if (text.startsWith("\\[", i) && !isEscaped(text, i)) {
+      state.inlineDepth += 1;
+      i += 2;
+      continue;
+    }
+    if (text.startsWith("\\)", i) && !isEscaped(text, i)) {
+      if (state.inlineDepth > 0) {
+        state.inlineDepth -= 1;
+        if (state.inlineDepth === 0 && state.displayDepth === 0 && !state.singleOpen) markOutsideClose();
+      }
+      i += 2;
+      continue;
+    }
+    if (text.startsWith("\\]", i) && !isEscaped(text, i)) {
+      if (state.inlineDepth > 0) {
+        state.inlineDepth -= 1;
+        if (state.inlineDepth === 0 && state.displayDepth === 0 && !state.singleOpen) markOutsideClose();
+      }
+      i += 2;
+      continue;
+    }
+    if (text.startsWith("$$", i) && !isEscaped(text, i)) {
+      if (state.displayDepth > 0) {
+        if (isLikelyDisplayDelimiter(text, i)) {
+          state.displayDepth = Math.max(0, state.displayDepth - 1);
+          if (state.inlineDepth === 0 && state.displayDepth === 0 && !state.singleOpen) markOutsideClose();
+        }
+      } else if (isLikelyDisplayDelimiter(text, i)) {
+        state.displayDepth += 1;
+      }
+      i += 2;
+      continue;
+    }
+    if (text[i] === '$' && !isEscaped(text, i) && text[i + 1] !== '$') {
+      if (state.singleOpen) {
+        state.singleOpen = false;
+        if (state.inlineDepth === 0 && state.displayDepth === 0) markOutsideClose();
+        i += 1;
+        continue;
+      }
+      if (!isLikelyCurrency(text, i)) {
+        const closing = findClosingSingleDollar(text, i + 1);
+        if (closing !== -1 && closing > i) {
+          state.singleOpen = true;
+          i += 1;
+          continue;
+        }
+      }
+    }
+    i += 1;
+  }
+}
+
 function balanceDelimiters(src: string) {
   const stack: ("\\(" | "\\[")[] = [];
-  let displayOpen = false;
-  const tokenRe = /\\\(|\\\[|\\\)|\\\]|\$\$/g;
-  let m: RegExpExecArray | null;
+  let unmatchedDisplay = 0;
   const origLen = src.length;
-  while ((m = tokenRe.exec(src))) {
-    const t = m[0];
-    if (t === "\\(" || t === "\\[") stack.push(t);
-    else if (t === "\\)") { if (stack[stack.length - 1] === "\\(") stack.pop(); }
-    else if (t === "\\]") { if (stack[stack.length - 1] === "\\[") stack.pop(); }
-    else if (t === "$$") displayOpen = !displayOpen;
+  for (let i = 0; i < src.length;) {
+    if (src.startsWith("\\(", i) && !isEscaped(src, i)) {
+      stack.push("\\(");
+      i += 2;
+      continue;
+    }
+    if (src.startsWith("\\[", i) && !isEscaped(src, i)) {
+      stack.push("\\[");
+      i += 2;
+      continue;
+    }
+    if (src.startsWith("\\)", i) && !isEscaped(src, i)) {
+      if (stack[stack.length - 1] === "\\(") stack.pop();
+      i += 2;
+      continue;
+    }
+    if (src.startsWith("\\]", i) && !isEscaped(src, i)) {
+      if (stack[stack.length - 1] === "\\[") stack.pop();
+      i += 2;
+      continue;
+    }
+    if (src.startsWith("$$", i) && !isEscaped(src, i)) {
+      if (unmatchedDisplay > 0) {
+        // treat as closing when we already have an open block
+        if (isLikelyDisplayDelimiter(src, i)) {
+          unmatchedDisplay = Math.max(0, unmatchedDisplay - 1);
+        }
+      } else if (isLikelyDisplayDelimiter(src, i)) {
+        unmatchedDisplay++;
+      }
+      i += 2;
+      continue;
+    }
+    i += 1;
   }
   let appended = 0;
-  while (stack.length) { src += stack.pop() === "\\(" ? "\\)" : "\\]"; appended++; }
-  if (displayOpen) { src += "$$"; appended++; }
+  while (stack.length) {
+    src += stack.pop() === "\\(" ? "\\)" : "\\]";
+    appended++;
+  }
+  if (unmatchedDisplay > 0) {
+    src += "$$".repeat(unmatchedDisplay);
+    appended += unmatchedDisplay;
+  }
   if (appended > 0) {
     devWarn("auto-balanced-delimiters", { appended, origLen, newLen: src.length });
   }
@@ -115,34 +393,64 @@ function splitMathSegments(src: string): Seg[] {
   const commit = (end: number) => { if (end > start) segs.push({ math: inMath, t: src.slice(start, end) }); start = end; };
   while (i < src.length) {
     if (!inMath) {
-      if (src.startsWith("\\(", i) || src.startsWith("\\[", i) || src.startsWith("$$", i)) {
+      if (src.startsWith("\\(", i) && !isEscaped(src, i)) {
         commit(i);
-        opener = src.startsWith("\\(", i) ? "\\(" : src.startsWith("\\[", i) ? "\\[" : "$$";
-        inMath = true; i += opener.length;
+        opener = "\\(";
+        inMath = true;
+        i += 2;
+      } else if (src.startsWith("\\[", i) && !isEscaped(src, i)) {
+        commit(i);
+        opener = "\\[";
+        inMath = true;
+        i += 2;
+      } else if (src.startsWith("$$", i) && !isEscaped(src, i) && isLikelyDisplayDelimiter(src, i)) {
+        commit(i);
+        opener = "$$";
+        inMath = true;
+        i += 2;
       } else if (src[i] === '$') {
-        // Single-dollar inline math heuristic:
-        // - must have a matching '$' ahead within 240 chars
-        // - not a '$$' opener
-        // - not escaped (prev char is not '\\')
-        // - next char is NOT a digit to avoid currency like $100
-        const nextIdx = src.indexOf('$', i + 1);
-        const prevChar = i > 0 ? src[i - 1] : '';
-        const nextChar = src[i + 1] ?? '';
-        const escaped = prevChar === '\\';
-        const startsWithDollarDollar = nextChar === '$';
-        const nextIsDigit = nextChar >= '0' && nextChar <= '9';
-        if (nextIdx !== -1 && (nextIdx - i) <= 240 && !startsWithDollarDollar && !escaped && !nextIsDigit) {
-          commit(i);
-          opener = '$';
-          inMath = true; i += 1;
-        } else {
-          i++;
+        if (!isEscaped(src, i) && src[i + 1] !== '$' && !isLikelyCurrency(src, i)) {
+          const closing = findClosingSingleDollar(src, i + 1);
+          if (closing !== -1) {
+            commit(i);
+            opener = '$';
+            inMath = true;
+            i += 1;
+            continue;
+          }
         }
-      } else i++;
+        i += 1;
+      } else {
+        i += 1;
+      }
     } else {
       const close = opener === "\\(" ? "\\)" : opener === "\\[" ? "\\]" : opener === "$$" ? "$$" : "$";
-      if (src.startsWith(close, i)) { i += close.length; commit(i); inMath = false; opener = null; }
-      else i++;
+      if (close === "$$") {
+        if (src.startsWith("$$", i) && !isEscaped(src, i) && isLikelyDisplayDelimiter(src, i)) {
+          i += 2;
+          commit(i);
+          inMath = false;
+          opener = null;
+        } else {
+          i += 1;
+        }
+      } else if (close === "$") {
+        if (src[i] === '$' && !isEscaped(src, i)) {
+          i += 1;
+          commit(i);
+          inMath = false;
+          opener = null;
+        } else {
+          i += 1;
+        }
+      } else if (src.startsWith(close, i) && !isEscaped(src, i)) {
+        i += close.length;
+        commit(i);
+        inMath = false;
+        opener = null;
+      } else {
+        i += 1;
+      }
     }
   }
   commit(src.length);
@@ -164,8 +472,8 @@ function formatNonMath(s: string) {
     .replace(RE_DEL, "<del>$1</del>");
   // Conservatively wrap common TeX fragments that appear in plain text
   out = out.replace(RE_BEGIN_END, (m) => wrap(m));
-  out = out.replace(RE_TEX_COMMON, (m) => wrap(m));
-  out = out.replace(RE_TEX_GREEK, (m) => wrap(m));
+  out = wrapBracedMacros(out, wrap);
+  out = out.replace(RE_TEX_SYMBOLS, (m) => wrap(m));
   out = out.replace(RE_SUBSCRIPT, (_m, a, b) => wrap(`${a}_${b}`));
   out = out.replace(RE_DOUBLE_BAR, (_m, inner) => wrap(`\\| ${inner.trim()} \\|`));
   out = out.replace(RE_ANGLE, (_m, inner) => wrap(`\\langle ${inner.trim()} \\rangle`));
@@ -180,12 +488,9 @@ function fixMacrosInMath(s: string) {
   // Collapse accidental double-backslashes before common macros (not row breaks)
   s = collapseMacroEscapes(s);
   // If a macro name appears without a backslash in math (rare), add one
-  s = s.replace(RE_BARE_COMMON_MACROS, '$1\\$2');
+  s = s.replace(RE_BARE_MACROS, (_m, prefix: string, macro: string) => `${prefix}\\${macro}`);
   // Normalize one-letter macro arguments like \mathbfv -> \mathbf{v}
-  s = s.replace(RE_ONE_LETTER_ARG['mathbf'], '\\mathbf{$1}');
-  s = s.replace(RE_ONE_LETTER_ARG['vec'], '\\vec{$1}');
-  s = s.replace(RE_ONE_LETTER_ARG['hat'], '\\hat{$1}');
-  s = s.replace(RE_ONE_LETTER_ARG['bar'], '\\bar{$1}');
+  s = s.replace(RE_SINGLE_LETTER_ARG, (_m, macro: string, letter: string) => `\\${macro}{${letter}}`);
   return s;
 }
 
@@ -415,7 +720,7 @@ function FormattedText({
   const lastTypesetLenRef = useRef<number>(0);
   const pendingRef = useRef<string>("");
   const inlineDepthRef = useRef<number>(0); // depth for \( \) and \[ \]
-  const inDisplayRef = useRef<boolean>(false); // toggled by $$
+  const displayDepthRef = useRef<number>(0); // count of open $$ blocks
   const inSingleRef = useRef<boolean>(false); // inside $ ... $
   const cancelTypesetRef = useRef<(() => void) | null>(null);
 
@@ -429,48 +734,24 @@ function FormattedText({
     if (next.startsWith(last)) {
       const delta = next.slice(last.length);
       if (delta) {
-        // Track math open/close state in the newly received delta
-        const tokenRe = /\\\(|\\\[|\\\)|\\\]|\$\$|\$/g; // order matters: $$ before $
-        let m: RegExpExecArray | null;
+        const prefix = last + pendingRef.current;
+        const combined = prefix + delta;
         let closedToOutside = false;
-        while ((m = tokenRe.exec(delta))) {
-          const t = m[0];
-          if (t === "\\(" || t === "\\[") {
-            inlineDepthRef.current += 1;
-          } else if (t === "\\)" || t === "\\]") {
-            const before = inlineDepthRef.current;
-            inlineDepthRef.current = Math.max(0, inlineDepthRef.current - 1);
-            if (before > 0 && inlineDepthRef.current === 0 && !inDisplayRef.current && !inSingleRef.current) {
-              closedToOutside = true;
-            }
-          } else if (t === "$$") {
-            const was = inDisplayRef.current;
-            inDisplayRef.current = !inDisplayRef.current;
-            if (was && !inDisplayRef.current && inlineDepthRef.current === 0 && !inSingleRef.current) {
-              closedToOutside = true;
-            }
-          } else if (t === "$") {
-            // Heuristic similar to splitMathSegments: avoid currency
-            const pos = (m.index ?? 0);
-            const prevChar = pos > 0 ? delta[pos - 1] : (last + pendingRef.current).slice(-1);
-            const nextChar = delta[pos + 1] ?? "";
-            const escaped = prevChar === "\\";
-            const likelyCurrency = !inSingleRef.current && (nextChar >= '0' && nextChar <= '9');
-            if (!escaped && !likelyCurrency) {
-              const was = inSingleRef.current;
-              inSingleRef.current = !inSingleRef.current;
-              if (was && !inSingleRef.current && inlineDepthRef.current === 0 && !inDisplayRef.current) {
-                closedToOutside = true;
-              }
-            }
-          }
-        }
+        const state: MathBoundaryState = {
+          inlineDepth: inlineDepthRef.current,
+          displayDepth: displayDepthRef.current,
+          singleOpen: inSingleRef.current,
+        };
+        scanMathState(combined, prefix.length, state, () => { closedToOutside = true; });
+        inlineDepthRef.current = state.inlineDepth;
+        displayDepthRef.current = state.displayDepth;
+        inSingleRef.current = state.singleOpen;
 
         // Buffer until we hit a safe boundary: a closing delimiter that leaves
         // us outside math, or a sentence boundary while outside math.
         pendingRef.current += delta;
 
-        const outsideMath = inlineDepthRef.current === 0 && !inDisplayRef.current && !inSingleRef.current;
+        const outsideMath = inlineDepthRef.current === 0 && displayDepthRef.current === 0 && !inSingleRef.current;
         const hasCloser = closedToOutside && outsideMath;
 
         let hasSentence = false;
@@ -505,7 +786,7 @@ function FormattedText({
       el.innerHTML = next;
       // Reset incremental state to avoid carrying over from previous stream
       inlineDepthRef.current = 0;
-      inDisplayRef.current = false;
+      displayDepthRef.current = 0;
       inSingleRef.current = false;
       pendingRef.current = "";
       lastTypesetLenRef.current = 0;
@@ -539,7 +820,7 @@ function FormattedText({
     }
     // Reset open-delimiter state after finalize to avoid leaks into next stream
     inlineDepthRef.current = 0;
-    inDisplayRef.current = false;
+    displayDepthRef.current = 0;
     inSingleRef.current = false;
   }, [finalize, incremental, typesetDelayMs, typesetOnMount, typesetRAFCount, mathJaxSrc]);
 
