@@ -66,9 +66,9 @@ const RE_SQRT = /√\s*\(?([0-9A-Za-z+\-*/^\s,.]+?)\)?(?=(\s|[.,;:)\]]|$))/g;
 const MATH_TRIGGER_RE = /(\$|\\\(|\\\[|\\begin|√|⟨|_\{|\\\^)/;
 
 const SINGLE_DOLLAR_MAX_DISTANCE = 240;
-const SYMBOL_MACRO_SET = new Set(LATEX_TEXT_SYMBOL_MACROS);
-const BARE_MACRO_SET = new Set(LATEX_TEXT_BARE_MACROS);
-const SINGLE_LETTER_MACRO_SET = new Set(LATEX_TEXT_SINGLE_LETTER_MACROS);
+const SYMBOL_MACRO_SET = new Set<string>(Array.from(LATEX_TEXT_SYMBOL_MACROS));
+const BARE_MACRO_SET = new Set<string>(Array.from(LATEX_TEXT_BARE_MACROS));
+const SINGLE_LETTER_MACRO_SET = new Set<string>(Array.from(LATEX_TEXT_SINGLE_LETTER_MACROS));
 const RE_BACKSLASH_MACRO = /\\([A-Za-z]+)/g;
 const RE_BARE_MACROS = /(^|[^\\])([A-Za-z]+)\b/g;
 const RE_SINGLE_LETTER_ARG = /\\([A-Za-z]+)([A-Za-z])(?![A-Za-z])/g;
