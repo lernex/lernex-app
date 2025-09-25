@@ -67,11 +67,11 @@ const MATH_TRIGGER_RE = /(\$|\\\(|\\\[|\\begin|√|⟨|_\{|\\\^)/;
 
 const SINGLE_DOLLAR_MAX_DISTANCE = 240;
 const TEX_SYMBOL_MACRO_PATTERN = LATEX_TEXT_SYMBOL_MACROS.join("|");
-const RE_TEX_SYMBOLS = new RegExp(`\\\\(?:${TEX_SYMBOL_MACRO_PATTERN})\\b`, "g");
+const RE_TEX_SYMBOLS = new RegExp('\\(?:' + TEX_SYMBOL_MACRO_PATTERN + ')\\b', 'g');
 const BARE_MACRO_PATTERN = LATEX_TEXT_BARE_MACROS.join("|");
-const RE_BARE_MACROS = new RegExp(`(^|[^\\])(${BARE_MACRO_PATTERN})\\b`, "g");
+const RE_BARE_MACROS = new RegExp('(^|[^\\])(' + BARE_MACRO_PATTERN + ')\\b', 'g');
 const SINGLE_LETTER_MACRO_PATTERN = LATEX_TEXT_SINGLE_LETTER_MACROS.join("|");
-const RE_SINGLE_LETTER_ARG = new RegExp(`\\(${SINGLE_LETTER_MACRO_PATTERN})([A-Za-z])(?![A-Za-z])`, "g");
+const RE_SINGLE_LETTER_ARG = new RegExp('\\(' + SINGLE_LETTER_MACRO_PATTERN + ')([A-Za-z])(?![A-Za-z])', 'g');
 
 const BRACED_MACRO_ARG_COUNTS: Record<string, number> = Object.fromEntries(
   LATEX_TEXT_BRACED_MACROS.map((name) => [name, 1])
