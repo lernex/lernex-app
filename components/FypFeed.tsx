@@ -596,6 +596,7 @@ export default function FypFeed() {
                   )}
                 </div>
               )}
+            </div>
             {!requiresQuiz && (
               <div className="rounded-xl border border-lime-300/60 bg-lime-50/70 px-4 py-2 text-sm text-lime-700 shadow-sm dark:border-lime-400/50 dark:bg-lime-500/10 dark:text-lime-200">
                 No quiz for this one - enjoy the lesson!
