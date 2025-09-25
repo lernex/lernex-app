@@ -497,7 +497,7 @@ export default function FypFeed() {
   return (
     <div
       ref={containerRef}
-      className="relative mx-auto h-[calc(100vh-56px)] w-full max-w-[420px] overflow-hidden px-3 sm:px-4"
+      className="relative mx-auto w-full max-w-[420px] px-3 sm:px-4 lg:max-w-5xl lg:px-6 lg:pt-4 h-[calc(100vh-56px)] overflow-hidden lg:overflow-visible"
       style={{ maxWidth: "min(420px, 92vw)" }}
     >
       <div className="pointer-events-none absolute inset-0 -z-20 overflow-hidden">
@@ -573,31 +573,29 @@ export default function FypFeed() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -40, opacity: 0 }}
             transition={{ type: "spring", stiffness: 260, damping: 26 }}
-            className="absolute inset-0 flex flex-col gap-5 px-3 py-6 sm:px-4"
+            className="absolute inset-0 flex flex-col gap-5 px-3 py-6 sm:px-4 lg:px-6"
           >
-            <div className="flex-1 min-h-0">
-              <div className="mx-auto flex h-full max-h-full w-full max-w-[380px] justify-center" style={{ maxWidth: "min(380px, 90vw)" }}>
-                <div className="relative h-full w-full" style={{ aspectRatio: "9 / 16" }}>
-                  <div className="absolute inset-0">
-                    <LessonCard lesson={cur} className="h-full" />
-                  </div>
+            <div className="flex flex-1 flex-col gap-5 lg:flex-row lg:items-start lg:gap-6">
+              <div className="flex-1 min-h-0">
+                <div className="mx-auto flex h-full max-h-full w-full max-w-[420px] justify-center lg:max-w-none">
+                  <LessonCard lesson={cur} className="h-full lg:h-auto" />
                 </div>
               </div>
-            </div>
-            {requiresQuiz && (
-              <div className="flex flex-col gap-3">
-                <QuizBlock
-                  lesson={cur}
-                  showSummary={false}
-                  onDone={() => handleLessonComplete(cur)}
-                />
-                {!currentCompleted && (
-                  <div className="rounded-xl border border-dashed border-amber-300/60 bg-amber-50/70 px-4 py-2 text-sm text-amber-700 shadow-sm dark:border-amber-400/50 dark:bg-amber-500/10 dark:text-amber-200">
-                    Finish the quiz to unlock the next mini-lesson.
-                  </div>
-                )}
-              </div>
-            )}
+              {requiresQuiz && (
+                <div className="flex w-full flex-col gap-3 lg:w-[360px] lg:flex-shrink-0">
+                  <QuizBlock
+                    key={cur.id}
+                    lesson={cur}
+                    showSummary={false}
+                    onDone={() => handleLessonComplete(cur)}
+                  />
+                  {!currentCompleted && (
+                    <div className="rounded-xl border border-dashed border-amber-300/60 bg-amber-50/70 px-4 py-2 text-sm text-amber-700 shadow-sm dark:border-amber-400/50 dark:bg-amber-500/10 dark:text-amber-200">
+                      Finish the quiz to unlock the next mini-lesson.
+                    </div>
+                  )}
+                </div>
+              )}
             {!requiresQuiz && (
               <div className="rounded-xl border border-lime-300/60 bg-lime-50/70 px-4 py-2 text-sm text-lime-700 shadow-sm dark:border-lime-400/50 dark:bg-lime-500/10 dark:text-lime-200">
                 No quiz for this one - enjoy the lesson!

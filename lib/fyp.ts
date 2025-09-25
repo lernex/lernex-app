@@ -61,8 +61,8 @@ export async function generateLessonForTopic(
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("Missing GROQ_API_KEY");
   const client = new Groq({ apiKey });
-  const model = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
-  const envTemp = Number(process.env.GROQ_TEMPERATURE ?? "0.6");
+  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+  const envTemp = Number(process.env.GROQ_TEMPERATURE ?? "0.4");
   const temperature = Number.isFinite(envTemp) ? Math.min(1, Math.max(0, envTemp)) : 0.6;
 
   if (uid) {
@@ -77,10 +77,10 @@ export async function generateLessonForTopic(
   const avoidTitles = (opts?.avoidTitles ?? []).slice(-20);
 
   const lenHint = pace === "fast"
-    ? "Aim near 30-45 words."
+    ? "Keep the explanation tight: 38-48 words."
     : pace === "slow"
-    ? "Aim near 60-80 words."
-    : "Aim near 45-65 words.";
+    ? "Lean into detail: 60-75 words."
+    : "Aim for 48-60 words with clear sequencing.";
   const accHint = acc !== null ? `Recent accuracy ~${acc}%.` : "";
   const diffHint = diffPref ? `Target difficulty around: ${diffPref}.` : "";
   const avoidHint = [
@@ -88,18 +88,19 @@ export async function generateLessonForTopic(
     avoidTitles.length ? `Avoid reusing these lesson titles: ${avoidTitles.map((x) => '"' + x + '"').join(', ')}.` : "",
   ].filter(Boolean).join(" ");
 
-  const baseSystem = `You are an adaptive tutor.
+  const baseSystem = `You are the Lernex adaptive micro-lesson generator.
 Return only a valid JSON object that matches LessonSchema with fields: id, subject, topic, title, content, difficulty, questions[].
-Constraints:
-- content must contain 30-80 words of plain text (no HTML tags, no markdown fences).
-- difficulty must be one of "intro", "easy", "medium", "hard".
-- questions must include 1-3 entries; each entry must have a prompt, exactly four plain-text choices, correctIndex (0-based), and optional explanation (<=280 chars).
+Global rules:
+- content must be a single paragraph of clear text (45-75 words) with no markdown, lists, headings, or quoted dialogue.
+- difficulty must be one of "intro", "easy", "medium", "hard" and should reflect the learner guidance provided.
+- always produce exactly 3 question objects; each must have a prompt, four plain-text choices, correctIndex (0-based), and an explanation (<=240 chars).
+- Ensure each set of choices is distinct, plausible, and only one answer is fully correct.
 If the topic is written as "Topic > Subtopic", focus on the Subtopic while briefly tying back to the Topic. Favor practical, course-linked examples when obvious. Use inline LaTeX (\\( ... \\)) sparingly and ensure the JSON stays valid.`;
 
   const ctxHint = opts?.mapSummary ? `\nMap context: ${opts.mapSummary}` : "";
   const userPrompt = `Subject: ${subject}\nTopic: ${topic}\nLearner pace: ${pace}. ${accHint} ${diffHint} ${lenHint}
 ${avoidHint}
-Generate one micro-lesson and 1-3 multiple-choice questions following the constraints.${ctxHint}\nReturn only the JSON object.`;
+Generate one micro-lesson and exactly three multiple-choice questions following the constraints.${ctxHint}\nReturn only the JSON object.`;
 
   const MAX_LESSON_TOKENS = Number(process.env.GROQ_LESSON_MAX_TOKENS ?? "1500");
   type ResponseMode = "json_schema" | "json_object" | "none";
@@ -116,7 +117,6 @@ Generate one micro-lesson and 1-3 multiple-choice questions following the constr
         model,
         temperature,
         max_tokens: MAX_LESSON_TOKENS,
-        reasoning_effort: "low",
         ...responseFormat,
         messages: [
           { role: "system", content: system },
@@ -243,27 +243,46 @@ Generate one micro-lesson and 1-3 multiple-choice questions following the constr
     norm.questions = [
       {
         prompt: typeof norm.title === "string" ? `Which statement best reflects: ${norm.title}` : "Quick check",
-        choices: ["The key idea stated correctly", "An unrelated idea", "A partially correct idea"],
+        choices: [
+          "The key idea stated correctly",
+          "A common misconception about the idea",
+          "An unrelated fact",
+          "An incomplete or partially correct view"
+        ],
         correctIndex: 0,
         explanation: "This choice captures the essence of the micro-lesson.",
       }
     ];
   } else {
-    // Ensure each question has a valid correctIndex
+    // Ensure each question has four choices and a valid correctIndex
     type NormQuestion = { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown };
     norm.questions = (norm.questions as unknown[]).map((raw) => {
       const q = raw as NormQuestion;
-      const choices = Array.isArray(q?.choices)
-        ? (q.choices as unknown[]).map((c) => String(c)).slice(0, 6)
-        : ["Yes", "No"];
+      const baseChoices = Array.isArray(q?.choices)
+        ? (q.choices as unknown[]).map((choice) => String(choice)).filter((choice) => choice.trim().length > 0).slice(0, 6)
+        : [];
+      const fallbackPool = [
+        "A plausible but incorrect alternative",
+        "An unrelated idea",
+        "A partially correct statement",
+        "A misleading interpretation"
+      ];
+      let fillerIdx = 0;
+      while (baseChoices.length < 4) {
+        baseChoices.push(fallbackPool[fillerIdx % fallbackPool.length]);
+        fillerIdx += 1;
+      }
+      const trimmedChoices = baseChoices.slice(0, 4);
       const idx = typeof q?.correctIndex === "number"
-        ? Math.max(0, Math.min(choices.length - 1, Math.floor(q.correctIndex as number)))
+        ? Math.max(0, Math.min(trimmedChoices.length - 1, Math.floor(q.correctIndex as number)))
         : 0;
       return {
         prompt: String(q?.prompt ?? "Quick check"),
-        choices,
+        choices: trimmedChoices,
         correctIndex: idx,
-        explanation: typeof q?.explanation === "string" ? (q.explanation as string) : undefined,
+        explanation: typeof q?.explanation === "string"
+          ? (q.explanation as string).slice(0, 240)
+          : undefined,
       };
     });
   }

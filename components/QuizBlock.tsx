@@ -110,6 +110,13 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
   const [showSummaryOverlay, setShowSummaryOverlay] = useState(false);
   const q = hasQuestions ? questions[qIndex] : undefined;
   const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    setQ(0);
+    setSel(null);
+    setCorrectCount(0);
+    setShowSummaryOverlay(false);
+  }, [lesson.id]);
+
 
   const syncStatsFromPayload = useCallback((payload?: Record<string, unknown>) => {
     if (!payload || typeof payload !== "object") return;
