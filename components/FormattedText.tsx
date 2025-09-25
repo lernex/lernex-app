@@ -79,7 +79,7 @@ for (const name of ["frac", "binom"]) {
   BRACED_MACRO_ARG_COUNTS[name] = 2;
 }
 
-const MACROS_ALLOW_SINGLE_TOKEN = new Set([
+const MACROS_ALLOW_SINGLE_TOKEN = new Set<string>([
   "vec",
   "mathbf",
   "mathbb",
@@ -90,8 +90,8 @@ const MACROS_ALLOW_SINGLE_TOKEN = new Set([
   "overline",
 ]);
 
-const MACROS_WITH_OPTIONAL_BRACKET = new Set(["sqrt"]);
-const BRACED_MACRO_SET = new Set(LATEX_TEXT_BRACED_MACROS);
+const MACROS_WITH_OPTIONAL_BRACKET = new Set<string>(["sqrt"]);
+const BRACED_MACRO_SET = new Set<string>(LATEX_TEXT_BRACED_MACROS);
 
 // Utilities kept outside React so they aren't re-created every render
 function escapeHtml(s: string) {
