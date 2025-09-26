@@ -113,7 +113,7 @@ Teaching blueprint:
   6. Close with a quick prompt that nudges the learner to try a similar move.
 - Keep the voice encouraging yet precise; avoid filler or meta commentary.
 - Use pace/difficulty hints to set depth; if accuracy is below 60%, weave in reassurance and retrieval cues.
-- Questions: produce exactly 3 MCQs. Q1 should confirm recall, Q2 should apply the idea, Q3 should target a likely misconception. Provide four distinct choices and ≤240-char explanations tied back to the lesson.
+- Questions: produce exactly 3 MCQs. Q1 should confirm recall, Q2 should apply the idea, Q3 should target a likely misconception. Provide four distinct choices as plain strings (no numbering or objects) and <=240-char explanations tied back to the lesson.
 - When context JSON or map summaries are provided, ground all facts in that data and avoid inventing new entities.
 If the topic is written as "Topic > Subtopic", focus on the Subtopic while briefly linking back to the Topic. Favor practical, course-linked examples when obvious. Use inline LaTeX (\\( ... \\)) sparingly and keep the JSON valid.`;
 
@@ -298,69 +298,200 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
   // Difficulty normalize
   const diff = norm.difficulty;
   if (diff !== "intro" && diff !== "easy" && diff !== "medium" && diff !== "hard") norm.difficulty = "easy";
+
+  const canonicalTopic = typeof norm.topic === "string" && norm.topic.trim().length
+    ? norm.topic.trim()
+    : topic;
+
+  const normalizeChoiceKey = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
+
+  const stripChoicePrefix = (input: string) =>
+    input
+      .replace(/^[\s\-*_\u2022]*(?:[A-Da-d]|[0-9]{1,2})[\.\):\-]\s*/, "")
+      .replace(/^[\s\-*_\u2022]+/, "")
+      .trim();
+
+  const splitCompoundOption = (input: string): string[] => {
+    const normalized = input.replace(/\r\n?/g, "\n").trim();
+    if (!normalized) return [];
+    const newlineParts = normalized.split(/\n+/).map(stripChoicePrefix).filter(Boolean);
+    if (newlineParts.length >= 2 && newlineParts.length <= 6) return newlineParts;
+    const semicolonParts = normalized.split(/\s*[;|]\s*/).map(stripChoicePrefix).filter(Boolean);
+    if (semicolonParts.length >= 2 && semicolonParts.length <= 6) return semicolonParts;
+    return [stripChoicePrefix(normalized)];
+  };
+
+  const extractChoiceTexts = (value: unknown): string[] => {
+    if (typeof value === "string") return splitCompoundOption(value);
+    if (typeof value === "number" || typeof value === "boolean") return [String(value)];
+    if (Array.isArray(value)) {
+      return value.flatMap((entry) => extractChoiceTexts(entry));
+    }
+    if (value && typeof value === "object") {
+      const obj = value as Record<string, unknown>;
+      const keys = ["text", "value", "option", "answer", "content", "label", "body", "choice", "statement", "response"];
+      const collected: string[] = [];
+      for (const key of keys) {
+        const raw = obj[key];
+        if (typeof raw === "string") collected.push(...splitCompoundOption(raw));
+        else if (Array.isArray(raw)) collected.push(...extractChoiceTexts(raw));
+      }
+      return collected;
+    }
+    return [];
+  };
+
+  const collectChoiceVariants = (rawChoices: unknown[]) => {
+    const items: { text: string; rawIndex: number }[] = [];
+    const seen = new Set<string>();
+
+    rawChoices.forEach((entry, rawIndex) => {
+      const pieces = extractChoiceTexts(entry).map((piece) => piece.trim()).filter(Boolean);
+      for (const piece of pieces) {
+        const key = normalizeChoiceKey(piece);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        items.push({ text: piece, rawIndex });
+        if (items.length >= 8) break;
+      }
+    });
+
+    return items;
+  };
+
+  const buildFallbackChoices = (
+    prompt: string,
+    questionIdx: number,
+    used: Set<string>,
+    needed: number
+  ): string[] => {
+    const topicLabel = canonicalTopic || "the concept";
+    const trimmedPrompt = prompt.trim().replace(/\s+/g, " ");
+    const promptLabel = trimmedPrompt.length ? trimmedPrompt : `the lesson on ${topicLabel}`;
+    const base = [
+      `The accurate statement about ${topicLabel}`,
+      `A tempting misconception about ${topicLabel}`,
+      `An idea that does not answer "${promptLabel}"`,
+      "A partially correct statement missing key reasoning",
+      "A choice that contradicts the lesson's explanation",
+      "An unrelated detail to ignore",
+    ];
+    const results: string[] = [];
+
+    for (let offset = 0; offset < base.length && results.length < needed; offset++) {
+      const candidate = base[(questionIdx + offset) % base.length];
+      const key = normalizeChoiceKey(candidate);
+      if (used.has(key)) continue;
+      used.add(key);
+      results.push(candidate);
+    }
+
+    let counter = 1;
+    while (results.length < needed) {
+      const candidate = `${promptLabel} option ${counter}`;
+      const key = normalizeChoiceKey(candidate);
+      if (!used.has(key)) {
+        used.add(key);
+        results.push(candidate);
+      }
+      counter += 1;
+    }
+
+    return results;
+  };
+
   // Questions minimal fallback
   if (!Array.isArray(norm.questions) || (norm.questions as unknown[]).length === 0) {
     norm.questions = [
       {
         prompt: typeof norm.title === "string" ? `Which statement best reflects: ${norm.title}` : "Quick check",
         choices: [
-          "The key idea stated correctly",
-          "A common misconception about the idea",
+          `The key idea about ${canonicalTopic}`,
+          `A common misconception about ${canonicalTopic}`,
           "An unrelated fact",
-          "An incomplete or partially correct view"
+          "An incomplete or partially correct view",
         ],
         correctIndex: 0,
         explanation: "This choice captures the essence of the micro-lesson.",
       }
     ];
   } else {
-    // Ensure each question has four choices and a valid correctIndex
     type NormQuestion = { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown };
-    const normalized = (norm.questions as unknown[]).map((raw) => {
+    const normalized = (norm.questions as unknown[]).map((raw, questionIdx) => {
       const q = raw as NormQuestion;
-      const baseChoices = Array.isArray(q?.choices)
-        ? (q.choices as unknown[]).map((choice) => String(choice)).filter((choice) => choice.trim().length > 0).slice(0, 6)
-        : [];
-      const fallbackPool = [
-        "A plausible but incorrect alternative",
-        "An unrelated idea",
-        "A partially correct statement",
-        "A misleading interpretation"
-      ];
-      let fillerIdx = 0;
-      while (baseChoices.length < 4) {
-        baseChoices.push(fallbackPool[fillerIdx % fallbackPool.length]);
-        fillerIdx += 1;
+      const promptText =
+        typeof q?.prompt === "string" && q.prompt.trim().length
+          ? q.prompt.trim()
+          : typeof norm.title === "string"
+          ? `Check your understanding: ${norm.title}`
+          : "Quick check";
+      const rawChoices = Array.isArray(q?.choices) ? (q.choices as unknown[]) : [];
+      const parsedChoices = collectChoiceVariants(rawChoices);
+      const rawCorrectIndex =
+        typeof q?.correctIndex === "number"
+          ? Math.max(0, Math.floor(q.correctIndex as number))
+          : null;
+
+      let workingChoices = parsedChoices.slice();
+      if (workingChoices.length > 4) {
+        if (rawCorrectIndex != null) {
+          const correctEntryIdx = workingChoices.findIndex((choice) => choice.rawIndex === rawCorrectIndex);
+          if (correctEntryIdx >= 0 && correctEntryIdx >= 4) {
+            const correctEntry = workingChoices[correctEntryIdx];
+            const preserved = workingChoices.slice(0, 3);
+            workingChoices = [...preserved, correctEntry];
+          } else {
+            workingChoices = workingChoices.slice(0, 4);
+          }
+        } else {
+          workingChoices = workingChoices.slice(0, 4);
+        }
       }
-      const trimmedChoices = baseChoices.slice(0, 4);
-      const correctIndex = typeof q?.correctIndex === "number"
-        ? Math.max(0, Math.min(trimmedChoices.length - 1, Math.floor(q.correctIndex as number)))
-        : 0;
+
+      let correctIndex = 0;
+      if (rawCorrectIndex != null) {
+        const match = workingChoices.findIndex((choice) => choice.rawIndex === rawCorrectIndex);
+        if (match >= 0) correctIndex = match;
+      }
+
+      let choiceTexts = workingChoices.map((choice) => choice.text);
+      const usedKeys = new Set<string>(choiceTexts.map((choice) => normalizeChoiceKey(choice)));
+
+      if (choiceTexts.length === 0) {
+        const fallback = buildFallbackChoices(promptText, questionIdx, usedKeys, 4);
+        choiceTexts = fallback.slice(0, 4);
+        correctIndex = 0;
+      } else if (choiceTexts.length < 4) {
+        const needed = 4 - choiceTexts.length;
+        const fallback = buildFallbackChoices(promptText, questionIdx, usedKeys, needed);
+        choiceTexts = choiceTexts.concat(fallback.slice(0, needed));
+      }
+
+      if (correctIndex >= choiceTexts.length) correctIndex = 0;
+
       return {
-        prompt: String(q?.prompt ?? (typeof norm.title === "string" ? `Check your understanding: ${norm.title}` : "Quick check")),
-        choices: trimmedChoices,
+        prompt: promptText,
+        choices: choiceTexts.slice(0, 4),
         correctIndex,
-        explanation: typeof q?.explanation === "string"
-          ? (q.explanation as string).slice(0, 240)
-          : undefined,
+        explanation:
+          typeof q?.explanation === "string" && q.explanation.trim().length
+            ? q.explanation.slice(0, 240).trim()
+            : undefined,
       };
     });
     while (normalized.length < 3) {
+      const promptText = `Reinforce the core idea (${normalized.length + 1}/3)`;
+      const usedKeys = new Set<string>();
+      const fallback = buildFallbackChoices(promptText, normalized.length, usedKeys, 4);
       normalized.push({
-        prompt: `Reinforce the core idea (${normalized.length + 1}/3)`,
-        choices: [
-          "The accurate summary",
-          "A tempting misconception",
-          "An unrelated statement",
-          "An incomplete idea",
-        ],
+        prompt: promptText,
+        choices: fallback.slice(0, 4),
         correctIndex: 0,
         explanation: "Select the option that best matches the lesson's main takeaway.",
       });
     }
     norm.questions = normalized.slice(0, 3);
   }
-
   const revalidated = LessonSchema.safeParse(norm);
   if (revalidated.success) {
     await recordUsage(lastAttemptIndex);
