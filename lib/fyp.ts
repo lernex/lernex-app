@@ -1,6 +1,7 @@
 import Groq from "groq-sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LessonSchema } from "./schema";
+import type { Question } from "./schema";
 import { checkUsageLimit, logUsage } from "./usage";
 
 let groqCache: { apiKey: string; client: Groq } | null = null;
@@ -49,6 +50,20 @@ const LESSON_JSON_SCHEMA = {
     mediaUrl: { type: "string", format: "uri" },
     mediaType: { type: "string", enum: ["image", "video"] }
   }
+} as const;
+
+const QUESTIONS_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["questions"],
+  properties: {
+    questions: {
+      type: "array",
+      minItems: 3,
+      maxItems: 3,
+      items: LESSON_JSON_SCHEMA.properties.questions.items,
+    },
+  },
 } as const;
 
 type Pace = "slow" | "normal" | "fast";
@@ -303,6 +318,10 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
     ? norm.topic.trim()
     : topic;
 
+  const canonicalTitle = typeof norm.title === "string" && norm.title.trim().length
+    ? norm.title.trim()
+    : null;
+
   const normalizeChoiceKey = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
 
   const stripChoicePrefix = (input: string) =>
@@ -316,45 +335,104 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
     if (!normalized) return [];
     const newlineParts = normalized.split(/\n+/).map(stripChoicePrefix).filter(Boolean);
     if (newlineParts.length >= 2 && newlineParts.length <= 6) return newlineParts;
-    const semicolonParts = normalized.split(/\s*[;|]\s*/).map(stripChoicePrefix).filter(Boolean);
-    if (semicolonParts.length >= 2 && semicolonParts.length <= 6) return semicolonParts;
+    const delimiterParts = normalized.split(/\s*[;|/]\s*/).map(stripChoicePrefix).filter(Boolean);
+    if (delimiterParts.length >= 2 && delimiterParts.length <= 6) return delimiterParts;
     return [stripChoicePrefix(normalized)];
   };
 
-  const extractChoiceTexts = (value: unknown): string[] => {
+  const extractChoiceTexts = (value: unknown, depth = 0): string[] => {
+    if (depth > 6 || value == null) return [];
     if (typeof value === "string") return splitCompoundOption(value);
     if (typeof value === "number" || typeof value === "boolean") return [String(value)];
     if (Array.isArray(value)) {
-      return value.flatMap((entry) => extractChoiceTexts(entry));
+      return value.flatMap((entry) => extractChoiceTexts(entry, depth + 1));
     }
-    if (value && typeof value === "object") {
+    if (typeof value === "object") {
       const obj = value as Record<string, unknown>;
-      const keys = ["text", "value", "option", "answer", "content", "label", "body", "choice", "statement", "response"];
-      const collected: string[] = [];
-      for (const key of keys) {
+      const results: string[] = [];
+      const preferredKeys = [
+        "text",
+        "value",
+        "option",
+        "answer",
+        "content",
+        "label",
+        "body",
+        "choice",
+        "statement",
+        "response",
+        "correct",
+        "incorrect",
+        "correctChoice",
+        "incorrectChoices",
+        "true",
+        "false",
+      ];
+      for (const key of preferredKeys) {
+        if (!(key in obj)) continue;
         const raw = obj[key];
-        if (typeof raw === "string") collected.push(...splitCompoundOption(raw));
-        else if (Array.isArray(raw)) collected.push(...extractChoiceTexts(raw));
+        if (typeof raw === "string") {
+          results.push(...splitCompoundOption(raw));
+        } else if (Array.isArray(raw) || (raw && typeof raw === "object")) {
+          results.push(...extractChoiceTexts(raw, depth + 1));
+        }
       }
-      return collected;
+      for (const [key, val] of Object.entries(obj)) {
+        if (preferredKeys.includes(key)) continue;
+        if (typeof val === "string") {
+          results.push(...splitCompoundOption(val));
+        } else if (Array.isArray(val) || (val && typeof val === "object")) {
+          results.push(...extractChoiceTexts(val, depth + 1));
+        }
+      }
+      return results;
     }
     return [];
   };
 
-  const collectChoiceVariants = (rawChoices: unknown[]) => {
+  const collectChoiceVariants = (rawChoices: unknown) => {
     const items: { text: string; rawIndex: number }[] = [];
     const seen = new Set<string>();
+    const visited = new Set<unknown>();
+    const queue: { value: unknown; rawIndex: number }[] = [];
 
-    rawChoices.forEach((entry, rawIndex) => {
-      const pieces = extractChoiceTexts(entry).map((piece) => piece.trim()).filter(Boolean);
+    const enqueue = (value: unknown, rawIndex: number) => {
+      if (value && typeof value === "object") {
+        if (visited.has(value)) return;
+        visited.add(value);
+      }
+      queue.push({ value, rawIndex });
+    };
+
+    if (Array.isArray(rawChoices)) {
+      rawChoices.forEach((entry, idx) => enqueue(entry, idx));
+    } else if (rawChoices && typeof rawChoices === "object") {
+      let idx = 0;
+      for (const entry of Object.values(rawChoices as Record<string, unknown>)) {
+        enqueue(entry, idx);
+        idx += 1;
+      }
+    } else if (rawChoices !== undefined) {
+      enqueue(rawChoices, 0);
+    }
+
+    while (queue.length) {
+      const { value, rawIndex } = queue.shift()!;
+      const pieces = extractChoiceTexts(value).map((piece) => piece.trim()).filter(Boolean);
       for (const piece of pieces) {
         const key = normalizeChoiceKey(piece);
         if (!key || seen.has(key)) continue;
         seen.add(key);
         items.push({ text: piece, rawIndex });
-        if (items.length >= 8) break;
+        if (items.length >= 12) break;
       }
-    });
+      if (items.length >= 12) break;
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        for (const entry of Object.values(value as Record<string, unknown>)) {
+          if (entry && typeof entry === "object") enqueue(entry, rawIndex);
+        }
+      }
+    }
 
     return items;
   };
@@ -371,7 +449,7 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
     const base = [
       `The accurate statement about ${topicLabel}`,
       `A tempting misconception about ${topicLabel}`,
-      `An idea that does not answer "${promptLabel}"`,
+      `An idea that does not address "${promptLabel}"`,
       "A partially correct statement missing key reasoning",
       "A choice that contradicts the lesson's explanation",
       "An unrelated detail to ignore",
@@ -400,37 +478,39 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
     return results;
   };
 
-  // Questions minimal fallback
-  if (!Array.isArray(norm.questions) || (norm.questions as unknown[]).length === 0) {
-    norm.questions = [
-      {
-        prompt: typeof norm.title === "string" ? `Which statement best reflects: ${norm.title}` : "Quick check",
-        choices: [
-          `The key idea about ${canonicalTopic}`,
-          `A common misconception about ${canonicalTopic}`,
-          "An unrelated fact",
-          "An incomplete or partially correct view",
-        ],
-        correctIndex: 0,
-        explanation: "This choice captures the essence of the micro-lesson.",
-      }
-    ];
-  } else {
-    type NormQuestion = { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown };
-    const normalized = (norm.questions as unknown[]).map((raw, questionIdx) => {
+  const makeFallbackQuestion = (questionIdx: number): Question => {
+    const promptText = questionIdx === 0
+      ? `Quick check: ${canonicalTopic}`
+      : `Reinforce the core idea (${questionIdx + 1}/3)`;
+    const usedKeys = new Set<string>();
+    const fallbackChoices = buildFallbackChoices(promptText, questionIdx, usedKeys, 4);
+    return {
+      prompt: promptText,
+      choices: fallbackChoices.slice(0, 4),
+      correctIndex: 0,
+      explanation: "Select the choice that best matches the lesson's main idea.",
+    };
+  };
+
+  const sanitizeQuestions = (rawQuestions: unknown[]): Question[] => {
+    const arr = Array.isArray(rawQuestions) ? rawQuestions : [];
+    const sanitized = arr.map((raw, questionIdx) => {
+      type NormQuestion = { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown };
       const q = raw as NormQuestion;
       const promptText =
         typeof q?.prompt === "string" && q.prompt.trim().length
           ? q.prompt.trim()
-          : typeof norm.title === "string"
-          ? `Check your understanding: ${norm.title}`
-          : "Quick check";
-      const rawChoices = Array.isArray(q?.choices) ? (q.choices as unknown[]) : [];
-      const parsedChoices = collectChoiceVariants(rawChoices);
-      const rawCorrectIndex =
+          : canonicalTitle
+          ? `Check your understanding: ${canonicalTitle}`
+          : `Check your understanding: ${canonicalTopic}`;
+      const parsedChoices = collectChoiceVariants(q?.choices);
+      const numericCorrect =
         typeof q?.correctIndex === "number"
-          ? Math.max(0, Math.floor(q.correctIndex as number))
-          : null;
+          ? Math.floor(q.correctIndex as number)
+          : typeof q?.correctIndex === "string"
+          ? Math.floor(Number(q.correctIndex))
+          : NaN;
+      const rawCorrectIndex = Number.isFinite(numericCorrect) && numericCorrect >= 0 ? numericCorrect : null;
 
       let workingChoices = parsedChoices.slice();
       if (workingChoices.length > 4) {
@@ -479,19 +559,144 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
             : undefined,
       };
     });
-    while (normalized.length < 3) {
-      const promptText = `Reinforce the core idea (${normalized.length + 1}/3)`;
-      const usedKeys = new Set<string>();
-      const fallback = buildFallbackChoices(promptText, normalized.length, usedKeys, 4);
-      normalized.push({
-        prompt: promptText,
-        choices: fallback.slice(0, 4),
-        correctIndex: 0,
-        explanation: "Select the option that best matches the lesson's main takeaway.",
-      });
+
+    while (sanitized.length < 3) {
+      sanitized.push(makeFallbackQuestion(sanitized.length));
     }
-    norm.questions = normalized.slice(0, 3);
+
+    return sanitized.slice(0, 3);
+  };
+
+  const placeholderChoicePatterns = [
+    /^the (accurate|key) (statement|idea)/i,
+    /^a tempting misconception/i,
+    /^an idea that does not/i,
+    /^a partially correct/i,
+    /^a choice that contradicts/i,
+    /^an unrelated detail/i,
+    /option \d+$/i,
+  ];
+
+  const placeholderPromptPatterns = [
+    /^check your understanding:/i,
+    /^reinforce the core idea/i,
+    /^quick check/i,
+  ];
+
+  const isPlaceholderChoice = (choice: string) =>
+    placeholderChoicePatterns.some((re) => re.test(choice.trim()));
+
+  const isPlaceholderPrompt = (prompt: string) =>
+    placeholderPromptPatterns.some((re) => re.test(prompt.trim()));
+
+  const shouldRegenerateQuestions = (questions: Question[]) => {
+    let weakCount = 0;
+    for (const q of questions) {
+      const placeholderChoices = q.choices.filter(isPlaceholderChoice).length;
+      const placeholderPrompt = isPlaceholderPrompt(q.prompt);
+      if (placeholderChoices >= 2 || placeholderPrompt) {
+        weakCount += 1;
+      }
+    }
+    return weakCount >= 2;
+  };
+
+  const recordAuxUsage = async (
+    usageSummary: { input_tokens: number | null; output_tokens: number | null } | null,
+    metadata?: Record<string, unknown>
+  ) => {
+    if (!uid || !usageSummary) return;
+    try {
+      await logUsage(sb, uid, ip, model, usageSummary, metadata ? { metadata } : undefined);
+    } catch {}
+  };
+
+  const regenerateQuestionsWithAI = async (): Promise<Question[] | null> => {
+    const lessonContent = typeof norm.content === "string" ? norm.content : "";
+    if (!lessonContent.trim()) return null;
+
+    const regenSystem = `You are the Lernex adaptive quiz generator.
+Return ONLY a JSON object matching schema { "questions": [ ... ] }.
+Produce exactly 3 multiple-choice questions:
+- Q1: reinforce recall from the lesson.
+- Q2: apply the idea in a short scenario.
+- Q3: expose a likely misconception.
+Each question must include:
+- prompt: concise question text (<= 140 chars).
+- choices: exactly four distinct answer strings (no numbering, no JSON objects).
+- correctIndex: integer 0-3 pointing to the correct choice.
+- explanation: <=240 characters, ties back to the lesson.
+Do not repeat the lesson verbatim; make the distractors plausible but incorrect.
+Avoid meta commentary, placeholders, or references to this prompt.`;
+
+
+    const additionalContext: string[] = [];
+    if (contextJson) additionalContext.push(`Structured context JSON:\n${contextJson}`);
+    else if (opts?.mapSummary) additionalContext.push(`Map summary: ${opts.mapSummary}`);
+    if (opts?.structuredContext && !contextJson) {
+      additionalContext.push(`Additional context:\n${JSON.stringify(opts.structuredContext, null, 2)}`);
+    }
+    const contextBlock = additionalContext.length ? `\n${additionalContext.join("\n")}` : "";
+    const regenPrompt = `Subject: ${subject}
+Topic: ${canonicalTopic}
+Difficulty: ${typeof norm.difficulty === "string" ? norm.difficulty : "easy"}
+Lesson Content:
+${lessonContent}${contextBlock}
+Generate the quiz questions as specified.`;
+
+    try {
+      const regenCompletion = await client.chat.completions.create({
+        model,
+        temperature: 0.35,
+        max_tokens: 700,
+        response_format: { type: "json_schema", json_schema: { name: "lesson_quiz_schema", schema: QUESTIONS_JSON_SCHEMA } },
+        messages: [
+          { role: "system", content: regenSystem },
+          { role: "user", content: regenPrompt },
+        ],
+      });
+
+      const usage = regenCompletion?.usage
+        ? {
+            input_tokens: typeof regenCompletion.usage.prompt_tokens === "number" ? regenCompletion.usage.prompt_tokens : null,
+            output_tokens: typeof regenCompletion.usage.completion_tokens === "number" ? regenCompletion.usage.completion_tokens : null,
+          }
+        : null;
+      await recordAuxUsage(usage, { fallbackStep: "quiz-regenerate" });
+
+      const regenRaw = (regenCompletion.choices?.[0]?.message?.content as string | undefined) ?? "";
+      let regenParsed: unknown;
+      try {
+        regenParsed = JSON.parse(regenRaw);
+      } catch {
+        const extracted = extractBalancedObject(regenRaw);
+        if (!extracted) return null;
+        regenParsed = JSON.parse(extracted);
+      }
+
+      const questionsRaw = Array.isArray((regenParsed as { questions?: unknown[] })?.questions)
+        ? (regenParsed as { questions: unknown[] }).questions
+        : [];
+      if (!questionsRaw.length) return null;
+
+      const sanitized = sanitizeQuestions(questionsRaw);
+      return sanitized;
+    } catch {
+      return null;
+    }
+  };
+
+  const initialQuestions = Array.isArray(norm.questions) ? norm.questions : [];
+  let sanitizedQuestions = sanitizeQuestions(initialQuestions);
+
+  if (shouldRegenerateQuestions(sanitizedQuestions)) {
+    const regenerated = await regenerateQuestionsWithAI();
+    if (regenerated && regenerated.length === 3) {
+      sanitizedQuestions = regenerated;
+    }
   }
+
+  norm.questions = sanitizedQuestions;
   const revalidated = LessonSchema.safeParse(norm);
   if (revalidated.success) {
     await recordUsage(lastAttemptIndex);
@@ -499,3 +704,15 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
   }
   throw new Error("Invalid lesson format from AI");
 }
+
+
+
+
+
+
+
+
+
+
+
+

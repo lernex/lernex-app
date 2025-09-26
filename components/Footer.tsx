@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function Footer() {
   return (
-    <footer className="mt-8 bg-white text-neutral-900 backdrop-blur-lg dark:bg-lernex-charcoal dark:text-white">
+    <footer className="mt-8 border-t border-lernex-blue/20 bg-white text-neutral-900 backdrop-blur-lg dark:border-lernex-blue/30 dark:bg-lernex-charcoal dark:text-white">
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-6 py-10 text-sm sm:grid-cols-2 md:grid-cols-4">
         <div className="space-y-2">
           <div className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-lg font-semibold text-transparent">Lernex</div>
