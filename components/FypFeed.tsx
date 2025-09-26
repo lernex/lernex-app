@@ -435,7 +435,7 @@ export default function FypFeed() {
     }
     cooldownRef.current.clear();
     subjIdxRef.current = 0;
-  }, [subjectsKey]);
+  }, [subjectsKey, setFypSnapshot]);
 
   // Keep prefetching ahead
   useEffect(() => {

@@ -494,7 +494,7 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
 
   const sanitizeQuestions = (rawQuestions: unknown[]): Question[] => {
     const arr = Array.isArray(rawQuestions) ? rawQuestions : [];
-    const sanitized = arr.map((raw, questionIdx) => {
+    const sanitized = arr.map((raw, questionIdx): Question => {
       type NormQuestion = { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown };
       const q = raw as NormQuestion;
       const promptText =
@@ -704,15 +704,4 @@ Generate the quiz questions as specified.`;
   }
   throw new Error("Invalid lesson format from AI");
 }
-
-
-
-
-
-
-
-
-
-
-
 
