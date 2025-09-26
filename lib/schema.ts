@@ -11,15 +11,15 @@ export const QuestionSchema = z.object({
 export type Question = z.infer<typeof QuestionSchema>;
 
 // Lesson includes 1–3 MCQs and metadata for adaptive learning
-const MIN_LESSON_WORDS = 45;
-const MAX_LESSON_WORDS = 85;
+const MIN_LESSON_WORDS = 60;
+const MAX_LESSON_WORDS = 100;
 
 export const LessonSchema = z.object({
   id: z.string().min(1),
   subject: z.string().min(1),            // e.g., "Algebra 1"
   topic: z.string().min(1),              // e.g., "Slope of a line" (NEW)
   title: z.string().min(1),
-  content: z.string().min(180).max(600),  // closer to 45–75 words at typical word length
+  content: z.string().min(180).max(600),  // tuned for ~60–100 words at typical word length
   difficulty: z.enum(["intro","easy","medium","hard"]).default("easy"), // NEW
   questions: z.array(QuestionSchema).length(3),
   // media optional; we’ll keep it off for now to control cost
