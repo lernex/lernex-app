@@ -234,7 +234,7 @@ export default function Generate() {
 
         {lesson && (
           <div className="space-y-3">
-            <LessonCard lesson={lesson} />
+            <LessonCard lesson={lesson} className="max-h-[60vh] sm:max-h-[520px] min-h-[260px]" />
             {Array.isArray(lesson.questions) && lesson.questions.length > 0 && (
               <QuizBlock lesson={lesson} onDone={() => {}} />
             )}

@@ -53,8 +53,8 @@ const LESSON_JSON_SCHEMA = {
 
 type Pace = "slow" | "normal" | "fast";
 type Difficulty = "intro" | "easy" | "medium" | "hard";
-const MIN_LESSON_WORDS = 45;
-const MAX_LESSON_WORDS = 85;
+const MIN_LESSON_WORDS = 60;
+const MAX_LESSON_WORDS = 100;
 
 export async function generateLessonForTopic(
   sb: SupabaseClient,
@@ -89,10 +89,10 @@ export async function generateLessonForTopic(
   const avoidTitles = (opts?.avoidTitles ?? []).slice(-20);
 
   const lenHint = pace === "fast"
-    ? `Keep the explanation focused in ${MIN_LESSON_WORDS}-${Math.min(58, MAX_LESSON_WORDS)} words.`
+    ? `Keep the explanation focused in ${MIN_LESSON_WORDS}-${Math.min(78, MAX_LESSON_WORDS)} words with tight transitions.`
     : pace === "slow"
-    ? `Lean into detail: ${Math.max(52, MIN_LESSON_WORDS)}-${MAX_LESSON_WORDS} words with calm pacing.`
-    : `Aim for ${MIN_LESSON_WORDS}-${Math.min(70, MAX_LESSON_WORDS)} words with clear sequencing.`;
+    ? `Lean into detail: ${Math.max(72, MIN_LESSON_WORDS)}-${MAX_LESSON_WORDS} words with calm pacing.`
+    : `Aim for ${MIN_LESSON_WORDS}-${Math.min(88, MAX_LESSON_WORDS)} words with clear sequencing.`;
   const accHint = acc !== null ? `Recent accuracy ~${acc}%.` : "";
   const diffHint = diffPref ? `Target difficulty around: ${diffPref}.` : "";
   const avoidHint = [
@@ -102,13 +102,20 @@ export async function generateLessonForTopic(
 
   const baseSystem = `You are the Lernex adaptive micro-lesson generator.
 Return only a valid JSON object that matches LessonSchema with fields: id, subject, topic, title, content, difficulty, questions[].
-Global rules:
-- content must be a single paragraph of clear text (45-75 words) with no markdown, lists, headings, or quoted dialogue.
-- difficulty must be one of "intro", "easy", "medium", "hard" and should reflect the learner guidance provided.
-- always produce exactly 3 question objects; each must have a prompt, four plain-text choices, correctIndex (0-based), and an explanation (<=240 chars).
-- Ensure each set of choices is distinct, plausible, and only one answer is fully correct.
-- When context JSON is provided, ground key facts, misconceptions, and prerequisite ties directly in that data and do not invent new entities.
-If the topic is written as "Topic > Subtopic", focus on the Subtopic while briefly tying back to the Topic. Favor practical, course-linked examples when obvious. Use inline LaTeX (\\( ... \\)) sparingly and ensure the JSON stays valid.`;
+Teaching blueprint:
+- Write content as one cohesive paragraph of 5-6 sentences (~${MIN_LESSON_WORDS}-${MAX_LESSON_WORDS} words) with no markdown, lists, headings, or dialogue.
+- Sentence flow:
+  1. Use a relatable hook that names the topic and nods to the subject.
+  2. Define the concept plainly, highlighting essential vocabulary.
+  3. Walk through one concrete example (use numbers/symbols the learner would see in class).
+  4. Explain why the example works, calling out the reasoning steps.
+  5. Warn about a common misconception or pitfall.
+  6. Close with a quick prompt that nudges the learner to try a similar move.
+- Keep the voice encouraging yet precise; avoid filler or meta commentary.
+- Use pace/difficulty hints to set depth; if accuracy is below 60%, weave in reassurance and retrieval cues.
+- Questions: produce exactly 3 MCQs. Q1 should confirm recall, Q2 should apply the idea, Q3 should target a likely misconception. Provide four distinct choices and ≤240-char explanations tied back to the lesson.
+- When context JSON or map summaries are provided, ground all facts in that data and avoid inventing new entities.
+If the topic is written as "Topic > Subtopic", focus on the Subtopic while briefly linking back to the Topic. Favor practical, course-linked examples when obvious. Use inline LaTeX (\\( ... \\)) sparingly and keep the JSON valid.`;
 
   const contextJson = opts?.structuredContext
     ? JSON.stringify(opts.structuredContext, null, 2)
@@ -271,9 +278,22 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
   if (typeof norm.content === "string") {
     const cleaned = (norm.content as string).replace(/<[^>]+>/g, "").slice(0, 600).trim();
     const wordCount = cleaned.split(/\s+/).filter(Boolean).length;
-    norm.content = wordCount >= MIN_LESSON_WORDS
-      ? cleaned
-      : `${cleaned} This added explanation reinforces the intuition, restates the definition in new words, and reminds learners how to spot the idea in daily problem solving so the paragraph meets the required depth.`.slice(0, 600);
+    if (wordCount >= MIN_LESSON_WORDS) {
+      norm.content = cleaned;
+    } else {
+      const rawTopic = typeof norm.topic === "string" && norm.topic.trim() ? (norm.topic as string).trim() : topic;
+      const topicLabel = rawTopic && rawTopic.trim().length ? rawTopic.trim() : "this idea";
+      const subjectLabel = subject && subject.trim().length ? subject.trim() : "your course";
+      const extras = [
+        cleaned,
+        `Picture how ${topicLabel.toLowerCase()} shows up in ${subjectLabel.toLowerCase()} problems you have seen recently.`,
+        `State the definition in your own words, then connect it to one short example you could explain in two calm steps.`,
+        `Point out a mistake a learner might make with ${topicLabel.toLowerCase()} and clarify why it fails.`,
+        `Finish by describing how you will recognise ${topicLabel.toLowerCase()} the next time you practise.`,
+      ].filter(Boolean);
+      const fallback = extras.join(" ").trim().slice(0, 600);
+      norm.content = fallback.length > 0 ? fallback : `Summarise ${topicLabel} clearly, link it to a tiny example, warn about a trap, and end with a cue you can reuse while studying ${subjectLabel}.`;
+    }
   }
   // Difficulty normalize
   const diff = norm.difficulty;

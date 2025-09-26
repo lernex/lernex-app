@@ -135,6 +135,7 @@ export default function NavBar() {
     const tilePaddingExpanded = "pl-3 pr-3.5";
     const tilePaddingCollapsed = "pl-2.5 pr-1.5";
     const tilePadding = navExpanded ? tilePaddingExpanded : tilePaddingCollapsed;
+    const listPadding = navExpanded ? "px-5" : "pl-4 pr-3";
 
     const activeClasses =
       "border-lernex-blue/60 bg-gradient-to-br from-lernex-blue/20 via-lernex-blue/10 to-lernex-purple/15 text-lernex-blue dark:border-lernex-blue/50 dark:text-lernex-blue/90";
@@ -237,7 +238,7 @@ export default function NavBar() {
               </AnimatePresence>
             </div>
             <div
-              className="mt-6 flex flex-1 flex-col overflow-y-auto px-5 pb-6"
+              className={`mt-6 flex flex-1 flex-col overflow-y-auto overflow-x-hidden pb-6 scrollbar-thin ${listPadding}`}
               style={{ gap: "clamp(1.25rem, 3vh, 1.75rem)" }}
             >
               <div

@@ -30,9 +30,13 @@ export default function Pricing() {
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 select-none rounded-full bg-lernex-blue px-3 py-1 text-xs font-semibold text-white shadow">Most Popular</div>
             <h2 className="mt-1 text-xl font-semibold">Premium</h2>
             <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">More power, faster progress.</p>
-            <div className="mt-4 flex items-end gap-1">
-              <div className="text-3xl font-bold">$5.99</div>
+            <div className="mt-4 flex items-baseline gap-2">
+              <span className="text-sm text-neutral-400 line-through">$9.99</span>
+              <div className="text-3xl font-bold text-neutral-900 dark:text-white">$5.99</div>
               <div className="text-sm text-neutral-500 dark:text-neutral-400">/month</div>
+            </div>
+            <div className="mt-1 inline-flex items-center gap-2 rounded-full bg-emerald-100/70 px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm dark:bg-emerald-500/15 dark:text-emerald-300">
+              Limited time • Save 40%
             </div>
             <ul className="mt-5 space-y-2 text-sm text-neutral-700 dark:text-neutral-200">
               <li>• Higher daily generation limits</li>
@@ -48,9 +52,13 @@ export default function Pricing() {
           <div className="relative rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900">
             <h2 className="text-xl font-semibold">Pro</h2>
             <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">For power learners and creators.</p>
-            <div className="mt-4 flex items-end gap-1">
-              <div className="text-3xl font-bold">$14.99</div>
+            <div className="mt-4 flex items-baseline gap-2">
+              <span className="text-sm text-neutral-400 line-through">$19.99</span>
+              <div className="text-3xl font-bold text-neutral-900 dark:text-white">$14.99</div>
               <div className="text-sm text-neutral-500 dark:text-neutral-400">/month</div>
+            </div>
+            <div className="mt-1 inline-flex items-center gap-2 rounded-full bg-rose-100/70 px-3 py-1 text-xs font-semibold text-rose-700 shadow-sm dark:bg-rose-500/15 dark:text-rose-300">
+              Unlock pro tools • Save 25%
             </div>
             <ul className="mt-5 space-y-2 text-sm text-neutral-700 dark:text-neutral-200">
               <li>• Unlimited AI generation</li>

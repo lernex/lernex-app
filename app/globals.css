@@ -65,6 +65,22 @@ html {
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-lernex-blue/80;
   }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 5px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-lernex-purple/60 rounded-full;
+  }
+  .scrollbar-thin:hover::-webkit-scrollbar-thumb {
+    @apply bg-lernex-blue/70;
+  }
+
 }
 
 @keyframes fadeIn {

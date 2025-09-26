@@ -46,6 +46,8 @@ type LoadingState = {
   updatedAt: number;
 };
 
+const CACHE_MAX_AGE_MS = 15 * 60 * 1000;
+
 function parseRetryAfterSeconds(raw: string | null): number | null {
   if (!raw) return null;
   const asNumber = Number(raw);
@@ -153,7 +155,7 @@ async function fetchFypOne(subject: string | null, opts: { onProgress?: (info: F
 }
 
 export default function FypFeed() {
-  const { selectedSubjects, accuracyBySubject, autoAdvanceEnabled, setAutoAdvanceEnabled, setClassPickerOpen } = useLernexStore();
+  const { selectedSubjects, accuracyBySubject, autoAdvanceEnabled, setAutoAdvanceEnabled, setClassPickerOpen, fypSnapshot, setFypSnapshot } = useLernexStore();
   const { data: profileBasics } = useProfileBasics();
   const interests = profileBasics.interests;
 
@@ -162,6 +164,8 @@ export default function FypFeed() {
     const list = selectedSubjects.length ? selectedSubjects : interests;
     return list.length ? list : [null];
   }, [selectedSubjects, interests]);
+
+  const subjectsKey = useMemo(() => JSON.stringify(selectedSubjects), [selectedSubjects]);
 
   const [items, setItems] = useState<Lesson[]>([]);
   const [i, setI] = useState(0);
@@ -359,6 +363,26 @@ export default function FypFeed() {
     }, 2200);
   }, []);
 
+  useEffect(() => {
+    if (initialized || items.length > 0) return;
+    if (!fypSnapshot) return;
+    if (fypSnapshot.subjectsKey !== subjectsKey) return;
+    const isFresh = Date.now() - fypSnapshot.updatedAt < CACHE_MAX_AGE_MS;
+    if (!isFresh || fypSnapshot.lessons.length === 0) {
+      setFypSnapshot(null);
+      return;
+    }
+    setItems(fypSnapshot.lessons);
+    setI(Math.min(fypSnapshot.index, Math.max(0, fypSnapshot.lessons.length - 1)));
+    setCompletedMap(fypSnapshot.completed ?? {});
+    setInitialized(true);
+    setShowCompleteHint(false);
+    setAutoAdvancing(false);
+    setLoadingInfo(null);
+    setError(null);
+    void ensureBuffer(4);
+  }, [initialized, items.length, fypSnapshot, subjectsKey, ensureBuffer, setFypSnapshot]);
+
   // Bootstrap
   useEffect(() => {
     if (!initialized) {
@@ -366,10 +390,26 @@ export default function FypFeed() {
     }
   }, [initialized, ensureBuffer]);
 
+  useEffect(() => {
+    if (!initialized) return;
+    if (items.length === 0) {
+      setFypSnapshot(null);
+      return;
+    }
+    const clampedIndex = Math.min(i, Math.max(0, items.length - 1));
+    setFypSnapshot({
+      subjectsKey,
+      lessons: items,
+      index: clampedIndex,
+      completed: completedMap,
+      updatedAt: Date.now(),
+    });
+  }, [initialized, items, i, completedMap, subjectsKey, setFypSnapshot]);
+
   // Reset buffer when class selection changes significantly
-  const subjectsKey = useMemo(() => JSON.stringify(selectedSubjects), [selectedSubjects]);
   useEffect(() => {
     // Reset feed when user changes selected subjects (class switch/merge)
+    setFypSnapshot(null);
     setItems([]);
     setI(0);
     setError(null);
@@ -613,14 +653,15 @@ export default function FypFeed() {
             transition={{ type: "spring", stiffness: 260, damping: 26 }}
             className="absolute inset-0 flex flex-col gap-5 px-3 py-6 sm:px-4 lg:px-6"
           >
-            <div className="flex flex-1 flex-col gap-5 lg:flex-row lg:items-start lg:gap-6">
-              <div className="flex-1 min-h-0">
-                <div className="mx-auto flex h-full max-h-full w-full max-w-[560px] justify-center lg:max-w-none">
-                  <LessonCard lesson={cur} className="h-full lg:h-auto" />
-                </div>
+            <div className="flex flex-1 flex-col gap-5">
+              <div className="flex min-h-0 w-full justify-center">
+                <LessonCard
+                  lesson={cur}
+                  className="w-full max-w-[560px] min-h-[260px] max-h-[60vh] sm:min-h-[280px] lg:max-h-[520px]"
+                />
               </div>
               {requiresQuiz && (
-                <div className="flex w-full flex-col gap-3 lg:w-[360px] lg:flex-shrink-0">
+                <div className="flex w-full flex-col gap-3">
                   <QuizBlock
                     key={cur.id}
                     lesson={cur}

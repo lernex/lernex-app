@@ -85,11 +85,11 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
           {lesson.subject}
         </div>
         <h2 className="text-xl font-semibold leading-snug text-neutral-900 dark:text-white">{lesson.title}</h2>
-        <div className="relative flex-1 min-h-0">
-          <div className="lesson-scroll h-full overflow-y-auto pr-1 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+        <div className="relative flex-1 min-h-0 pb-2 sm:pb-3">
+          <div className="lesson-scroll scrollbar-thin h-full overflow-y-auto pr-2 pb-8 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
             <FormattedText text={lesson.content} />
           </div>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white via-white/80 to-transparent dark:from-neutral-900 dark:via-neutral-900/80" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white via-white/70 to-transparent dark:from-neutral-900 dark:via-neutral-900/70" />
         </div>
         <div className="pt-2 flex flex-wrap items-center gap-2 text-sm">
           <button
@@ -144,14 +144,7 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
           </button>
         </div>
       </div>
-      <style jsx>{`
-        .lesson-scroll::-webkit-scrollbar {
-          display: none;
-        }
-        .lesson-scroll {
-          scrollbar-width: none;
-        }
-      `}</style>
+
     </div>
   );
 }
