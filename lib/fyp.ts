@@ -69,7 +69,6 @@ const QUESTIONS_JSON_SCHEMA = {
 type Pace = "slow" | "normal" | "fast";
 type Difficulty = "intro" | "easy" | "medium" | "hard";
 const MIN_LESSON_WORDS = 60;
-const MAX_LESSON_WORDS = 100;
 
 export async function generateLessonForTopic(
   sb: SupabaseClient,
@@ -103,46 +102,64 @@ export async function generateLessonForTopic(
   const avoidIds = (opts?.avoidIds ?? []).slice(-20);
   const avoidTitles = (opts?.avoidTitles ?? []).slice(-20);
 
-  const lenHint = pace === "fast"
-    ? `Keep the explanation focused in ${MIN_LESSON_WORDS}-${Math.min(78, MAX_LESSON_WORDS)} words with tight transitions.`
-    : pace === "slow"
-    ? `Lean into detail: ${Math.max(72, MIN_LESSON_WORDS)}-${MAX_LESSON_WORDS} words with calm pacing.`
-    : `Aim for ${MIN_LESSON_WORDS}-${Math.min(88, MAX_LESSON_WORDS)} words with clear sequencing.`;
-  const accHint = acc !== null ? `Recent accuracy ~${acc}%.` : "";
-  const diffHint = diffPref ? `Target difficulty around: ${diffPref}.` : "";
-  const avoidHint = [
-    avoidIds.length ? `Avoid reusing these lesson IDs: ${avoidIds.map((x) => '"' + x + '"').join(', ')}.` : "",
-    avoidTitles.length ? `Avoid reusing these lesson titles: ${avoidTitles.map((x) => '"' + x + '"').join(', ')}.` : "",
-  ].filter(Boolean).join(" ");
+  const baseSystem = `
+You create exactly one micro-lesson of 30–80 words and between one and three MCQs with explanations.
+Audience: ${subject} student. Adapt to the indicated difficulty.
 
-  const baseSystem = `You are the Lernex adaptive micro-lesson generator.
-Return only a valid JSON object that matches LessonSchema with fields: id, subject, topic, title, content, difficulty, questions[].
-Teaching blueprint:
-- Write content as one cohesive paragraph of 5-6 sentences (~${MIN_LESSON_WORDS}-${MAX_LESSON_WORDS} words) with no markdown, lists, headings, or dialogue.
-- Sentence flow:
-  1. Use a relatable hook that names the topic and nods to the subject.
-  2. Define the concept plainly, highlighting essential vocabulary.
-  3. Walk through one concrete example (use numbers/symbols the learner would see in class).
-  4. Explain why the example works, calling out the reasoning steps.
-  5. Warn about a common misconception or pitfall.
-  6. Close with a quick prompt that nudges the learner to try a similar move.
-- Keep the voice encouraging yet precise; avoid filler or meta commentary.
-- Use pace/difficulty hints to set depth; if accuracy is below 60%, weave in reassurance and retrieval cues.
-- Questions: produce exactly 3 MCQs. Q1 should confirm recall, Q2 should apply the idea, Q3 should target a likely misconception. Provide four distinct choices as plain strings (no numbering or objects) and <=240-char explanations tied back to the lesson.
-- When context JSON or map summaries are provided, ground all facts in that data and avoid inventing new entities.
-If the topic is written as "Topic > Subtopic", focus on the Subtopic while briefly linking back to the Topic. Favor practical, course-linked examples when obvious. Use inline LaTeX (\\( ... \\)) sparingly and keep the JSON valid.`;
+Return only JSON matching exactly:
+{
+  "id": string,                   // short slug
+  "subject": string,              // e.g., "Algebra 1"
+  "topic": string,                // atomic concept (e.g., "Slope of a line")
+  "title": string,                // 2–6 words
+  "content": string,              // 30–80 words, friendly, factual
+  "difficulty": "intro"|"easy"|"medium"|"hard",
+  "questions": [
+    { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }
+  ]
+}
+Rules:
+- factual and concise; align with the provided passage.
+- No extra commentary or code fences.
+- If passage is too advanced for the difficulty, simplify the content.
+- Prefer 2–3 choices for intro/easy; 3–4 for medium/hard.
+ - Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.
+ - Do NOT use single-dollar $...$ math; prefer \\( ... \\) for inline and \\[ ... \\] only if necessary.
+ - Always balance {} and math delimiters (\\( pairs with \\), \\[ with \\], $$ with $$).
+ - Wrap single-letter macro arguments in braces (e.g., \\vec{v}, \\mathbf{v}, \\hat{v}).
+ - Escape backslashes so LaTeX macros appear with a single backslash after JSON parsing; do not double-escape macros. Prefer \\\\ only for matrix row breaks in pmatrix.
+`.trim();
 
   const contextJson = opts?.structuredContext
     ? JSON.stringify(opts.structuredContext, null, 2)
     : null;
-  const ctxHint = contextJson
-    ? `\nContext JSON (authoritative):\n${contextJson}`
-    : opts?.mapSummary
-    ? `\nMap summary: ${opts.mapSummary}`
-    : "";
-  const userPrompt = `Subject: ${subject}\nTopic: ${topic}\nLearner pace: ${pace}. ${accHint} ${diffHint} ${lenHint}
-${avoidHint}
-Generate one micro-lesson and exactly three multiple-choice questions following the constraints.${ctxHint}\nReturn only the JSON object.`;
+  const targetDifficulty: Difficulty = diffPref && ["intro", "easy", "medium", "hard"].includes(diffPref)
+    ? diffPref
+    : acc !== null
+    ? (acc < 50 ? "intro" : acc < 65 ? "easy" : acc < 80 ? "medium" : "hard")
+    : "easy";
+
+  const sourceSegments: string[] = [
+    `Topic from level map: ${topic}`,
+    `Learner pace: ${pace}`,
+  ];
+  if (acc !== null) sourceSegments.push(`Recent accuracy about ${acc}%.`);
+  if (avoidIds.length) sourceSegments.push(`Avoid repeating lesson IDs: ${avoidIds.join(", ")}.`);
+  if (avoidTitles.length) sourceSegments.push(`Avoid repeating lesson titles: ${avoidTitles.join(", ")}.`);
+  if (opts?.mapSummary) sourceSegments.push(`Map summary: ${opts.mapSummary}`);
+  if (contextJson) sourceSegments.push(`Structured context:\n${contextJson}`);
+
+  const sourceText = sourceSegments.join("\n\n").trim() || `Topic: ${topic}\nFocus on essentials for ${subject}.`;
+
+  const userPrompt = `
+Subject: ${subject}
+Target Difficulty: ${targetDifficulty}
+Source Text:
+"""
+${sourceText}
+"""
+Generate the lesson and questions as specified. Output only the JSON object.
+`.trim();
 
   const MAX_LESSON_TOKENS = Number(process.env.GROQ_LESSON_MAX_TOKENS ?? "1500");
   type ResponseMode = "json_schema" | "json_object" | "none";
@@ -613,22 +630,37 @@ Generate one micro-lesson and exactly three multiple-choice questions following 
 
   const regenerateQuestionsWithAI = async (): Promise<Question[] | null> => {
     const lessonContent = typeof norm.content === "string" ? norm.content : "";
-    if (!lessonContent.trim()) return null;
+    const trimmedLesson = lessonContent.trim();
+    if (!trimmedLesson) return null;
 
-    const regenSystem = `You are the Lernex adaptive quiz generator.
-Return ONLY a JSON object matching schema { "questions": [ ... ] }.
-Produce exactly 3 multiple-choice questions:
-- Q1: reinforce recall from the lesson.
-- Q2: apply the idea in a short scenario.
-- Q3: expose a likely misconception.
-Each question must include:
-- prompt: concise question text (<= 140 chars).
-- choices: exactly four distinct answer strings (no numbering, no JSON objects).
-- correctIndex: integer 0-3 pointing to the correct choice.
-- explanation: <=240 characters, ties back to the lesson.
-Do not repeat the lesson verbatim; make the distractors plausible but incorrect.
-Avoid meta commentary, placeholders, or references to this prompt.`;
+    const quizMode: "quick" | "mini" | "full" = "mini";
+    const countRule = quizMode === "quick"
+      ? "Produce 0-1 multiple-choice questions. Prefer 0 if the user's request is a narrowly scoped factual question."
+      : quizMode === "full"
+        ? "Produce 3-5 multiple-choice questions."
+        : "Produce 2-3 multiple-choice questions.";
 
+    const regenSystem = `
+Return ONLY a valid JSON object (no prose) matching exactly:
+{
+  "id": string,
+  "subject": string,
+  "title": string,
+  "difficulty": "intro"|"easy"|"medium"|"hard",
+  "questions": [
+    { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }
+  ]
+}
+Rules:
+- ${countRule}
+- Keep choices short (<= 8 words). Keep explanations concise (<= 25 words).
+- Use inline LaTeX with \\( ... \\) for math. Do NOT use single-dollar $...$ delimiters; prefer \\( ... \\) for inline and \\[ ... \\] only if necessary.
+- Always balance {} and math delimiters (\\( pairs with \\), \\[ with \\], $$ with $$).
+- Vector: \\langle a,b \\rangle; Norms: \\|v\\|; Matrices may use pmatrix with row breaks (\\).
+- Avoid HTML tags and code fences.
+- Wrap single-letter macro arguments in braces (e.g., \\vec{v}, \\mathbf{v}, \\hat{v}).
+- JSON must be valid; escape backslashes so LaTeX survives JSON, and do not double-escape macros. After parsing, macros must start with a single backslash.
+`.trim();
 
     const additionalContext: string[] = [];
     if (contextJson) additionalContext.push(`Structured context JSON:\n${contextJson}`);
@@ -636,13 +668,22 @@ Avoid meta commentary, placeholders, or references to this prompt.`;
     if (opts?.structuredContext && !contextJson) {
       additionalContext.push(`Additional context:\n${JSON.stringify(opts.structuredContext, null, 2)}`);
     }
-    const contextBlock = additionalContext.length ? `\n${additionalContext.join("\n")}` : "";
-    const regenPrompt = `Subject: ${subject}
-Topic: ${canonicalTopic}
-Difficulty: ${typeof norm.difficulty === "string" ? norm.difficulty : "easy"}
-Lesson Content:
-${lessonContent}${contextBlock}
-Generate the quiz questions as specified.`;
+    const contextBlock = additionalContext.join("\n\n").trim();
+
+    const lessonDifficulty: Difficulty =
+      typeof norm.difficulty === "string" && ["intro", "easy", "medium", "hard"].includes(norm.difficulty as string)
+        ? (norm.difficulty as Difficulty)
+        : targetDifficulty;
+
+    const quizSourceText = [trimmedLesson, contextBlock].filter(Boolean).join("\n\n") || trimmedLesson;
+    const regenPrompt = `
+Subject: ${subject}
+Mode: ${quizMode}
+Difficulty: ${lessonDifficulty}
+Source Text:
+${quizSourceText}
+Create fair multiple-choice questions based on the source, following the rules.
+`.trim();
 
     try {
       const regenCompletion = await client.chat.completions.create({
