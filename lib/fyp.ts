@@ -633,12 +633,8 @@ Generate the lesson and questions as specified. Output only the JSON object.
     const trimmedLesson = lessonContent.trim();
     if (!trimmedLesson) return null;
 
-    const quizMode: "quick" | "mini" | "full" = "mini";
-    const countRule = quizMode === "quick"
-      ? "Produce 0-1 multiple-choice questions. Prefer 0 if the user's request is a narrowly scoped factual question."
-      : quizMode === "full"
-        ? "Produce 3-5 multiple-choice questions."
-        : "Produce 2-3 multiple-choice questions.";
+    const quizMode = "mini";
+    const countRule = "Produce 2-3 multiple-choice questions.";
 
     const regenSystem = `
 Return ONLY a valid JSON object (no prose) matching exactly:
