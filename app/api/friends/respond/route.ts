@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     const updateRes = await sb
       .from("friend_requests")
       .update({
-        status: action,
+        status: action === "accept" ? "accepted" : "declined",
         resolved_at: new Date().toISOString(),
       })
       .eq("id", requestId)
