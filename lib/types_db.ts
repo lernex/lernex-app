@@ -179,6 +179,60 @@ export interface Database {
         };
         Relationships: [];
       };
+      friend_requests: {
+        Row: {
+          id: string;
+          sender_id: string;
+          receiver_id: string;
+          status: "pending" | "accepted" | "declined";
+          message: string | null;
+          created_at: string | null;
+          resolved_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          sender_id: string;
+          receiver_id: string;
+          status?: "pending" | "accepted" | "declined";
+          message?: string | null;
+          created_at?: string | null;
+          resolved_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          sender_id?: string;
+          receiver_id?: string;
+          status?: "pending" | "accepted" | "declined";
+          message?: string | null;
+          created_at?: string | null;
+          resolved_at?: string | null;
+        };
+        Relationships: [];
+      };
+      friendships: {
+        Row: {
+          id: string;
+          user_a: string;
+          user_b: string;
+          created_at: string | null;
+          last_interaction_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_a: string;
+          user_b: string;
+          created_at?: string | null;
+          last_interaction_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_a?: string;
+          user_b?: string;
+          created_at?: string | null;
+          last_interaction_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: { [key: string]: never };
     Functions: {
