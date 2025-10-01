@@ -115,19 +115,6 @@ export async function GET() {
     const counterpartIds = Array.from(requestCounterparts);
     const profileLookupIds = Array.from(new Set([...friendIds, ...counterpartIds]));
 
-    const mutualPromise = friendIds.length
-      ? (async () => {
-          const universe = Array.from(new Set([userId, ...friendIds]));
-          const list = universe.join(",");
-          if (!list) return { data: [], error: null } as const;
-          const filter = "user_a.in.(" + list + "),user_b.in.(" + list + ")";
-          return await sb
-            .from("friendships")
-            .select("user_a, user_b")
-            .or(filter);
-        })()
-      : Promise.resolve({ data: [], error: null });
-
     const suggestionPromise = sb
       .from("profiles")
       .select(
@@ -137,7 +124,7 @@ export async function GET() {
       .order("points", { ascending: false })
       .limit(32);
 
-    const [friendProfilesRes, attemptRes, mutualRes, suggestionRes] = await Promise.all([
+    const [friendProfilesRes, attemptRes, suggestionRes] = await Promise.all([
       profileLookupIds.length
         ? sb
             .from("profiles")
@@ -154,16 +141,11 @@ export async function GET() {
             .order("created_at", { ascending: false })
             .limit(Math.min(60, Math.max(friendIds.length * 4, 12)))
         : Promise.resolve({ data: [], error: null }),
-      mutualPromise,
       suggestionPromise,
     ]);
 
     if (friendProfilesRes.error) throw friendProfilesRes.error;
     if (attemptRes.error) throw attemptRes.error;
-    const mutualError = (mutualRes as { error?: unknown }).error;
-    if (mutualError) {
-      console.warn("/api/friends mutual lookup", mutualError);
-    }
     if (suggestionRes.error) {
       console.warn("/api/friends suggestion lookup", suggestionRes.error);
     }
@@ -173,23 +155,6 @@ export async function GET() {
       const normalized = normalizeProfile(row as RawProfile);
       if (normalized) friendProfilesMap.set(normalized.id, normalized);
     });
-
-    const mutualCounts = new Map<string, number>();
-    const mutualData = (mutualRes.error ? [] : mutualRes.data) ?? [];
-    if (mutualData) {
-      (mutualData as RawFriendship[]).forEach((row) => {
-        const link = normalizeFriendship(row);
-        if (!link) return;
-        const isDirect = link.userA === userId || link.userB === userId;
-        if (isDirect) return;
-        const aIsFriend = friendIdSet.has(link.userA);
-        const bIsFriend = friendIdSet.has(link.userB);
-        if (aIsFriend && bIsFriend) {
-          mutualCounts.set(link.userA, (mutualCounts.get(link.userA) ?? 0) + 1);
-          mutualCounts.set(link.userB, (mutualCounts.get(link.userB) ?? 0) + 1);
-        }
-      });
-    }
 
     const friends = friendIds.map((friendId) => {
       const base = friendProfilesMap.get(friendId) ?? null;
@@ -205,7 +170,7 @@ export async function GET() {
         createdAt: base?.createdAt ?? null,
         friendSince: connection?.createdAt ?? null,
         lastInteractionAt: connection?.lastInteractionAt ?? null,
-        mutualFriends: mutualCounts.get(friendId) ?? 0,
+        mutualFriends: 0,
         sharedInterests: sharedInterest(base ?? null),
       };
     });
