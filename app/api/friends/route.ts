@@ -10,6 +10,7 @@ import {
   RawRequest,
   RawAttempt,
   ProfileSummary,
+  FriendRequestSummary,
 } from "./shared";
 
 function buildSharedInterestExtractor(profile: ProfileSummary) {
@@ -239,7 +240,7 @@ export async function GET() {
       });
 
     const withCounterpart = (
-      request: ReturnType<typeof normalizeRequest>,
+      request: FriendRequestSummary,
       direction: "incoming" | "outgoing"
     ) => {
       const counterpartId = direction === "incoming" ? request.senderId : request.receiverId;
