@@ -128,26 +128,14 @@ export async function GET() {
         })()
       : Promise.resolve({ data: [], error: null });
 
-    const suggestionPromise = (async () => {
-      const exclude = new Set<string>([userId, ...friendIds, ...counterpartIds]);
-      let builder = sb
-        .from("profiles")
-        .select(
-          "id, username, full_name, avatar_url, streak, points, last_study_date, interests, created_at, updated_at"
-        )
-        .neq("id", userId)
-        .order("points", { ascending: false })
-        .limit(12);
-      if (exclude.size > 1) {
-        const rawList = Array.from(exclude)
-          .filter((id) => id !== userId)
-          .join(",");
-        if (rawList) {
-          builder = builder.not("id", "in", "(" + rawList + ")");
-        }
-      }
-      return await builder;
-    })();
+    const suggestionPromise = sb
+      .from("profiles")
+      .select(
+        "id, username, full_name, avatar_url, streak, points, last_study_date, interests, created_at, updated_at"
+      )
+      .neq("id", userId)
+      .order("points", { ascending: false })
+      .limit(32);
 
     const [friendProfilesRes, attemptRes, mutualRes, suggestionRes] = await Promise.all([
       profileLookupIds.length
@@ -173,8 +161,12 @@ export async function GET() {
     if (friendProfilesRes.error) throw friendProfilesRes.error;
     if (attemptRes.error) throw attemptRes.error;
     const mutualError = (mutualRes as { error?: unknown }).error;
-    if (mutualError) throw mutualError;
-    if (suggestionRes.error) throw suggestionRes.error;
+    if (mutualError) {
+      console.warn("/api/friends mutual lookup", mutualError);
+    }
+    if (suggestionRes.error) {
+      console.warn("/api/friends suggestion lookup", suggestionRes.error);
+    }
 
     const friendProfilesMap = new Map<string, ProfileSummary>();
     (friendProfilesRes.data ?? []).forEach((row) => {
@@ -183,8 +175,9 @@ export async function GET() {
     });
 
     const mutualCounts = new Map<string, number>();
-    if (mutualRes.data) {
-      (mutualRes.data as RawFriendship[]).forEach((row) => {
+    const mutualData = (mutualRes.error ? [] : mutualRes.data) ?? [];
+    if (mutualData) {
+      (mutualData as RawFriendship[]).forEach((row) => {
         const link = normalizeFriendship(row);
         if (!link) return;
         const isDirect = link.userA === userId || link.userB === userId;
@@ -267,9 +260,11 @@ export async function GET() {
       .map((req) => withCounterpart(req, "outgoing"))
       .filter((req) => !!req.counterpart.id);
 
-    const suggestions = (suggestionRes.data ?? [])
+    const excludeSet = new Set<string>([userId, ...friendIds, ...counterpartIds]);
+    const suggestions = ((suggestionRes.error ? [] : suggestionRes.data) ?? [])
       .map((row) => normalizeProfile(row as RawProfile))
       .filter((row): row is ProfileSummary => !!row && row.id !== userId)
+      .filter((candidate) => !excludeSet.has(candidate.id))
       .map((candidate) => ({
         id: candidate.id,
         username: candidate.username,
@@ -279,7 +274,8 @@ export async function GET() {
         points: candidate.points,
         sharedInterests: sharedInterest(candidate),
         lastStudyDate: candidate.lastStudyDate,
-      }));
+      }))
+      .slice(0, 12);
 
     return NextResponse.json({
       profile,
