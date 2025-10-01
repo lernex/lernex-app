@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import Image from "next/image";
 import {
   BellRing,
@@ -206,7 +207,7 @@ function Avatar(props: { name: string; src: string | null; size?: number }) {
   );
 }
 
-function StatCard(props: { icon: JSX.Element; label: string; value: string; hint?: string }) {
+function StatCard(props: { icon: ReactNode; label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-white/5">
       <div className="flex items-center gap-3">
