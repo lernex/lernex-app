@@ -96,7 +96,7 @@ export async function POST(req: Request) {
       .limit(1);
     if (existingFriendship.error) throw existingFriendship.error;
 
-    let friendshipRecord = existingFriendship.data?.[0] ?? null;
+    let friendshipRecord: RawFriendship | null = (existingFriendship.data?.[0] as RawFriendship | undefined) ?? null;
 
     if (!friendshipRecord) {
       const insertRes = await sb
@@ -109,7 +109,7 @@ export async function POST(req: Request) {
         .select("id, user_a, user_b, created_at, last_interaction_at")
         .maybeSingle();
       if (insertRes.error) throw insertRes.error;
-      friendshipRecord = insertRes.data;
+      friendshipRecord = (insertRes.data as RawFriendship | null) ?? null;
     }
 
     const friendship = friendshipRecord
