@@ -132,41 +132,98 @@ Create exactly one discriminative multiple-choice question from the course's app
   // Groq model; cap tokens for speed
   const model = "openai/gpt-oss-20b";
   const TEMP = 0.4; // lower temp for more stable JSON
-  let completion: ChatCompletion | null = null;
-  let raw = "";
-  try {
-    completion = await ai.chat.completions.create({
-      model,
-      temperature: TEMP,
-      max_tokens: MAX_TOKENS,
-      reasoning_effort: "medium",
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: depth === 0 ? systemNormal : systemTight },
-        { role: "user", content: user },
-      ],
-    });
-    raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
-  } catch (err: unknown) {
-    const e = err as unknown as { error?: { failed_generation?: string } };
-    const failed = e?.error?.failed_generation;
-    if (typeof failed === "string" && failed.trim().length > 0) {
-      raw = failed;
-    } else {
-      // Retry without JSON mode
+  const systemPrompt = depth === 0 ? systemNormal : systemTight;
+
+  async function runQuery(
+    jsonMode: boolean,
+    system: string,
+    maxTokens: number
+  ): Promise<{ raw: string; completion: ChatCompletion | null }> {
+    try {
+      const completion = await ai.chat.completions.create({
+        model,
+        temperature: TEMP,
+        max_tokens: maxTokens,
+        reasoning_effort: "medium",
+        ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      });
+      const content = completion.choices?.[0]?.message?.content as string | undefined;
+      return { raw: content ?? "", completion };
+    } catch (err: unknown) {
+      if (jsonMode) {
+        const failed = (err as { error?: { failed_generation?: string } } | null)?.error?.failed_generation;
+        if (typeof failed === "string" && failed.trim().length > 0) {
+          return { raw: failed.trim(), completion: null };
+        }
+      }
+      return { raw: "", completion: null };
+    }
+  }
+
+  const fallbackMaxTokens = Math.max(400, Math.floor(MAX_TOKENS * 0.75));
+  let { raw, completion } = await runQuery(true, systemPrompt, MAX_TOKENS);
+
+  function extractBalancedObject(s: string): string | null {
+    let i = 0;
+    const n = s.length;
+    let depth = 0;
+    let start = -1;
+    let inStr = false;
+    let escaped = false;
+    for (; i < n; i++) {
+      const ch = s[i];
+      if (inStr) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === '\\') {
+          escaped = true;
+        } else if (ch === '"') {
+          inStr = false;
+        }
+        continue;
+      }
+      if (ch === '"') { inStr = true; continue; }
+      if (ch === '{') {
+        if (depth === 0) start = i;
+        depth++;
+      } else if (ch === '}') {
+        depth--;
+        if (depth === 0 && start !== -1) {
+          return s.slice(start, i + 1);
+        }
+      }
+    }
+    return null;
+  }
+
+  function parsePlacement(input: string): PlacementItem | null {
+    if (!input) return null;
+    try {
+      return JSON.parse(input) as PlacementItem;
+    } catch {
+      const extracted = extractBalancedObject(input);
+      if (!extracted) return null;
       try {
-        completion = await ai.chat.completions.create({
-          model,
-          temperature: TEMP,
-          max_tokens: MAX_TOKENS,
-          reasoning_effort: "medium",
-          messages: [
-            { role: "system", content: depth === 0 ? systemNormal : systemTight },
-            { role: "user", content: user },
-          ],
-        });
-        raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
-      } catch { return null; }
+        return JSON.parse(extracted) as PlacementItem;
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  let item = parsePlacement(raw);
+
+  if (!item) {
+    const fallback = await runQuery(false, systemTight, fallbackMaxTokens);
+    raw = fallback.raw;
+    if (fallback.completion) completion = fallback.completion;
+    item = parsePlacement(raw);
+    if (!item) {
+      return null;
     }
   }
 
@@ -188,51 +245,8 @@ Create exactly one discriminative multiple-choice question from the course's app
     }
   }
 
-  if (!raw) raw = "{}";
-  function extractBalancedObject(s: string): string | null {
-    let i = 0;
-    const n = s.length;
-    let depth = 0;
-    let start = -1;
-    let inStr = false;
-    let escaped = false;
-    for (; i < n; i++) {
-      const ch = s[i];
-      if (inStr) {
-        if (escaped) {
-          escaped = false;
-        } else if (ch === "\\") {
-          escaped = true;
-        } else if (ch === '"') {
-          inStr = false;
-        }
-        continue;
-      }
-      if (ch === '"') { inStr = true; continue; }
-      if (ch === '{') {
-        if (depth === 0) start = i;
-        depth++;
-      } else if (ch === '}') {
-        depth--;
-        if (depth === 0 && start !== -1) {
-          return s.slice(start, i + 1);
-        }
-      }
-    }
-    return null;
-  }
-
-  let item: PlacementItem;
-  try {
-    item = JSON.parse(raw) as PlacementItem;
-  } catch {
-    const extracted = extractBalancedObject(raw);
-    if (!extracted) return null;
-    try {
-      item = JSON.parse(extracted) as PlacementItem;
-    } catch { return null; }
-  }
   if (!isSafe(item.prompt)) { return null; }
+
 
   // Normalize fields and difficulty fallback
   item.subject = state.subject;
