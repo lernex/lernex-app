@@ -7,6 +7,20 @@ import { checkUsageLimit, logUsage } from "./usage";
 let deepInfraCache: { apiKey: string; baseUrl: string; client: OpenAI } | null = null;
 let reasoningEffortSupported: boolean | null = null;
 
+function normalizeHttpUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    if (!url.hostname) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 function getDeepInfraClient() {
   const apiKey = process.env.DEEPINFRA_API_KEY || process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("Missing DEEPINFRA_API_KEY");
@@ -454,11 +468,43 @@ Rules:
 
   const canonicalTopic = typeof norm.topic === "string" && norm.topic.trim().length
     ? norm.topic.trim()
-    : topic;
+    : topic.trim();
 
   const canonicalTitle = typeof norm.title === "string" && norm.title.trim().length
     ? norm.title.trim()
     : null;
+
+  if (canonicalTopic) {
+    norm.topic = canonicalTopic;
+  }
+
+  const canonicalSubject = typeof norm.subject === "string" ? norm.subject.trim() : "";
+  norm.subject = canonicalSubject.length ? canonicalSubject : subject.trim();
+
+  if (canonicalTitle) {
+    norm.title = canonicalTitle;
+  } else if (typeof norm.title === "string") {
+    const trimmedTitle = norm.title.trim();
+    norm.title = trimmedTitle.length
+      ? trimmedTitle
+      : canonicalTopic
+      ? `Quick intro: ${canonicalTopic}`
+      : "Quick lesson";
+  }
+
+  const normalizedMediaUrl = normalizeHttpUrl(norm.mediaUrl);
+  if (normalizedMediaUrl) {
+    norm.mediaUrl = normalizedMediaUrl;
+    const mediaType = typeof norm.mediaType === "string" ? norm.mediaType.trim().toLowerCase() : "";
+    if (mediaType === "image" || mediaType === "video") {
+      norm.mediaType = mediaType;
+    } else {
+      delete norm.mediaType;
+    }
+  } else {
+    delete norm.mediaUrl;
+    delete norm.mediaType;
+  }
 
   const normalizeChoiceKey = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
 
