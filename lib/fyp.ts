@@ -325,6 +325,8 @@ Rules:
   let parsed: unknown | null = null;
   let lastCandidate: unknown | null = null;
   let lastAttemptIndex: number | null = null;
+  let needsRegeneration = false;
+  let usedQuestionRegen = false;
 
   const recordUsage = async (planIndex: number | null) => {
     if (!usage) return;
@@ -1092,9 +1094,8 @@ Create fair multiple-choice questions based on the source, following the rules.
 
   const initialQuestions = Array.isArray(norm.questions) ? norm.questions : [];
   let sanitizedQuestions = sanitizeQuestions(initialQuestions, "initial");
-  let usedQuestionRegen = false;
 
-  const needsRegeneration = shouldRegenerateQuestions(sanitizedQuestions);
+  needsRegeneration = shouldRegenerateQuestions(sanitizedQuestions);
   lessonLog("debug", "question-quality-check", subject, topic, {
     needsRegeneration,
     sanitizedCount: sanitizedQuestions.length,
