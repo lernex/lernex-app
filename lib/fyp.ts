@@ -1,18 +1,19 @@
-import Groq from "groq-sdk";
+import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LessonSchema } from "./schema";
 import type { Question } from "./schema";
 import { checkUsageLimit, logUsage } from "./usage";
 
-let groqCache: { apiKey: string; client: Groq } | null = null;
+let deepInfraCache: { apiKey: string; baseUrl: string; client: OpenAI } | null = null;
 
-function getGroqClient() {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("Missing GROQ_API_KEY");
-  if (!groqCache || groqCache.apiKey !== apiKey) {
-    groqCache = { apiKey, client: new Groq({ apiKey }) };
+function getDeepInfraClient() {
+  const apiKey = process.env.DEEPINFRA_API_KEY || process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error("Missing DEEPINFRA_API_KEY");
+  const baseUrl = process.env.DEEPINFRA_BASE_URL || "https://api.deepinfra.com/v1/openai";
+  if (!deepInfraCache || deepInfraCache.apiKey !== apiKey || deepInfraCache.baseUrl !== baseUrl) {
+    deepInfraCache = { apiKey, baseUrl, client: new OpenAI({ apiKey, baseURL: baseUrl }) };
   }
-  return groqCache.client;
+  return deepInfraCache.client;
 }
 
 const LESSON_JSON_SCHEMA = {
@@ -24,7 +25,7 @@ const LESSON_JSON_SCHEMA = {
     subject: { type: "string", minLength: 1 },
     topic: { type: "string", minLength: 1 },
     title: { type: "string", minLength: 1 },
-    content: { type: "string", minLength: 180, maxLength: 600 },
+    content: { type: "string", minLength: 220, maxLength: 900 },
     difficulty: { type: "string", enum: ["intro", "easy", "medium", "hard"] },
     questions: {
       type: "array",
@@ -43,7 +44,7 @@ const LESSON_JSON_SCHEMA = {
             items: { type: "string", minLength: 1 }
           },
           correctIndex: { type: "integer", minimum: 0 },
-          explanation: { type: "string", minLength: 3, maxLength: 280 }
+          explanation: { type: "string", minLength: 3, maxLength: 360 }
         }
       }
     },
@@ -68,7 +69,7 @@ const QUESTIONS_JSON_SCHEMA = {
 
 type Pace = "slow" | "normal" | "fast";
 type Difficulty = "intro" | "easy" | "medium" | "hard";
-const MIN_LESSON_WORDS = 60;
+const MIN_LESSON_WORDS = 80;
 
 export async function generateLessonForTopic(
   sb: SupabaseClient,
@@ -86,9 +87,9 @@ export async function generateLessonForTopic(
     structuredContext?: Record<string, unknown>;
   }
 ) {
-  const client = getGroqClient();
-  const model = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
-  const envTemp = Number(process.env.GROQ_TEMPERATURE ?? "0.4");
+  const client = getDeepInfraClient();
+  const model = process.env.DEEPINFRA_MODEL || process.env.GROQ_MODEL || "openai/gpt-oss-20b";
+  const envTemp = Number(process.env.DEEPINFRA_TEMPERATURE ?? process.env.GROQ_TEMPERATURE ?? "0.4");
   const temperature = Number.isFinite(envTemp) ? Math.min(1, Math.max(0, envTemp)) : 0.6;
 
   if (uid) {
@@ -103,31 +104,28 @@ export async function generateLessonForTopic(
   const avoidTitles = (opts?.avoidTitles ?? []).slice(-20);
 
   const baseSystem = `
-You create exactly one micro-lesson of 30–80 words and between one and three MCQs with explanations.
-Audience: ${subject} student. Adapt to the indicated difficulty.
+You are Lernex''s AI mentor. Create a tailored micro-lesson (90-140 words) plus exactly three multiple-choice questions with coaching explanations.
+Audience: ${subject} learner. Personalize tone, examples, and final tip using the learner profile and provided context.
 
 Return only JSON matching exactly:
 {
-  "id": string,                   // short slug
-  "subject": string,              // e.g., "Algebra 1"
-  "topic": string,                // atomic concept (e.g., "Slope of a line")
-  "title": string,                // 2–6 words
-  "content": string,              // 30–80 words, friendly, factual
+  "id": string,                  // short slug
+  "subject": string,             // e.g., "Algebra 1"
+  "topic": string,               // atomic concept (e.g., "Slope of a line")
+  "title": string,               // 2-6 words, motivating
+  "content": string,             // 90-140 words: encouragement -> concept breakdown -> vivid example -> actionable tip
   "difficulty": "intro"|"easy"|"medium"|"hard",
   "questions": [
     { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }
   ]
 }
 Rules:
-- factual and concise; align with the provided passage.
-- No extra commentary or code fences.
-- If passage is too advanced for the difficulty, simplify the content.
-- Prefer 2–3 choices for intro/easy; 3–4 for medium/hard.
- - Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.
- - Do NOT use single-dollar $...$ math; prefer \\( ... \\) for inline and \\[ ... \\] only if necessary.
- - Always balance {} and math delimiters (\\( pairs with \\), \\[ with \\], $$ with $$).
- - Wrap single-letter macro arguments in braces (e.g., \\vec{v}, \\mathbf{v}, \\hat{v}).
- - Escape backslashes so LaTeX macros appear with a single backslash after JSON parsing; do not double-escape macros. Prefer \\\\ only for matrix row breaks in pmatrix.
+- Reference the learner''s pace and recent accuracy in the opening sentence; end with a concrete next-step or reflective question.
+- Keep explanations factual, warm, and example-driven; incorporate any structured context or map summary if supplied.
+- Use inline LaTeX with \\( ... \\) for math; no HTML or markdown fences.
+- Provide exactly three questions, each with four concise answer choices.
+- Each explanation (25-45 words) should justify the answer, flag a common misconception, and offer a quick coaching cue.
+- Escape backslashes so JSON remains valid; output nothing besides the JSON object.
 `.trim();
 
   const contextJson = opts?.structuredContext
@@ -139,52 +137,85 @@ Rules:
     ? (acc < 50 ? "intro" : acc < 65 ? "easy" : acc < 80 ? "medium" : "hard")
     : "easy";
 
-  const sourceSegments: string[] = [
-    `Topic from level map: ${topic}`,
-    `Learner pace: ${pace}`,
+  const learnerProfileLines: string[] = [
+    `- Pace: ${pace}`,
+    acc !== null ? `- Recent accuracy: ${acc}%` : `- Recent accuracy: not enough data`,
+    `- Target difficulty: ${targetDifficulty}`,
   ];
-  if (acc !== null) sourceSegments.push(`Recent accuracy about ${acc}%.`);
-  if (avoidIds.length) sourceSegments.push(`Avoid repeating lesson IDs: ${avoidIds.join(", ")}.`);
-  if (avoidTitles.length) sourceSegments.push(`Avoid repeating lesson titles: ${avoidTitles.join(", ")}.`);
-  if (opts?.mapSummary) sourceSegments.push(`Map summary: ${opts.mapSummary}`);
-  if (contextJson) sourceSegments.push(`Structured context:\n${contextJson}`);
+  if (diffPref) learnerProfileLines.push(`- Preferred difficulty: ${diffPref}`);
 
-  const sourceText = sourceSegments.join("\n\n").trim() || `Topic: ${topic}\nFocus on essentials for ${subject}.`;
+  const guardrails: string[] = [];
+  if (avoidIds.length) guardrails.push(`Avoid lesson IDs: ${avoidIds.join(", ")}`);
+  if (avoidTitles.length) guardrails.push(`Avoid lesson titles: ${avoidTitles.join(", ")}`);
 
-  const userPrompt = `
-Subject: ${subject}
-Target Difficulty: ${targetDifficulty}
-Source Text:
-"""
-${sourceText}
-"""
-Generate the lesson and questions as specified. Output only the JSON object.
-`.trim();
+  const firstDirective = acc !== null
+    ? `- Open with encouragement that references the learner's pace (${pace}) and accuracy (${acc}%).`
+    : `- Open with encouragement that references the learner's pace (${pace}).`;
+  const personalizationDirectives: string[] = [
+    firstDirective,
+    `- Explain the concept in friendly language and link it to a vivid ${subject.toLowerCase()} example.`,
+    `- Close with a concrete action, reflection, or practice cue tailored to the learner.`,
+  ];
 
-  const MAX_LESSON_TOKENS = Number(process.env.GROQ_LESSON_MAX_TOKENS ?? "1500");
+  const contextSections: string[] = [];
+  if (opts?.mapSummary) contextSections.push(`Map summary:\n${opts.mapSummary}`);
+  if (contextJson) contextSections.push(`Structured context:\n${contextJson}`);
+
+  const referenceSections = [
+    `Topic: ${topic}`,
+    contextSections.length ? `Supporting Context:\n${contextSections.join("\n\n")}` : null,
+  ].filter(Boolean) as string[];
+
+  const referenceNotes = referenceSections.join("\n\n").trim();
+
+  const promptSections = [
+    `Subject: ${subject}`,
+    `Topic: ${topic}`,
+    `Target Difficulty: ${targetDifficulty}`,
+    `Learner Profile:\n${learnerProfileLines.join("\n")}`,
+    `Guidance:\n${personalizationDirectives.join("\n")}`,
+  ];
+  if (guardrails.length) promptSections.push(`Guardrails:\n- ${guardrails.join("\n- ")}`);
+  if (referenceNotes) promptSections.push(`Reference Notes:\n${referenceNotes}`);
+  promptSections.push("Return the lesson JSON exactly as specified. No commentary outside the JSON object.");
+
+  const userPrompt = promptSections.join("\n\n").trim();
+
+  const MAX_LESSON_TOKENS = Number(process.env.DEEPINFRA_LESSON_MAX_TOKENS ?? process.env.GROQ_LESSON_MAX_TOKENS ?? "1500");
   type ResponseMode = "json_schema" | "json_object" | "none";
 
   async function callOnce(system: string, mode: ResponseMode) {
-    let completion: import("groq-sdk/resources/chat/completions").ChatCompletion | null = null;
-    const responseFormat = mode === "json_schema"
-      ? { response_format: { type: "json_schema" as const, json_schema: { name: "lesson_schema", schema: LESSON_JSON_SCHEMA } } }
-      : mode === "json_object"
-      ? { response_format: { type: "json_object" as const } }
+    const wantsStructured = responseFormatSupported && mode !== "none";
+    let completion: import("openai/resources/chat/completions").ChatCompletion | null = null;
+    const responseFormat = wantsStructured
+      ? mode === "json_schema"
+        ? { response_format: { type: "json_schema" as const, json_schema: { name: "lesson_schema", schema: LESSON_JSON_SCHEMA } } }
+        : { response_format: { type: "json_object" as const } }
       : {};
     try {
       completion = await client.chat.completions.create({
         model,
         temperature,
         max_tokens: MAX_LESSON_TOKENS,
-        ...responseFormat,
+        ...(wantsStructured ? responseFormat : {}),
         messages: [
           { role: "system", content: system },
           { role: "user", content: userPrompt },
         ],
       });
     } catch (err) {
-      const e = err as unknown as { error?: { failed_generation?: string } };
-      const failed = e?.error?.failed_generation;
+      const errorLike = err as { error?: { failed_generation?: string; message?: string } };
+      const failed = errorLike?.error?.failed_generation;
+      const message = typeof errorLike?.error?.message === "string"
+        ? errorLike.error.message
+        : err instanceof Error
+        ? err.message
+        : "";
+      const normalizedMessage = (message || "").toLowerCase();
+      if (wantsStructured && normalizedMessage.includes("response_format")) {
+        responseFormatSupported = false;
+        return ["", null] as const;
+      }
       if (typeof failed === "string" && failed.trim().length > 0) {
         return [failed, null] as const;
       }
@@ -192,10 +223,12 @@ Generate the lesson and questions as specified. Output only the JSON object.
     }
     const raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
     const u = completion?.usage as unknown as { prompt_tokens?: unknown; completion_tokens?: unknown } | null;
-    const usage = u ? {
-      input_tokens: typeof u.prompt_tokens === "number" ? u.prompt_tokens : null,
-      output_tokens: typeof u.completion_tokens === "number" ? u.completion_tokens : null,
-    } : null;
+    const usage = u
+      ? {
+          input_tokens: typeof u.prompt_tokens === "number" ? u.prompt_tokens : null,
+          output_tokens: typeof u.completion_tokens === "number" ? u.completion_tokens : null,
+        }
+      : null;
     return [raw, usage] as const;
   }
 
@@ -224,8 +257,9 @@ Generate the lesson and questions as specified. Output only the JSON object.
 
   for (let planIndex = 0; planIndex < attemptPlans.length; planIndex++) {
     const plan = attemptPlans[planIndex];
+    const mode: ResponseMode = !responseFormatSupported && plan.mode !== "none" ? "none" : plan.mode;
     try {
-      const [r, u] = await callOnce(plan.system, plan.mode);
+      const [r, u] = await callOnce(plan.system, mode);
       raw = r;
       usage = u;
     } catch {
@@ -304,11 +338,11 @@ Generate the lesson and questions as specified. Output only the JSON object.
   if (!norm.topic || typeof norm.topic !== "string") norm.topic = topic;
   if (!norm.title || typeof norm.title !== "string") norm.title = typeof norm.topic === "string" ? `Quick intro: ${norm.topic}` : "Quick lesson";
   if (typeof norm.content !== "string") {
-    norm.content = "This micro-lesson explores the concept through a short narrative that introduces the definition, connects it to a familiar scenario, walks through a worked example, and previews how the idea will be applied in upcoming practice so learners stay confident and curious.";
+    norm.content = "This micro-lesson opens with encouragement, unpacks the concept in two friendly checkpoints, weaves in a concrete example, and finishes with a personalised next step to keep the learner confident.";
   }
   // Strip basic HTML tags that sometimes slip in
   if (typeof norm.content === "string") {
-    const cleaned = (norm.content as string).replace(/<[^>]+>/g, "").slice(0, 600).trim();
+    const cleaned = (norm.content as string).replace(/<[^>]+>/g, "").slice(0, 900).trim();
     const wordCount = cleaned.split(/\s+/).filter(Boolean).length;
     if (wordCount >= MIN_LESSON_WORDS) {
       norm.content = cleaned;
@@ -318,12 +352,12 @@ Generate the lesson and questions as specified. Output only the JSON object.
       const subjectLabel = subject && subject.trim().length ? subject.trim() : "your course";
       const extras = [
         cleaned,
-        `Picture how ${topicLabel.toLowerCase()} shows up in ${subjectLabel.toLowerCase()} problems you have seen recently.`,
-        `State the definition in your own words, then connect it to one short example you could explain in two calm steps.`,
-        `Point out a mistake a learner might make with ${topicLabel.toLowerCase()} and clarify why it fails.`,
-        `Finish by describing how you will recognise ${topicLabel.toLowerCase()} the next time you practise.`,
+        `Describe how ${topicLabel.toLowerCase()} shows up in recent ${subjectLabel.toLowerCase()} work and why it matters.`,
+        `State the definition in your own words, then give a vivid example you could explain in two calm steps.`,
+        `Point out a mistake a learner might make with ${topicLabel.toLowerCase()}, explain why it fails, and how to self-correct.`,
+        `Finish with a concrete action or reflection that will help you spot ${topicLabel.toLowerCase()} in upcoming practice.`,
       ].filter(Boolean);
-      const fallback = extras.join(" ").trim().slice(0, 600);
+      const fallback = extras.join(" ").trim().slice(0, 900);
       norm.content = fallback.length > 0 ? fallback : `Summarise ${topicLabel} clearly, link it to a tiny example, warn about a trap, and end with a cue you can reuse while studying ${subjectLabel}.`;
     }
   }
@@ -633,8 +667,8 @@ Generate the lesson and questions as specified. Output only the JSON object.
     const trimmedLesson = lessonContent.trim();
     if (!trimmedLesson) return null;
 
-    const quizMode = "mini";
-    const countRule = "Produce 2-3 multiple-choice questions.";
+    const quizMode = "reinforcement";
+    const countRule = "Produce exactly 3 multiple-choice questions, each with four answer choices.";
 
     const regenSystem = `
 Return ONLY a valid JSON object (no prose) matching exactly:
@@ -649,10 +683,11 @@ Return ONLY a valid JSON object (no prose) matching exactly:
 }
 Rules:
 - ${countRule}
-- Keep choices short (<= 8 words). Keep explanations concise (<= 25 words).
+- Each prompt should target the concept from the source material and encourage reflection.
+- Keep choices tight (<= 7 words). Keep explanations 25-45 words covering the reasoning, a misconception to avoid, and an actionable coaching cue.
 - Use inline LaTeX with \\( ... \\) for math. Do NOT use single-dollar $...$ delimiters; prefer \\( ... \\) for inline and \\[ ... \\] only if necessary.
 - Always balance {} and math delimiters (\\( pairs with \\), \\[ with \\], $$ with $$).
-- Vector: \\langle a,b \\rangle; Norms: \\|v\\|; Matrices may use pmatrix with row breaks (\\).
+- Vector: \\langle a,b \\rangle; Norms: \\|v\\|; Matrices may use pmatrix with row breaks (\\\\).
 - Avoid HTML tags and code fences.
 - Wrap single-letter macro arguments in braces (e.g., \\vec{v}, \\mathbf{v}, \\hat{v}).
 - JSON must be valid; escape backslashes so LaTeX survives JSON, and do not double-escape macros. After parsing, macros must start with a single backslash.
