@@ -245,6 +245,7 @@ Rules:
     : 1500;
   type ResponseMode = "json_schema" | "json_object" | "none";
   let responseFormatSupported = true;
+  let jsonSchemaSupported = true;
 
   const buildUsageMetadata = (base?: Record<string, unknown>) => {
     if (!activePricing && !base) return undefined;
@@ -264,7 +265,8 @@ Rules:
     } catch {}
   };
   async function callOnce(system: string, mode: ResponseMode): Promise<{ raw: string; usage: { input_tokens: number | null; output_tokens: number | null } | null }> {
-    const wantsStructured = responseFormatSupported && mode !== "none";
+    const wantsStructured =
+      responseFormatSupported && mode !== "none" && (mode !== "json_schema" || jsonSchemaSupported);
     const allowReasoning = reasoningEffortSupported !== false;
     const responseFormat = wantsStructured
       ? mode === "json_schema"
@@ -306,9 +308,14 @@ Rules:
         lessonLog("warn", "plan-reasoning-disabled", subject, topic, { reason: message || "reasoning unsupported" });
         return await callOnce(system, mode);
       }
+      if (mode === "json_schema" && (normalizedMessage.includes("json_schema") || normalizedMessage.includes("response_format"))) {
+        jsonSchemaSupported = false;
+        lessonLog("warn", "plan-structured-disabled", subject, topic, { reason: message || "json_schema unsupported", mode });
+        return { raw: "", usage: null };
+      }
       if (wantsStructured && normalizedMessage.includes("response_format")) {
         responseFormatSupported = false;
-        lessonLog("warn", "plan-structured-disabled", subject, topic, { reason: message || "response_format unsupported" });
+        lessonLog("warn", "plan-structured-disabled", subject, topic, { reason: message || "response_format unsupported", mode });
         return { raw: "", usage: null };
       }
       if (typeof failed === "string" && failed.trim().length > 0) {
@@ -335,8 +342,8 @@ Rules:
   };
 
   const attemptPlans: { system: string; mode: ResponseMode }[] = [
-    { system: baseSystem, mode: "json_schema" },
     { system: baseSystem, mode: "json_object" },
+    { system: baseSystem, mode: "json_schema" },
     { system: baseSystem, mode: "none" },
   ];
 
@@ -344,12 +351,18 @@ Rules:
 
   for (let planIndex = 0; planIndex < attemptPlans.length; planIndex++) {
     const plan = attemptPlans[planIndex];
-    const mode: ResponseMode = !responseFormatSupported && plan.mode !== "none" ? "none" : plan.mode;
+    let mode: ResponseMode = plan.mode;
+    if (mode === "json_schema" && (!responseFormatSupported || !jsonSchemaSupported)) {
+      mode = "none";
+    } else if (mode === "json_object" && !responseFormatSupported) {
+      mode = "none";
+    }
 
     lessonLog("debug", "plan-attempt", subject, topic, {
       planIndex,
       mode,
       responseFormatSupported,
+      jsonSchemaSupported,
       reasoningEffort: reasoningEffortSupported !== false ? "enabled" : "disabled",
     });
 
