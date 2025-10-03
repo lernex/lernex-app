@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
+import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -1196,3 +1197,5 @@ export default function AchievementsPage(): JSX.Element {
     </main>
   );
 }
+
+
