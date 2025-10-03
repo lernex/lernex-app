@@ -21,6 +21,25 @@ function normalizeHttpUrl(value: unknown): string | null {
   }
 }
 
+type LessonLogLevel = "debug" | "info" | "warn" | "error";
+
+function lessonLog(level: LessonLogLevel, stage: string, subject: string, topic: string, details: Record<string, unknown>) {
+  const entry = { subject, topic, ...details };
+  try {
+    const logger = (console as Record<string, ((message?: unknown, ...optionalParams: unknown[]) => void) | undefined>)[level] || console.log;
+    logger(`[fyp][lesson][${stage}]`, entry);
+  } catch {
+    // ignore logging failures
+  }
+}
+
+function lessonSnippet(raw: unknown, max = 200) {
+  if (typeof raw !== "string") return "";
+  const collapsed = raw.replace(/\s+/g, " ").trim();
+  if (!collapsed) return "";
+  return collapsed.length <= max ? collapsed : `${collapsed.slice(0, max)}...`;
+}
+
 function getDeepInfraClient() {
   const apiKey = process.env.DEEPINFRA_API_KEY || process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("Missing DEEPINFRA_API_KEY");
@@ -126,6 +145,14 @@ export async function generateLessonForTopic(
   const diffPref = opts?.difficultyPref ?? undefined;
   const avoidIds = (opts?.avoidIds ?? []).slice(-20);
   const avoidTitles = (opts?.avoidTitles ?? []).slice(-20);
+
+  lessonLog("info", "start", subject, topic, {
+    pace,
+    accuracyPct: acc,
+    difficultyPref: diffPref ?? null,
+    avoidIds: avoidIds.length,
+    avoidTitles: avoidTitles.length,
+  });
 
   const baseSystem = `
 You are Lernex''s AI mentor. Create a tailored micro-lesson (75-95 words) plus exactly three multiple-choice questions with coaching explanations.
@@ -269,15 +296,19 @@ Rules:
       const normalizedMessage = (message || "").toLowerCase();
       if (allowReasoning && normalizedMessage.includes("reasoning")) {
         reasoningEffortSupported = false;
+        lessonLog("warn", "plan-reasoning-disabled", subject, topic, { reason: message || "reasoning unsupported" });
         return await callOnce(system, mode);
       }
       if (wantsStructured && normalizedMessage.includes("response_format")) {
         responseFormatSupported = false;
+        lessonLog("warn", "plan-structured-disabled", subject, topic, { reason: message || "response_format unsupported" });
         return { raw: "", usage: null };
       }
       if (typeof failed === "string" && failed.trim().length > 0) {
+        lessonLog("warn", "plan-failed-generation", subject, topic, { snippet: lessonSnippet(failed) });
         return { raw: failed, usage: null };
       }
+      lessonLog("error", "plan-call-fatal", subject, topic, { message });
       throw err;
     }
   }
@@ -305,35 +336,100 @@ Rules:
   for (let planIndex = 0; planIndex < attemptPlans.length; planIndex++) {
     const plan = attemptPlans[planIndex];
     const mode: ResponseMode = !responseFormatSupported && plan.mode !== "none" ? "none" : plan.mode;
+
+    lessonLog("debug", "plan-attempt", subject, topic, {
+      planIndex,
+      mode,
+      responseFormatSupported,
+      reasoningEffort: reasoningEffortSupported !== false ? "enabled" : "disabled",
+    });
+
     let result: { raw: string; usage: { input_tokens: number | null; output_tokens: number | null } | null };
     try {
       result = await callOnce(plan.system, mode);
     } catch (err) {
       lastError = err;
+      lessonLog("warn", "plan-call-error", subject, topic, {
+        planIndex,
+        mode,
+        error: err instanceof Error ? err.message : String(err),
+      });
       continue;
     }
+
     raw = result.raw;
     usage = result.usage;
-    if (!raw) continue;
+    if (!raw) {
+      lessonLog("warn", "plan-empty", subject, topic, { planIndex, mode });
+      continue;
+    }
+
     lastAttemptIndex = planIndex;
+    const rawPreview = lessonSnippet(raw);
+    lessonLog("debug", "plan-response", subject, topic, {
+      planIndex,
+      mode,
+      rawLength: raw.length,
+      rawPreview,
+    });
+
     try {
-      parsed = JSON.parse(raw);
-    } catch {
+      const candidate = JSON.parse(raw);
+      parsed = candidate;
+      const keys =
+        candidate && typeof candidate === "object" && !Array.isArray(candidate)
+          ? Object.keys(candidate as Record<string, unknown>).slice(0, 10)
+          : [];
+      lessonLog("debug", "plan-parse-success", subject, topic, {
+        planIndex,
+        mode,
+        keys,
+      });
+    } catch (err) {
+      lessonLog("warn", "plan-parse-error", subject, topic, {
+        planIndex,
+        mode,
+        error: err instanceof Error ? err.message : String(err),
+        rawPreview,
+      });
       const extracted = plan.mode !== "none" ? extractBalancedObject(raw) : null;
       if (extracted) {
         try {
-          parsed = JSON.parse(extracted);
-        } catch {
+          const extractedCandidate = JSON.parse(extracted);
+          parsed = extractedCandidate;
+          lessonLog("debug", "plan-extracted-json", subject, topic, {
+            planIndex,
+            mode,
+            extractedLength: extracted.length,
+            extractedPreview: lessonSnippet(extracted),
+          });
+        } catch (exErr) {
+          lessonLog("warn", "plan-extracted-parse-error", subject, topic, {
+            planIndex,
+            mode,
+            error: exErr instanceof Error ? exErr.message : String(exErr),
+          });
           parsed = null;
         }
       } else {
+        lessonLog("debug", "plan-no-extracted-object", subject, topic, {
+          planIndex,
+          mode,
+        });
         parsed = null;
       }
     }
+
     if (parsed) {
       lastCandidate = parsed;
+      break;
     }
-    break;
+
+    lessonLog("warn", "plan-parse-miss", subject, topic, {
+      planIndex,
+      mode,
+      rawPreview,
+    });
   }
 
   if (!raw) {
@@ -377,9 +473,29 @@ Rules:
   // Validate, allow a light normalization pass for common issues
   const validated = LessonSchema.safeParse(parsed);
   if (validated.success) {
+    const contentWords = validated.data.content.trim().split(/\s+/).filter(Boolean).length;
+    lessonLog("info", "lesson-validated", subject, topic, {
+      planIndex: lastAttemptIndex,
+      needsRegeneration,
+      usedQuestionRegen,
+      contentWords,
+      questionCount: validated.data.questions.length,
+      tokensIn: usage?.input_tokens ?? null,
+      tokensOut: usage?.output_tokens ?? null,
+    });
     await recordUsage(lastAttemptIndex);
     return validated.data;
   }
+
+  lessonLog("warn", "lesson-validation-failed", subject, topic, {
+    needsRegeneration,
+    usedQuestionRegen,
+    issues: validated.error.issues.slice(0, 8).map((issue) => ({
+      path: issue.path.join("."),
+      code: issue.code,
+      message: issue.message,
+    })),
+  });
 
   // Attempt minimal normalization before giving up
   const o = parsed as Record<string, unknown>;
@@ -676,8 +792,40 @@ Rules:
     };
   };
 
-  const sanitizeQuestions = (rawQuestions: unknown[]): Question[] => {
+  const placeholderChoicePatterns = [
+    /^the (accurate|key) (statement|idea)/i,
+    /^a tempting misconception/i,
+    /^an idea that does not/i,
+    /^a partially correct/i,
+    /^a choice that contradicts/i,
+    /^an unrelated detail/i,
+    /option \d+$/i,
+  ];
+
+  const placeholderPromptPatterns = [
+    /^check your understanding:/i,
+    /^reinforce the core idea/i,
+    /^quick check/i,
+  ];
+
+  const isPlaceholderChoice = (choice: string) =>
+    placeholderChoicePatterns.some((re) => re.test(choice.trim()));
+
+  const isPlaceholderPrompt = (prompt: string) =>
+    placeholderPromptPatterns.some((re) => re.test(prompt.trim()));
+
+  type SanitizeStage = "initial" | "regen";
+
+  const sanitizeQuestions = (rawQuestions: unknown[], stage: SanitizeStage = "initial"): Question[] => {
     const arr = Array.isArray(rawQuestions) ? rawQuestions : [];
+    const stats = {
+      stage,
+      fallbackQuestions: 0,
+      filledChoiceSlots: 0,
+      truncatedExplanations: 0,
+      droppedShortExplanations: 0,
+    };
+
     const sanitized = arr.map((raw, questionIdx): Question => {
       type NormQuestion = { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown };
       const q = raw as NormQuestion;
@@ -725,58 +873,67 @@ Rules:
         const fallback = buildFallbackChoices(promptText, questionIdx, usedKeys, 4);
         choiceTexts = fallback.slice(0, 4);
         correctIndex = 0;
+        stats.fallbackQuestions += 1;
+        stats.filledChoiceSlots += 4;
       } else if (choiceTexts.length < 4) {
         const needed = 4 - choiceTexts.length;
         const fallback = buildFallbackChoices(promptText, questionIdx, usedKeys, needed);
         choiceTexts = choiceTexts.concat(fallback.slice(0, needed));
+        stats.filledChoiceSlots += needed;
       }
 
       if (correctIndex >= choiceTexts.length) correctIndex = 0;
+
+      let explanation: string | undefined;
+      if (typeof q?.explanation === "string" && q.explanation.trim().length) {
+        const condensed = q.explanation.replace(/\s+/g, " ").trim();
+        if (condensed.length >= 3) {
+          if (condensed.length > 240) stats.truncatedExplanations += 1;
+          explanation = condensed.slice(0, 240);
+        } else {
+          stats.droppedShortExplanations += 1;
+        }
+      }
 
       return {
         prompt: promptText,
         choices: choiceTexts.slice(0, 4),
         correctIndex,
-        explanation:
-          typeof q?.explanation === "string" && q.explanation.trim().length
-            ? q.explanation.slice(0, 240).trim()
-            : undefined,
+        explanation,
       };
     });
 
     while (sanitized.length < 3) {
       sanitized.push(makeFallbackQuestion(sanitized.length));
+      stats.fallbackQuestions += 1;
+      stats.filledChoiceSlots += 4;
     }
+
+    const placeholderPromptHits = sanitized.filter((q) => isPlaceholderPrompt(q.prompt)).length;
+    const placeholderChoiceHits = sanitized.reduce(
+      (total, q) => total + q.choices.filter((choice) => isPlaceholderChoice(choice)).length,
+      0,
+    );
+
+    lessonLog("debug", "questions-sanitized", subject, topic, {
+      stage,
+      rawCount: arr.length,
+      sanitizedCount: sanitized.length,
+      fallbackQuestions: stats.fallbackQuestions,
+      filledChoiceSlots: stats.filledChoiceSlots,
+      truncatedExplanations: stats.truncatedExplanations,
+      droppedShortExplanations: stats.droppedShortExplanations,
+      placeholderPromptHits,
+      placeholderChoiceHits,
+    });
 
     return sanitized.slice(0, 3);
   };
 
-  const placeholderChoicePatterns = [
-    /^the (accurate|key) (statement|idea)/i,
-    /^a tempting misconception/i,
-    /^an idea that does not/i,
-    /^a partially correct/i,
-    /^a choice that contradicts/i,
-    /^an unrelated detail/i,
-    /option \d+$/i,
-  ];
-
-  const placeholderPromptPatterns = [
-    /^check your understanding:/i,
-    /^reinforce the core idea/i,
-    /^quick check/i,
-  ];
-
-  const isPlaceholderChoice = (choice: string) =>
-    placeholderChoicePatterns.some((re) => re.test(choice.trim()));
-
-  const isPlaceholderPrompt = (prompt: string) =>
-    placeholderPromptPatterns.some((re) => re.test(prompt.trim()));
-
   const shouldRegenerateQuestions = (questions: Question[]) => {
     let weakCount = 0;
     for (const q of questions) {
-      const placeholderChoices = q.choices.filter(isPlaceholderChoice).length;
+      const placeholderChoices = q.choices.filter((choice) => isPlaceholderChoice(choice)).length;
       const placeholderPrompt = isPlaceholderPrompt(q.prompt);
       if (placeholderChoices >= 2 || placeholderPrompt) {
         weakCount += 1;
@@ -796,7 +953,10 @@ Rules:
   const regenerateQuestionsWithAI = async (): Promise<Question[] | null> => {
     const lessonContent = typeof norm.content === "string" ? norm.content : "";
     const trimmedLesson = lessonContent.trim();
-    if (!trimmedLesson) return null;
+    if (!trimmedLesson) {
+      lessonLog("warn", "question-regen-abort", subject, topic, { reason: "empty-lesson" });
+      return null;
+    }
 
     const quizMode = "reinforcement";
     const countRule = "Produce exactly 3 multiple-choice questions, each with four answer choices.";
@@ -837,6 +997,12 @@ Rules:
         ? (norm.difficulty as Difficulty)
         : targetDifficulty;
 
+    lessonLog("debug", "question-regen-context", subject, topic, {
+      lessonDifficulty,
+      hasContext: Boolean(contextBlock.length),
+      mapSummaryIncluded: Boolean(opts?.mapSummary),
+    });
+
     const quizSourceText = [trimmedLesson, contextBlock].filter(Boolean).join("\n\n") || trimmedLesson;
     const regenPrompt = `
 Subject: ${subject}
@@ -849,6 +1015,11 @@ Create fair multiple-choice questions based on the source, following the rules.
 
     const wantsStructured = responseFormatSupported;
     try {
+      lessonLog("debug", "question-regen-call", subject, topic, {
+        wantsStructured,
+        model,
+        temperature: 0.35,
+      });
       const regenCompletion = await client.chat.completions.create({
         model,
         temperature: 0.35,
@@ -871,6 +1042,13 @@ Create fair multiple-choice questions based on the source, following the rules.
       await recordAuxUsage(usage, { fallbackStep: "quiz-regenerate" });
 
       const regenRaw = (regenCompletion.choices?.[0]?.message?.content as string | undefined) ?? "";
+      lessonLog("debug", "question-regen-response", subject, topic, {
+        rawLength: regenRaw.length,
+        rawPreview: lessonSnippet(regenRaw),
+        usage: usage
+          ? { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens }
+          : null,
+      });
       let regenParsed: unknown;
       try {
         regenParsed = JSON.parse(regenRaw);
@@ -883,9 +1061,12 @@ Create fair multiple-choice questions based on the source, following the rules.
       const questionsRaw = Array.isArray((regenParsed as { questions?: unknown[] })?.questions)
         ? (regenParsed as { questions: unknown[] }).questions
         : [];
-      if (!questionsRaw.length) return null;
+      if (!questionsRaw.length) {
+        lessonLog("warn", "question-regen-empty", subject, topic, { regenRawPreview: lessonSnippet(regenRaw) });
+        return null;
+      }
 
-      const sanitized = sanitizeQuestions(questionsRaw);
+      const sanitized = sanitizeQuestions(questionsRaw, "regen");
       return sanitized;
     } catch (err) {
       const errorLike = err as { error?: { message?: string } };
@@ -903,21 +1084,63 @@ Create fair multiple-choice questions based on the source, following the rules.
   };
 
   const initialQuestions = Array.isArray(norm.questions) ? norm.questions : [];
-  let sanitizedQuestions = sanitizeQuestions(initialQuestions);
+  let sanitizedQuestions = sanitizeQuestions(initialQuestions, "initial");
+  let usedQuestionRegen = false;
 
-  if (shouldRegenerateQuestions(sanitizedQuestions)) {
+  const needsRegeneration = shouldRegenerateQuestions(sanitizedQuestions);
+  lessonLog("debug", "question-quality-check", subject, topic, {
+    needsRegeneration,
+    sanitizedCount: sanitizedQuestions.length,
+  });
+
+  if (needsRegeneration) {
+    lessonLog("info", "question-regen-requested", subject, topic, {
+      sanitizedCount: sanitizedQuestions.length,
+    });
     const regenerated = await regenerateQuestionsWithAI();
     if (regenerated && regenerated.length === 3) {
       sanitizedQuestions = regenerated;
+      usedQuestionRegen = true;
+      lessonLog("info", "question-regen-success", subject, topic, {
+        sanitizedCount: sanitizedQuestions.length,
+      });
+    } else {
+      lessonLog("warn", "question-regen-failed", subject, topic, {
+        regeneratedCount: Array.isArray(regenerated) ? regenerated.length : null,
+      });
     }
+  } else {
+    lessonLog("debug", "question-regen-skipped", subject, topic, {
+      sanitizedCount: sanitizedQuestions.length,
+    });
   }
 
   norm.questions = sanitizedQuestions;
   const revalidated = LessonSchema.safeParse(norm);
   if (revalidated.success) {
+    const contentWords = revalidated.data.content.trim().split(/\s+/).filter(Boolean).length;
+    lessonLog("info", "lesson-normalized", subject, topic, {
+      planIndex: lastAttemptIndex,
+      needsRegeneration,
+      usedQuestionRegen,
+      contentWords,
+      questionCount: revalidated.data.questions.length,
+      tokensIn: usage?.input_tokens ?? null,
+      tokensOut: usage?.output_tokens ?? null,
+    });
     await recordUsage(lastAttemptIndex);
     return revalidated.data;
   }
+  lessonLog("error", "lesson-normalization-failed", subject, topic, {
+    needsRegeneration,
+    usedQuestionRegen,
+    issues: revalidated.error.issues.slice(0, 8).map((issue) => ({
+      path: issue.path.join("."),
+      code: issue.code,
+      message: issue.message,
+    })),
+    normPreview: lessonSnippet(JSON.stringify(norm)),
+  });
   throw new Error("Invalid lesson format from AI");
 }
 
