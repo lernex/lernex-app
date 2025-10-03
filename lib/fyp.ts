@@ -23,10 +23,17 @@ function normalizeHttpUrl(value: unknown): string | null {
 
 type LessonLogLevel = "debug" | "info" | "warn" | "error";
 
+const consoleLoggers: Record<LessonLogLevel, (message?: unknown, ...optionalParams: unknown[]) => void> = {
+  debug: typeof console.debug === "function" ? console.debug.bind(console) : console.log.bind(console),
+  info: typeof console.info === "function" ? console.info.bind(console) : console.log.bind(console),
+  warn: typeof console.warn === "function" ? console.warn.bind(console) : console.log.bind(console),
+  error: typeof console.error === "function" ? console.error.bind(console) : console.log.bind(console),
+};
+
 function lessonLog(level: LessonLogLevel, stage: string, subject: string, topic: string, details: Record<string, unknown>) {
   const entry = { subject, topic, ...details };
   try {
-    const logger = (console as Record<string, ((message?: unknown, ...optionalParams: unknown[]) => void) | undefined>)[level] || console.log;
+    const logger = consoleLoggers[level] || console.log.bind(console);
     logger(`[fyp][lesson][${stage}]`, entry);
   } catch {
     // ignore logging failures
