@@ -73,7 +73,9 @@ const MIN_LESSON_WORDS = 80;
 
 const MODEL_PRICE_HINTS: Record<string, { inputPerMillion: number; outputPerMillion: number }> = {
   "openai/gpt-oss-20b": { inputPerMillion: 0.03, outputPerMillion: 0.14 },
-  "gpt-oss-20b": { inputPerMillion: 0.03, outputPerMillion: 0.14 },
+  "deepinfra/gpt-oss-20b": { inputPerMillion: 0.03, outputPerMillion: 0.14 },
+  "gpt-oss-20b": { inputPerMillion: 0.1, outputPerMillion: 0.5 },
+  "groq/gpt-oss-20b": { inputPerMillion: 0.1, outputPerMillion: 0.5 },
 };
 
 export async function generateLessonForTopic(

@@ -54,7 +54,7 @@ const tiers: Tier[] = [
     cta: 'Accelerate with Premium',
     sellingPoint: 'Fast-track results with adaptive plans, deeper insights, and priority support.',
     features: [
-      '3× higher daily AI generation limits with instant retries',
+      '3Ã— higher daily AI generation limits with instant retries',
       'Adaptive study paths tuned to your weaknesses',
       'Exam playlists, mock interviews, and printable study guides',
       'Lightning priority during peak hours + concierge support'
@@ -84,7 +84,7 @@ const tiers: Tier[] = [
 ];
 
 const guaranteePoints = [
-  'Cancel instantly from your dashboard — no emails needed',
+  'Cancel instantly from your dashboard â€” no emails needed',
   '14-day money-back promise if Lernex is not a match',
   'Secure payments powered by Stripe with global currency support'
 ];
@@ -148,7 +148,7 @@ export default function Pricing() {
               custom={index}
               variants={cardVariants}
               whileHover={{ y: -10, rotateX: 0.2, rotateY: -0.2 }}
-              className={`relative overflow-hidden rounded-3xl border p-8 transition-all duration-500 ${tier.accent}`}
+              className={`relative rounded-3xl border p-8 transition-all duration-500 ${tier.highlight ? 'overflow-visible' : 'overflow-hidden'} ${tier.accent}`}
             >
               {tier.highlight && (
                 <motion.div
@@ -217,7 +217,7 @@ export default function Pricing() {
           <div>
             <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">Still thinking it over?</h2>
             <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">
-              Lernex Premium and Pro users report reaching their exam or skill goals 2.7× faster. Join a worldwide community of focused learners and upgrade only when you are ready — the guarantee has your back.
+              Lernex Premium and Pro users report reaching their exam or skill goals 2.7Ã— faster. Join a worldwide community of focused learners and upgrade only when you are ready â€” the guarantee has your back.
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-neutral-600 dark:text-neutral-300">
               {guaranteePoints.map(point => (
@@ -241,7 +241,7 @@ export default function Pricing() {
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 text-lernex-blue" />
-                <span>Priority access to new features before anyone else — including upcoming mobile apps.</span>
+                <span>Priority access to new features before anyone else â€” including upcoming mobile apps.</span>
               </li>
             </ul>
           </div>
