@@ -1,10 +1,11 @@
-import OpenAI from "openai";
+﻿import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LessonSchema } from "./schema";
 import type { Question } from "./schema";
 import { checkUsageLimit, logUsage } from "./usage";
 
 let deepInfraCache: { apiKey: string; baseUrl: string; client: OpenAI } | null = null;
+let reasoningEffortSupported: boolean | null = null;
 
 function getDeepInfraClient() {
   const apiKey = process.env.DEEPINFRA_API_KEY || process.env.GROQ_API_KEY;
@@ -69,7 +70,8 @@ const QUESTIONS_JSON_SCHEMA = {
 
 type Pace = "slow" | "normal" | "fast";
 type Difficulty = "intro" | "easy" | "medium" | "hard";
-const MIN_LESSON_WORDS = 80;
+const MIN_LESSON_WORDS = 60;
+const MAX_LESSON_WORDS = 100;
 
 const MODEL_PRICE_HINTS: Record<string, { inputPerMillion: number; outputPerMillion: number }> = {
   "openai/gpt-oss-20b": { inputPerMillion: 0.03, outputPerMillion: 0.14 },
@@ -112,7 +114,7 @@ export async function generateLessonForTopic(
   const avoidTitles = (opts?.avoidTitles ?? []).slice(-20);
 
   const baseSystem = `
-You are Lernex''s AI mentor. Create a tailored micro-lesson (90-140 words) plus exactly three multiple-choice questions with coaching explanations.
+You are Lernex''s AI mentor. Create a tailored micro-lesson (75-95 words) plus exactly three multiple-choice questions with coaching explanations.
 Audience: ${subject} learner. Personalize tone, examples, and final tip using the learner profile and provided context.
 
 Return only JSON matching exactly:
@@ -121,7 +123,7 @@ Return only JSON matching exactly:
   "subject": string,             // e.g., "Algebra 1"
   "topic": string,               // atomic concept (e.g., "Slope of a line")
   "title": string,               // 2-6 words, motivating
-  "content": string,             // 90-140 words: encouragement -> concept breakdown -> vivid example -> actionable tip
+  "content": string,             // 75-95 words: encouragement -> concept breakdown -> vivid example -> actionable tip
   "difficulty": "intro"|"easy"|"medium"|"hard",
   "questions": [
     { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }
@@ -189,7 +191,10 @@ Rules:
 
   const userPrompt = promptSections.join("\n\n").trim();
 
-  const MAX_LESSON_TOKENS = Number(process.env.DEEPINFRA_LESSON_MAX_TOKENS ?? process.env.GROQ_LESSON_MAX_TOKENS ?? "1500");
+  const configuredMaxTokens = Number(process.env.DEEPINFRA_LESSON_MAX_TOKENS ?? process.env.GROQ_LESSON_MAX_TOKENS ?? "1500");
+  const MAX_LESSON_TOKENS = Number.isFinite(configuredMaxTokens)
+    ? Math.min(4000, Math.max(400, Math.floor(configuredMaxTokens)))
+    : 1500;
   type ResponseMode = "json_schema" | "json_object" | "none";
   let responseFormatSupported = true;
 
@@ -210,25 +215,35 @@ Rules:
       await logUsage(sb, uid, ip, model, summary, metadata ? { metadata } : undefined);
     } catch {}
   };
-  async function callOnce(system: string, mode: ResponseMode) {
+  async function callOnce(system: string, mode: ResponseMode): Promise<{ raw: string; usage: { input_tokens: number | null; output_tokens: number | null } | null }> {
     const wantsStructured = responseFormatSupported && mode !== "none";
-    let completion: import("openai/resources/chat/completions").ChatCompletion | null = null;
+    const allowReasoning = reasoningEffortSupported !== false;
     const responseFormat = wantsStructured
       ? mode === "json_schema"
         ? { response_format: { type: "json_schema" as const, json_schema: { name: "lesson_schema", schema: LESSON_JSON_SCHEMA } } }
         : { response_format: { type: "json_object" as const } }
       : {};
     try {
-      completion = await client.chat.completions.create({
+      const completion = await client.chat.completions.create({
         model,
         temperature,
         max_tokens: MAX_LESSON_TOKENS,
+        ...(allowReasoning ? { reasoning: { effort: "medium" as const } } : {}),
         ...(wantsStructured ? responseFormat : {}),
         messages: [
           { role: "system", content: system },
           { role: "user", content: userPrompt },
         ],
       });
+      const raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
+      const u = completion?.usage as unknown as { prompt_tokens?: unknown; completion_tokens?: unknown } | null;
+      const usage = u
+        ? {
+            input_tokens: typeof u.prompt_tokens === "number" ? u.prompt_tokens : null,
+            output_tokens: typeof u.completion_tokens === "number" ? u.completion_tokens : null,
+          }
+        : null;
+      return { raw, usage };
     } catch (err) {
       const errorLike = err as { error?: { failed_generation?: string; message?: string } };
       const failed = errorLike?.error?.failed_generation;
@@ -238,24 +253,19 @@ Rules:
         ? err.message
         : "";
       const normalizedMessage = (message || "").toLowerCase();
+      if (allowReasoning && normalizedMessage.includes("reasoning")) {
+        reasoningEffortSupported = false;
+        return await callOnce(system, mode);
+      }
       if (wantsStructured && normalizedMessage.includes("response_format")) {
         responseFormatSupported = false;
-        return ["", null] as const;
+        return { raw: "", usage: null };
       }
       if (typeof failed === "string" && failed.trim().length > 0) {
-        return [failed, null] as const;
+        return { raw: failed, usage: null };
       }
       throw err;
     }
-    const raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
-    const u = completion?.usage as unknown as { prompt_tokens?: unknown; completion_tokens?: unknown } | null;
-    const usage = u
-      ? {
-          input_tokens: typeof u.prompt_tokens === "number" ? u.prompt_tokens : null,
-          output_tokens: typeof u.completion_tokens === "number" ? u.completion_tokens : null,
-        }
-      : null;
-    return [raw, usage] as const;
   }
 
   let raw = "";
@@ -273,31 +283,33 @@ Rules:
   const attemptPlans: { system: string; mode: ResponseMode }[] = [
     { system: baseSystem, mode: "json_schema" },
     { system: baseSystem, mode: "json_object" },
-    { system: baseSystem + "\nImportant: Output must be STRICT JSON with double quotes only. No markdown, no comments.", mode: "json_schema" },
-    { system: baseSystem + "\nImportant: Output must be STRICT JSON with double quotes only. No markdown, no comments.", mode: "json_object" },
-    { system: baseSystem + "\nFinal attempt: Respond with ONLY a single JSON object matching the schema.", mode: "json_schema" },
-    { system: baseSystem + "\nFinal attempt: Respond with only the JSON object and nothing else.", mode: "none" },
+    { system: baseSystem, mode: "none" },
   ];
+
+  let lastError: unknown = null;
 
   for (let planIndex = 0; planIndex < attemptPlans.length; planIndex++) {
     const plan = attemptPlans[planIndex];
     const mode: ResponseMode = !responseFormatSupported && plan.mode !== "none" ? "none" : plan.mode;
+    let result: { raw: string; usage: { input_tokens: number | null; output_tokens: number | null } | null };
     try {
-      const [r, u] = await callOnce(plan.system, mode);
-      raw = r;
-      usage = u;
-    } catch {
+      result = await callOnce(plan.system, mode);
+    } catch (err) {
+      lastError = err;
       continue;
     }
+    raw = result.raw;
+    usage = result.usage;
     if (!raw) continue;
+    lastAttemptIndex = planIndex;
     try {
       parsed = JSON.parse(raw);
     } catch {
-      if (plan.mode !== "none") {
-        const extracted = extractBalancedObject(raw);
-        if (extracted) {
-          try { parsed = JSON.parse(extracted); } catch { parsed = null; }
-        } else {
+      const extracted = plan.mode !== "none" ? extractBalancedObject(raw) : null;
+      if (extracted) {
+        try {
+          parsed = JSON.parse(extracted);
+        } catch {
           parsed = null;
         }
       } else {
@@ -305,16 +317,19 @@ Rules:
       }
     }
     if (parsed) {
-      lastAttemptIndex = planIndex;
-      const validated = LessonSchema.safeParse(parsed);
-      if (validated.success) {
-        await recordUsage(planIndex);
-        return validated.data;
-      }
       lastCandidate = parsed;
     }
+    break;
   }
-  parsed = lastCandidate;
+
+  if (!raw) {
+    if (lastError) {
+      throw (lastError instanceof Error ? lastError : new Error(String(lastError)));
+    }
+    throw new Error("Invalid lesson format from AI");
+  }
+
+  if (!parsed) parsed = lastCandidate;
 
   // If we reach here, parsed may still be non-conforming or null. Try normalization once more.
   if (!raw) raw = "{}";
@@ -364,27 +379,75 @@ Rules:
   if (typeof norm.content !== "string") {
     norm.content = "This micro-lesson opens with encouragement, unpacks the concept in two friendly checkpoints, weaves in a concrete example, and finishes with a personalised next step to keep the learner confident.";
   }
-  // Strip basic HTML tags that sometimes slip in
-  if (typeof norm.content === "string") {
-    const cleaned = (norm.content as string).replace(/<[^>]+>/g, "").slice(0, 900).trim();
-    const wordCount = cleaned.split(/\s+/).filter(Boolean).length;
-    if (wordCount >= MIN_LESSON_WORDS) {
-      norm.content = cleaned;
-    } else {
-      const rawTopic = typeof norm.topic === "string" && norm.topic.trim() ? (norm.topic as string).trim() : topic;
-      const topicLabel = rawTopic && rawTopic.trim().length ? rawTopic.trim() : "this idea";
-      const subjectLabel = subject && subject.trim().length ? subject.trim() : "your course";
-      const extras = [
-        cleaned,
-        `Describe how ${topicLabel.toLowerCase()} shows up in recent ${subjectLabel.toLowerCase()} work and why it matters.`,
-        `State the definition in your own words, then give a vivid example you could explain in two calm steps.`,
-        `Point out a mistake a learner might make with ${topicLabel.toLowerCase()}, explain why it fails, and how to self-correct.`,
-        `Finish with a concrete action or reflection that will help you spot ${topicLabel.toLowerCase()} in upcoming practice.`,
-      ].filter(Boolean);
-      const fallback = extras.join(" ").trim().slice(0, 900);
-      norm.content = fallback.length > 0 ? fallback : `Summarise ${topicLabel} clearly, link it to a tiny example, warn about a trap, and end with a cue you can reuse while studying ${subjectLabel}.`;
+  // Prepare content by removing stray HTML and enforcing schema bounds
+  const subjectLabel = subject && subject.trim().length ? subject.trim() : "your course";
+  const topicSource = typeof norm.topic === "string" && norm.topic.trim().length ? norm.topic.trim() : topic;
+  const topicLabel = topicSource && topicSource.trim().length ? topicSource : "the concept";
+  const accuracyLine = acc !== null ? ` with about ${acc}% accuracy` : "";
+
+  const normalizeWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
+  const ensureSentenceEnding = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return trimmed;
+    return /[.!?]"?$/.test(trimmed) ? trimmed : `${trimmed}.`;
+  };
+  const withinLessonBounds = (value: string) => {
+    const trimmed = normalizeWhitespace(value);
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    return words.length >= MIN_LESSON_WORDS && words.length <= MAX_LESSON_WORDS && trimmed.length >= 180 && trimmed.length <= 600;
+  };
+  const enforceUpperBounds = (value: string) => {
+    let working = normalizeWhitespace(value);
+    if (!working) return working;
+    let words = working.split(/\s+/).filter(Boolean);
+    if (words.length > MAX_LESSON_WORDS) {
+      words = words.slice(0, MAX_LESSON_WORDS);
+      working = words.join(" ");
     }
-  }
+    if (working.length > 600) {
+      working = working.slice(0, 600);
+      working = normalizeWhitespace(working);
+      words = working.split(/\s+/).filter(Boolean);
+      if (words.length > MAX_LESSON_WORDS) {
+        working = words.slice(0, MAX_LESSON_WORDS).join(" ");
+      }
+    }
+    return ensureSentenceEnding(working);
+  };
+
+  const fallbackSegments = [
+    `You are moving at a ${pace} pace${accuracyLine}, so pause and notice the progress before today's focus.`,
+    `The idea of ${topicLabel} shows up in ${subjectLabel} practice and links new moves to familiar patterns.`,
+    `Define it in your own words and outline the two actions the concept always relies on.`,
+    `Picture a quick real world example and explain what fails if one supporting move disappears.`,
+    `Finish by flagging a common pitfall and naming a self check cue for your next session.`,
+  ];
+  const buildFallbackContent = () => {
+    const primary = ensureSentenceEnding(normalizeWhitespace(fallbackSegments.join(" ")));
+    if (withinLessonBounds(primary)) return primary;
+    const supplemented = enforceUpperBounds(`${primary} ${primary}`);
+    if (withinLessonBounds(supplemented)) return supplemented;
+    return enforceUpperBounds(primary);
+  };
+  const fallbackContent = buildFallbackContent();
+
+  const clampLessonContent = (raw: string) => {
+    const candidate = enforceUpperBounds(raw);
+    if (candidate && withinLessonBounds(candidate)) {
+      return candidate;
+    }
+    const supplemented = enforceUpperBounds(`${candidate} ${fallbackContent}`.trim());
+    if (supplemented && withinLessonBounds(supplemented)) {
+      return supplemented;
+    }
+    return fallbackContent;
+  };
+
+  const existingContent = typeof norm.content === "string" ? (norm.content as string) : "";
+  const strippedContent = existingContent.replace(/<[^>]+>/g, " ").slice(0, 900);
+  const cleanedContent = normalizeWhitespace(strippedContent);
+
+  norm.content = clampLessonContent(cleanedContent || existingContent);
   // Difficulty normalize
   const diff = norm.difficulty;
   if (diff !== "intro" && diff !== "easy" && diff !== "medium" && diff !== "hard") norm.difficulty = "easy";
