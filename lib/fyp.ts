@@ -95,7 +95,10 @@ export async function generateLessonForTopic(
   const client = getDeepInfraClient();
   const model = process.env.DEEPINFRA_MODEL || process.env.GROQ_MODEL || "openai/gpt-oss-20b";
   const envTemp = Number(process.env.DEEPINFRA_TEMPERATURE ?? process.env.GROQ_TEMPERATURE ?? "0.4");
-  const temperature = Number.isFinite(envTemp) ? Math.min(1, Math.max(0, envTemp)) : 0.6;\r\n  const activePricing = MODEL_PRICE_HINTS[model] ?? null;\r\n\r\n  if (uid) {
+  const temperature = Number.isFinite(envTemp) ? Math.min(1, Math.max(0, envTemp)) : 0.6;
+  const activePricing = MODEL_PRICE_HINTS[model] ?? null;
+
+  if (uid) {
     const ok = await checkUsageLimit(sb, uid);
     if (!ok) throw new Error("Usage limit exceeded");
   }
@@ -806,4 +809,5 @@ Create fair multiple-choice questions based on the source, following the rules.
   }
   throw new Error("Invalid lesson format from AI");
 }
+
 
