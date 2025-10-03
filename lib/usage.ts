@@ -6,7 +6,8 @@ const PRICES: Record<string, { input: number; output: number }> = {
   "gpt-4o-mini": { input: 0.15 / 1_000_000, output: 0.6 / 1_000_000 },
   // Groq OSS 20B
   "llama-3.1-8b-instant": { input: 0.05 / 1_000_000, output: 0.08 / 1_000_000 },
-  "openai/gpt-oss-20b": { input: 0.08 / 1_000_000, output: 0.15 / 1_000_000 },
+  "openai/gpt-oss-20b": { input: 0.03 / 1_000_000, output: 0.14 / 1_000_000 },
+  "gpt-oss-20b": { input: 0.03 / 1_000_000, output: 0.14 / 1_000_000 },
   // Groq OSS 120B (heavier, stricter JSON)
   "gpt-oss-120b": { input: 0.15 / 1_000_000, output: 0.75 / 1_000_000 },
   "openai/gpt-oss-120b": { input: 0.15 / 1_000_000, output: 0.75 / 1_000_000 },
@@ -87,3 +88,4 @@ export async function logUsage(
     await updateUserTotalCost(sb, userId);
   }
 }
+

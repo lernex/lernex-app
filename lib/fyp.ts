@@ -71,6 +71,11 @@ type Pace = "slow" | "normal" | "fast";
 type Difficulty = "intro" | "easy" | "medium" | "hard";
 const MIN_LESSON_WORDS = 80;
 
+const MODEL_PRICE_HINTS: Record<string, { inputPerMillion: number; outputPerMillion: number }> = {
+  "openai/gpt-oss-20b": { inputPerMillion: 0.03, outputPerMillion: 0.14 },
+  "gpt-oss-20b": { inputPerMillion: 0.03, outputPerMillion: 0.14 },
+};
+
 export async function generateLessonForTopic(
   sb: SupabaseClient,
   uid: string,
@@ -90,9 +95,7 @@ export async function generateLessonForTopic(
   const client = getDeepInfraClient();
   const model = process.env.DEEPINFRA_MODEL || process.env.GROQ_MODEL || "openai/gpt-oss-20b";
   const envTemp = Number(process.env.DEEPINFRA_TEMPERATURE ?? process.env.GROQ_TEMPERATURE ?? "0.4");
-  const temperature = Number.isFinite(envTemp) ? Math.min(1, Math.max(0, envTemp)) : 0.6;
-
-  if (uid) {
+  const temperature = Number.isFinite(envTemp) ? Math.min(1, Math.max(0, envTemp)) : 0.6;\r\n  const activePricing = MODEL_PRICE_HINTS[model] ?? null;\r\n\r\n  if (uid) {
     const ok = await checkUsageLimit(sb, uid);
     if (!ok) throw new Error("Usage limit exceeded");
   }
@@ -183,7 +186,25 @@ Rules:
 
   const MAX_LESSON_TOKENS = Number(process.env.DEEPINFRA_LESSON_MAX_TOKENS ?? process.env.GROQ_LESSON_MAX_TOKENS ?? "1500");
   type ResponseMode = "json_schema" | "json_object" | "none";
+  let responseFormatSupported = true;
 
+  const buildUsageMetadata = (base?: Record<string, unknown>) => {
+    if (!activePricing && !base) return undefined;
+    const metadata: Record<string, unknown> = base ? { ...base } : {};
+    if (activePricing) metadata.pricing = { ...activePricing };
+    return Object.keys(metadata).length ? metadata : undefined;
+  };
+
+  const logUsageWithMetadata = async (
+    summary: { input_tokens: number | null; output_tokens: number | null } | null,
+    base?: Record<string, unknown>
+  ) => {
+    if (!uid || !summary) return;
+    const metadata = buildUsageMetadata(base);
+    try {
+      await logUsage(sb, uid, ip, model, summary, metadata ? { metadata } : undefined);
+    } catch {}
+  };
   async function callOnce(system: string, mode: ResponseMode) {
     const wantsStructured = responseFormatSupported && mode !== "none";
     let completion: import("openai/resources/chat/completions").ChatCompletion | null = null;
@@ -239,11 +260,9 @@ Rules:
   let lastAttemptIndex: number | null = null;
 
   const recordUsage = async (planIndex: number | null) => {
-    if (!uid || !usage) return;
-    const metadata = planIndex != null ? { fallbackStep: planIndex } : undefined;
-    try {
-      await logUsage(sb, uid, ip, model, usage, metadata ? { metadata } : undefined);
-    } catch {}
+    if (!usage) return;
+    const baseMetadata = planIndex != null ? { fallbackStep: planIndex } : undefined;
+    await logUsageWithMetadata(usage, baseMetadata);
   };
 
   const attemptPlans: { system: string; mode: ResponseMode }[] = [
@@ -656,10 +675,8 @@ Rules:
     usageSummary: { input_tokens: number | null; output_tokens: number | null } | null,
     metadata?: Record<string, unknown>
   ) => {
-    if (!uid || !usageSummary) return;
-    try {
-      await logUsage(sb, uid, ip, model, usageSummary, metadata ? { metadata } : undefined);
-    } catch {}
+    if (!usageSummary) return;
+    await logUsageWithMetadata(usageSummary, metadata);
   };
 
   const regenerateQuestionsWithAI = async (): Promise<Question[] | null> => {
@@ -716,12 +733,15 @@ ${quizSourceText}
 Create fair multiple-choice questions based on the source, following the rules.
 `.trim();
 
+    const wantsStructured = responseFormatSupported;
     try {
       const regenCompletion = await client.chat.completions.create({
         model,
         temperature: 0.35,
         max_tokens: 700,
-        response_format: { type: "json_schema", json_schema: { name: "lesson_quiz_schema", schema: QUESTIONS_JSON_SCHEMA } },
+        ...(wantsStructured
+          ? { response_format: { type: "json_schema", json_schema: { name: "lesson_quiz_schema", schema: QUESTIONS_JSON_SCHEMA } } }
+          : {}),
         messages: [
           { role: "system", content: regenSystem },
           { role: "user", content: regenPrompt },
@@ -753,7 +773,17 @@ Create fair multiple-choice questions based on the source, following the rules.
 
       const sanitized = sanitizeQuestions(questionsRaw);
       return sanitized;
-    } catch {
+    } catch (err) {
+      const errorLike = err as { error?: { message?: string } };
+      const message = typeof errorLike?.error?.message === "string"
+        ? errorLike.error.message
+        : err instanceof Error
+        ? err.message
+        : "";
+      if (wantsStructured && (message || "").toLowerCase().includes("response_format")) {
+        responseFormatSupported = false;
+        return await regenerateQuestionsWithAI();
+      }
       return null;
     }
   };
