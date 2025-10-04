@@ -62,7 +62,52 @@ function safeJsonStringify(value: unknown): string | null {
   }
 }
 
-function extractAssistantContent(choice: unknown): { raw: string; contentSource: AssistantContentSource; toolCalls: number } {
+function hasLessonShape(value: Record<string, unknown>) {
+  const required = ["id", "subject", "topic", "content", "questions"];
+  return required.every((key) => Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function findJsonString(value: unknown, depth = 0, maxDepth = 6): string | null {
+  if (depth > maxDepth || value == null) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed;
+    return null;
+  }
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const found = findJsonString(entry, depth + 1, maxDepth);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (hasLessonShape(record)) {
+      const asString = safeJsonStringify(record);
+      if (asString) return asString;
+    }
+    for (const val of Object.values(record)) {
+      const found = findJsonString(val, depth + 1, maxDepth);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function serializePreview(value: unknown, max = 500) {
+  const str = safeJsonStringify(value);
+  if (!str) return null;
+  if (str.length <= max) return str;
+  return `${str.slice(0, max)}...`;
+}
+
+function extractAssistantContent(choice: unknown): {
+  raw: string;
+  contentSource: AssistantContentSource;
+  toolCalls: number;
+  diagnostics?: Record<string, unknown>;
+} {
   const fallback = { raw: "", contentSource: "none" as AssistantContentSource, toolCalls: 0 };
   if (!choice || typeof choice !== "object") return fallback;
   const message = (choice as { message?: { content?: unknown; refusal?: unknown; tool_calls?: unknown } }).message || null;
@@ -132,7 +177,35 @@ function extractAssistantContent(choice: unknown): { raw: string; contentSource:
   if (refusal) addCandidate("refusal", refusal);
 
   const selected = candidates.find((entry) => entry.value.trim().length > 0);
-  if (!selected) return { raw: "", contentSource: "none", toolCalls: toolCallsRaw.length };
+  if (!selected) {
+    const fallbackJson = findJsonString(message);
+    if (fallbackJson) {
+      return {
+        raw: fallbackJson,
+        contentSource: "unknown",
+        toolCalls: toolCallsRaw.length,
+        diagnostics: {
+          fallbackSource: "deep-scan",
+          choiceKeys: Object.keys(choice as Record<string, unknown>),
+          messageKeys: Object.keys(message as Record<string, unknown>),
+          rawToolCallCount: toolCallsRaw.length,
+          rawContentPreview: serializePreview((message as { content?: unknown }).content, 400),
+        },
+      };
+    }
+    return {
+      raw: "",
+      contentSource: "none",
+      toolCalls: toolCallsRaw.length,
+      diagnostics: {
+        choiceKeys: Object.keys(choice as Record<string, unknown>),
+        messageKeys: Object.keys(message as Record<string, unknown>),
+        contentType: Array.isArray(content) ? "array" : typeof content,
+        rawToolCallCount: toolCallsRaw.length,
+        rawContentPreview: serializePreview((message as { content?: unknown }).content, 400),
+      },
+    };
+  }
 
   return { raw: selected.value, contentSource: selected.source, toolCalls: toolCallsRaw.length };
 }
@@ -487,7 +560,14 @@ Rules:
     const contentSource = result.meta?.contentSource ?? "none";
     const toolCalls = result.meta?.toolCalls ?? 0;
     if (!raw) {
-      lessonLog("warn", "plan-empty", subject, topic, { planIndex, mode, contentSource, toolCalls });
+      const diagnostics = result.meta?.diagnostics;
+      lessonLog("warn", "plan-empty", subject, topic, {
+        planIndex,
+        mode,
+        contentSource,
+        toolCalls,
+        ...(diagnostics ? { diagnostics } : {}),
+      });
       continue;
     }
 
