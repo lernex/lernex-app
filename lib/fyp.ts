@@ -433,7 +433,7 @@ Rules:
   ): Promise<{
     raw: string;
     usage: { input_tokens: number | null; output_tokens: number | null } | null;
-    meta: { contentSource: AssistantContentSource; toolCalls: number };
+    meta: { contentSource: AssistantContentSource; toolCalls: number; diagnostics?: Record<string, unknown> };
   }> {
     const wantsStructured =
       responseFormatSupported && mode !== "none" && (mode !== "json_schema" || jsonSchemaSupported);
@@ -541,7 +541,7 @@ Rules:
     let result: {
       raw: string;
       usage: { input_tokens: number | null; output_tokens: number | null } | null;
-      meta: { contentSource: AssistantContentSource; toolCalls: number };
+      meta: { contentSource: AssistantContentSource; toolCalls: number; diagnostics?: Record<string, unknown> };
     };
     try {
       result = await callOnce(plan.system, mode);
