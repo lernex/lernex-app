@@ -93,23 +93,43 @@ export async function GET(req: NextRequest) {
     }
     return { correct, total };
   };
-  const computePerformanceRollup = (rows: AttemptRow[]) => {
-    let correct = 0;
-    let total = 0;
+
+  const computePerformanceRollup = (rows: AttemptRow[], subjectName: string) => {
     const now = Date.now();
-    let recent = 0;
-    for (const row of rows) {
-      const c = row.correct_count ?? 0;
-      const t = row.total ?? 0;
-      correct += c;
-      total += t;
-      const ts = row.created_at ? +new Date(row.created_at) : null;
-      if (ts && now - ts < 72 * 3600_000) recent += 1;
+    const normalizedSubject = subjectName.toLowerCase();
+
+    const aggregate = (entries: AttemptRow[]) => {
+      let correct = 0;
+      let total = 0;
+      let recent = 0;
+
+      for (const row of entries) {
+        const c = row.correct_count ?? 0;
+        const t = row.total ?? 0;
+        correct += c;
+        total += t;
+        const ts = row.created_at ? +new Date(row.created_at) : null;
+        if (ts && now - ts < 72 * 3600_000) recent += 1;
+      }
+
+      return { correct, total, recent };
+    };
+
+    const subjectRows = rows.filter(
+      (row) => typeof row.subject === 'string' && row.subject.toLowerCase() === normalizedSubject
+    );
+    let pool = subjectRows;
+    if (!pool.length) {
+      const neutralRows = rows.filter((row) => !row.subject);
+      pool = neutralRows.length ? neutralRows : rows;
     }
+
+    const { correct, total, recent } = aggregate(pool);
     const accuracyPct = total > 0 ? Math.round((correct / total) * 100) : null;
     const pace: "slow" | "normal" | "fast" = recent >= 12 ? "fast" : recent >= 4 ? "normal" : "slow";
     return { accuracyPct, pace, sampleSize: total, recentSample: recent };
   };
+
   const toPace = (value: unknown): "slow" | "normal" | "fast" =>
     value === "fast" ? "fast" : value === "normal" ? "normal" : "slow";
 
@@ -171,11 +191,10 @@ export async function GET(req: NextRequest) {
     const { correct, total } = computeSubjectMastery(attemptsData, subject);
     const mastery = total > 0 ? Math.round((correct / total) * 100) : 50;
 
-    const rollup = computePerformanceRollup(attemptsData);
+    const rollup = computePerformanceRollup(attemptsData, subject);
     const pace = rollup.pace;
     const notes = `Learner pace: ${pace}. Personalized for ${subject}.`;
     const { ensureLearningPath, isLearningPathGenerating, LearningPathPendingError } = await import("@/lib/learning-path");
-
 
     try {
       // Cross-instance DB lock. If not supported and busy, fallback to in-process lock inside ensureLearningPath.
@@ -296,7 +315,7 @@ export async function GET(req: NextRequest) {
   let performanceRecentSample: number | null = baseMetrics?.recentSample ?? null;
   if (!metricsFresh) {
     const attemptsData = await loadAttempts();
-    const performance = computePerformanceRollup(attemptsData);
+    const performance = computePerformanceRollup(attemptsData, subject);
     accuracyPct = performance.accuracyPct;
     pace = performance.pace;
     performanceSampleSize = performance.sampleSize;
@@ -477,3 +496,4 @@ export async function GET(req: NextRequest) {
     { status: 200, headers: { "content-type": "application/json" } }
   );
 }
+

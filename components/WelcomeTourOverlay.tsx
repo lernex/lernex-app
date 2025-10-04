@@ -51,6 +51,8 @@ const ORBITALS = [
   "absolute -top-20 right-8 h-44 w-44 rounded-full bg-purple-400/40 blur-[120px]",
   "absolute bottom-[-40px] left-1/2 h-32 w-60 -translate-x-1/2 rounded-[999px] bg-emerald-300/30 blur-[100px]",
 ];
+const TOUR_FLAG_KEY = "lernex:show-welcome-tour";
+const TOUR_ACTIVE_KEY = "lernex:welcome-tour-active";
 
 function buildPath(pathname: string, params: URLSearchParams) {
   const query = params.toString();
@@ -66,17 +68,29 @@ export default function WelcomeTourOverlay() {
 
   const searchKey = useMemo(() => searchParams.toString(), [searchParams]);
 
+  const closeTour = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(TOUR_ACTIVE_KEY);
+      window.sessionStorage.removeItem(TOUR_FLAG_KEY);
+    }
+    setOpen(false);
+    setStep(0);
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const flag = window.sessionStorage.getItem("lernex:show-welcome-tour") === "1";
     const params = new URLSearchParams(searchKey);
     const hasParam = params.get("welcome") === "1" || params.get("tour") === "1";
+    const shouldShowFlag = window.sessionStorage.getItem(TOUR_FLAG_KEY) === "1";
+    const activeFlag = window.sessionStorage.getItem(TOUR_ACTIVE_KEY) === "1";
 
-    if (!open && (flag || hasParam)) {
+    if (!open && (shouldShowFlag || activeFlag || hasParam)) {
       setOpen(true);
       setStep(0);
-      window.sessionStorage.removeItem("lernex:show-welcome-tour");
-
+      window.sessionStorage.setItem(TOUR_ACTIVE_KEY, "1");
+      if (shouldShowFlag) {
+        window.sessionStorage.removeItem(TOUR_FLAG_KEY);
+      }
       if (hasParam) {
         params.delete("welcome");
         params.delete("tour");
@@ -91,8 +105,7 @@ export default function WelcomeTourOverlay() {
     if (!open) return;
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setOpen(false);
-        setStep(0);
+        closeTour();
       }
     };
     document.addEventListener("keydown", handleKey);
@@ -102,12 +115,7 @@ export default function WelcomeTourOverlay() {
       document.removeEventListener("keydown", handleKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [open]);
-
-  const closeTour = useCallback(() => {
-    setOpen(false);
-    setStep(0);
-  }, []);
+  }, [closeTour, open]);
 
   const nextStep = useCallback(() => {
     setStep((current) => Math.min(current + 1, TOUR_STEPS.length - 1));
@@ -264,4 +272,5 @@ export default function WelcomeTourOverlay() {
     </AnimatePresence>
   );
 }
+
 

@@ -1,6 +1,6 @@
 ﻿import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { LessonSchema } from "./schema";
+import { LessonSchema, MIN_LESSON_WORDS, MAX_LESSON_WORDS } from "./schema";
 import type { Lesson } from "./schema";
 import { checkUsageLimit, logUsage } from "./usage";
 
@@ -162,19 +162,26 @@ function resolveLessonCandidate(raw: string): Lesson | null {
 }
 
 function clampFallbackContent(text: string) {
-  let normalized = text.replace(/\s+/g, " ").trim();
-  let words = normalized.split(" ");
+  const maxChars = 600;
+  const sanitized = text.replace(/\s+/g, " ").trim();
+  const originalWords = sanitized ? sanitized.split(" ").filter(Boolean) : [];
 
-  if (words.length > 95) {
-    words = words.slice(0, 95);
-    normalized = words.join(" ");
-  }
+  if (!originalWords.length) return sanitized;
 
-  while (normalized.length > 580 && words.length > 75) {
+  let words = originalWords.slice(0, Math.min(originalWords.length, MAX_LESSON_WORDS));
+  let normalized = words.join(" ");
+
+  while (normalized.length > maxChars && words.length > MIN_LESSON_WORDS) {
     words.pop();
     normalized = words.join(" ");
   }
 
+  if (words.length < MIN_LESSON_WORDS && originalWords.length >= MIN_LESSON_WORDS) {
+    words = originalWords.slice(0, MIN_LESSON_WORDS);
+    normalized = words.join(" ");
+  }
+
+  normalized = normalized.trim();
   if (!/[.!?]$/.test(normalized)) normalized = `${normalized}.`;
 
   return normalized;
@@ -273,7 +280,7 @@ function buildUserPrompt(subject: string, topic: string, pace: Pace, accuracy: n
   sections.push(
     [
       "Lesson Requirements:",
-      "1. Write 80-105 words in a warm, coach-like voice.",
+      `1. Write ${MIN_LESSON_WORDS}-${MAX_LESSON_WORDS} words in a warm, coach-like voice.`,
       "2. Reference the learner's pace and accuracy in the opening sentence and personalize examples using the provided context.",
       "3. Explain the concept clearly with checkpoints, a vivid example, a misconception call-out, and a concrete next action.",
       "4. Use inline LaTeX with \\( ... \\) for math when needed; avoid HTML, Markdown fences, or bullet syntax.",
@@ -327,11 +334,11 @@ export async function generateLessonForTopic(
 You are Lernex's AI mentor. Produce one personalized micro-lesson and three follow-up questions as JSON.
 Rules:
 1. Write in an encouraging coaching tone for motivated students.
-2. Keep the lesson body between 80 and 105 words and avoid bullet lists or headings.
+2. Keep the lesson body between ${MIN_LESSON_WORDS} and ${MAX_LESSON_WORDS} words and avoid bullet lists or headings.
 3. Reference the learner's pace and accuracy in the opening sentence, then deliver checkpoints, an example, a misconception warning, and a concrete next action.
 4. Use inline LaTeX with \\( ... \\) whenever mathematical notation is required; never use HTML or Markdown fences.
 5. Provide exactly three multiple-choice questions with four choices and 25-45 word explanations that rely solely on the lesson content.
-6. Respond with valid JSON only—no commentary before or after the object.
+6. Respond with valid JSON only--no commentary before or after the object.
 `.trim();
   const userPrompt = buildUserPrompt(subject, topic, pace, accuracy, difficulty, opts);
 
@@ -365,9 +372,19 @@ Rules:
     const lesson = resolveLessonCandidate(raw);
 
     if (lesson) {
-      if (uid && usageSummary) {
+      const usagePayload = usageSummary ?? { input_tokens: null, output_tokens: null };
+      if (uid) {
+        const metadata: Record<string, unknown> = {
+          generatorAttempt: "single",
+          subject,
+          topic,
+          pace,
+          difficulty,
+          accuracyPct: accuracy,
+        };
+        if (usageSummary == null) metadata.missingUsage = true;
         try {
-          await logUsage(sb, uid, ip, model, usageSummary, { metadata: { generatorAttempt: "single" } });
+          await logUsage(sb, uid, ip, model, usagePayload, { metadata });
         } catch (usageErr) {
           console.warn("[fyp] usage log failed", usageErr);
         }
@@ -382,9 +399,22 @@ Rules:
 
   console.warn("[fyp] returning fallback lesson", { subject, topic, error: lastError instanceof Error ? lastError.message : lastError });
 
-  if (uid && usageSummary) {
+  const fallbackUsage = usageSummary ?? { input_tokens: null, output_tokens: null };
+  if (uid) {
+    const metadata: Record<string, unknown> = {
+      generatorAttempt: "fallback",
+      subject,
+      topic,
+      pace,
+      difficulty,
+      accuracyPct: accuracy,
+    };
+    if (usageSummary == null) metadata.missingUsage = true;
+    if (lastError != null) {
+      metadata.error = lastError instanceof Error ? lastError.message : String(lastError);
+    }
     try {
-      await logUsage(sb, uid, ip, model, usageSummary, { metadata: { generatorAttempt: "fallback" } });
+      await logUsage(sb, uid, ip, model, fallbackUsage, { metadata });
     } catch (usageErr) {
       console.warn("[fyp] usage log failed", usageErr);
     }
@@ -392,3 +422,4 @@ Rules:
 
   return buildFallbackLesson(subject, topic, pace, accuracy, difficulty);
 }
+
