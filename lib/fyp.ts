@@ -161,20 +161,37 @@ function resolveLessonCandidate(raw: string): Lesson | null {
   return null;
 }
 
+function clampFallbackContent(text: string) {
+  let normalized = text.replace(/\s+/g, " ").trim();
+  let words = normalized.split(" ");
+
+  if (words.length > 95) {
+    words = words.slice(0, 95);
+    normalized = words.join(" ");
+  }
+
+  while (normalized.length > 580 && words.length > 75) {
+    words.pop();
+    normalized = words.join(" ");
+  }
+
+  return normalized;
+}
+
 function buildFallbackLesson(subject: string, topic: string, pace: Pace, accuracy: number | null, difficulty: Difficulty): Lesson {
   const topicLabel = topic.split("> ").pop()?.trim() || topic.trim();
   const subjectLabel = subject.trim() || "your course";
   const accuracyText = typeof accuracy === "number" ? ` and your recent accuracy sits near ${accuracy}%` : " and you're building steady confidence";
 
-  const contentSegments = [
-    `You're moving at a ${pace} pace${accuracyText}, so pause to notice the wins before diving back into ${topicLabel}.`,
-    `Restate what ${topicLabel} means in plain language, and call out the pattern or rule that makes it essential inside ${subjectLabel}.`,
-    `Illustrate the idea with a quick example—sketch it, narrate it aloud, or connect it to a real moment where ${topicLabel} shows up.`,
-    `Flag one pitfall learners often hit, then offer a cue or question they can use to catch that slip next time.`,
-    `Close by planning the very next action, like linking ${topicLabel} to the following map milestone or teaching the summary to a study partner.`,
-  ];
+  const contentBase = [
+    `You're moving at a ${pace} pace${accuracyText}, so celebrate a quick win before revisiting ${topicLabel} in ${subjectLabel}.`,
+    `State the idea in one warm sentence, then highlight the rule or pattern it unlocks for future problems.`,
+    `Sketch or narrate a small example that shows the idea in action and underline the step that usually trips learners.`,
+    `Name one likely misconception and the cue you will use to spot it during the next practice block.`,
+    `Close with a concrete next action: teach the summary aloud, solve a related mini problem, or connect the idea to the upcoming playlist checkpoint.`,
+  ].join(" ");
 
-  const content = contentSegments.join(" ");
+  const content = clampFallbackContent(contentBase);
 
   const questions: Lesson["questions"] = [
     {
