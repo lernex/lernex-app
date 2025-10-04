@@ -19,7 +19,7 @@ type LessonOptions = {
   structuredContext?: Record<string, unknown>;
 };
 
-const MAX_TOKENS = 1400;
+const MAX_TOKENS = 1900;
 const DEFAULT_MODEL = process.env.DEEPINFRA_MODEL || process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 const DEFAULT_TEMPERATURE = Number(process.env.DEEPINFRA_TEMPERATURE ?? process.env.GROQ_TEMPERATURE ?? "0.4");
 
@@ -175,6 +175,8 @@ function clampFallbackContent(text: string) {
     normalized = words.join(" ");
   }
 
+  if (!/[.!?]$/.test(normalized)) normalized = `${normalized}.`;
+
   return normalized;
 }
 
@@ -241,37 +243,63 @@ function buildFallbackLesson(subject: string, topic: string, pace: Pace, accurac
 }
 
 function buildUserPrompt(subject: string, topic: string, pace: Pace, accuracy: number | null, difficulty: Difficulty, opts: LessonOptions = {}) {
-  const learnerLines = [
+  const learnerProfile: string[] = [
     `- Pace: ${pace}`,
-    accuracy != null ? `- Recent accuracy: ${accuracy}%` : `- Recent accuracy: not enough data`,
+    accuracy != null ? `- Recent accuracy: ${accuracy}% (mention this in the first sentence).` : `- Recent accuracy: not enough data; still acknowledge effort in the opening line.`,
     `- Target difficulty: ${difficulty}`,
   ];
 
   if (opts.difficultyPref) {
-    learnerLines.push(`- Preferred difficulty: ${opts.difficultyPref}`);
+    learnerProfile.push(`- Preferred difficulty: ${opts.difficultyPref}`);
   }
 
   const guardrails: string[] = [];
-  if (opts.avoidIds?.length) guardrails.push(`Avoid lesson IDs: ${opts.avoidIds.slice(-10).join(", ")}`);
+  if (opts.avoidIds?.length) guardrails.push(`Avoid lesson ids: ${opts.avoidIds.slice(-10).join(", ")}`);
   if (opts.avoidTitles?.length) guardrails.push(`Avoid lesson titles: ${opts.avoidTitles.slice(-10).join(", ")}`);
 
   const contextBlocks: string[] = [];
-  if (opts.mapSummary) contextBlocks.push(`Map summary:\n${opts.mapSummary}`);
-  if (opts.structuredContext) contextBlocks.push(`Structured context:\n${JSON.stringify(opts.structuredContext, null, 2)}`);
+  if (opts.mapSummary) contextBlocks.push(`Learning map summary: ${opts.mapSummary}`);
+  if (opts.structuredContext) {
+    contextBlocks.push(`Additional structured context (JSON):\n${JSON.stringify(opts.structuredContext, null, 2)}`);
+  }
 
-  const parts = [
-    `Subject: ${subject}`,
-    `Topic: ${topic}`,
-    `Learner profile:\n${learnerLines.join("\n")}`,
-    `Directions:\n- Open with encouragement tied to their pace${accuracy != null ? " and recent accuracy" : ""}.\n- Break the concept into practical checkpoints with a vivid example.\n- Close with the next action the learner should take.\n- Provide exactly three multiple-choice questions with concise coaching explanations.`,
-  ];
+  const sections: string[] = [];
+  sections.push(`Subject: ${subject}`);
+  sections.push(`Topic: ${topic}`);
+  sections.push(`Learner Profile:\n${learnerProfile.join("\n")}`);
+  if (contextBlocks.length) sections.push(contextBlocks.join("\n\n"));
+  if (guardrails.length) sections.push(`Guardrails:\n- ${guardrails.join("\n- ")}`);
 
-  if (guardrails.length) parts.push(`Guardrails:\n- ${guardrails.join("\n- ")}`);
-  if (contextBlocks.length) parts.push(contextBlocks.join("\n\n"));
+  sections.push(
+    [
+      "Lesson Requirements:",
+      "1. Write 80-105 words in a warm, coach-like voice.",
+      "2. Reference the learner's pace and accuracy in the opening sentence and personalize examples using the provided context.",
+      "3. Explain the concept clearly with checkpoints, a vivid example, a misconception call-out, and a concrete next action.",
+      "4. Use inline LaTeX with \\( ... \\) for math when needed; avoid HTML, Markdown fences, or bullet syntax.",
+    ].join("\n"),
+  );
 
-  parts.push("Return only the JSON object for the lesson as described—no extra prose.");
+  sections.push(
+    [
+      "Question Requirements:",
+      "1. Produce exactly three multiple-choice questions that can be answered solely from the lesson content you just wrote.",
+      "2. Provide four concise answer choices (A-D style) and identify the correctIndex.",
+      "3. Write 25-45 word explanations that reinforce the reasoning, mention a misconception, and echo the coaching tone.",
+    ].join("\n"),
+  );
 
-  return parts.join("\n\n");
+  sections.push(
+    [
+      "Output Format:",
+      "- Return a single JSON object with the fields id, subject, topic, title, content, difficulty, questions.",
+      "- Set id to a short lowercase kebab-case slug based on the topic plus a 4-6 character random suffix (e.g., vector-operations-4f8a).",
+      "- Reuse the exact subject and topic strings provided above.",
+      "- Do not include any text before or after the JSON object.",
+    ].join("\n"),
+  );
+
+  return sections.join("\n\n");
 }
 
 export async function generateLessonForTopic(
@@ -295,10 +323,19 @@ export async function generateLessonForTopic(
   const accuracy = typeof opts.accuracyPct === "number" ? Math.max(0, Math.min(100, Math.round(opts.accuracyPct))) : null;
   const difficulty: Difficulty = opts.difficultyPref ?? (accuracy != null ? (accuracy < 50 ? "intro" : accuracy < 70 ? "easy" : accuracy < 85 ? "medium" : "hard") : "easy");
 
-  const systemPrompt = `You are Lernex's AI mentor. Create a concise micro-lesson (75-95 words) and three multiple-choice questions with coaching explanations. Use inline LaTeX for math (\\( ... \\)), keep the tone supportive, and finish with a concrete next step.`;
+  const systemPrompt = `
+You are Lernex's AI mentor. Produce one personalized micro-lesson and three follow-up questions as JSON.
+Rules:
+1. Write in an encouraging coaching tone for motivated students.
+2. Keep the lesson body between 80 and 105 words and avoid bullet lists or headings.
+3. Reference the learner's pace and accuracy in the opening sentence, then deliver checkpoints, an example, a misconception warning, and a concrete next action.
+4. Use inline LaTeX with \\( ... \\) whenever mathematical notation is required; never use HTML or Markdown fences.
+5. Provide exactly three multiple-choice questions with four choices and 25-45 word explanations that rely solely on the lesson content.
+6. Respond with valid JSON only—no commentary before or after the object.
+`.trim();
   const userPrompt = buildUserPrompt(subject, topic, pace, accuracy, difficulty, opts);
 
-  const baseRequest = {
+  const requestPayload = {
     model,
     temperature,
     max_tokens: MAX_TOKENS,
@@ -309,57 +346,38 @@ export async function generateLessonForTopic(
     ],
   };
 
-  const attempts: Array<{ name: string; responseFormat?: { type: "json_object" } }> = [
-    { name: "json_object", responseFormat: { type: "json_object" } },
-    { name: "text" },
-  ];
-
   let usageSummary: UsageSummary = null;
   let lastError: unknown = null;
 
-  for (const attempt of attempts) {
-    try {
-      const completion = await client.chat.completions.create({
-        ...baseRequest,
-        ...(attempt.responseFormat ? { response_format: attempt.responseFormat } : {}),
-      });
+  try {
+    const completion = await client.chat.completions.create(requestPayload);
 
-      const usage = completion.usage;
-      usageSummary = usage
-        ? {
-            input_tokens: typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : null,
-            output_tokens: typeof usage.completion_tokens === "number" ? usage.completion_tokens : null,
-          }
-        : usageSummary;
-
-      const choice = completion.choices?.[0];
-      const raw = extractAssistantJson(choice);
-      const lesson = resolveLessonCandidate(raw);
-
-      if (lesson) {
-        if (uid && usageSummary) {
-          try {
-            await logUsage(sb, uid, ip, model, usageSummary, { metadata: { generatorAttempt: attempt.name } });
-          } catch (usageErr) {
-            console.warn("[fyp] usage log failed", usageErr);
-          }
-        }
-        return lesson;
-      }
-
-      lastError = new Error("Invalid lesson format from AI");
-    } catch (error) {
-      lastError = error;
-      const message = typeof (error as { error?: { message?: string } })?.error?.message === "string"
-        ? (error as { error: { message: string } }).error.message
-        : error instanceof Error
-        ? error.message
-        : "";
-
-      if (attempt.responseFormat && message.toLowerCase().includes("response_format")) {
-        continue;
-      }
+    const usage = completion.usage;
+    if (usage) {
+      usageSummary = {
+        input_tokens: typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : null,
+        output_tokens: typeof usage.completion_tokens === "number" ? usage.completion_tokens : null,
+      };
     }
+
+    const choice = completion.choices?.[0];
+    const raw = extractAssistantJson(choice);
+    const lesson = resolveLessonCandidate(raw);
+
+    if (lesson) {
+      if (uid && usageSummary) {
+        try {
+          await logUsage(sb, uid, ip, model, usageSummary, { metadata: { generatorAttempt: "single" } });
+        } catch (usageErr) {
+          console.warn("[fyp] usage log failed", usageErr);
+        }
+      }
+      return lesson;
+    }
+
+    lastError = new Error("Invalid lesson format from AI");
+  } catch (error) {
+    lastError = error;
   }
 
   console.warn("[fyp] returning fallback lesson", { subject, topic, error: lastError instanceof Error ? lastError.message : lastError });
