@@ -47,6 +47,96 @@ function lessonSnippet(raw: unknown, max = 200) {
   return collapsed.length <= max ? collapsed : `${collapsed.slice(0, max)}...`;
 }
 
+type AssistantContentSource = "none" | "content" | "segments" | "tool" | "refusal" | "unknown";
+
+function pickFirstString(value: unknown): string | null {
+  if (typeof value === "string" && value.trim().length) return value;
+  return null;
+}
+
+function safeJsonStringify(value: unknown): string | null {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return null;
+  }
+}
+
+function extractAssistantContent(choice: unknown): { raw: string; contentSource: AssistantContentSource; toolCalls: number } {
+  const fallback = { raw: "", contentSource: "none" as AssistantContentSource, toolCalls: 0 };
+  if (!choice || typeof choice !== "object") return fallback;
+  const message = (choice as { message?: { content?: unknown; refusal?: unknown; tool_calls?: unknown } }).message || null;
+  if (!message || typeof message !== "object") return fallback;
+
+  const toolCallsRaw = Array.isArray((message as { tool_calls?: unknown }).tool_calls)
+    ? ((message as { tool_calls?: unknown[] }).tool_calls as unknown[])
+    : [];
+  const candidates: { source: AssistantContentSource; value: string }[] = [];
+
+  const addCandidate = (source: AssistantContentSource, rawValue: unknown) => {
+    if (typeof rawValue === "string" && rawValue.trim().length) {
+      candidates.push({ source, value: rawValue });
+    }
+  };
+
+  const content = (message as { content?: unknown }).content;
+  if (typeof content === "string") {
+    addCandidate("content", content);
+  } else if (Array.isArray(content)) {
+    const parts: string[] = [];
+    for (const entry of content) {
+      const direct = pickFirstString(entry);
+      if (direct) {
+        parts.push(direct);
+        continue;
+      }
+      if (entry && typeof entry === "object") {
+        const maybeText = pickFirstString((entry as { text?: unknown }).text)
+          ?? pickFirstString((entry as { content?: unknown }).content)
+          ?? pickFirstString((entry as { value?: unknown }).value);
+        if (maybeText) {
+          parts.push(maybeText);
+          continue;
+        }
+        if ((entry as { json?: unknown }).json !== undefined) {
+          const asJson = (entry as { json?: unknown }).json;
+          const str = typeof asJson === "string" ? asJson : safeJsonStringify(asJson);
+          if (str) parts.push(str);
+        }
+      }
+    }
+    if (parts.length) addCandidate("segments", parts.join(""));
+  } else if (content && typeof content === "object") {
+    const maybeText = pickFirstString((content as { text?: unknown }).text)
+      ?? pickFirstString((content as { content?: unknown }).content)
+      ?? pickFirstString((content as { value?: unknown }).value);
+    if (maybeText) {
+      addCandidate("content", maybeText);
+    } else if ((content as { json?: unknown }).json !== undefined) {
+      const asJson = (content as { json?: unknown }).json;
+      const str = typeof asJson === "string" ? asJson : safeJsonStringify(asJson);
+      if (str) addCandidate("segments", str);
+    }
+  }
+
+  for (const call of toolCallsRaw) {
+    if (!call || typeof call !== "object") continue;
+    const fn = (call as { function?: { arguments?: unknown } }).function;
+    if (!fn || typeof fn !== "object") continue;
+    const args = (fn as { arguments?: unknown }).arguments;
+    const candidate = pickFirstString(args) ?? safeJsonStringify(args);
+    if (candidate) addCandidate("tool", candidate);
+  }
+
+  const refusal = pickFirstString((message as { refusal?: unknown }).refusal);
+  if (refusal) addCandidate("refusal", refusal);
+
+  const selected = candidates.find((entry) => entry.value.trim().length > 0);
+  if (!selected) return { raw: "", contentSource: "none", toolCalls: toolCallsRaw.length };
+
+  return { raw: selected.value, contentSource: selected.source, toolCalls: toolCallsRaw.length };
+}
+
 function getDeepInfraClient() {
   const apiKey = process.env.DEEPINFRA_API_KEY || process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("Missing DEEPINFRA_API_KEY");
@@ -264,7 +354,14 @@ Rules:
       await logUsage(sb, uid, ip, model, summary, metadata ? { metadata } : undefined);
     } catch {}
   };
-  async function callOnce(system: string, mode: ResponseMode): Promise<{ raw: string; usage: { input_tokens: number | null; output_tokens: number | null } | null }> {
+  async function callOnce(
+    system: string,
+    mode: ResponseMode
+  ): Promise<{
+    raw: string;
+    usage: { input_tokens: number | null; output_tokens: number | null } | null;
+    meta: { contentSource: AssistantContentSource; toolCalls: number };
+  }> {
     const wantsStructured =
       responseFormatSupported && mode !== "none" && (mode !== "json_schema" || jsonSchemaSupported);
     const allowReasoning = reasoningEffortSupported !== false;
@@ -285,7 +382,9 @@ Rules:
           { role: "user", content: userPrompt },
         ],
       });
-      const raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
+      const choice = completion.choices?.[0];
+      const meta = extractAssistantContent(choice);
+      const raw = meta.raw ?? "";
       const u = completion?.usage as unknown as { prompt_tokens?: unknown; completion_tokens?: unknown } | null;
       const usage = u
         ? {
@@ -293,7 +392,7 @@ Rules:
             output_tokens: typeof u.completion_tokens === "number" ? u.completion_tokens : null,
           }
         : null;
-      return { raw, usage };
+      return { raw, usage, meta };
     } catch (err) {
       const errorLike = err as { error?: { failed_generation?: string; message?: string } };
       const failed = errorLike?.error?.failed_generation;
@@ -311,16 +410,16 @@ Rules:
       if (mode === "json_schema" && (normalizedMessage.includes("json_schema") || normalizedMessage.includes("response_format"))) {
         jsonSchemaSupported = false;
         lessonLog("warn", "plan-structured-disabled", subject, topic, { reason: message || "json_schema unsupported", mode });
-        return { raw: "", usage: null };
+        return { raw: "", usage: null, meta: { contentSource: "none", toolCalls: 0 } };
       }
       if (wantsStructured && normalizedMessage.includes("response_format")) {
         responseFormatSupported = false;
         lessonLog("warn", "plan-structured-disabled", subject, topic, { reason: message || "response_format unsupported", mode });
-        return { raw: "", usage: null };
+        return { raw: "", usage: null, meta: { contentSource: "none", toolCalls: 0 } };
       }
       if (typeof failed === "string" && failed.trim().length > 0) {
         lessonLog("warn", "plan-failed-generation", subject, topic, { snippet: lessonSnippet(failed) });
-        return { raw: failed, usage: null };
+        return { raw: failed, usage: null, meta: { contentSource: "unknown", toolCalls: 0 } };
       }
       lessonLog("error", "plan-call-fatal", subject, topic, { message });
       throw err;
@@ -366,7 +465,11 @@ Rules:
       reasoningEffort: reasoningEffortSupported !== false ? "enabled" : "disabled",
     });
 
-    let result: { raw: string; usage: { input_tokens: number | null; output_tokens: number | null } | null };
+    let result: {
+      raw: string;
+      usage: { input_tokens: number | null; output_tokens: number | null } | null;
+      meta: { contentSource: AssistantContentSource; toolCalls: number };
+    };
     try {
       result = await callOnce(plan.system, mode);
     } catch (err) {
@@ -381,8 +484,10 @@ Rules:
 
     raw = result.raw;
     usage = result.usage;
+    const contentSource = result.meta?.contentSource ?? "none";
+    const toolCalls = result.meta?.toolCalls ?? 0;
     if (!raw) {
-      lessonLog("warn", "plan-empty", subject, topic, { planIndex, mode });
+      lessonLog("warn", "plan-empty", subject, topic, { planIndex, mode, contentSource, toolCalls });
       continue;
     }
 
@@ -393,14 +498,30 @@ Rules:
       mode,
       rawLength: raw.length,
       rawPreview,
+      contentSource,
+      toolCalls,
     });
 
     try {
       const candidate = JSON.parse(raw);
-      parsed = candidate;
+      if (typeof candidate === "string") {
+        try {
+          const inner = JSON.parse(candidate);
+          parsed = inner;
+          lessonLog("debug", "plan-double-parsed", subject, topic, {
+            planIndex,
+            mode,
+            innerPreview: lessonSnippet(candidate),
+          });
+        } catch {
+          parsed = candidate;
+        }
+      } else {
+        parsed = candidate;
+      }
       const keys =
-        candidate && typeof candidate === "object" && !Array.isArray(candidate)
-          ? Object.keys(candidate as Record<string, unknown>).slice(0, 10)
+        parsed && typeof parsed === "object" && !Array.isArray(parsed)
+          ? Object.keys(parsed as Record<string, unknown>).slice(0, 10)
           : [];
       lessonLog("debug", "plan-parse-success", subject, topic, {
         planIndex,
@@ -484,11 +605,29 @@ Rules:
   }
   if (!parsed) {
     try {
-      parsed = JSON.parse(raw);
+      const candidate = JSON.parse(raw);
+      if (typeof candidate === "string") {
+        try {
+          parsed = JSON.parse(candidate);
+        } catch {
+          parsed = candidate;
+        }
+      } else {
+        parsed = candidate;
+      }
     } catch {
       const extracted = extractBalancedObject(raw);
       if (!extracted) throw new Error("Invalid lesson format from AI");
-      parsed = JSON.parse(extracted);
+      const candidate = JSON.parse(extracted);
+      if (typeof candidate === "string") {
+        try {
+          parsed = JSON.parse(candidate);
+        } catch {
+          parsed = candidate;
+        }
+      } else {
+        parsed = candidate;
+      }
     }
   }
 
