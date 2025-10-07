@@ -70,6 +70,7 @@ function confettiBurst(x: number, y: number, opts?: { count?: number; spread?: n
   const spread = opts?.spread ?? 60; // degrees
   const power = opts?.power ?? 9; // px multiplier
   const colors = opts?.colors ?? ["#60a5fa", "#34d399", "#fbbf24", "#f472b6", "#a78bfa"];
+  const root = document.body ?? document.documentElement;
 
   for (let i = 0; i < count; i++) {
     const el = document.createElement("span");
@@ -89,12 +90,30 @@ function confettiBurst(x: number, y: number, opts?: { count?: number; spread?: n
     el.style.borderRadius = Math.random() < 0.3 ? "50%" : "2px";
     el.style.pointerEvents = "none";
     el.style.zIndex = "9999";
-    document.body.appendChild(el);
-    const anim = el.animate([
-      { transform: "translate(0, 0) rotate(0deg)", opacity: 1 },
-      { transform: `translate(${dx}px, ${dy}px) rotate(${rot})`, opacity: 0 }
-    ], { duration: 900 + Math.random() * 500, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" });
-    anim.onfinish = () => { try { el.remove(); } catch {} };
+    el.style.opacity = "1";
+    el.style.transform = "translate(0, 0) rotate(0deg)";
+    root.appendChild(el);
+    const duration = 900 + Math.random() * 500;
+    const supportsWAAPI = typeof (el as HTMLElement).animate === "function";
+    const finish = () => { try { el.remove(); } catch {} };
+    if (supportsWAAPI) {
+      const anim = el.animate(
+        [
+          { transform: "translate(0, 0) rotate(0deg)", opacity: 1 },
+          { transform: `translate(${dx}px, ${dy}px) rotate(${rot})`, opacity: 0 }
+        ],
+        { duration, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" }
+      );
+      anim.onfinish = finish;
+      anim.oncancel = finish;
+    } else {
+      el.style.transition = `transform ${duration}ms cubic-bezier(.2,.8,.2,1), opacity ${duration}ms ease-out`;
+      requestAnimationFrame(() => {
+        el.style.transform = `translate(${dx}px, ${dy}px) rotate(${rot})`;
+        el.style.opacity = "0";
+      });
+      window.setTimeout(finish, duration + 100);
+    }
   }
 }
 

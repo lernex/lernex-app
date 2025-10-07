@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import Groq from "groq-sdk";
+import OpenAI from "openai";
 import { LessonSchema } from "@/lib/schema";
 import { take } from "@/lib/rate";
 import { cookies } from "next/headers";
@@ -32,10 +32,10 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429 });
   }
 
-  const groqApiKey = process.env.GROQ_API_KEY;
-  if (!groqApiKey) {
+  const cerebrasApiKey = process.env.CEREBRAS_API_KEY;
+  if (!cerebrasApiKey) {
     return new Response(
-      JSON.stringify({ error: "Server misconfigured: missing GROQ_API_KEY" }),
+      JSON.stringify({ error: "Server misconfigured: missing CEREBRAS_API_KEY" }),
       { status: 500 }
     );
   }
@@ -166,12 +166,13 @@ export async function POST(req: NextRequest) {
     }
     // ------------------------------------------------------------
 
-    // Model/provider selection (Fireworks)
-    const model = "openai/gpt-oss-20b";
+    // Model/provider selection (Cerebras)
+    const cerebrasBaseUrl = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
+    const model = process.env.CEREBRAS_LESSON_MODEL ?? "cerebras/gpt-oss-120b";
     const temperature = 1;
     const completionMaxTokens = Math.min(
-      1100,
-      Math.max(500, Number(process.env.GROQ_LESSON_MAX_TOKENS ?? "900") || 900),
+      3200,
+      Math.max(900, Number(process.env.GROQ_LESSON_MAX_TOKENS ?? "2200") || 2200),
     );
 
     const system = `
@@ -212,13 +213,16 @@ ${text}
 Generate the lesson and questions as specified. Output only the JSON object.
 `.trim();
 
-    // Fireworks Chat Completions (streaming)
-    const client = new Groq({ apiKey: groqApiKey });
+    // Cerebras Chat Completions (streaming)
+    const client = new OpenAI({
+      apiKey: cerebrasApiKey,
+      baseURL: cerebrasBaseUrl,
+    });
     const stream = await client.chat.completions.create({
       model,
       temperature,
       max_tokens: completionMaxTokens,
-      reasoning_effort: "low",
+      reasoning_effort: "medium",
       stream: true,
       messages: [
         { role: "system", content: system },

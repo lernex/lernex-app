@@ -2,8 +2,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import Groq from "groq-sdk";
-import type { ChatCompletion } from "groq-sdk/resources/chat/completions";
+import OpenAI from "openai";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { normalizeLatex, scanLatex, hasLatexIssues } from "@/lib/latex";
@@ -25,10 +24,10 @@ export async function POST(req: Request) {
     
     const { text, subject = "Algebra 1", difficulty = "easy", mode = "mini" } = await req.json();
 
-    const groqApiKey = process.env.GROQ_API_KEY;
-    if (!groqApiKey) {
+    const cerebrasApiKey = process.env.CEREBRAS_API_KEY;
+    if (!cerebrasApiKey) {
       return new Response(
-        JSON.stringify({ error: "Missing GROQ_API_KEY" }),
+        JSON.stringify({ error: "Missing CEREBRAS_API_KEY" }),
         { status: 500 }
       );
     }
@@ -67,31 +66,35 @@ Rules:
 - JSON must be valid; escape backslashes so LaTeX survives JSON, and do not double-escape macros. After parsing, macros must start with a single backslash.
 `.trim();
 
-    const model = "openai/gpt-oss-20b";
+    const cerebrasBaseUrl = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
+    const model = process.env.CEREBRAS_QUIZ_MODEL ?? "cerebras/gpt-oss-120b";
     const quickMaxTokens = Math.min(
-      320,
-      Math.max(220, Number(process.env.GROQ_QUIZ_MAX_TOKENS_QUICK ?? "260") || 260),
+      900,
+      Math.max(320, Number(process.env.GROQ_QUIZ_MAX_TOKENS_QUICK ?? "600") || 600),
     );
     const miniMaxTokens = Math.min(
-      900,
-      Math.max(360, Number(process.env.GROQ_QUIZ_MAX_TOKENS_MINI ?? "620") || 620),
+      1800,
+      Math.max(600, Number(process.env.GROQ_QUIZ_MAX_TOKENS_MINI ?? "1200") || 1200),
     );
     const fullMaxTokens = Math.min(
-      1400,
-      Math.max(700, Number(process.env.GROQ_QUIZ_MAX_TOKENS_FULL ?? "1050") || 1050),
+      2600,
+      Math.max(900, Number(process.env.GROQ_QUIZ_MAX_TOKENS_FULL ?? "1800") || 1800),
     );
     const maxTokens = mode === "quick" ? quickMaxTokens : mode === "full" ? fullMaxTokens : miniMaxTokens;
     let raw = "";
     let usedFallback = false;
 
-    const ai = new Groq({ apiKey: groqApiKey });
-    let completion: ChatCompletion | null = null;
+    const client = new OpenAI({
+      apiKey: cerebrasApiKey,
+      baseURL: cerebrasBaseUrl,
+    });
+    let completion: Awaited<ReturnType<typeof client.chat.completions.create>> | null = null;
     try {
-      completion = await ai.chat.completions.create({
+      completion = await client.chat.completions.create({
         model,
         temperature: 0.4,
         max_tokens: maxTokens,
-        reasoning_effort: "low",
+        reasoning_effort: "medium",
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
@@ -117,11 +120,11 @@ Create fair multiple-choice questions based on the source, following the rules.`
         // Retry without JSON mode
         try {
           usedFallback = true;
-          completion = await ai.chat.completions.create({
+          completion = await client.chat.completions.create({
             model,
             temperature: 0.4,
             max_tokens: maxTokens,
-            reasoning_effort: "low",
+            reasoning_effort: "medium",
             messages: [
               { role: "system", content: system },
               {
@@ -288,7 +291,7 @@ Create fair multiple-choice questions based on the source, following the rules.`
       });
     }
 
-    // Note: Bedrock usage logging is handled in the generation route; here we log only for OpenAI path above.
+    // Note: Bedrock usage logging is handled in the generation route; here we log only for the Cerebras path above.
 
     return new Response(JSON.stringify(obj), {
       headers: { "content-type": "application/json", "Cache-Control": "no-store" },

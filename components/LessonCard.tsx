@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Lesson } from "@/types";
 import FormattedText from "./FormattedText";
 
@@ -12,9 +12,11 @@ const MATH_TRIGGER_RE = /(\$|\\\(|\\\[|\\begin|√|⟨|_\{|\\\^)/;
 
 export default function LessonCard({ lesson, className }: LessonCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [disliked, setDisliked] = useState(false);
+  const [showFade, setShowFade] = useState(false);
   const shouldTypesetLesson = useMemo(() => {
     const contentHasMath = typeof lesson.content === "string" && MATH_TRIGGER_RE.test(lesson.content);
     const titleHasMath = typeof lesson.title === "string" && MATH_TRIGGER_RE.test(lesson.title);
@@ -33,6 +35,49 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
     });
     return () => window.cancelAnimationFrame(handle);
   }, [lesson.id, lesson.content, shouldTypesetLesson]);
+
+  const computeFade = useCallback(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    const { scrollTop, scrollHeight, clientHeight } = node;
+    const overflow = scrollHeight - clientHeight;
+    if (overflow <= 4) {
+      setShowFade(false);
+      return;
+    }
+    const atBottom = scrollTop + clientHeight >= scrollHeight - 6;
+    setShowFade(!atBottom);
+  }, []);
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    node.scrollTop = 0;
+
+    let rafId = window.requestAnimationFrame(computeFade);
+    const schedule = () => {
+      window.cancelAnimationFrame(rafId);
+      rafId = window.requestAnimationFrame(computeFade);
+    };
+
+    node.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver === "function") {
+      ro = new ResizeObserver(() => schedule());
+      ro.observe(node);
+    } else {
+      schedule();
+    }
+
+    return () => {
+      node.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      if (ro) ro.disconnect();
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [lesson.id, lesson.content, computeFade]);
 
   const sendFeedback = async (action: "like" | "dislike" | "save") => {
     try {
@@ -86,10 +131,15 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
         </div>
         <h2 className="text-xl font-semibold leading-snug text-neutral-900 dark:text-white">{lesson.title}</h2>
         <div className="relative flex-1 min-h-0 pb-2 sm:pb-3">
-          <div className="lesson-scroll scrollbar-thin h-full overflow-y-auto pr-2 pb-8 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+          <div
+            ref={scrollRef}
+            className="lesson-scroll scrollbar-thin h-full overflow-y-auto pr-2 pb-8 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300"
+          >
             <FormattedText text={lesson.content} />
           </div>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white via-white/70 to-transparent dark:from-neutral-900 dark:via-neutral-900/70" />
+          {showFade && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white via-white/75 to-transparent dark:from-neutral-900 dark:via-neutral-900/70" />
+          )}
         </div>
         <div className="pt-2 flex flex-wrap items-center gap-2 text-sm">
           <button

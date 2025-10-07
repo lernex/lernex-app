@@ -2,8 +2,8 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import Groq from "groq-sdk";
-import type { ChatCompletionCreateParams } from "groq-sdk/resources/chat/completions";
+import OpenAI from "openai";
+import type { ChatCompletionCreateParams } from "openai/resources/chat/completions";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit } from "@/lib/usage";
 
@@ -32,22 +32,22 @@ export async function POST(req: Request) {
       mode?: "quick" | "mini" | "full";
     };
 
-    const groqApiKey = process.env.GROQ_API_KEY;
-    if (!groqApiKey) {
-      console.error("[gen/stream] missing GROQ_API_KEY");
-      return new Response("Missing GROQ_API_KEY", { status: 500 });
+    const cerebrasApiKey = process.env.CEREBRAS_API_KEY;
+    if (!cerebrasApiKey) {
+      console.error("[gen/stream] missing CEREBRAS_API_KEY");
+      return new Response("Missing CEREBRAS_API_KEY", { status: 500 });
     }
     if (typeof text !== "string" || text.trim().length < 20) {
       return new Response("Provide at least ~20 characters of study text.", { status: 400 });
     }
 
     const src = text.slice(0, MAX_CHARS);
-    const model = "openai/gpt-oss-20b";
+    const cerebrasBaseUrl = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
+    const model = process.env.CEREBRAS_STREAM_MODEL ?? "cerebras/gpt-oss-120b";
 
     console.log("[gen/stream] request-start", { subject, inputLen: src.length, mode, dt: 0 });
 
     const enc = new TextEncoder();
-    const ai = new Groq({ apiKey: groqApiKey });
 
     // Adjust style and length based on mode
     const systemQuick = [
@@ -87,16 +87,16 @@ export async function POST(req: Request) {
 
     // Token budgets per mode (clamped to keep responses compact)
     const quickMaxTokens = Math.min(
-      360,
-      Math.max(200, Number(process.env.GROQ_STREAM_MAX_TOKENS_QUICK ?? "240") || 240),
+      1100,
+      Math.max(400, Number(process.env.GROQ_STREAM_MAX_TOKENS_QUICK ?? "720") || 720),
     );
     const miniMaxTokens = Math.min(
-      900,
-      Math.max(360, Number(process.env.GROQ_STREAM_MAX_TOKENS_MINI ?? "600") || 600),
+      2200,
+      Math.max(800, Number(process.env.GROQ_STREAM_MAX_TOKENS_MINI ?? "1500") || 1500),
     );
     const fullMaxTokens = Math.min(
-      1400,
-      Math.max(700, Number(process.env.GROQ_STREAM_MAX_TOKENS_FULL ?? "1100") || 1100),
+      3200,
+      Math.max(1200, Number(process.env.GROQ_STREAM_MAX_TOKENS_FULL ?? "2400") || 2400),
     );
     const maxTokens = mode === "quick" ? quickMaxTokens : mode === "full" ? fullMaxTokens : miniMaxTokens;
     // Explicitly type messages so literal roles don't widen to `string`.
@@ -105,11 +105,16 @@ export async function POST(req: Request) {
       { role: "user", content: `Subject: ${subject}\nMode: ${mode}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
     ];
 
-    const streamPromise = ai.chat.completions.create({
+    const client = new OpenAI({
+      apiKey: cerebrasApiKey,
+      baseURL: cerebrasBaseUrl,
+    });
+
+    const streamPromise = client.chat.completions.create({
       model,
       temperature: 1,
       max_tokens: maxTokens,
-      reasoning_effort: "low",
+      reasoning_effort: "medium",
       stream: true,
       messages: baseMessages,
     });
@@ -171,11 +176,11 @@ export async function POST(req: Request) {
           if (!wrote && fallbackNeeded) {
             console.warn("[gen/stream] fallback-trigger", { why: fallbackReason, dt: Date.now() - startedAt });
             try {
-              const nonStream = await ai.chat.completions.create({
+              const nonStream = await client.chat.completions.create({
                 model,
                 temperature: 1,
                 max_tokens: maxTokens,
-                reasoning_effort: "low",
+                reasoning_effort: "medium",
                 messages: baseMessages,
               });
               const full = (nonStream?.choices?.[0]?.message?.content as string | undefined) ?? "";
