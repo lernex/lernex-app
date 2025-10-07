@@ -11,8 +11,9 @@ const PRICES: Record<string, { input: number; output: number }> = {
   "gpt-oss-20b": { input: 0.1 / 1_000_000, output: 0.5 / 1_000_000 },
   "groq/gpt-oss-20b": { input: 0.1 / 1_000_000, output: 0.5 / 1_000_000 },
   // Groq OSS 120B (heavier, stricter JSON)
-  "gpt-oss-120b": { input: 0.15 / 1_000_000, output: 0.75 / 1_000_000 },
-  "openai/gpt-oss-120b": { input: 0.15 / 1_000_000, output: 0.75 / 1_000_000 },
+  "gpt-oss-120b": { input: 0.35 / 1_000_000, output: 0.75 / 1_000_000 },
+  "openai/gpt-oss-120b": { input: 0.35 / 1_000_000, output: 0.75 / 1_000_000 },
+  "cerebras/gpt-oss-120b": { input: 0.35 / 1_000_000, output: 0.75 / 1_000_000 },
   "grok-4-fast-reasoning": { input: 0.2 / 1_000_000, output: 0.5 / 1_000_000 },
 };
 

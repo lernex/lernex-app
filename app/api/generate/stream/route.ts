@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import OpenAI from "openai";
 import type { ChatCompletionCreateParams } from "openai/resources/chat/completions";
 import { supabaseServer } from "@/lib/supabase-server";
-import { checkUsageLimit } from "@/lib/usage";
+import { checkUsageLimit, logUsage } from "@/lib/usage";
 
 // Raised limits per request
 const MAX_CHARS = 6000; // allow longer input passages
@@ -16,6 +16,7 @@ export async function POST(req: Request) {
     const sb = supabaseServer();
     const { data: { user } } = await sb.auth.getUser();
     const uid = user?.id ?? null;
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
 
     if (uid) {
       const ok = await checkUsageLimit(sb, uid);
@@ -87,16 +88,16 @@ export async function POST(req: Request) {
 
     // Token budgets per mode (clamped to keep responses compact)
     const quickMaxTokens = Math.min(
-      1100,
-      Math.max(400, Number(process.env.GROQ_STREAM_MAX_TOKENS_QUICK ?? "720") || 720),
+      2200,
+      Math.max(600, Number(process.env.GROQ_STREAM_MAX_TOKENS_QUICK ?? "1400") || 1400),
     );
     const miniMaxTokens = Math.min(
-      2200,
-      Math.max(800, Number(process.env.GROQ_STREAM_MAX_TOKENS_MINI ?? "1500") || 1500),
+      3600,
+      Math.max(1200, Number(process.env.GROQ_STREAM_MAX_TOKENS_MINI ?? "2400") || 2400),
     );
     const fullMaxTokens = Math.min(
-      3200,
-      Math.max(1200, Number(process.env.GROQ_STREAM_MAX_TOKENS_FULL ?? "2400") || 2400),
+      5200,
+      Math.max(2000, Number(process.env.GROQ_STREAM_MAX_TOKENS_FULL ?? "3600") || 3600),
     );
     const maxTokens = mode === "quick" ? quickMaxTokens : mode === "full" ? fullMaxTokens : miniMaxTokens;
     // Explicitly type messages so literal roles don't widen to `string`.
@@ -122,11 +123,13 @@ export async function POST(req: Request) {
     const bodyStream = new ReadableStream<Uint8Array>({
       async start(controller) {
         controller.enqueue(enc.encode("\n"));
-        let wrote = false;
+        let sawContent = false;
+        let sawActivity = false;
         let closed = false;
         let fallbackNeeded = false;
         let fallbackReason: string | null = null;
         const startedAt = Date.now();
+        let usageSummary: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
 
         const safeEnqueue = (s: string) => {
           if (!closed && s) controller.enqueue(enc.encode(s));
@@ -139,29 +142,48 @@ export async function POST(req: Request) {
         };
 
         const firstTokenTimer = setTimeout(() => {
-          if (!wrote) {
+          if (!sawActivity) {
             fallbackNeeded = true;
             fallbackReason = "first-token-timeout";
           }
-        }, 7000);
+        }, 12000);
 
         try {
           const stream = await streamPromise;
           console.log("[gen/stream] upstream-stream-ready", { dt: Date.now() - t0 });
           for await (const chunk of stream) {
-            const delta = (chunk?.choices?.[0]?.delta?.content as string | undefined) ?? "";
-            if (!delta) continue;
-            if (!wrote) {
+            const choice = chunk?.choices?.[0];
+            const delta = choice?.delta ?? {};
+            const content = typeof (delta as { content?: unknown }).content === "string"
+              ? (delta as { content: string }).content
+              : "";
+            const reasoning = typeof (delta as { reasoning?: unknown }).reasoning === "string"
+              ? (delta as { reasoning: string }).reasoning
+              : "";
+            const chunkUsage = choice?.usage as { prompt_tokens?: number; completion_tokens?: number } | undefined;
+            if (chunkUsage) {
+              usageSummary = {
+                input_tokens: chunkUsage.prompt_tokens ?? null,
+                output_tokens: chunkUsage.completion_tokens ?? null,
+              };
+            }
+            if (!sawActivity && (content || reasoning)) {
               console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
               clearTimeout(firstTokenTimer);
               fallbackNeeded = false;
               fallbackReason = null;
             }
-            wrote = true;
-            safeEnqueue(delta);
+            if (reasoning) {
+              sawActivity = true;
+            }
+            if (content) {
+              sawActivity = true;
+              sawContent = true;
+              safeEnqueue(content);
+            }
           }
 
-          if (!wrote) {
+          if (!sawContent) {
             fallbackNeeded = true;
             fallbackReason = fallbackReason ?? "no-tokens-from-stream";
           }
@@ -173,7 +195,7 @@ export async function POST(req: Request) {
           fallbackReason = "stream-error";
         } finally {
           try { clearTimeout(firstTokenTimer); } catch {}
-          if (!wrote && fallbackNeeded) {
+          if (!sawContent && fallbackNeeded) {
             console.warn("[gen/stream] fallback-trigger", { why: fallbackReason, dt: Date.now() - startedAt });
             try {
               const nonStream = await client.chat.completions.create({
@@ -185,13 +207,29 @@ export async function POST(req: Request) {
               });
               const full = (nonStream?.choices?.[0]?.message?.content as string | undefined) ?? "";
               if (full) {
-                wrote = true;
+                sawContent = true;
                 safeEnqueue(full);
               } else {
                 console.warn("[gen/stream] fallback-empty");
               }
+              const u = nonStream?.usage;
+              if (u) {
+                usageSummary = {
+                  input_tokens: typeof u.prompt_tokens === "number" ? u.prompt_tokens : null,
+                  output_tokens: typeof u.completion_tokens === "number" ? u.completion_tokens : null,
+                };
+              }
             } catch (err) {
               console.error("[gen/stream] fallback-error", err);
+            }
+          }
+          if (usageSummary && (uid || ip)) {
+            try {
+              await logUsage(sb, uid, ip, model, usageSummary, {
+                metadata: { route: "lesson-text", mode, subject },
+              });
+            } catch (logErr) {
+              console.warn("[gen/stream] usage-log-error", logErr);
             }
           }
           doClose();

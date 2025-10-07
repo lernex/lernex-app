@@ -5,7 +5,7 @@ import { take } from "@/lib/rate";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
-import { checkUsageLimit } from "@/lib/usage";
+import { checkUsageLimit, logUsage } from "@/lib/usage";
 
 
 export const dynamic = "force-dynamic";
@@ -235,12 +235,57 @@ Generate the lesson and questions as specified. Output only the JSON object.
         async start(controller) {
           const encoder = new TextEncoder();
           let full = "";
+          let wrote = false;
+          let usageSummary: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
           try {
             for await (const chunk of stream) {
-              const delta = (chunk?.choices?.[0]?.delta?.content as string | undefined) ?? "";
-              if (delta) {
-                full += delta;
-                controller.enqueue(encoder.encode(delta));
+              const choice = chunk?.choices?.[0];
+              const delta = choice?.delta ?? {};
+              const content = typeof (delta as { content?: unknown }).content === "string"
+                ? (delta as { content: string }).content
+                : "";
+              if (content) {
+                full += content;
+                controller.enqueue(encoder.encode(content));
+                wrote = true;
+              }
+              const chunkUsage = choice?.usage as { prompt_tokens?: number; completion_tokens?: number } | undefined;
+              if (chunkUsage) {
+                usageSummary = {
+                  input_tokens: typeof chunkUsage.prompt_tokens === "number" ? chunkUsage.prompt_tokens : null,
+                  output_tokens: typeof chunkUsage.completion_tokens === "number" ? chunkUsage.completion_tokens : null,
+                };
+              }
+            }
+            if (!wrote) {
+              try {
+                const fallback = await client.chat.completions.create({
+                  model,
+                  temperature,
+                  max_tokens: completionMaxTokens,
+                  reasoning_effort: "medium",
+                  messages: [
+                    { role: "system", content: system },
+                    { role: "user", content: userPrompt },
+                  ],
+                });
+                const backup = (fallback?.choices?.[0]?.message?.content as string | undefined) ?? "";
+                if (backup) {
+                  full = backup;
+                  controller.enqueue(encoder.encode(backup));
+                  wrote = true;
+                } else {
+                  console.warn("[gen/lesson] fallback-empty");
+                }
+                const u = fallback?.usage;
+                if (u) {
+                  usageSummary = {
+                    input_tokens: typeof u.prompt_tokens === "number" ? u.prompt_tokens : null,
+                    output_tokens: typeof u.completion_tokens === "number" ? u.completion_tokens : null,
+                  };
+                }
+              } catch (fallbackErr) {
+                console.error("[gen/lesson] fallback-error", fallbackErr);
               }
             }
             let parsed: unknown = null;
@@ -266,6 +311,15 @@ Generate the lesson and questions as specified. Output only the JSON object.
           } catch (err) {
             controller.error(err as Error);
           } finally {
+            if (usageSummary && (uid || ip)) {
+              try {
+                await logUsage(sb, uid, ip, model, usageSummary, {
+                  metadata: { route: "lesson-stream", subject, difficulty },
+                });
+              } catch (logErr) {
+                console.warn("[gen/lesson] usage-log-error", logErr);
+              }
+            }
             controller.close();
           }
         },
