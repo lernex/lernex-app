@@ -67,7 +67,7 @@ Rules:
 `.trim();
 
     const cerebrasBaseUrl = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
-    const model = process.env.CEREBRAS_QUIZ_MODEL ?? "cerebras/gpt-oss-120b";
+    const model = process.env.CEREBRAS_QUIZ_MODEL ?? "gpt-oss-120b";
     const quickMaxTokens = Math.min(
       900,
       Math.max(320, Number(process.env.GROQ_QUIZ_MAX_TOKENS_QUICK ?? "600") || 600),

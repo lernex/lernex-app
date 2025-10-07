@@ -43,7 +43,7 @@ export async function POST(req: Request) {
 
     const src = text.slice(0, MAX_CHARS);
     const cerebrasBaseUrl = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
-    const model = process.env.CEREBRAS_STREAM_MODEL ?? "cerebras/gpt-oss-120b";
+    const model = process.env.CEREBRAS_STREAM_MODEL ?? "gpt-oss-120b";
 
     console.log("[gen/stream] request-start", { subject, inputLen: src.length, mode, dt: 0 });
 

@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
 
     // Model/provider selection (Cerebras)
     const cerebrasBaseUrl = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
-    const model = process.env.CEREBRAS_LESSON_MODEL ?? "cerebras/gpt-oss-120b";
+    const model = process.env.CEREBRAS_LESSON_MODEL ?? "gpt-oss-120b";
     const temperature = 1;
     const completionMaxTokens = Math.min(
       3200,
