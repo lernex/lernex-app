@@ -80,6 +80,17 @@ html {
   .scrollbar-thin:hover::-webkit-scrollbar-thumb {
     @apply bg-lernex-blue/70;
   }
+  .gradient-logo {
+    background-size: 220% 220%;
+    background-position: 0% 50%;
+    transition: background-position 0.9s ease, filter 0.9s ease;
+    will-change: background-position, filter;
+  }
+  .gradient-logo:hover,
+  .gradient-logo:focus-visible {
+    animation: gradient-logo-shift 1.8s ease-in-out;
+    filter: drop-shadow(0 0 0.35rem rgba(47, 128, 237, 0.2));
+  }
 
 }
 
@@ -96,3 +107,15 @@ html {
   .animate-fade-in {
     animation: fadeIn 0.3s ease-out forwards;
   }
+
+@keyframes gradient-logo-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}

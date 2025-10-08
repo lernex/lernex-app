@@ -292,11 +292,11 @@ export default function Profile() {
           className="hidden"
           onChange={handleFileInputChange}
         />
-        <div className="grid gap-5 md:grid-cols-3 lg:grid-cols-[360px,1fr]">
+        <div className="grid gap-5 items-start lg:grid-cols-[320px,1fr] xl:grid-cols-[360px,1fr]">
         {/* Left: profile card */}
         <motion.section
           {...cardMotion}
-          className="relative overflow-hidden rounded-3xl border border-white/30 bg-white/85 p-6 shadow-xl backdrop-blur-md dark:border-white/10 dark:bg-neutral-900/80 md:col-span-1"
+          className="relative overflow-hidden rounded-3xl border border-white/30 bg-white/85 p-6 shadow-xl backdrop-blur-md dark:border-white/10 dark:bg-neutral-900/80"
         >
           <div className="absolute -left-10 -top-10 h-32 w-32 rounded-full bg-lernex-blue/10 blur-3xl dark:bg-lernex-blue/20" />
           <div className="relative flex flex-col gap-6">
@@ -330,7 +330,7 @@ export default function Profile() {
               Keep your streak alive and your avatar fresh to stay visible on the leaderboard and in
               study groups.
             </div>
-            <div className="grid grid-cols-2 gap-3 text-center">
+            <div className="grid grid-cols-1 gap-3 text-center sm:grid-cols-2">
               <div className="rounded-2xl bg-gradient-to-br from-amber-100 via-orange-50 to-white p-4 shadow-sm dark:from-orange-500/20 dark:via-orange-500/10 dark:to-transparent">
                 <div className="text-xs text-neutral-500 dark:text-neutral-300">🔥 Streak</div>
                 <div className="mt-1 text-2xl font-semibold">{streak}</div>
@@ -340,7 +340,7 @@ export default function Profile() {
                 <div className="mt-1 text-2xl font-semibold">{points}</div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 text-sm font-semibold">
+            <div className="grid grid-cols-1 gap-3 text-sm font-semibold sm:grid-cols-2">
               <Link
                 href="/settings"
                 className="rounded-xl bg-lernex-blue px-4 py-2 text-center text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/50"
@@ -360,7 +360,7 @@ export default function Profile() {
         {/* Right: subjects + actions */}
         <motion.section
           {...cardMotion}
-          className="relative overflow-hidden rounded-3xl border border-white/30 bg-white/85 p-6 shadow-xl backdrop-blur-md dark:border-white/10 dark:bg-neutral-900/85 md:col-span-2"
+          className="relative overflow-hidden rounded-3xl border border-white/30 bg-white/85 p-6 shadow-xl backdrop-blur-md dark:border-white/10 dark:bg-neutral-900/85"
         >
           <div className="absolute inset-0 opacity-70 [background:radial-gradient(circle_at_top,_rgba(59,130,246,0.08),_transparent_55%)] dark:opacity-60" />
           <div className="relative">

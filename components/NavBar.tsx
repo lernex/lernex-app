@@ -218,7 +218,7 @@ export default function NavBar() {
               <Link
                 href={user ? "/app" : "/"}
                 aria-label="Lernex home"
-                className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent transition-opacity hover:opacity-80"
+                className="gradient-logo bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent"
               >
                 Lernex
               </Link>
@@ -419,7 +419,7 @@ export default function NavBar() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 text-sm">
         <Link
           href={user ? "/app" : "/"}
-          className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent transition-colors hover:opacity-80"
+          className="gradient-logo bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent"
         >
           Lernex
         </Link>
@@ -553,5 +553,3 @@ export default function NavBar() {
     </nav>
   );
 }
-
-
