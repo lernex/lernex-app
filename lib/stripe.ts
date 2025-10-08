@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 
-const apiVersion: Stripe.LatestApiVersion = '2024-06-20';
+const apiVersion: Stripe.LatestApiVersion = '2025-09-30.clover';
 
 let stripeClient: Stripe | null = null;
 
@@ -18,4 +18,3 @@ export function getStripeClient(): Stripe {
   stripeClient = new Stripe(secretKey, { apiVersion });
   return stripeClient;
 }
-

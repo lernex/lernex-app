@@ -2,7 +2,6 @@
 
 import { useCallback, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loadStripe } from '@stripe/stripe-js';
 import { motion } from 'framer-motion';
 import { ArrowRight, CheckCircle2, Loader2, Sparkles, ShieldCheck } from 'lucide-react';
 
@@ -147,35 +146,17 @@ export default function Pricing() {
 
         const payload = (await response
           .json()
-          .catch(() => null)) as { sessionId?: string; error?: string } | null;
+          .catch(() => null)) as { checkoutUrl?: string | null; sessionId?: string; error?: string } | null;
 
         if (!response.ok) {
           throw new Error(payload?.error ?? 'Unable to start checkout. Please try again.');
         }
 
-        if (!payload?.sessionId) {
+        if (!payload?.checkoutUrl) {
           throw new Error('Checkout session could not be created. Please try again.');
         }
 
-        const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-
-        if (!publishableKey) {
-          throw new Error(
-            'Payment setup incomplete. Add NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY to your environment.'
-          );
-        }
-
-        const stripe = await loadStripe(publishableKey);
-
-        if (!stripe) {
-          throw new Error('Stripe failed to initialize. Please refresh and try again.');
-        }
-
-        const { error } = await stripe.redirectToCheckout({ sessionId: payload.sessionId });
-
-        if (error) {
-          throw new Error(error.message);
-        }
+        window.location.href = payload.checkoutUrl;
       } catch (error) {
         const message =
           error instanceof Error

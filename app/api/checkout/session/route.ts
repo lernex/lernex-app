@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       cancel_url: cancelUrl
     });
 
-    return NextResponse.json({ sessionId: session.id });
+    return NextResponse.json({ sessionId: session.id, checkoutUrl: session.url ?? null });
   } catch (error) {
     console.error('Failed to create Stripe checkout session', error);
     return NextResponse.json(
