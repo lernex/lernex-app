@@ -1,9 +1,13 @@
 'use client';
 
+import { useCallback, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { loadStripe } from '@stripe/stripe-js';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle2, Sparkles, ShieldCheck } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Loader2, Sparkles, ShieldCheck } from 'lucide-react';
 
 type Tier = {
+  id: 'free' | 'premium' | 'pro';
   name: string;
   tagline: string;
   price: string;
@@ -20,8 +24,9 @@ type Tier = {
 
 const tiers: Tier[] = [
   {
+    id: 'free',
     name: 'Free Explorer',
-    tagline: 'Test-drive Lernex and build momentum without a commitment.',
+    tagline: 'Kickstart your routine and test-drive Lernex without commitment.',
     price: '$0',
     priceSuffix: 'forever',
     originalPrice: null,
@@ -40,8 +45,9 @@ const tiers: Tier[] = [
     ]
   },
   {
+    id: 'premium',
     name: 'Premium Momentum',
-    tagline: 'Unlock accelerated learning with smarter guidance and personal coaching.',
+    tagline: 'Unlock accelerated learning with tailored guidance and focused coaching.',
     price: '$5.99',
     priceSuffix: '/month',
     originalPrice: '$12.99',
@@ -54,13 +60,14 @@ const tiers: Tier[] = [
     cta: 'Accelerate with Premium',
     sellingPoint: 'Fast-track results with adaptive plans, deeper insights, and priority support.',
     features: [
-      '3Ã— higher daily AI generation limits with instant retries',
-      'Adaptive study paths tuned to your weaknesses',
-      'Exam playlists, mock interviews, and printable study guides',
-      'Lightning priority during peak hours + concierge support'
+      '3x higher daily AI creation limits with instant retries',
+      'Adaptive study paths tuned to the topics you skip',
+      'Exam playlists, interview drills, and printable study guides',
+      'Priority concierge support whenever you need a boost'
     ]
   },
   {
+    id: 'pro',
     name: 'Pro Creator',
     tagline: 'For teams, tutors, and ambitious learners who need limitless creation.',
     price: '$14.99',
@@ -75,18 +82,18 @@ const tiers: Tier[] = [
     cta: 'Go Pro and scale',
     sellingPoint: 'Create unlimited experiences with enterprise-level insights and control.',
     features: [
-      'Unlimited AI generation with collaborative workspaces',
-      'Access to every beta feature the moment it drops',
-      'Deep personalization, spaced repetition, and auto-coaching',
-      'Advanced analytics, exportable reports, and API hooks'
+      'Unlimited AI generation across collaborative workspaces',
+      'Immediate access to every beta feature the moment it ships',
+      'Deep personalization, spaced repetition, and automated coaching',
+      'Advanced analytics, exportable reports, and API integrations'
     ]
   }
 ];
 
 const guaranteePoints = [
-  'Cancel instantly from your dashboard â€” no emails needed',
-  '14-day money-back promise if Lernex is not a match',
-  'Secure payments powered by Stripe with global currency support'
+  'Cancel or downgrade in two clicks - no emails or phone calls',
+  '14-day results guarantee: love it or get a full refund',
+  'Secure Stripe payments with support for cards and digital wallets'
 ];
 
 const cardVariants = {
@@ -102,6 +109,86 @@ const cardVariants = {
 };
 
 export default function Pricing() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [loadingTier, setLoadingTier] = useState<Tier['id'] | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const checkoutStatus = searchParams.get('status');
+  const statusNotice =
+    checkoutStatus === 'success'
+      ? {
+          tone: 'success' as const,
+          text: 'Payment confirmed! Check your inbox for a receipt and onboarding tips within the next few minutes.'
+        }
+      : checkoutStatus === 'cancelled'
+        ? {
+            tone: 'info' as const,
+            text: 'Checkout cancelled. Feel free to keep exploring and restart whenever you are ready.'
+          }
+        : null;
+
+  const handleSelect = useCallback(
+    async (tier: Tier) => {
+      if (tier.id === 'free') {
+        router.push('/login');
+        return;
+      }
+
+      try {
+        setErrorMessage(null);
+        setLoadingTier(tier.id);
+
+        const response = await fetch('/api/checkout/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: tier.id })
+        });
+
+        const payload = (await response
+          .json()
+          .catch(() => null)) as { sessionId?: string; error?: string } | null;
+
+        if (!response.ok) {
+          throw new Error(payload?.error ?? 'Unable to start checkout. Please try again.');
+        }
+
+        if (!payload?.sessionId) {
+          throw new Error('Checkout session could not be created. Please try again.');
+        }
+
+        const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+
+        if (!publishableKey) {
+          throw new Error(
+            'Payment setup incomplete. Add NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY to your environment.'
+          );
+        }
+
+        const stripe = await loadStripe(publishableKey);
+
+        if (!stripe) {
+          throw new Error('Stripe failed to initialize. Please refresh and try again.');
+        }
+
+        const { error } = await stripe.redirectToCheckout({ sessionId: payload.sessionId });
+
+        if (error) {
+          throw new Error(error.message);
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'We could not start checkout. Please try again.';
+        setErrorMessage(message);
+      } finally {
+        setLoadingTier(null);
+      }
+    },
+    [router]
+  );
+
   return (
     <main className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-neutral-50 text-neutral-900 dark:bg-neutral-900 dark:text-white">
       <div className="pointer-events-none absolute inset-0 -z-10">
@@ -136,6 +223,27 @@ export default function Pricing() {
           </div>
         </motion.div>
 
+        {(statusNotice || errorMessage) && (
+          <div className="mx-auto mt-8 flex w-full max-w-xl flex-col gap-3">
+            {statusNotice && (
+              <div
+                className={`rounded-2xl border p-4 text-sm shadow-sm ${
+                  statusNotice.tone === 'success'
+                    ? 'border-emerald-200 bg-emerald-50/80 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200'
+                    : 'border-sky-200 bg-sky-50/80 text-sky-700 dark:border-sky-400/30 dark:bg-sky-500/10 dark:text-sky-200'
+                }`}
+              >
+                {statusNotice.text}
+              </div>
+            )}
+            {errorMessage && (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-sm text-rose-700 shadow-sm dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+                {errorMessage}
+              </div>
+            )}
+          </div>
+        )}
+
         <motion.div
           initial="hidden"
           whileInView="visible"
@@ -144,7 +252,7 @@ export default function Pricing() {
         >
           {tiers.map((tier, index) => (
             <motion.div
-              key={tier.name}
+              key={tier.id}
               custom={index}
               variants={cardVariants}
               whileHover={{ y: -10, rotateX: 0.2, rotateY: -0.2 }}
@@ -186,12 +294,24 @@ export default function Pricing() {
                 </div>
 
                 <motion.button
+                  type="button"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className={`group mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold tracking-wide transition ${tier.buttonClasses}`}
+                  onClick={() => handleSelect(tier)}
+                  disabled={loadingTier === tier.id}
+                  className={`group mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold tracking-wide transition disabled:cursor-not-allowed disabled:opacity-60 ${tier.buttonClasses}`}
                 >
-                  {tier.cta}
-                  <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+                  {loadingTier === tier.id ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Redirecting...</span>
+                    </>
+                  ) : (
+                    <>
+                      {tier.cta}
+                      <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+                    </>
+                  )}
                 </motion.button>
 
                 <div className="mt-6 space-y-3">
@@ -217,7 +337,7 @@ export default function Pricing() {
           <div>
             <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">Still thinking it over?</h2>
             <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">
-              Lernex Premium and Pro users report reaching their exam or skill goals 2.7Ã— faster. Join a worldwide community of focused learners and upgrade only when you are ready â€” the guarantee has your back.
+              Learners who upgrade reach their exam or skill goals 2.7x faster. Join a worldwide community of focused learners and upgrade only when you are ready - the guarantee has your back.
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-neutral-600 dark:text-neutral-300">
               {guaranteePoints.map(point => (
@@ -241,7 +361,7 @@ export default function Pricing() {
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 text-lernex-blue" />
-                <span>Priority access to new features before anyone else â€” including upcoming mobile apps.</span>
+                <span>Priority access to new features before anyone else, including upcoming mobile apps.</span>
               </li>
             </ul>
           </div>

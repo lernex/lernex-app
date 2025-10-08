@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
+import { buildLessonPrompts } from "@/lib/lesson-prompts";
 
 
 export const dynamic = "force-dynamic";
@@ -175,43 +176,12 @@ export async function POST(req: NextRequest) {
       Math.max(900, Number(process.env.GROQ_LESSON_MAX_TOKENS ?? "2200") || 2200),
     );
 
-    const system = `
-You create exactly one micro-lesson of 30–80 words and between one and three MCQs with explanations.
-Audience: ${subject} student. Adapt to the indicated difficulty.
-
-Return only JSON matching exactly:
-{
-  "id": string,                   // short slug
-  "subject": string,              // e.g., "Algebra 1"
-  "topic": string,                // atomic concept (e.g., "Slope of a line")
-  "title": string,                // 2–6 words
-  "content": string,              // 30–80 words, friendly, factual
-  "difficulty": "intro"|"easy"|"medium"|"hard",
-  "questions": [
-    { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }
-  ]
-}
-Rules:
-- factual and concise; align with the provided passage.
-- No extra commentary or code fences.
-- If passage is too advanced for the difficulty, simplify the content.
-- Prefer 2–3 choices for intro/easy; 3–4 for medium/hard.
- - Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.
- - Do NOT use single-dollar $...$ math; prefer \\( ... \\) for inline and \\[ ... \\] only if necessary.
- - Always balance {} and math delimiters (\\( pairs with \\), \\[ with \\], $$ with $$).
- - Wrap single-letter macro arguments in braces (e.g., \\vec{v}, \\mathbf{v}, \\hat{v}).
- - Escape backslashes so LaTeX macros appear with a single backslash after JSON parsing; do not double-escape macros. Prefer \\\\ only for matrix row breaks in pmatrix.
-`.trim();
-
-    const userPrompt = `
-Subject: ${subject}
-Target Difficulty: ${difficulty}
-${nextTopicHint ? `Next Topic Hint: ${nextTopicHint}\n` : ""}Source Text:
-"""
-${text}
-"""
-Generate the lesson and questions as specified. Output only the JSON object.
-`.trim();
+    const { system, user: userPrompt } = buildLessonPrompts({
+      subject,
+      difficulty,
+      sourceText: text,
+      nextTopicHint: nextTopicHint || undefined,
+    });
 
     // Cerebras Chat Completions (streaming)
     const client = new OpenAI({
@@ -334,3 +304,4 @@ Generate the lesson and questions as specified. Output only the JSON object.
     return new Response(JSON.stringify({ error: msg }), { status: 500 });
   }
 }
+

@@ -1,11 +1,12 @@
-﻿import OpenAI from "openai";
+import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Difficulty } from "@/types/placement";
 import { LessonSchema, MIN_LESSON_WORDS, MAX_LESSON_WORDS } from "./schema";
 import type { Lesson } from "./schema";
 import { checkUsageLimit, logUsage } from "./usage";
+import { buildLessonPrompts } from "./lesson-prompts";
 
 type Pace = "slow" | "normal" | "fast";
-type Difficulty = "intro" | "easy" | "medium" | "hard";
 
 type UsageSummary = { input_tokens: number | null; output_tokens: number | null } | null;
 
@@ -19,16 +20,20 @@ type LessonOptions = {
   structuredContext?: Record<string, unknown>;
 };
 
-const MAX_TOKENS = 1900;
-const DEFAULT_MODEL = process.env.DEEPINFRA_MODEL || process.env.GROQ_MODEL || "openai/gpt-oss-20b";
-const DEFAULT_TEMPERATURE = Number(process.env.DEEPINFRA_TEMPERATURE ?? process.env.GROQ_TEMPERATURE ?? "0.4");
+const MAX_GUARDRAIL_ITEMS = 6;
+const MAX_CONTEXT_CHARS = 600;
+const MAX_MAP_SUMMARY_CHARS = 600;
+
+const DEFAULT_MODEL = process.env.CEREBRAS_LESSON_MODEL ?? "gpt-oss-120b";
+const DEFAULT_TEMPERATURE = Number(process.env.CEREBRAS_LESSON_TEMPERATURE ?? "1");
+const DEFAULT_BASE_URL = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
 
 let cachedClient: { apiKey: string; baseUrl: string; client: OpenAI } | null = null;
 
 function getClient() {
-  const apiKey = process.env.DEEPINFRA_API_KEY || process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("Missing DEEPINFRA_API_KEY");
-  const baseUrl = process.env.DEEPINFRA_BASE_URL || "https://api.deepinfra.com/v1/openai";
+  const apiKey = process.env.CEREBRAS_API_KEY;
+  if (!apiKey) throw new Error("Missing CEREBRAS_API_KEY");
+  const baseUrl = process.env.CEREBRAS_BASE_URL ?? DEFAULT_BASE_URL;
 
   if (!cachedClient || cachedClient.apiKey !== apiKey || cachedClient.baseUrl !== baseUrl) {
     cachedClient = {
@@ -249,64 +254,85 @@ function buildFallbackLesson(subject: string, topic: string, pace: Pace, accurac
   });
 }
 
-function buildUserPrompt(subject: string, topic: string, pace: Pace, accuracy: number | null, difficulty: Difficulty, opts: LessonOptions = {}) {
-  const learnerProfile: string[] = [
-    `- Pace: ${pace}`,
-    accuracy != null ? `- Recent accuracy: ${accuracy}% (mention this in the first sentence).` : `- Recent accuracy: not enough data; still acknowledge effort in the opening line.`,
+function dedupeStrings(values: string[], limit: number) {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (let i = values.length - 1; i >= 0; i -= 1) {
+    const raw = typeof values[i] === "string" ? (values[i] as string).trim() : "";
+    if (!raw || seen.has(raw)) continue;
+    seen.add(raw);
+    result.push(raw);
+    if (result.length >= limit) break;
+  }
+  return result.reverse();
+}
+
+function truncateText(input: string, maxChars: number) {
+  const trimmed = input.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  return `${trimmed.slice(0, Math.max(0, maxChars - 3)).trimEnd()}...`;
+}
+
+function stringifyStructuredContext(context: Record<string, unknown>) {
+  try {
+    const json = JSON.stringify(context, null, 2);
+    if (!json) return "";
+    return truncateText(json, MAX_CONTEXT_CHARS);
+  } catch {
+    return "";
+  }
+}
+
+function buildSourceText(
+  subject: string,
+  topic: string,
+  pace: Pace,
+  accuracy: number | null,
+  difficulty: Difficulty,
+  opts: LessonOptions = {}
+) {
+  const sections: string[] = [];
+  const subjectLine = subject.trim() || "General studies";
+  const topicLine = topic.trim() || "Current concept";
+  sections.push(`Subject: ${subjectLine}\nTopic Focus: ${topicLine}`);
+
+  const learnerSignals: string[] = [
+    `- Pace preference: ${pace}`,
+    accuracy != null
+      ? `- Recent accuracy: ${accuracy}% (mention this in your first sentence).`
+      : `- Recent accuracy unavailable; reinforce confidence in the first sentence.`,
     `- Target difficulty: ${difficulty}`,
   ];
+  if (opts.difficultyPref && opts.difficultyPref !== difficulty) {
+    learnerSignals.push(`- Learner requested difficulty: ${opts.difficultyPref}`);
+  }
+  sections.push(`Learner Signals:\n${learnerSignals.join("\n")}`);
 
-  if (opts.difficultyPref) {
-    learnerProfile.push(`- Preferred difficulty: ${opts.difficultyPref}`);
+  if (opts.mapSummary) {
+    const summary = truncateText(opts.mapSummary, MAX_MAP_SUMMARY_CHARS);
+    if (summary) sections.push(`Learning Path Summary:\n${summary}`);
+  }
+
+  if (opts.structuredContext) {
+    const structured = stringifyStructuredContext(opts.structuredContext);
+    if (structured) sections.push(`Structured Context (JSON excerpt):\n${structured}`);
   }
 
   const guardrails: string[] = [];
-  if (opts.avoidIds?.length) guardrails.push(`Avoid lesson ids: ${opts.avoidIds.slice(-10).join(", ")}`);
-  if (opts.avoidTitles?.length) guardrails.push(`Avoid lesson titles: ${opts.avoidTitles.slice(-10).join(", ")}`);
-
-  const contextBlocks: string[] = [];
-  if (opts.mapSummary) contextBlocks.push(`Learning map summary: ${opts.mapSummary}`);
-  if (opts.structuredContext) {
-    contextBlocks.push(`Additional structured context (JSON):\n${JSON.stringify(opts.structuredContext, null, 2)}`);
+  if (opts.avoidTitles?.length) {
+    const titles = dedupeStrings(opts.avoidTitles, MAX_GUARDRAIL_ITEMS);
+    if (titles.length) guardrails.push(`Avoid reusing lesson titles: ${titles.join("; ")}`);
+  }
+  if (opts.avoidIds?.length) {
+    const ids = dedupeStrings(opts.avoidIds, MAX_GUARDRAIL_ITEMS);
+    if (ids.length) guardrails.push(`Avoid lesson ids: ${ids.join(", ")}`);
   }
 
-  const sections: string[] = [];
-  sections.push(`Subject: ${subject}`);
-  sections.push(`Topic: ${topic}`);
-  sections.push(`Learner Profile:\n${learnerProfile.join("\n")}`);
-  if (contextBlocks.length) sections.push(contextBlocks.join("\n\n"));
-  if (guardrails.length) sections.push(`Guardrails:\n- ${guardrails.join("\n- ")}`);
+  if (guardrails.length) {
+    sections.push(`Guardrails:\n- ${guardrails.join("\n- ")}`);
+  }
 
-  sections.push(
-    [
-      "Lesson Requirements:",
-      `1. Write ${MIN_LESSON_WORDS}-${MAX_LESSON_WORDS} words in a warm, coach-like voice.`,
-      "2. Reference the learner's pace and accuracy in the opening sentence and personalize examples using the provided context.",
-      "3. Explain the concept clearly with checkpoints, a vivid example, a misconception call-out, and a concrete next action.",
-      "4. Use inline LaTeX with \\( ... \\) for math when needed; avoid HTML, Markdown fences, or bullet syntax.",
-    ].join("\n"),
-  );
-
-  sections.push(
-    [
-      "Question Requirements:",
-      "1. Produce exactly three multiple-choice questions that can be answered solely from the lesson content you just wrote.",
-      "2. Provide four concise answer choices (A-D style) and identify the correctIndex.",
-      "3. Write 25-45 word explanations that reinforce the reasoning, mention a misconception, and echo the coaching tone.",
-    ].join("\n"),
-  );
-
-  sections.push(
-    [
-      "Output Format:",
-      "- Return a single JSON object with the fields id, subject, topic, title, content, difficulty, questions.",
-      "- Set id to a short lowercase kebab-case slug based on the topic plus a 4-6 character random suffix (e.g., vector-operations-4f8a).",
-      "- Reuse the exact subject and topic strings provided above.",
-      "- Do not include any text before or after the JSON object.",
-    ].join("\n"),
-  );
-
-  return sections.join("\n\n");
+  return sections.join("\n\n").trim();
 }
 
 export async function generateLessonForTopic(
@@ -320,6 +346,10 @@ export async function generateLessonForTopic(
   const client = getClient();
   const model = DEFAULT_MODEL;
   const temperature = clampTemperature(DEFAULT_TEMPERATURE);
+  const completionMaxTokens = Math.min(
+    3200,
+    Math.max(900, Number(process.env.GROQ_LESSON_MAX_TOKENS ?? "2200") || 2200),
+  );
 
   if (uid) {
     const allowed = await checkUsageLimit(sb, uid);
@@ -327,26 +357,28 @@ export async function generateLessonForTopic(
   }
 
   const pace: Pace = opts.pace ?? "normal";
-  const accuracy = typeof opts.accuracyPct === "number" ? Math.max(0, Math.min(100, Math.round(opts.accuracyPct))) : null;
-  const difficulty: Difficulty = opts.difficultyPref ?? (accuracy != null ? (accuracy < 50 ? "intro" : accuracy < 70 ? "easy" : accuracy < 85 ? "medium" : "hard") : "easy");
+  const accuracy = typeof opts.accuracyPct === "number"
+    ? Math.max(0, Math.min(100, Math.round(opts.accuracyPct)))
+    : null;
+  const difficulty: Difficulty =
+    opts.difficultyPref
+      ?? (accuracy != null
+        ? (accuracy < 50 ? "intro" : accuracy < 70 ? "easy" : accuracy < 85 ? "medium" : "hard")
+        : "easy");
 
-  const systemPrompt = `
-You are Lernex's AI mentor. Produce one personalized micro-lesson and three follow-up questions as JSON.
-Rules:
-1. Write in an encouraging coaching tone for motivated students.
-2. Keep the lesson body between ${MIN_LESSON_WORDS} and ${MAX_LESSON_WORDS} words and avoid bullet lists or headings.
-3. Reference the learner's pace and accuracy in the opening sentence, then deliver checkpoints, an example, a misconception warning, and a concrete next action.
-4. Use inline LaTeX with \\( ... \\) whenever mathematical notation is required; never use HTML or Markdown fences.
-5. Provide exactly three multiple-choice questions with four choices and 25-45 word explanations that rely solely on the lesson content.
-6. Respond with valid JSON only--no commentary before or after the object.
-`.trim();
-  const userPrompt = buildUserPrompt(subject, topic, pace, accuracy, difficulty, opts);
+  const sourceText = buildSourceText(subject, topic, pace, accuracy, difficulty, opts);
+  const { system: systemPrompt, user: userPrompt } = buildLessonPrompts({
+    subject,
+    difficulty,
+    sourceText,
+  });
 
   const requestPayload = {
     model,
     temperature,
-    max_tokens: MAX_TOKENS,
-    reasoning: { effort: "medium" as const },
+    max_tokens: completionMaxTokens,
+    reasoning_effort: "medium" as const,
+    response_format: { type: "json_object" as const },
     messages: [
       { role: "system" as const, content: systemPrompt },
       { role: "user" as const, content: userPrompt },
@@ -355,6 +387,32 @@ Rules:
 
   let usageSummary: UsageSummary = null;
   let lastError: unknown = null;
+
+  const logLessonUsage = async (
+    attempt: "single" | "fallback",
+    summary: UsageSummary,
+    errorDetails?: unknown,
+  ) => {
+    if (!uid) return;
+    const usagePayload = summary ?? { input_tokens: null, output_tokens: null };
+    const metadata: Record<string, unknown> = {
+      generatorAttempt: attempt,
+      subject,
+      topic,
+      pace,
+      difficulty,
+      accuracyPct: accuracy,
+    };
+    if (summary == null) metadata.missingUsage = true;
+    if (errorDetails) {
+      metadata.error = errorDetails instanceof Error ? errorDetails.message : String(errorDetails);
+    }
+    try {
+      await logUsage(sb, uid, ip, model, usagePayload, { metadata });
+    } catch (usageErr) {
+      console.warn("[fyp] usage log failed", usageErr);
+    }
+  };
 
   try {
     const completion = await client.chat.completions.create(requestPayload);
@@ -368,58 +426,41 @@ Rules:
     }
 
     const choice = completion.choices?.[0];
-    const raw = extractAssistantJson(choice);
+    const messageContent = choice?.message?.content;
+    const raw = typeof messageContent === "string" && messageContent.trim().length > 0
+      ? messageContent.trim()
+      : extractAssistantJson(choice);
     const lesson = resolveLessonCandidate(raw);
 
     if (lesson) {
-      const usagePayload = usageSummary ?? { input_tokens: null, output_tokens: null };
-      if (uid) {
-        const metadata: Record<string, unknown> = {
-          generatorAttempt: "single",
-          subject,
-          topic,
-          pace,
-          difficulty,
-          accuracyPct: accuracy,
-        };
-        if (usageSummary == null) metadata.missingUsage = true;
-        try {
-          await logUsage(sb, uid, ip, model, usagePayload, { metadata });
-        } catch (usageErr) {
-          console.warn("[fyp] usage log failed", usageErr);
-        }
-      }
+      await logLessonUsage("single", usageSummary);
       return lesson;
     }
 
     lastError = new Error("Invalid lesson format from AI");
   } catch (error) {
-    lastError = error;
-  }
-
-  console.warn("[fyp] returning fallback lesson", { subject, topic, error: lastError instanceof Error ? lastError.message : lastError });
-
-  const fallbackUsage = usageSummary ?? { input_tokens: null, output_tokens: null };
-  if (uid) {
-    const metadata: Record<string, unknown> = {
-      generatorAttempt: "fallback",
-      subject,
-      topic,
-      pace,
-      difficulty,
-      accuracyPct: accuracy,
-    };
-    if (usageSummary == null) metadata.missingUsage = true;
-    if (lastError != null) {
-      metadata.error = lastError instanceof Error ? lastError.message : String(lastError);
-    }
-    try {
-      await logUsage(sb, uid, ip, model, fallbackUsage, { metadata });
-    } catch (usageErr) {
-      console.warn("[fyp] usage log failed", usageErr);
+    const fallbackGenerated = (error as { error?: { failed_generation?: string } })?.error?.failed_generation;
+    if (typeof fallbackGenerated === "string" && fallbackGenerated.trim().length > 0) {
+      const lesson = resolveLessonCandidate(fallbackGenerated);
+      if (lesson) {
+        await logLessonUsage("single", usageSummary);
+        return lesson;
+      }
+      lastError = new Error("Invalid lesson format from AI");
+    } else {
+      lastError = error;
     }
   }
+
+  console.warn("[fyp] returning fallback lesson", {
+    subject,
+    topic,
+    error: lastError instanceof Error ? lastError.message : lastError,
+  });
+
+  await logLessonUsage("fallback", usageSummary, lastError);
 
   return buildFallbackLesson(subject, topic, pace, accuracy, difficulty);
 }
+
 
