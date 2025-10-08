@@ -11,7 +11,7 @@ export default function FypPage() {
   return (
     <ProfileBasicsProvider>
       <WelcomeTourOverlay />
-      <main className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-gradient-to-br from-[#06060d] via-[#0b1223] to-[#05070f]">
+      <main className="relative min-h-[calc(100vh-56px)] overflow-x-hidden overflow-y-auto bg-gradient-to-br from-[#06060d] via-[#0b1223] to-[#05070f] pb-6">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -top-32 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-lernex-purple/35 blur-[160px]" />
           <div className="absolute -bottom-24 right-[-120px] h-[420px] w-[420px] rounded-full bg-lernex-blue/30 blur-[170px]" />

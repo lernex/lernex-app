@@ -3,6 +3,7 @@ import type { PlacementState } from "@/types/placement";
 import { supabaseServer } from "@/lib/supabase-server";
 import type { Database } from "@/lib/types_db";
 import { generateLearningPath, type LevelMap } from "@/lib/learning-path";
+import { computeStreakAfterActivity } from "@/lib/profile-stats";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -91,8 +92,9 @@ export async function POST(req: Request) {
     console.error("[placement-finish] attempts insert failed", attemptError);
     return NextResponse.json({ error: attemptError.message }, { status: 500 });
   }
-  const today = new Date().toISOString().slice(0, 10);
-  const nowIso = new Date().toISOString();
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const nowIso = now.toISOString();
   const { data: prof } = await sb
     .from("profiles")
     .select("points, streak, last_study_date")
@@ -101,28 +103,7 @@ export async function POST(req: Request) {
   const currentPoints = (prof?.points as number | null) ?? 0;
   const last = (prof?.last_study_date as string | null) ?? null;
   const previousStreak = (prof?.streak as number | null) ?? 0;
-  let newStreak = previousStreak > 0 ? previousStreak : 0;
-  if (!last) {
-    newStreak = Math.max(1, newStreak || 1);
-  } else {
-    const lastDate = new Date(last);
-    if (!Number.isFinite(lastDate.getTime())) {
-      newStreak = Math.max(1, newStreak || 1);
-    } else {
-      const todayDate = new Date();
-      const diff = Math.floor((
-        Date.UTC(todayDate.getUTCFullYear(), todayDate.getUTCMonth(), todayDate.getUTCDate()) -
-        Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), lastDate.getUTCDate())
-      ) / 86400000);
-      if (diff === 0) {
-        newStreak = Math.max(newStreak, 1);
-      } else if (diff === 1) {
-        newStreak = Math.max(newStreak + 1, 1);
-      } else if (diff > 1) {
-        newStreak = 1;
-      }
-    }
-  }
+  const newStreak = computeStreakAfterActivity(previousStreak, last, now);
   const addPts = Math.max(0, Number(correctTotal) || 0) * 10;
   const { data: updatedProfile, error: updateError } = await sb
     .from("profiles")

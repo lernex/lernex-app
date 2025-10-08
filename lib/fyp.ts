@@ -192,54 +192,52 @@ function clampFallbackContent(text: string) {
   return normalized;
 }
 
-function buildFallbackLesson(subject: string, topic: string, pace: Pace, accuracy: number | null, difficulty: Difficulty): Lesson {
+function buildFallbackLesson(subject: string, topic: string, _pace: Pace, _accuracy: number | null, difficulty: Difficulty): Lesson {
   const topicLabel = topic.split("> ").pop()?.trim() || topic.trim();
   const subjectLabel = subject.trim() || "your course";
-  const accuracyText = typeof accuracy === "number" ? ` and your recent accuracy sits near ${accuracy}%` : " and you're building steady confidence";
 
   const contentBase = [
-    `You're moving at a ${pace} pace${accuracyText}, so celebrate a quick win before revisiting ${topicLabel} in ${subjectLabel}.`,
-    `State the idea in one warm sentence, then highlight the rule or pattern it unlocks for future problems.`,
-    `Sketch or narrate a small example that shows the idea in action and underline the step that usually trips learners.`,
-    `Name one likely misconception and the cue you will use to spot it during the next practice block.`,
-    `Close with a concrete next action: teach the summary aloud, solve a related mini problem, or connect the idea to the upcoming playlist checkpoint.`,
+    `${topicLabel} is a cornerstone idea in ${subjectLabel}. Open with a clear statement of what the concept represents and why it matters.`,
+    `Walk through a bite-sized example so each step of the rule is visible, pausing to highlight the move that makes the result work.`,
+    `Call out a common snag learners face and what signal tells you to slow down and fix it before the error spreads.`,
+    `Close with a next action - solve a related mini-problem, sketch the relationship, or teach the idea aloud to reinforce the pattern.`,
   ].join(" ");
 
   const content = clampFallbackContent(contentBase);
 
   const questions: Lesson["questions"] = [
     {
-      prompt: `Which statement best captures the purpose of ${topicLabel}?`,
+      prompt: `When reviewing ${topicLabel}, what helps the lesson land first?`,
       choices: [
-        `It explains why ${topicLabel} matters inside ${subjectLabel}.`,
-        "It removes meaning and focuses only on memorized numbers.",
-        "It applies solely after the topic has disappeared from the course.",
-        "It replaces examples with unrelated trivia to stay interesting.",
+        "Start with the key idea and why it matters.",
+        "Skip straight to a test without a refresher.",
+        "Memorize every topic in the unit at once.",
+        "Ignore earlier skills and only read new notes.",
       ],
       correctIndex: 0,
-      explanation: `${topicLabel} anchors a core move in ${subjectLabel}, so start by highlighting its meaning and relevance before pushing into procedures.`,
+      explanation: `Leading with the concept and its purpose grounds everything that follows and keeps practice focused.`,
     },
     {
-      prompt: `When you revisit ${topicLabel}, what should you do first to deepen understanding?`,
+      prompt: `Why include a small example for ${topicLabel}?`,
       choices: [
-        "Ignore context and jump straight to a graded assessment.",
-        "Restate the concept and walk through a concrete example.",
-        "Compare the topic to something totally unrelated for variety.",
-        "Never use notes or sketches when reviewing the idea.",
-      ],
-      correctIndex: 1,
-      explanation: `Explaining ${topicLabel} in your own words and pairing it with a specific example makes the idea stick and exposes gaps worth rehearsing.`,
-    },
-    {
-      prompt: `Which reflection helps you plan a smart next step after studying ${topicLabel}?`,
-      choices: [
-        `Identify one misconception about ${topicLabel} and how you'll monitor it next session.`,
-        "List every other topic you would rather study instead.",
-        "Decide the concept must be perfect before you practice again.",
-        "Promise to avoid peer discussion until the unit is complete.",
+        "It shows the rule working step by step in a concrete case.",
+        "It proves the topic is harder than expected.",
+        "It replaces definitions so you can skip them later.",
+        "It keeps you from checking whether your steps make sense.",
       ],
       correctIndex: 0,
-      explanation: `Spotting a likely misconception and naming a cue to catch it keeps momentum and prepares you to coach yourself through the next practice block.`,
+      explanation: `Seeing the idea in action clarifies how each move fits the definition and highlights the critical step.`,
+    },
+    {
+      prompt: `What is a productive next move after studying ${topicLabel}?`,
+      choices: [
+        "Tackle a related mini-problem or teach the idea aloud.",
+        "Erase your notes to force yourself to start over.",
+        "Avoid practice so the concept stays unfamiliar.",
+        "Switch subjects immediately to avoid repetition.",
+      ],
+      correctIndex: 0,
+      explanation: `Re-applying the idea right away - by solving or explaining - locks in the pattern before you move on.`,
     },
   ];
 
@@ -299,14 +297,30 @@ function buildSourceText(
   const learnerSignals: string[] = [
     `- Pace preference: ${pace}`,
     accuracy != null
-      ? `- Recent accuracy: ${accuracy}% (mention this in your first sentence).`
-      : `- Recent accuracy unavailable; reinforce confidence in the first sentence.`,
+      ? `- Recent accuracy: ${accuracy}%`
+      : `- Recent accuracy unavailable`,
     `- Target difficulty: ${difficulty}`,
   ];
   if (opts.difficultyPref && opts.difficultyPref !== difficulty) {
     learnerSignals.push(`- Learner requested difficulty: ${opts.difficultyPref}`);
   }
-  sections.push(`Learner Signals:\n${learnerSignals.join("\n")}`);
+  sections.push(
+    [
+      "Learner Profile (calibrate tone; do not echo these stats verbatim):",
+      learnerSignals.join("\n"),
+    ].join("\n"),
+  );
+
+  sections.push(
+    [
+      "Lesson Goals:",
+      "- Explain the core idea plainly and connect it to prior knowledge.",
+      "- Include a compact example or scenario that shows the idea in action.",
+      "- Call out one common misconception and how to avoid it.",
+      "- End with a concrete next step or prompt to keep practising.",
+      "Keep the tone encouraging but content-focused; avoid meta commentary about pace or accuracy.",
+    ].join("\n"),
+  );
 
   if (opts.mapSummary) {
     const summary = truncateText(opts.mapSummary, MAX_MAP_SUMMARY_CHARS);

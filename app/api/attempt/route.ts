@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import type { Database } from "@/lib/types_db";
+import { computeStreakAfterActivity } from "@/lib/profile-stats";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -111,8 +112,9 @@ export async function POST(req: NextRequest) {
     let newStreak: number | null = null;
 
     if (shouldAwardPoints) {
-      const today = new Date().toISOString().slice(0, 10);
-      const nowIso = new Date().toISOString();
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
+      const nowIso = now.toISOString();
       const { data: prof } = await supabase
         .from("profiles")
         .select("points, streak, last_study_date")
@@ -121,36 +123,14 @@ export async function POST(req: NextRequest) {
       const currentPoints = (prof?.points as number | null) ?? 0;
       const last = (prof?.last_study_date as string | null) ?? null;
       const previousStreak = (prof?.streak as number | null) ?? 0;
-      newStreak = previousStreak > 0 ? previousStreak : 0;
-      if (!last) {
-        newStreak = Math.max(1, newStreak || 1);
-      } else {
-        const lastDate = new Date(last);
-        if (!Number.isFinite(lastDate.getTime())) {
-          newStreak = Math.max(1, newStreak || 1);
-        } else {
-          const todayDate = new Date();
-          const diff = Math.floor(
-            (
-              Date.UTC(todayDate.getUTCFullYear(), todayDate.getUTCMonth(), todayDate.getUTCDate()) -
-              Date.UTC(lastDate.getUTCFullYear(), lastDate.getUTCMonth(), lastDate.getUTCDate())
-            ) / 86400000
-          );
-          if (diff === 0) {
-            newStreak = Math.max(newStreak, 1);
-          } else if (diff === 1) {
-            newStreak = Math.max(newStreak + 1, 1);
-          } else if (diff > 1) {
-            newStreak = 1;
-          }
-        }
-      }
+      const resolvedStreak = computeStreakAfterActivity(previousStreak, last, now);
+      newStreak = resolvedStreak;
       addPts = units * perCorrect;
       const { data: profile, error: updateError } = await supabase
         .from("profiles")
         .update({
           last_study_date: today,
-          streak: newStreak,
+          streak: resolvedStreak,
           points: currentPoints + addPts,
           updated_at: nowIso,
         })

@@ -651,7 +651,7 @@ export default function FypFeed() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -40, opacity: 0 }}
             transition={{ type: "spring", stiffness: 260, damping: 26 }}
-            className="absolute inset-0 flex flex-col gap-5 px-3 py-6 sm:px-4 lg:px-6"
+            className="absolute inset-0 flex flex-col gap-5 overflow-x-hidden overflow-y-auto px-3 py-6 pb-10 sm:px-4 lg:px-6"
           >
             <div className="flex flex-1 flex-col gap-5">
               <div className="flex min-h-0 w-full justify-center">

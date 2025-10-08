@@ -3,7 +3,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { PostgrestError, SupabaseClient, User } from "@supabase/supabase-js";
 import { supabaseBrowser } from "@/lib/supabase-browser";
-import { normalizeProfileStats, type ProfileStats } from "@/lib/profile-stats";
+import {
+  normalizeProfileStats,
+  type ProfileStats,
+  shouldResetStreak,
+  ensurePositiveStreakForSameDay,
+} from "@/lib/profile-stats";
 
 type ProfileStatsContextValue = {
   user: User | null | undefined;
@@ -17,62 +22,44 @@ type ProfileStatsContextValue = {
 
 const ProfileStatsContext = createContext<ProfileStatsContextValue | undefined>(undefined);
 
-function startOfUTCDay(date: Date) {
-  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-}
-
-function isoToday() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 async function ensureStreakForToday(
   supabase: SupabaseClient,
   userId: string,
   stats: ProfileStats
 ): Promise<ProfileStats> {
-  const todayStr = isoToday();
-  const today = new Date();
-  const last = stats.lastStudyDate;
+  const now = new Date();
+  const updates: Record<string, unknown> = {};
   let shouldUpdate = false;
-  let nextStreak = stats.streak > 0 ? stats.streak : 0;
 
-  if (!last) {
-    nextStreak = Math.max(1, nextStreak || 1);
-    shouldUpdate = true;
-  } else {
-    const lastDate = new Date(last);
-    if (!Number.isFinite(lastDate.getTime())) {
-      nextStreak = Math.max(1, nextStreak || 1);
+  if (!stats.lastStudyDate) {
+    if (stats.streak !== 0) {
+      updates.streak = 0;
       shouldUpdate = true;
-    } else {
-      const diff = Math.floor(
-        (startOfUTCDay(today) - startOfUTCDay(lastDate)) / 86400000
-      );
-      if (diff === 0) {
-        if (nextStreak <= 0) {
-          nextStreak = 1;
-          shouldUpdate = true;
-        }
-      } else if (diff === 1) {
-        nextStreak = Math.max(nextStreak + 1, 1);
-        shouldUpdate = true;
-      } else if (diff > 1) {
-        nextStreak = 1;
-        shouldUpdate = true;
-      }
+    }
+  } else if (!Number.isFinite(new Date(stats.lastStudyDate).getTime())) {
+    if (stats.streak !== 0) {
+      updates.streak = 0;
+      shouldUpdate = true;
+    }
+  } else if (shouldResetStreak(stats.lastStudyDate, now)) {
+    if (stats.streak !== 0) {
+      updates.streak = 0;
+      shouldUpdate = true;
+    }
+  } else {
+    const normalized = ensurePositiveStreakForSameDay(stats.streak, stats.lastStudyDate, now);
+    if (normalized !== null && normalized !== stats.streak) {
+      updates.streak = normalized;
+      shouldUpdate = true;
     }
   }
 
   if (!shouldUpdate) return stats;
 
-  const updatedAt = new Date().toISOString();
+  updates.updated_at = now.toISOString();
   const { data, error } = await supabase
     .from("profiles")
-    .update({
-      last_study_date: todayStr,
-      streak: nextStreak,
-      updated_at: updatedAt,
-    })
+    .update(updates)
     .eq("id", userId)
     .select("points, streak, last_study_date, updated_at")
     .maybeSingle();

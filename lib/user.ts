@@ -1,5 +1,5 @@
 ﻿import { supabase } from "./supabase";
-import { normalizeProfileStats, type ProfileStats } from "./profile-stats";
+import { normalizeProfileStats, type ProfileStats, computeStreakAfterActivity } from "./profile-stats";
 
 export async function getSession() {
   const { data } = await supabase.auth.getSession();
@@ -28,7 +28,9 @@ export async function bumpStreakAndPoints(pointsToAdd: number): Promise<ProfileS
   const session = await getSession();
   const uid = session?.user?.id;
   if (!uid) return null;
-  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const today = nowIso.slice(0, 10);
 
   const { data: prof, error: loadError } = await supabase
     .from("profiles")
@@ -39,20 +41,13 @@ export async function bumpStreakAndPoints(pointsToAdd: number): Promise<ProfileS
 
   const current = normalizeProfileStats((prof as Record<string, unknown> | null | undefined) ?? null);
   const last = current.lastStudyDate;
-  let newStreak = 1;
-  if (last) {
-    const d0 = new Date(today);
-    const d1 = new Date(last);
-    const diff = Math.floor((+d0 - +d1) / 86400000);
-    if (diff === 0) newStreak = current.streak;
-    else newStreak = diff === 1 ? current.streak + 1 : 1;
-  }
+  const newStreak = computeStreakAfterActivity(current.streak, last, now);
 
   const updatePayload = {
     last_study_date: today,
     streak: newStreak,
     points: current.points + pointsToAdd,
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
   };
 
   const { data: updated, error: updateError } = await supabase

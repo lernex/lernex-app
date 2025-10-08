@@ -233,7 +233,6 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
         correct_count: correctCount,
         total: questions.length,
         event: "lesson-finish",
-        skip_points: correctCount > 0,
         points_per_correct: 10,
       };
       void (async () => {
