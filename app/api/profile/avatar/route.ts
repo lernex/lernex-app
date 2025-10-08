@@ -99,13 +99,13 @@ export async function POST(req: Request) {
     );
   }
 
-  const { data: publicUrlData, error: publicUrlError } = supabase.storage
+  const { data: publicUrlData } = supabase.storage
     .from(bucketName)
     .getPublicUrl(uploadResult.data.path, { download: false });
 
-  if (publicUrlError || !publicUrlData?.publicUrl) {
+  if (!publicUrlData?.publicUrl) {
     return NextResponse.json(
-      { error: publicUrlError?.message || "Unable to generate public URL." },
+      { error: "Unable to generate public URL." },
       { status: 500 },
     );
   }
