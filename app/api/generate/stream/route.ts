@@ -160,7 +160,7 @@ export async function POST(req: Request) {
             const reasoning = typeof (delta as { reasoning?: unknown }).reasoning === "string"
               ? (delta as { reasoning: string }).reasoning
               : "";
-            const chunkUsage = choice?.usage as { prompt_tokens?: number; completion_tokens?: number } | undefined;
+            const chunkUsage = (chunk as { usage?: { prompt_tokens?: number; completion_tokens?: number } } | undefined)?.usage;
             if (chunkUsage) {
               usageSummary = {
                 input_tokens: chunkUsage.prompt_tokens ?? null,

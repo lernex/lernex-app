@@ -249,7 +249,7 @@ Generate the lesson and questions as specified. Output only the JSON object.
                 controller.enqueue(encoder.encode(content));
                 wrote = true;
               }
-              const chunkUsage = choice?.usage as { prompt_tokens?: number; completion_tokens?: number } | undefined;
+              const chunkUsage = (chunk as { usage?: { prompt_tokens?: number; completion_tokens?: number } } | undefined)?.usage;
               if (chunkUsage) {
                 usageSummary = {
                   input_tokens: typeof chunkUsage.prompt_tokens === "number" ? chunkUsage.prompt_tokens : null,
