@@ -375,7 +375,7 @@ export default function Profile() {
                 ) : (
                   <>
                     <UploadCloud className="h-3.5 w-3.5" />
-                    Let's get started
+                    Let&apos;s get started
                   </>
                 )}
               </span>
@@ -553,7 +553,14 @@ export default function Profile() {
             >
               <div className="relative h-24 w-24 overflow-hidden rounded-full border border-white/60 bg-white shadow-inner transition group-hover:scale-[1.02] dark:border-white/10 dark:bg-neutral-950">
                 {previewUrl ? (
-                  <img src={previewUrl} alt="Avatar preview" className="h-full w-full object-cover" />
+                  <Image
+                    src={previewUrl}
+                    alt="Avatar preview"
+                    fill
+                    sizes="96px"
+                    className="object-cover"
+                    unoptimized
+                  />
                 ) : avatar ? (
                   <Image src={avatar} alt="Profile avatar" fill sizes="96px" className="object-cover" />
                 ) : (
