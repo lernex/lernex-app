@@ -6,11 +6,11 @@ import type {
 import type { Database } from "./types_db";
 
 const SUBJECT_STATE_COLUMN_CANDIDATES = [
-  "user_id, subject, course, mastery, next_topic, updated_at, difficulty, path",
-  "user_id, subject, course, mastery, next_topic, updated_at, difficulty",
-  "user_id, subject, mastery, next_topic, updated_at, difficulty",
-  "user_id, subject, mastery, next_topic, updated_at",
-] as const;
+  "user_id,subject,course,mastery,next_topic,updated_at,difficulty,path",
+  "user_id,subject,course,mastery,next_topic,updated_at,difficulty",
+  "user_id,subject,mastery,next_topic,updated_at,difficulty",
+  "user_id,subject,mastery,next_topic,updated_at",
+];
 
 const MISSING_COLUMN_CODE = "42703";
 
@@ -72,8 +72,9 @@ export async function fetchUserSubjectStates(
   options: SubjectStateQueryOptions = {}
 ): Promise<SubjectStateResponse> {
   let lastResponse: SubjectStateResponse = {
-    data: null,
+    data: [] as UserSubjectStateRow[],
     error: null,
+    count: null,
     status: 200,
     statusText: "",
   };
@@ -89,17 +90,25 @@ export async function fetchUserSubjectStates(
       if (options.userId) query = query.eq("user_id", options.userId);
       if (options.subject) query = query.eq("subject", options.subject);
       if (orderOption) {
-        query = query.order(orderOption.column, {
+        const orderConfig: {
+          ascending?: boolean;
+          nullsFirst?: boolean;
+          foreignTable?: string;
+        } = {
           ascending: orderOption.ascending ?? false,
-          nullsFirst: orderOption.nullsFirst,
-          nullsLast: orderOption.nullsLast,
-        });
+        };
+        if (typeof orderOption.nullsFirst === "boolean") {
+          orderConfig.nullsFirst = orderOption.nullsFirst;
+        } else if (typeof orderOption.nullsLast === "boolean") {
+          orderConfig.nullsFirst = !orderOption.nullsLast;
+        }
+        query = query.order(orderOption.column, orderConfig);
       }
       if (typeof options.limit === "number") {
         query = query.limit(options.limit);
       }
 
-      const response = await query;
+      const response = (await query) as SubjectStateResponse;
       lastResponse = response;
       if (!response.error) return response;
       if (!isMissingColumnError(response.error)) return response;
@@ -116,17 +125,25 @@ export async function fetchUserSubjectStates(
       if (options.userId) fallbackQuery = fallbackQuery.eq("user_id", options.userId);
       if (options.subject) fallbackQuery = fallbackQuery.eq("subject", options.subject);
       if (orderOption) {
-        fallbackQuery = fallbackQuery.order(orderOption.column, {
+        const orderConfig: {
+          ascending?: boolean;
+          nullsFirst?: boolean;
+          foreignTable?: string;
+        } = {
           ascending: orderOption.ascending ?? false,
-          nullsFirst: orderOption.nullsFirst,
-          nullsLast: orderOption.nullsLast,
-        });
+        };
+        if (typeof orderOption.nullsFirst === "boolean") {
+          orderConfig.nullsFirst = orderOption.nullsFirst;
+        } else if (typeof orderOption.nullsLast === "boolean") {
+          orderConfig.nullsFirst = !orderOption.nullsLast;
+        }
+        fallbackQuery = fallbackQuery.order(orderOption.column, orderConfig);
       }
       if (typeof options.limit === "number") {
         fallbackQuery = fallbackQuery.limit(options.limit);
       }
 
-      const response = await fallbackQuery;
+      const response = (await fallbackQuery) as SubjectStateResponse;
       lastResponse = response;
       if (!response.error) return response;
       if (!isMissingColumnError(response.error)) return response;
