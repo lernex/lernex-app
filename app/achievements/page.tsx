@@ -17,6 +17,10 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import {
+  fetchUserSubjectStates,
+  readCourseValue,
+} from "@/lib/user-subject-state";
 import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
 
 type AttemptRow = {
@@ -32,6 +36,7 @@ type SubjectStateRow = {
   mastery: number | null;
   nextTopic: string | null;
   updatedAt: string | null;
+  difficulty: string | null;
 };
 
 type SubjectSummary = {
@@ -97,12 +102,14 @@ function normalizeAttempt(row: Record<string, unknown>): AttemptRow {
 }
 
 function normalizeSubjectState(row: Record<string, unknown>): SubjectStateRow {
+  const course = readCourseValue(row);
   return {
     subject: toStringOrNull(row["subject"]) ?? "General",
-    course: toStringOrNull(row["course"]),
+    course,
     mastery: row["mastery"] == null ? null : toNumber(row["mastery"]),
     nextTopic: toStringOrNull(row["next_topic"]),
     updatedAt: toStringOrNull(row["updated_at"]),
+    difficulty: toStringOrNull(row["difficulty"]),
   };
 }
 
@@ -212,11 +219,11 @@ export default function AchievementsPage(): JSX.Element {
             .from("attempts")
             .select("user_id", { count: "exact", head: true })
             .eq("user_id", userId),
-          supabase
-            .from("user_subject_state")
-            .select("subject, course, mastery, next_topic, updated_at")
-            .eq("user_id", userId)
-            .limit(20),
+          fetchUserSubjectStates(supabase, {
+            userId,
+            limit: 20,
+            order: { column: "updated_at", ascending: false, nullsLast: true },
+          }),
           supabase
             .from("profiles")
             .select("full_name, username")

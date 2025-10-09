@@ -27,6 +27,10 @@ import {
   Zap,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import {
+  fetchUserSubjectStates,
+  readCourseValue,
+} from "@/lib/user-subject-state";
 import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
 import { calcCost } from "@/lib/usage";
 
@@ -124,7 +128,7 @@ function normalizeAttempt(row: Record<string, unknown>): AttemptRow {
 function normalizeSubjectState(row: Record<string, unknown>): SubjectStateRow {
   return {
     subject: toStringOrNull(row["subject"]) ?? "General",
-    course: toStringOrNull(row["course"]),
+    course: readCourseValue(row),
     mastery: row["mastery"] == null ? null : toNumber(row["mastery"], null as unknown as number),
     nextTopic: toStringOrNull(row["next_topic"] ?? row["nextTopic"]),
     updatedAt: toStringOrNull(row["updated_at"] ?? row["updatedAt"]),
@@ -411,12 +415,11 @@ export default function AnalyticsPage() {
             .from("attempts")
             .select("user_id", { count: "exact", head: true })
             .eq("user_id", userId),
-          supabase
-            .from("user_subject_state")
-            .select("subject, course, mastery, next_topic, updated_at, difficulty")
-            .eq("user_id", userId)
-            .order("updated_at", { ascending: false })
-            .limit(30),
+          fetchUserSubjectStates(supabase, {
+            userId,
+            limit: 30,
+            order: { column: "updated_at", ascending: false, nullsLast: true },
+          }),
           supabase
             .from("profiles")
             .select("points, streak, total_cost, last_study_date, interests, placement_ready")
