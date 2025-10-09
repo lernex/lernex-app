@@ -518,22 +518,6 @@ export default function FypFeed() {
     return () => window.removeEventListener("keydown", handler);
   }, [prev, next]);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    let t: number | null = null;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      if (t) return; // throttle
-      t = window.setTimeout(() => (t = null), 300);
-      if (e.deltaY > 0) next();
-      else prev();
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [next, prev]);
-
   const cur = items[i];
   const requiresQuiz = cur ? Array.isArray(cur.questions) && cur.questions.length > 0 : false;
   const currentCompleted = cur ? (!requiresQuiz || !!completedMap[cur.id]) : true;
@@ -558,7 +542,6 @@ export default function FypFeed() {
 
   return (
     <div
-      ref={containerRef}
       className="relative mx-auto w-full max-w-[640px] px-3 sm:px-4 lg:max-w-5xl lg:px-6 lg:pt-4 h-[calc(100vh-56px)] overflow-hidden lg:overflow-visible"
       style={{ maxWidth: "min(640px, 94vw)" }}
     >
@@ -683,7 +666,7 @@ export default function FypFeed() {
             )}
             <div className="mt-auto text-xs text-neutral-400 text-center dark:text-neutral-500">
               <div className="flex flex-col items-center gap-1 sm:flex-row sm:justify-center sm:gap-3">
-                <span>Tip: Swipe up/down, use mouse wheel, or arrow keys.</span>
+                <span>Tip: Swipe or drag the card, or use arrow keys.</span>
                 <button
                   type="button"
                   onClick={() => setAutoAdvanceEnabled(!autoAdvanceEnabled)}

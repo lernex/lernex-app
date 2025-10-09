@@ -133,9 +133,9 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
         <div className="relative flex-1 min-h-0 pb-2 sm:pb-3">
           <div
             ref={scrollRef}
-            className="lesson-scroll scrollbar-thin h-full overflow-y-auto pr-2 pb-8 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300"
+            className="lesson-scroll scrollbar-thin h-full overflow-y-auto pr-2 pb-12 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300"
           >
-            <FormattedText text={lesson.content} />
+            <FormattedText text={lesson.content} as="div" className="break-words whitespace-pre-wrap" />
           </div>
           {showFade && (
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white via-white/75 to-transparent dark:from-neutral-900 dark:via-neutral-900/70" />
@@ -194,7 +194,6 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
           </button>
         </div>
       </div>
-
     </div>
   );
 }

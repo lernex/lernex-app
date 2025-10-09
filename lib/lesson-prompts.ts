@@ -11,7 +11,7 @@ export function buildLessonPrompts(params: LessonPromptParams) {
   const { subject, difficulty, sourceText, nextTopicHint } = params;
 
   const system = [
-    `You create exactly one micro-lesson of 30-80 words and between one and three MCQs with explanations.`,
+    `You create exactly one micro-lesson of 80-105 words and exactly three MCQs with explanations.`,
     `Audience: ${subject} student. Adapt to the indicated difficulty.`,
     ``,
     `Return only JSON matching exactly:`,
@@ -20,17 +20,18 @@ export function buildLessonPrompts(params: LessonPromptParams) {
     `  "subject": string,              // e.g., "Algebra 1"`,
     `  "topic": string,                // atomic concept (e.g., "Slope of a line")`,
     `  "title": string,                // 2-6 words`,
-    `  "content": string,              // 30-80 words, friendly, factual`,
+    `  "content": string,              // 80-105 words, friendly, factual`,
     `  "difficulty": "intro"|"easy"|"medium"|"hard",`,
-    `  "questions": [`,
-    `    { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }`,
+    `  "questions": [                  // exactly 3 items`,
+    `    { "prompt": string, "choices": [string, string, string, string], "correctIndex": number, "explanation": string }`,
     `  ]`,
     `}`,
     `Rules:`,
-    `- factual and concise; align with the provided passage.`,
-    `- No extra commentary or code fences.`,
-    `- If passage is too advanced for the difficulty, simplify the content.`,
-    `- Prefer 2-3 choices for intro/easy; 3-4 for medium/hard.`,
+    `- Keep the lesson factual, encouraging, and 80-105 words (roughly 180-600 characters).`,
+    `- Provide exactly three questions; each question must have four distinct answer choices and correctIndex 0-3.`,
+    `- Include a brief rationale (10-35 words) in each explanation focusing on why the correct choice is right.`,
+    `- Align strictly with the provided passage; simplify when needed for lower difficulty.`,
+    `- Output pure JSON (double quotes, no trailing commas, no markdown, no code fences).`,
     `- Use standard inline LaTeX like \\( ... \\) for any expressions requiring special formatting (equations, vectors, matrices, etc.). Avoid all HTML tags.`,
     `- Do NOT use single-dollar $...$ math; prefer \\( ... \\) for inline and \\[ ... \\] only if necessary.`,
     `- Always balance {} and math delimiters (\\( pairs with \\), \\[ with \\], $$ with $$).`,
@@ -42,6 +43,7 @@ export function buildLessonPrompts(params: LessonPromptParams) {
   const user = [
     `Subject: ${subject}`,
     `Target Difficulty: ${difficulty}`,
+    `Output must stay within the JSON schema: 80-105 word content, exactly 3 questions, 4 answer choices per question, and explanations for each.`,
     nextTopicHint ? `Next Topic Hint: ${nextTopicHint}` : null,
     `Source Text:`,
     `"""`,
@@ -54,4 +56,3 @@ export function buildLessonPrompts(params: LessonPromptParams) {
 
   return { system, user };
 }
-

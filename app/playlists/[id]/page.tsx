@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 import PageTransition from "@/components/PageTransition";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -147,25 +147,33 @@ export default function PlaylistDetail() {
   const [loadingSearch, setLoadingSearch] = useState(false);
 
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+  const supabaseClient = useMemo(() => supabaseBrowser(), []);
 
   const loadAll = useCallback(async () => {
     if (!id) return;
+    console.debug("[playlist-detail] loadAll:start", { playlistId: id });
     setLoadError(null);
     setLoadingMeta(true);
     setLoadingItems(true);
     try {
       const [playlistRes, itemsRes] = await Promise.all([
-        supabase
+        supabaseClient
           .from("playlists")
           .select("id, name, description, is_public, created_at")
           .eq("id", id)
           .maybeSingle(),
-        supabase
+        supabaseClient
           .from("playlist_items")
           .select("id, position, lessons(id, title, subject)")
           .eq("playlist_id", id)
           .order("position", { ascending: true }),
       ]);
+      console.debug("[playlist-detail] loadAll:responses", {
+        playlistError: playlistRes.error?.message ?? null,
+        playlistFound: Boolean(playlistRes.data),
+        itemsError: itemsRes.error?.message ?? null,
+        itemCount: Array.isArray(itemsRes.data) ? itemsRes.data.length : null,
+      });
 
       if (playlistRes.error) {
         throw playlistRes.error;
@@ -173,6 +181,7 @@ export default function PlaylistDetail() {
 
       const playlistRow = playlistRes.data;
       if (!playlistRow) {
+        console.warn("[playlist-detail] loadAll:not-found", { playlistId: id });
         setPlaylist(null);
         setItems([]);
         setLoadError("We could not find that playlist.");
@@ -199,6 +208,10 @@ export default function PlaylistDetail() {
 
       const raw = (itemsRes.data ?? []) as RawItem[];
       setItems(raw.map(parseItem));
+      console.debug("[playlist-detail] loadAll:success", {
+        playlistId: id,
+        itemCount: raw.length,
+      });
     } catch (err) {
       console.error("Failed to load playlist", err);
       setLoadError("We could not load your playlist. Try again in a moment.");
@@ -206,7 +219,7 @@ export default function PlaylistDetail() {
       setLoadingMeta(false);
       setLoadingItems(false);
     }
-  }, [id]);
+  }, [id, supabaseClient]);
 
   useEffect(() => {
     void loadAll();
@@ -229,7 +242,7 @@ export default function PlaylistDetail() {
     let active = true;
     const timer = window.setTimeout(async () => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from("lessons")
           .select("id, title, subject")
           .or(`title.ilike.%${sanitized}%,subject.ilike.%${sanitized}%`)
@@ -297,7 +310,7 @@ export default function PlaylistDetail() {
     }
     setSavingName(true);
     try {
-      const { error } = await supabase
+      const { error } = await supabaseClient
         .from("playlists")
         .update({ name: trimmed })
         .eq("id", id);
@@ -334,7 +347,7 @@ export default function PlaylistDetail() {
     setSavingDescription(true);
     try {
       const payload = trimmed ? { description: trimmed } : { description: null };
-      const { error } = await supabase
+      const { error } = await supabaseClient
         .from("playlists")
         .update(payload)
         .eq("id", id);
@@ -365,7 +378,7 @@ export default function PlaylistDetail() {
     const nextValue = !playlist.is_public;
     setVisibilitySaving(true);
     try {
-      const { error } = await supabase
+      const { error } = await supabaseClient
         .from("playlists")
         .update({ is_public: nextValue })
         .eq("id", id);
@@ -402,7 +415,7 @@ export default function PlaylistDetail() {
     setShareLoading(true);
     try {
       if (!playlist.is_public) {
-        const { error } = await supabase
+        const { error } = await supabaseClient
           .from("playlists")
           .update({ is_public: true })
           .eq("id", playlist.id);
@@ -436,7 +449,7 @@ export default function PlaylistDetail() {
     setAddingId(lesson.id);
     try {
       const nextPosition = computeNextPosition(items);
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from("playlist_items")
         .insert({
           playlist_id: id,
@@ -478,7 +491,7 @@ export default function PlaylistDetail() {
     const previous = items;
     setItems((prev) => prev.filter((item) => item.id !== itemId));
     try {
-      const { error } = await supabase
+      const { error } = await supabaseClient
         .from("playlist_items")
         .delete()
         .eq("id", itemId);
@@ -533,7 +546,7 @@ export default function PlaylistDetail() {
 
       await Promise.all(
         updates.map(({ id: targetId, position }) =>
-          supabase
+          supabaseClient
             .from("playlist_items")
             .update({ position })
             .eq("id", targetId)
