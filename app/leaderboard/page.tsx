@@ -6,20 +6,70 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useLernexStore } from "@/lib/store";
 import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
 
-type ProfileRow = { id: string; username: string | null; points: number | null; streak: number | null };
-type RawProfile = { id?: unknown; username?: unknown; points?: unknown; streak?: unknown };
+const POINTS_PER_CORRECT = 10;
 
-function toStr(v: unknown): string { return typeof v === "string" ? v : String(v ?? ""); }
-function toStrOrNull(v: unknown): string | null { return v == null ? null : toStr(v); }
-function toNumOrNull(v: unknown): number | null { return typeof v === "number" ? v : v == null ? null : Number(v); }
+type Scope = "global" | "friends";
+type Range = "all" | "monthly" | "weekly" | "daily";
+
+type ProfileRow = {
+  id: string;
+  username: string | null;
+  points: number | null;
+  streak: number | null;
+};
+
+type RawProfile = {
+  id?: unknown;
+  username?: unknown;
+  points?: unknown;
+  streak?: unknown;
+};
+
+function toStr(value: unknown): string {
+  return typeof value === "string" ? value : String(value ?? "");
+}
+
+function toStrOrNull(value: unknown): string | null {
+  return value == null ? null : toStr(value);
+}
+
+function toNumOrNull(value: unknown): number | null {
+  if (typeof value === "number") return value;
+  if (value == null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function normalizeProfiles(rows: unknown[] | null | undefined): ProfileRow[] {
   const arr = Array.isArray(rows) ? (rows as RawProfile[]) : [];
-  return arr.map((r) => ({
-    id: toStr(r.id),
-    username: toStrOrNull(r.username),
-    points: toNumOrNull(r.points),
-    streak: toNumOrNull(r.streak),
+  return arr.map((row) => ({
+    id: toStr(row.id),
+    username: toStrOrNull(row.username),
+    points: toNumOrNull(row.points),
+    streak: toNumOrNull(row.streak),
   }));
+}
+
+function calcRangeStart(range: Range): string | null {
+  if (range === "all") return null;
+  const offsets: Record<Exclude<Range, "all">, number> = {
+    monthly: 30,
+    weekly: 7,
+    daily: 1,
+  };
+  const days = offsets[range];
+  const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  return start.toISOString();
+}
+
+function uniqueIds(values: (string | null | undefined)[]): string[] {
+  const seen = new Set<string>();
+  values.forEach((value) => {
+    if (typeof value === "string" && value) {
+      seen.add(value);
+    }
+  });
+  return Array.from(seen);
 }
 
 export default function Leaderboard() {
@@ -28,6 +78,7 @@ export default function Leaderboard() {
   const { stats } = useProfileStats();
   const points = stats?.points ?? 0;
   const streak = stats?.streak ?? 0;
+
   const bestSubject = Object.entries(accuracyBySubject).sort((a, b) => {
     const ap = a[1].total ? a[1].correct / a[1].total : 0;
     const bp = b[1].total ? b[1].correct / b[1].total : 0;
@@ -39,51 +90,245 @@ export default function Leaderboard() {
   const [rankPoints, setRankPoints] = useState<number | null>(null);
   const [rankStreak, setRankStreak] = useState<number | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [scope, setScope] = useState<"global" | "friends">("global");
-  const [range, setRange] = useState<"all" | "monthly" | "weekly" | "daily">("all");
+  const [scope, setScope] = useState<Scope>("global");
+  const [range, setRange] = useState<Range>("all");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    (async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id ?? null;
-      setUserId(uid);
+    let cancelled = false;
 
-      const [{ data: pts }, { data: stk }] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id, username, points, streak")
-          .order("points", { ascending: false })
-          .limit(20),
-        supabase
-          .from("profiles")
-          .select("id, username, points, streak")
-          .order("streak", { ascending: false })
-          .limit(20),
-      ]);
-      setTopPoints(normalizeProfiles(pts ?? []));
-      setTopStreak(normalizeProfiles(stk ?? []));
+    const load = async () => {
+      setLoading(true);
+      setError(null);
 
-      if (uid) {
-        const { data: me } = await supabase
-          .from("profiles")
-          .select("points, streak")
-          .eq("id", uid)
-          .maybeSingle();
-        const myPts = (me?.points as number | null) ?? 0;
-        const myStk = (me?.streak as number | null) ?? 0;
-        const morePts = await supabase
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        if (cancelled) return;
+        const uid = auth.user?.id ?? null;
+        setUserId(uid);
+
+        if (scope === "friends" && !uid) {
+          setTopPoints([]);
+          setTopStreak([]);
+          setRankPoints(null);
+          setRankStreak(null);
+          setError("Sign in to see your friends leaderboard.");
+          return;
+        }
+
+        let friendIds: string[] = [];
+        if (uid) {
+          const { data: friendRows, error: friendError } = await supabase
+            .from("friendships")
+            .select("user_a, user_b")
+            .or(`user_a.eq.${uid},user_b.eq.${uid}`);
+          if (friendError) throw friendError;
+          friendIds = uniqueIds(
+            (friendRows ?? []).map((row) => {
+              const a = typeof row.user_a === "string" ? row.user_a : null;
+              const b = typeof row.user_b === "string" ? row.user_b : null;
+              return a === uid ? b : a;
+            })
+          );
+        }
+
+        const scopedIds =
+          scope === "friends" && uid ? uniqueIds([uid, ...friendIds]) : null;
+        const rangeStart = calcRangeStart(range);
+
+        if (scope === "friends" && scopedIds && scopedIds.length === 0) {
+          setTopPoints([]);
+          setTopStreak([]);
+        }
+
+        let pointsRows: ProfileRow[] = [];
+        if (range === "all") {
+          if (scope === "friends" && scopedIds && scopedIds.length === 0) {
+            pointsRows = [];
+          } else {
+            let pointsQuery = supabase
+              .from("profiles")
+              .select("id, username, points, streak")
+              .order("points", { ascending: false })
+              .limit(20);
+            if (scope === "friends" && scopedIds && scopedIds.length) {
+              pointsQuery = pointsQuery.in("id", scopedIds);
+            }
+            const { data, error: pointsError } = await pointsQuery;
+            if (pointsError) throw pointsError;
+            pointsRows = normalizeProfiles(data ?? []);
+          }
+        } else {
+          if (scope === "friends" && scopedIds && scopedIds.length === 0) {
+            pointsRows = [];
+          } else {
+            let attemptQuery = supabase
+              .from("attempts")
+              .select("user_id, total_correct:sum(correct_count)")
+              .not("user_id", "is", null);
+            if (rangeStart) {
+              attemptQuery = attemptQuery.gte("created_at", rangeStart);
+            }
+
+            let attemptRows: Record<string, unknown>[] = [];
+            if (scope === "friends" && scopedIds && scopedIds.length) {
+              const { data, error: attemptError } = await attemptQuery.in("user_id", scopedIds);
+              if (attemptError) throw attemptError;
+              attemptRows = (data ?? []) as Record<string, unknown>[];
+            } else {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const orderedQuery = (attemptQuery as any)
+                .order("total_correct", { ascending: false })
+                .limit(40);
+              const { data, error: attemptError } = await orderedQuery;
+              if (attemptError) throw attemptError;
+              attemptRows = (data ?? []) as Record<string, unknown>[];
+            }
+
+            const aggregates = attemptRows
+              .map((row) => ({
+                id: typeof row.user_id === "string" ? row.user_id : null,
+                totalCorrect: toNumOrNull(row.total_correct) ?? 0,
+              }))
+              .sort((a, b) => (b.totalCorrect ?? 0) - (a.totalCorrect ?? 0));
+            const profileIds =
+              scope === "friends" && scopedIds && scopedIds.length
+                ? scopedIds
+                : uniqueIds(aggregates.map((entry) => entry.id));
+
+            let profiles: ProfileRow[] = [];
+            if (profileIds.length) {
+              const { data: profileData, error: profileError } = await supabase
+                .from("profiles")
+                .select("id, username, points, streak")
+                .in("id", profileIds);
+              if (profileError) throw profileError;
+              profiles = normalizeProfiles(profileData ?? []);
+            }
+
+            const aggregateMap = new Map<string, number>();
+            aggregates.forEach((entry) => {
+              if (!entry.id) return;
+              aggregateMap.set(entry.id, entry.totalCorrect * POINTS_PER_CORRECT);
+            });
+
+            pointsRows = profiles
+              .map((profile) => ({
+                ...profile,
+                points: aggregateMap.get(profile.id) ?? 0,
+              }))
+              .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
+              .slice(0, 20);
+          }
+        }
+
+        if (cancelled) return;
+        setTopPoints(pointsRows);
+
+        let streakRows: ProfileRow[] = [];
+        if (scope === "friends" && scopedIds && scopedIds.length === 0) {
+          streakRows = [];
+        } else {
+          let streakQuery = supabase
+            .from("profiles")
+            .select("id, username, points, streak")
+            .order("streak", { ascending: false })
+            .limit(20);
+          if (scope === "friends" && scopedIds && scopedIds.length) {
+            streakQuery = streakQuery.in("id", scopedIds);
+          }
+          const { data: streakData, error: streakError } = await streakQuery;
+          if (streakError) throw streakError;
+          streakRows = normalizeProfiles(streakData ?? []);
+        }
+
+        if (cancelled) return;
+        setTopStreak(streakRows);
+
+        if (!uid) {
+          setRankPoints(null);
+          setRankStreak(null);
+          return;
+        }
+
+        if (range === "all") {
+          const myPoints = stats?.points ?? 0;
+          let rankQuery = supabase
+            .from("profiles")
+            .select("id", { count: "exact", head: true })
+            .gt("points", myPoints);
+          if (scope === "friends" && scopedIds && scopedIds.length) {
+            rankQuery = rankQuery.in("id", scopedIds);
+          }
+          const { count: higherPoints, error: rankError } = await rankQuery;
+          if (rankError) throw rankError;
+          setRankPoints(((higherPoints as number | null) ?? 0) + 1);
+        } else {
+          let myAggQuery = supabase
+            .from("attempts")
+            .select("total_correct:sum(correct_count)")
+            .eq("user_id", uid);
+          if (rangeStart) {
+            myAggQuery = myAggQuery.gte("created_at", rangeStart);
+          }
+          const { data: myAggData, error: myAggError } = await myAggQuery;
+          if (myAggError) throw myAggError;
+          const myCorrect = toNumOrNull(myAggData?.[0]?.total_correct) ?? 0;
+          if (myCorrect > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let rankQuery: any = supabase
+              .from("attempts")
+              .select("user_id, total_correct:sum(correct_count)", {
+                count: "exact",
+                head: true,
+              });
+            rankQuery = rankQuery.gt("total_correct", myCorrect);
+            if (rangeStart) {
+              rankQuery = rankQuery.gte("created_at", rangeStart);
+            }
+            if (scope === "friends" && scopedIds && scopedIds.length) {
+              rankQuery = rankQuery.in("user_id", scopedIds);
+            }
+            const { count: higherRange, error: rangeRankError } = await rankQuery;
+            if (rangeRankError) throw rangeRankError;
+            setRankPoints(((higherRange as number | null) ?? 0) + 1);
+          } else {
+            setRankPoints(null);
+          }
+        }
+
+        const myStreak = stats?.streak ?? 0;
+        let streakRankQuery = supabase
           .from("profiles")
           .select("id", { count: "exact", head: true })
-          .gt("points", myPts);
-        const moreStk = await supabase
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .gt("streak", myStk);
-        setRankPoints(((morePts.count as number | null) ?? 0) + 1);
-        setRankStreak(((moreStk.count as number | null) ?? 0) + 1);
+          .gt("streak", myStreak);
+        if (scope === "friends" && scopedIds && scopedIds.length) {
+          streakRankQuery = streakRankQuery.in("id", scopedIds);
+        }
+        const { count: higherStreak, error: streakRankError } = await streakRankQuery;
+        if (streakRankError) throw streakRankError;
+        setRankStreak(((higherStreak as number | null) ?? 0) + 1);
+      } catch (err) {
+        console.error("[leaderboard] load error", err);
+        if (cancelled) return;
+        setTopPoints([]);
+        setTopStreak([]);
+        setRankPoints(null);
+        setRankStreak(null);
+        setError("We couldn’t load the leaderboard right now.");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    })();
-  }, [supabase]);
+    };
+
+    load().catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, scope, range, stats?.points, stats?.streak]);
 
   return (
     <main className="min-h-[calc(100vh-56px)] mx-auto w-full max-w-3xl px-4 py-8 text-neutral-900 dark:text-white">
@@ -102,20 +347,18 @@ export default function Leaderboard() {
           <button
             className={`px-3 py-1.5 ${scope === "friends" ? "bg-lernex-blue/10 dark:bg-lernex-blue/20" : ""}`}
             onClick={() => setScope("friends")}
-            title="Friends leaderboard coming soon"
           >
             Friends
           </button>
         </div>
         <div className="inline-flex overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800">
-          {(["all","monthly","weekly","daily"] as const).map((r) => (
+          {(["all", "monthly", "weekly", "daily"] as const).map((value) => (
             <button
-              key={r}
-              onClick={() => setRange(r)}
-              title="Time ranges coming soon"
-              className={`px-3 py-1.5 capitalize ${range === r ? "bg-lernex-blue/10 dark:bg-lernex-blue/20" : ""}`}
+              key={value}
+              onClick={() => setRange(value)}
+              className={`px-3 py-1.5 capitalize ${range === value ? "bg-lernex-blue/10 dark:bg-lernex-blue/20" : ""}`}
             >
-              {r === "all" ? "All Time" : r}
+              {value === "all" ? "All Time" : value}
             </button>
           ))}
         </div>
@@ -145,67 +388,89 @@ export default function Leaderboard() {
       <section className="mt-6 grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
           <div className="mb-2 text-sm font-semibold">Top Points</div>
-          <ol className="space-y-2">
-            {topPoints.map((r, i) => (
-              <li
-                key={r.id}
-                aria-current={r.id === userId ? "true" : undefined}
-                className={`flex items-center justify-between rounded-lg px-3 py-2 ring-offset-2 transition ${
-                  r.id === userId
-                    ? "bg-lernex-blue/15 ring-2 ring-lernex-blue/40 dark:bg-lernex-blue/20"
-                    : "bg-white/60 hover:bg-white/80 dark:bg-white/5 dark:hover:bg-white/10"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="w-6 text-right text-sm text-neutral-500">
-                    {i + 1}
-                  </span>
-                  <span className="text-sm">{r.username ?? `Learner #${r.id.slice(0, 6)}`}</span>
-                </div>
-                <span className="text-sm font-medium flex items-center gap-1">
-                  {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null}
-                  {r.points ?? 0}
-                </span>
-              </li>
-            ))}
-            {topPoints.length === 0 && (
-              <div className="text-sm text-neutral-500 dark:text-neutral-400">No data yet.</div>
-            )}
-          </ol>
+          {error ? (
+            <div className="text-sm text-rose-500 dark:text-rose-400">{error}</div>
+          ) : (
+            <ol className="space-y-2">
+              {loading ? (
+                <div className="text-sm text-neutral-500 dark:text-neutral-400">Loading...</div>
+              ) : (
+                <>
+                  {topPoints.map((row, index) => (
+                    <li
+                      key={row.id}
+                      aria-current={row.id === userId ? "true" : undefined}
+                      className={`flex items-center justify-between rounded-lg px-3 py-2 ring-offset-2 transition ${
+                        row.id === userId
+                          ? "bg-lernex-blue/15 ring-2 ring-lernex-blue/40 dark:bg-lernex-blue/20"
+                          : "bg-white/60 hover:bg-white/80 dark:bg-white/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 text-right text-sm text-neutral-500">{index + 1}</span>
+                        <span className="text-sm">
+                          {row.username ?? `Learner #${row.id.slice(0, 6)}`}
+                        </span>
+                      </div>
+                      <span className="flex items-center gap-1 text-sm font-medium">
+                        {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : null}
+                        {row.points ?? 0}
+                      </span>
+                    </li>
+                  ))}
+                  {topPoints.length === 0 && (
+                    <div className="text-sm text-neutral-500 dark:text-neutral-400">No data yet.</div>
+                  )}
+                </>
+              )}
+            </ol>
+          )}
         </div>
         <div className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
           <div className="mb-2 text-sm font-semibold">Top Streaks</div>
-          <ol className="space-y-2">
-            {topStreak.map((r, i) => (
-              <li
-                key={r.id}
-                aria-current={r.id === userId ? "true" : undefined}
-                className={`flex items-center justify-between rounded-lg px-3 py-2 ring-offset-2 transition ${
-                  r.id === userId
-                    ? "bg-lernex-blue/15 ring-2 ring-lernex-blue/40 dark:bg-lernex-blue/20"
-                    : "bg-white/60 hover:bg-white/80 dark:bg-white/5 dark:hover:bg-white/10"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="w-6 text-right text-sm text-neutral-500">{i + 1}</span>
-                  <span className="text-sm">{r.username ?? `Learner #${r.id.slice(0, 6)}`}</span>
-                </div>
-                <span className="text-sm font-medium flex items-center gap-1">
-                  {i === 0 ? "🏆" : null}
-                  {r.streak ?? 0} days
-                </span>
-              </li>
-            ))}
-            {topStreak.length === 0 && (
-              <div className="text-sm text-neutral-500 dark:text-neutral-400">No data yet.</div>
-            )}
-          </ol>
+          {error ? (
+            <div className="text-sm text-rose-500 dark:text-rose-400">{error}</div>
+          ) : (
+            <ol className="space-y-2">
+              {loading ? (
+                <div className="text-sm text-neutral-500 dark:text-neutral-400">Loading...</div>
+              ) : (
+                <>
+                  {topStreak.map((row, index) => (
+                    <li
+                      key={row.id}
+                      aria-current={row.id === userId ? "true" : undefined}
+                      className={`flex items-center justify-between rounded-lg px-3 py-2 ring-offset-2 transition ${
+                        row.id === userId
+                          ? "bg-lernex-blue/15 ring-2 ring-lernex-blue/40 dark:bg-lernex-blue/20"
+                          : "bg-white/60 hover:bg-white/80 dark:bg-white/5 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 text-right text-sm text-neutral-500">{index + 1}</span>
+                        <span className="text-sm">
+                          {row.username ?? `Learner #${row.id.slice(0, 6)}`}
+                        </span>
+                      </div>
+                      <span className="flex items-center gap-1 text-sm font-medium">
+                        {index === 0 ? "🏆" : null}
+                        {row.streak ?? 0} days
+                      </span>
+                    </li>
+                  ))}
+                  {topStreak.length === 0 && (
+                    <div className="text-sm text-neutral-500 dark:text-neutral-400">No data yet.</div>
+                  )}
+                </>
+              )}
+            </ol>
+          )}
         </div>
       </section>
 
       <div className="mt-6 rounded-xl border border-neutral-200 p-4 text-sm dark:border-neutral-800">
         Want to climb the board? Try a <Link href="/playlists" className="underline">playlist</Link> or
-        generate a fresh <Link href="/generate" className="underline">micro‑lesson</Link>.
+        generate a fresh <Link href="/generate" className="underline">micro-lesson</Link>.
       </div>
     </main>
   );

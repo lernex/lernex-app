@@ -410,6 +410,8 @@ export async function generateLessonForTopic(
     if (!uid) return;
     const usagePayload = summary ?? { input_tokens: null, output_tokens: null };
     const metadata: Record<string, unknown> = {
+      feature: "fyp-lesson",
+      route: "fyp",
       generatorAttempt: attempt,
       subject,
       topic,
