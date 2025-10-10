@@ -125,6 +125,43 @@ export interface Database {
         };
         Relationships: [];
       };
+      playlist_memberships: {
+        Row: {
+          id: string;
+          playlist_id: string;
+          profile_id: string;
+          role: "viewer" | "moderator";
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          playlist_id: string;
+          profile_id: string;
+          role?: "viewer" | "moderator";
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          playlist_id?: string;
+          profile_id?: string;
+          role?: "viewer" | "moderator";
+          created_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName?: string;
+            columns: ["playlist_id"];
+            referencedRelation: "playlists";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName?: string;
+            columns: ["profile_id"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       playlist_items: {
         Row: {
           id: string;

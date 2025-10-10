@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useRef } from "react";
 import FypFeed from "@/components/FypFeed";
 import ClassPicker from "@/components/ClassPicker";
 import Link from "next/link";
@@ -11,14 +12,49 @@ type AppFeedClientProps = {
   initialProfile?: ProfileBasics | null;
 };
 
+const MAIN_FALLBACK_BACKGROUND =
+  "radial-gradient(circle at 18% 20%, rgba(46,119,255,0.4), transparent 55%), radial-gradient(circle at 88% 18%, rgba(171,67,255,0.36), transparent 60%), radial-gradient(circle at 52% 88%, rgba(20,180,149,0.26), transparent 68%), linear-gradient(135deg, #050716 0%, #010208 100%)";
+
 export default function AppFeedClient({ initialProfile }: AppFeedClientProps) {
   const { selectedSubjects } = useLernexStore();
   const hasSelection = selectedSubjects.length > 0;
+  const mainRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const mainEl = mainRef.current;
+    if (!mainEl) return;
+
+    const emitDebugInfo = (reason: string) => {
+      const computed = window.getComputedStyle(mainEl);
+      console.debug("[AppFeedClient] background inspection", {
+        reason,
+        backgroundColor: computed.backgroundColor,
+        backgroundImage: computed.backgroundImage,
+        dataset: { ...mainEl.dataset },
+      });
+      if (!computed.backgroundImage || computed.backgroundImage === "none") {
+        console.warn("[AppFeedClient] missing gradient background. Applying inline fallback.");
+        mainEl.style.backgroundImage = MAIN_FALLBACK_BACKGROUND;
+        mainEl.dataset.backgroundFallbackApplied = "true";
+      }
+    };
+
+    emitDebugInfo("initial mount");
+    const observer = new MutationObserver(() => emitDebugInfo("class/style mutation"));
+    observer.observe(mainEl, { attributes: true, attributeFilter: ["class", "style"] });
+    window.setTimeout(() => emitDebugInfo("post hydration delay"), 0);
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <ProfileBasicsProvider initialData={initialProfile ?? undefined}>
       <WelcomeTourOverlay />
-      <main className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-gradient-to-br from-[#050716] via-[#04040f] to-[#010208]">
+      <main
+        ref={mainRef}
+        data-app-feed-root="true"
+        className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-gradient-to-br from-[#050716] via-[#04040f] to-[#010208]"
+      >
         <div className="absolute inset-0 -z-40 bg-[radial-gradient(circle_at_18%_22%,rgba(46,119,255,0.4),transparent_55%),radial-gradient(circle_at_82%_18%,rgba(171,67,255,0.32),transparent_62%),radial-gradient(circle_at_50%_88%,rgba(20,180,149,0.26),transparent_68%)]" />
         <div className="pointer-events-none absolute inset-0 -z-30 bg-[linear-gradient(115deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0)_35%),linear-gradient(295deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0)_42%)] opacity-40" />
         <div className="pointer-events-none absolute inset-0 -z-20 bg-[radial-gradient(rgba(255,255,255,0.12)_1px,transparent_1px)] bg-[size:160px_160px] opacity-[0.18]" />

@@ -1,40 +1,125 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase-browser";
 import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  ArrowUpRight,
+  Check,
+  Copy,
+  Eye,
+  Filter,
+  Globe,
+  Loader2,
+  Lock,
+  Plus,
+  Search,
+  Share2,
+  ShieldCheck,
+  Sparkles,
+  UserCog,
+  UserPlus,
+  Users,
+  X,
+} from "lucide-react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type PlaylistRow = {
   id: string;
+  user_id: string;
   name: string;
   description: string | null;
   is_public: boolean | null;
   created_at: string | null;
 };
 
+type ProfileLite = {
+  id: string;
+  full_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
+};
+
+type PlaylistCardMeta = PlaylistRow & {
+  owner: ProfileLite | null;
+  userRole: "owner" | "moderator" | "viewer";
+  membershipId: string | null;
+};
+
+type FilterKey = "all" | "mine" | "shared" | "public";
+
+type FeedbackState = { type: "success" | "error"; message: string };
+
+type CollaboratorRow = {
+  id: string;
+  playlist_id: string;
+  profile_id: string;
+  role: "viewer" | "moderator";
+  created_at: string | null;
+  profile: ProfileLite | null;
+};
+
+type CollaboratorQueryRow = CollaboratorRow & {
+  profiles: ProfileLite | null;
+};
+
+type SharePanelProps = {
+  isOpen: boolean;
+  playlist: PlaylistCardMeta | null;
+  onClose: () => void;
+  supabase: ReturnType<typeof supabaseBrowser>;
+  onRefresh: () => Promise<void>;
+  pushFeedback: (feedback: FeedbackState) => void;
+  currentUserId: string | null;
+  onToggleVisibility: (playlist: PlaylistCardMeta) => Promise<void>;
+};
+
+type PlaylistCardProps = {
+  playlist: PlaylistCardMeta;
+  busy: boolean;
+  onToggleVisibility: (playlist: PlaylistCardMeta) => Promise<void>;
+  onOpenShare: (playlist: PlaylistCardMeta) => void;
+};
+
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: "all", label: "All playlists" },
+  { key: "mine", label: "Owned" },
+  { key: "shared", label: "Shared with me" },
+  { key: "public", label: "Public" },
+];
+
 export default function Playlists() {
   const supabase = useMemo(() => supabaseBrowser(), []);
-  const [rows, setRows] = useState<PlaylistRow[]>([]);
-  const [name, setName] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
-
+  const [playlists, setPlaylists] = useState<PlaylistCardMeta[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [createName, setCreateName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+  const [busyMap, setBusyMap] = useState<Record<string, boolean>>({});
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data, error }) => {
-      console.debug('[playlists] getSession result', { hasSession: !!data?.session, error });
-      if (!active) return;
-      if (error) {
-        console.error('[playlists] session fetch failed', error);
-        return;
-      }
-      setUserId(data?.session?.user?.id ?? null);
-    });
-    const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      console.debug('[playlists] onAuthStateChange', { event, hasSession: !!session });
+    supabase.auth
+      .getSession()
+      .then(({ data, error: sessionError }) => {
+        if (!active) return;
+        if (sessionError) {
+          console.error("[playlists] session fetch failed", sessionError);
+        }
+        setUserId(data?.session?.user?.id ?? null);
+        setSessionReady(true);
+      });
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user?.id ?? null);
     });
+
     return () => {
       active = false;
       data.subscription.unsubscribe();
@@ -42,112 +127,1270 @@ export default function Playlists() {
   }, [supabase]);
 
   const refresh = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("playlists")
-      .select("id, name, description, is_public, created_at")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error('[playlists] refresh failed', error);
-      return;
-    }
-
-    if (data) setRows(data as PlaylistRow[]);
-  }, [supabase]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  async function create() {
-    const trimmed = name.trim();
-    if (!trimmed || creating) return;
+    setLoading(true);
     setError(null);
-    setCreating(true);
     try {
-      let id = userId;
-      if (!id) {
-        console.warn('[playlists] missing cached user id, refetching session');
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        console.debug('[playlists] second session fetch', { hasSession: !!sessionData?.session, sessionError });
-        if (sessionError) throw sessionError;
-        id = sessionData.session?.user?.id ?? null;
-        setUserId(id);
+      const { data: playlistData, error: playlistError } = await supabase
+        .from("playlists")
+        .select("id, user_id, name, description, is_public, created_at")
+        .order("created_at", { ascending: false });
+
+      if (playlistError) {
+        throw playlistError;
       }
 
-      if (!id) {
-        setError("Sign in to create playlists.");
+      const rows = (playlistData ?? []) as PlaylistRow[];
+      const ownerIds = Array.from(
+        new Set(rows.map((row) => row.user_id).filter(Boolean))
+      );
+
+      let ownerMap: Record<string, ProfileLite> = {};
+      if (ownerIds.length > 0) {
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, full_name, username, avatar_url")
+          .in("id", ownerIds);
+
+        if (profileError) {
+          throw profileError;
+        }
+
+        ownerMap = Object.fromEntries(
+          ((profileData ?? []) as ProfileLite[]).map((profile) => [
+            profile.id,
+            profile,
+          ])
+        );
+      }
+
+      let membershipMap: Record<
+        string,
+        { membershipId: string; role: "moderator" | "viewer" }
+      > = {};
+
+      if (userId) {
+        const {
+          data: membershipData,
+          error: membershipError,
+        } = await supabase
+          .from("playlist_memberships")
+          .select("id, playlist_id, role")
+          .eq("profile_id", userId);
+
+        if (membershipError) {
+          if (
+            isPostgrestError(membershipError) &&
+            membershipError.code === "42P01"
+          ) {
+            console.info(
+              "[playlists] playlist_memberships table not found; sharing features unavailable"
+            );
+          } else if (
+            !isPostgrestError(membershipError) ||
+            membershipError.code !== "PGRST302"
+          ) {
+            throw membershipError;
+          }
+        } else if (membershipData) {
+          membershipMap = Object.fromEntries(
+            (
+              membershipData as {
+                id: string;
+                playlist_id: string;
+                role: "moderator" | "viewer";
+              }[]
+            ).map((entry) => [
+              entry.playlist_id,
+              { membershipId: entry.id, role: entry.role },
+            ])
+          );
+        }
+      }
+
+      const mapped: PlaylistCardMeta[] = rows.map((row) => {
+        const normalizedIsPublic = Boolean(row.is_public);
+        const membership = membershipMap[row.id] ?? null;
+        let userRole: "owner" | "moderator" | "viewer" = "viewer";
+
+        if (row.user_id === userId) {
+          userRole = "owner";
+        } else if (membership?.role === "moderator") {
+          userRole = "moderator";
+        } else if (membership?.role === "viewer") {
+          userRole = "viewer";
+        } else if (normalizedIsPublic) {
+          userRole = "viewer";
+        }
+
+        return {
+          ...row,
+          is_public: normalizedIsPublic,
+          owner: ownerMap[row.user_id] ?? null,
+          userRole,
+          membershipId: membership?.membershipId ?? null,
+        };
+      });
+
+      setPlaylists(mapped);
+    } catch (err) {
+      console.error("Failed to load playlists", err);
+      setError("We couldn't load playlists right now. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase, userId]);
+
+  useEffect(() => {
+    if (!sessionReady) return;
+    void refresh();
+  }, [refresh, sessionReady]);
+
+  useEffect(() => {
+    if (!feedback) return;
+    const timer = window.setTimeout(() => setFeedback(null), 3600);
+    return () => window.clearTimeout(timer);
+  }, [feedback]);
+
+  useEffect(() => {
+    if (shareOpen && !selectedId) {
+      setShareOpen(false);
+    }
+  }, [shareOpen, selectedId]);
+
+  const filterCounts = useMemo<Record<FilterKey, number>>(() => {
+    const mine = playlists.filter((item) => item.userRole === "owner").length;
+    const shared = playlists.filter(
+      (item) => item.userRole !== "owner" && Boolean(item.membershipId)
+    ).length;
+    const publicCount = playlists.filter((item) => item.is_public).length;
+
+    return {
+      all: playlists.length,
+      mine,
+      shared,
+      public: publicCount,
+    };
+  }, [playlists]);
+
+  const filteredPlaylists = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    return playlists.filter((playlist) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        [
+          playlist.name,
+          playlist.description ?? "",
+          playlist.owner?.full_name ?? "",
+          playlist.owner?.username ?? "",
+        ]
+          .map((value) => value.toLowerCase())
+          .some((value) => value.includes(normalizedSearch));
+
+      if (!matchesSearch) return false;
+
+      if (activeFilter === "mine") {
+        return playlist.userRole === "owner";
+      }
+      if (activeFilter === "shared") {
+        return playlist.userRole !== "owner" && Boolean(playlist.membershipId);
+      }
+      if (activeFilter === "public") {
+        return Boolean(playlist.is_public);
+      }
+      return true;
+    });
+  }, [playlists, searchTerm, activeFilter]);
+
+  const selectedPlaylist = useMemo(
+    () => playlists.find((playlist) => playlist.id === selectedId) ?? null,
+    [playlists, selectedId]
+  );
+
+  const handleCreate = async () => {
+    const trimmed = createName.trim();
+    if (!trimmed || creating) return;
+
+    setCreating(true);
+    try {
+      if (!userId) {
+        setFeedback({
+          type: "error",
+          message: "Sign in to create playlists.",
+        });
         return;
       }
 
       const { error: insertError } = await supabase
         .from("playlists")
-        .insert({ name: trimmed, user_id: id });
+        .insert({ name: trimmed, user_id: userId });
 
       if (insertError) throw insertError;
 
-      setName("");
+      setCreateName("");
+      setFeedback({
+        type: "success",
+        message: "Playlist created.",
+      });
       await refresh();
     } catch (err) {
       console.error("Failed to create playlist", err);
-      const code =
-        typeof err === "object" && err !== null && "code" in err
-          ? (err as { code?: string }).code
-          : undefined;
-      setError(
-        code === "42501"
-          ? "Sign in to create playlists."
-          : "Could not create playlist. Please try again."
-      );
+      const code = isPostgrestError(err) ? err.code : undefined;
+      setFeedback({
+        type: "error",
+        message:
+          code === "42501"
+            ? "Sign in to create playlists."
+            : "Could not create playlist. Please try again.",
+      });
     } finally {
       setCreating(false);
     }
-  }
+  };
 
+  const handleToggleVisibility = useCallback(
+    async (playlist: PlaylistCardMeta) => {
+      setBusyMap((prev) => ({ ...prev, [playlist.id]: true }));
+      const nextVisibility = !playlist.is_public;
+
+      try {
+        const { error: updateError } = await supabase
+          .from("playlists")
+          .update({ is_public: nextVisibility })
+          .eq("id", playlist.id);
+
+        if (updateError) throw updateError;
+
+        setPlaylists((prev) =>
+          prev.map((item) =>
+            item.id === playlist.id ? { ...item, is_public: nextVisibility } : item
+          )
+        );
+
+        setFeedback({
+          type: "success",
+          message: nextVisibility
+            ? "Playlist is now public."
+            : "Playlist is now private.",
+        });
+      } catch (err) {
+        console.error("Failed to toggle visibility", err);
+        setFeedback({
+          type: "error",
+          message: "Could not update visibility. Please try again.",
+        });
+      } finally {
+        setBusyMap((prev) => {
+          const next = { ...prev };
+          delete next[playlist.id];
+          return next;
+        });
+      }
+    },
+    [supabase]
+  );
+
+  const handleOpenShare = (playlist: PlaylistCardMeta) => {
+    setSelectedId(playlist.id);
+    setShareOpen(true);
+  };
+
+  const handleCloseShare = () => {
+    setShareOpen(false);
+  };
   return (
-    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center text-neutral-900 dark:text-white">
-      <div className="w-full max-w-md px-4 py-6 space-y-4">
-        <h1 className="text-xl font-semibold">Your Playlists</h1>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">Create sets of lessons to study and share with friends.</p>
-
-        <div className="flex gap-2">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="flex-1 px-3 py-2 rounded-xl bg-white border border-neutral-300 outline-none text-neutral-900 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
-            placeholder="Exam Prep: Algebra I"
-          />
-          <button
-            onClick={create}
-            disabled={creating}
-            className="px-4 py-2 rounded-xl bg-lernex-blue hover:bg-blue-500 transition text-white disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {creating ? "Creating..." : "Create"}
-          </button>
-        </div>
-
-        {error ? (
-          <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
-        ) : null}
-
-        <div className="grid gap-2">
-          {rows.map((p) => (
-            <Link
-              key={p.id}
-              href={`/playlists/${p.id}`}
-              className="rounded-xl bg-white border border-neutral-200 p-3 hover:bg-neutral-100 text-neutral-900 dark:bg-neutral-900 dark:border-neutral-800 dark:hover:bg-neutral-800 dark:text-white"
-            >
-              <div className="font-semibold">{p.name}</div>
-              <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                {p.is_public ? "Public" : "Private"}
+    <main className="relative min-h-[calc(100vh-56px)] bg-gradient-to-b from-white via-white to-lernex-gray/30 text-neutral-900 transition-colors dark:from-lernex-charcoal dark:via-lernex-charcoal/98 dark:to-lernex-charcoal/90 dark:text-white">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-20 pt-10 sm:px-6 lg:px-8">
+        <div className="space-y-8">
+          <section className="relative overflow-hidden rounded-3xl border border-white/60 bg-gradient-to-br from-lernex-blue/10 via-white/85 to-lernex-purple/10 p-8 shadow-xl backdrop-blur-lg dark:border-white/10 dark:from-lernex-blue/15 dark:via-lernex-charcoal/40 dark:to-lernex-purple/15">
+            <motion.span
+              initial={{ opacity: 0, scale: 0.6 }}
+              animate={{ opacity: 0.6, scale: 1 }}
+              transition={{ duration: 1.2, ease: "easeOut" }}
+              className="pointer-events-none absolute -top-24 -left-20 hidden h-52 w-52 rounded-full bg-lernex-blue/25 blur-3xl md:block"
+            />
+            <motion.span
+              initial={{ opacity: 0, scale: 0.6 }}
+              animate={{ opacity: 0.55, scale: 1 }}
+              transition={{ duration: 1.4, delay: 0.1, ease: "easeOut" }}
+              className="pointer-events-none absolute -bottom-24 right-10 hidden h-60 w-60 rounded-full bg-lernex-purple/25 blur-3xl md:block"
+            />
+            <div className="relative z-10 flex flex-col gap-6">
+              <div>
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-lernex-blue shadow-sm dark:bg-white/10 dark:text-lernex-blue/80">
+                  <Users className="h-4 w-4" />
+                  Playlist hub
+                </span>
+                <h1 className="mt-4 text-3xl font-semibold tracking-tight text-neutral-900 dark:text-white sm:text-4xl">
+                  Curate, discover, and share playlists
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm text-neutral-600 dark:text-white/70">
+                  Search across your personal study sets, collaborate with trusted moderators, and explore public playlists shared by the Lernex community.
+                </p>
               </div>
-            </Link>
-          ))}
-          {rows.length === 0 && (
-            <div className="text-sm text-neutral-500 dark:text-neutral-400">No playlists yet — create your first above.</div>
-          )}
+
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400 dark:text-white/40" />
+                  <input
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Search by playlist name, topic, or creator..."
+                    className="w-full rounded-full border border-white/70 bg-white/80 px-12 py-3 text-sm text-neutral-800 shadow-sm outline-none transition focus:border-lernex-blue/60 focus:ring-2 focus:ring-lernex-blue/30 dark:border-white/10 dark:bg-white/10 dark:text-white"
+                  />
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row lg:w-auto">
+                  <input
+                    value={createName}
+                    onChange={(event) => setCreateName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void handleCreate();
+                      }
+                    }}
+                    placeholder="Name your next playlist"
+                    className="w-full rounded-full border border-white/70 bg-white/80 px-4 py-3 text-sm text-neutral-800 shadow-sm outline-none transition focus:border-lernex-blue/60 focus:ring-2 focus:ring-lernex-blue/30 dark:border-white/10 dark:bg-white/10 dark:text-white"
+                  />
+                  <button
+                    onClick={() => void handleCreate()}
+                    disabled={creating}
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-lernex-blue px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-lernex-blue/90 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {creating ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                    {creating ? "Creating..." : "Create playlist"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {FILTERS.map((filter, index) => {
+                  const active = activeFilter === filter.key;
+                  return (
+                    <button
+                      key={filter.key}
+                      onClick={() => setActiveFilter(filter.key)}
+                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${
+                        active
+                          ? "border-lernex-blue/60 bg-lernex-blue/10 text-lernex-blue shadow-sm"
+                          : "border-white/60 bg-white/60 text-neutral-600 hover:border-lernex-blue/40 hover:text-lernex-blue dark:border-white/10 dark:bg-white/10 dark:text-white/70"
+                      }`}
+                    >
+                      {index === 0 ? (
+                        <Filter className="h-3.5 w-3.5" />
+                      ) : null}
+                      <span>{filter.label}</span>
+                      <span
+                        className={`h-5 min-w-[20px] rounded-full px-1 text-center text-[11px] ${
+                          active
+                            ? "bg-lernex-blue/90 text-white"
+                            : "bg-white/70 text-neutral-500 dark:bg-white/10 dark:text-white/60"
+                        }`}
+                      >
+                        {filterCounts[filter.key]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {error ? (
+                <div className="rounded-2xl border border-red-200/70 bg-red-50/80 px-4 py-3 text-sm text-red-700 shadow-sm dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
+                  {error}
+                </div>
+              ) : null}
+            </div>
+          </section>
+          <section className="rounded-3xl border border-neutral-200/70 bg-white/80 p-6 shadow-lg shadow-lernex-blue/5 backdrop-blur dark:border-white/10 dark:bg-white/5">
+            {loading ? (
+              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <div
+                    key={idx}
+                    className="h-64 animate-pulse rounded-3xl border border-white/70 bg-white/80 shadow-sm dark:border-white/10 dark:bg-white/10"
+                  />
+                ))}
+              </div>
+            ) : filteredPlaylists.length > 0 ? (
+              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredPlaylists.map((playlist) => (
+                  <PlaylistCard
+                    key={playlist.id}
+                    playlist={playlist}
+                    busy={Boolean(busyMap[playlist.id])}
+                    onToggleVisibility={handleToggleVisibility}
+                    onOpenShare={handleOpenShare}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-neutral-300/80 bg-white/70 px-8 py-16 text-center dark:border-white/10 dark:bg-white/10">
+                <Sparkles className="h-8 w-8 text-lernex-blue" />
+                <h2 className="mt-4 text-lg font-semibold text-neutral-900 dark:text-white">
+                  No playlists matched your filters
+                </h2>
+                <p className="mt-2 max-w-md text-sm text-neutral-500 dark:text-white/60">
+                  Try adjusting the search, switch the filter, or create something new to kick off your next study streak.
+                </p>
+                <button
+                  onClick={() => {
+                    setActiveFilter("all");
+                    setSearchTerm("");
+                  }}
+                  className="mt-5 inline-flex items-center gap-2 rounded-full bg-lernex-blue px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-lernex-blue/90"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Reset filters
+                </button>
+              </div>
+            )}
+          </section>
         </div>
       </div>
+
+      <SharePanel
+        isOpen={shareOpen && Boolean(selectedPlaylist)}
+        playlist={selectedPlaylist}
+        onClose={handleCloseShare}
+        supabase={supabase}
+        onRefresh={refresh}
+        pushFeedback={setFeedback}
+        currentUserId={userId}
+        onToggleVisibility={handleToggleVisibility}
+      />
+
+      <AnimatePresence>
+        {feedback ? (
+          <motion.div
+            key={feedback.message}
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className={`fixed bottom-8 left-1/2 z-50 w-[min(90vw,420px)] -translate-x-1/2 rounded-full px-5 py-3 text-sm font-medium shadow-lg backdrop-blur ${
+              feedback.type === "success"
+                ? "bg-lernex-blue/90 text-white"
+                : "bg-red-500/95 text-white"
+            }`}
+          >
+            {feedback.message}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </main>
   );
 }
+function PlaylistCard({
+  playlist,
+  busy,
+  onToggleVisibility,
+  onOpenShare,
+}: PlaylistCardProps) {
+  const isOwner = playlist.userRole === "owner";
+  const isModerator = playlist.userRole === "moderator";
+  const isViewer = !isOwner && !isModerator;
+
+  const roleBadgeClass = isOwner
+    ? "bg-lernex-blue/10 text-lernex-blue"
+    : isModerator
+    ? "bg-lernex-purple/10 text-lernex-purple"
+    : playlist.is_public
+    ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-200"
+    : "bg-neutral-900/5 text-neutral-600 dark:bg-white/10 dark:text-white/60";
+
+  const roleIcon = isOwner ? (
+    <ShieldCheck className="h-3.5 w-3.5" />
+  ) : isModerator ? (
+    <UserCog className="h-3.5 w-3.5" />
+  ) : (
+    <Eye className="h-3.5 w-3.5" />
+  );
+
+  const roleLabel = isOwner
+    ? "You own this"
+    : isModerator
+    ? "Moderator access"
+    : playlist.is_public
+    ? "Public viewer"
+    : "Private viewer";
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      className="group flex h-full flex-col justify-between rounded-3xl border border-white/70 bg-white/85 p-6 shadow-lg shadow-lernex-blue/5 transition hover:-translate-y-1 hover:border-lernex-blue/60 hover:shadow-xl dark:border-white/10 dark:bg-white/10"
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-3">
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+              playlist.is_public
+                ? "bg-lernex-blue/15 text-lernex-blue"
+                : "bg-neutral-900/5 text-neutral-600 dark:bg-white/10 dark:text-white/70"
+            }`}
+          >
+            {playlist.is_public ? (
+              <Globe className="h-3.5 w-3.5" />
+            ) : (
+              <Lock className="h-3.5 w-3.5" />
+            )}
+            {playlist.is_public ? "Public" : "Private"}
+          </span>
+          <span
+            className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${roleBadgeClass}`}
+          >
+            {roleIcon}
+            {roleLabel}
+          </span>
+        </div>
+
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">
+            {playlist.name}
+          </h2>
+          {playlist.description ? (
+            <p className="mt-2 text-sm leading-relaxed text-neutral-600 dark:text-white/70">
+              {playlist.description}
+            </p>
+          ) : (
+            <p className="mt-2 text-sm italic text-neutral-500 dark:text-white/50">
+              No description yet. Add one to set the vibe.
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 rounded-2xl border border-neutral-200/80 bg-white/80 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-lernex-blue/10 text-sm font-semibold text-lernex-blue dark:bg-lernex-blue/20 dark:text-lernex-blue/80">
+            {getInitials(playlist.owner)}
+          </div>
+          <div className="flex flex-col">
+            <span className="font-medium text-neutral-800 dark:text-white">
+              {playlist.owner?.full_name ??
+                playlist.owner?.username ??
+                "Unknown creator"}
+            </span>
+            <span className="text-xs text-neutral-500 dark:text-white/50">
+              {describeTimestamp(playlist.created_at)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        <Link
+          href={`/playlists/${playlist.id}`}
+          className="inline-flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white px-4 py-2 text-xs font-semibold text-neutral-700 transition hover:border-lernex-blue/40 hover:text-lernex-blue dark:border-white/10 dark:bg-white/10 dark:text-white/80"
+        >
+          <ArrowUpRight className="h-3.5 w-3.5" />
+          Open playlist
+        </Link>
+        {(isOwner || isModerator) && (
+          <button
+            onClick={() => onOpenShare(playlist)}
+            className="inline-flex items-center gap-2 rounded-full bg-lernex-blue px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-lernex-blue/90"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            Manage access
+          </button>
+        )}
+        {isOwner ? (
+          <button
+            onClick={() => void onToggleVisibility(playlist)}
+            disabled={busy}
+            className="inline-flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white px-4 py-2 text-xs font-semibold text-neutral-700 transition hover:border-lernex-blue/40 hover:text-lernex-blue disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/10 dark:text-white/80"
+          >
+            {busy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : playlist.is_public ? (
+              <Lock className="h-3.5 w-3.5" />
+            ) : (
+              <Globe className="h-3.5 w-3.5" />
+            )}
+            {busy
+              ? "Saving..."
+              : playlist.is_public
+              ? "Make private"
+              : "Make public"}
+          </button>
+        ) : null}
+      </div>
+    </motion.div>
+  );
+}
+function SharePanel({
+  isOpen,
+  playlist,
+  onClose,
+  supabase,
+  onRefresh,
+  pushFeedback,
+  currentUserId,
+  onToggleVisibility,
+}: SharePanelProps) {
+  const [collaborators, setCollaborators] = useState<CollaboratorRow[]>([]);
+  const [loadingCollaborators, setLoadingCollaborators] = useState(false);
+  const [collaboratorError, setCollaboratorError] = useState<string | null>(null);
+  const [personQuery, setPersonQuery] = useState("");
+  const [searchingPeople, setSearchingPeople] = useState(false);
+  const [peopleResults, setPeopleResults] = useState<ProfileLite[]>([]);
+  const [actionId, setActionId] = useState<string | null>(null);
+  const [visibilityBusy, setVisibilityBusy] = useState(false);
+  const [copying, setCopying] = useState(false);
+
+  const loadCollaborators = useCallback(async () => {
+    if (!playlist) return;
+    setLoadingCollaborators(true);
+    setCollaboratorError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from("playlist_memberships")
+        .select(
+          "id, playlist_id, profile_id, role, created_at, profiles(id, full_name, username, avatar_url)"
+        )
+        .eq("playlist_id", playlist.id)
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        if (isPostgrestError(error) && error.code === "42P01") {
+          setCollaborators([]);
+          return;
+        }
+        throw error;
+      }
+
+      const rows = (data ?? []) as CollaboratorQueryRow[];
+      const mapped = rows.map<CollaboratorRow>((row) => ({
+        id: row.id,
+        playlist_id: row.playlist_id,
+        profile_id: row.profile_id,
+        role: row.role,
+        created_at: row.created_at,
+        profile: row.profiles ?? null,
+      }));
+
+      setCollaborators(mapped);
+    } catch (err) {
+      console.error("Failed to load collaborators", err);
+      setCollaboratorError("We couldn't load collaborators right now.");
+    } finally {
+      setLoadingCollaborators(false);
+    }
+  }, [playlist, supabase]);
+
+  useEffect(() => {
+    if (!isOpen || !playlist) return;
+    void loadCollaborators();
+  }, [isOpen, playlist?.id, loadCollaborators]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setCollaborators([]);
+      setCollaboratorError(null);
+      setPersonQuery("");
+      setPeopleResults([]);
+      setSearchingPeople(false);
+      setActionId(null);
+      setVisibilityBusy(false);
+      setCopying(false);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !playlist) return;
+    if (!personQuery.trim()) {
+      setPeopleResults([]);
+      setSearchingPeople(false);
+      return;
+    }
+
+    setSearchingPeople(true);
+    const sanitized = personQuery.trim().replace(/,/g, "\\,");
+    let active = true;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id, full_name, username, avatar_url")
+          .or(`full_name.ilike.%${sanitized}%,username.ilike.%${sanitized}%`)
+          .limit(8);
+
+        if (error) throw error;
+        if (!active) return;
+
+        const rows = (data ?? []) as ProfileLite[];
+        const filtered = rows.filter(
+          (profile) =>
+            profile.id !== playlist.user_id &&
+            profile.id !== currentUserId &&
+            !collaborators.some((collab) => collab.profile_id === profile.id)
+        );
+        setPeopleResults(filtered);
+      } catch (err) {
+        console.error("User search failed", err);
+        if (active) setPeopleResults([]);
+      } finally {
+        if (active) setSearchingPeople(false);
+      }
+    }, 260);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [personQuery, supabase, collaborators, playlist, currentUserId, isOpen]);
+
+  const handleAddCollaborator = async (
+    profile: ProfileLite,
+    role: "viewer" | "moderator"
+  ) => {
+    if (!playlist) return;
+    setActionId(profile.id);
+
+    try {
+      const { data, error } = await supabase
+        .from("playlist_memberships")
+        .upsert(
+          { playlist_id: playlist.id, profile_id: profile.id, role },
+          { onConflict: "playlist_id,profile_id" }
+        )
+        .select(
+          "id, playlist_id, profile_id, role, created_at, profiles(id, full_name, username, avatar_url)"
+        )
+        .maybeSingle();
+
+      if (error) {
+        if (isPostgrestError(error) && error.code === "42P01") {
+          pushFeedback({
+            type: "error",
+            message:
+              "Sharing is not available yet. Run the latest database migration to add playlist_memberships.",
+          });
+          return;
+        }
+        throw error;
+      }
+
+      if (data) {
+        const row = data as CollaboratorQueryRow;
+        const normalized: CollaboratorRow = {
+          id: row.id,
+          playlist_id: row.playlist_id,
+          profile_id: row.profile_id,
+          role: row.role,
+          created_at: row.created_at,
+          profile: row.profiles ?? null,
+        };
+
+        setCollaborators((prev) => {
+          const index = prev.findIndex(
+            (item) => item.profile_id === normalized.profile_id
+          );
+          if (index >= 0) {
+            const copy = [...prev];
+            copy[index] = normalized;
+            return copy;
+          }
+          return [...prev, normalized];
+        });
+      }
+
+      pushFeedback({
+        type: "success",
+        message:
+          role === "moderator"
+            ? "Moderator access granted."
+            : "Viewer added to the playlist.",
+      });
+      setPersonQuery("");
+      setPeopleResults([]);
+      await onRefresh();
+    } catch (err) {
+      console.error("Add collaborator failed", err);
+      pushFeedback({
+        type: "error",
+        message: "Could not update sharing. Try again in a moment.",
+      });
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleRoleChange = async (
+    membershipId: string,
+    nextRole: "viewer" | "moderator"
+  ) => {
+    if (!playlist) return;
+    setActionId(membershipId);
+
+    try {
+      const { data, error } = await supabase
+        .from("playlist_memberships")
+        .update({ role: nextRole })
+        .eq("id", membershipId)
+        .select(
+          "id, playlist_id, profile_id, role, created_at, profiles(id, full_name, username, avatar_url)"
+        )
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        const row = data as CollaboratorQueryRow;
+        const normalized: CollaboratorRow = {
+          id: row.id,
+          playlist_id: row.playlist_id,
+          profile_id: row.profile_id,
+          role: row.role,
+          created_at: row.created_at,
+          profile: row.profiles ?? null,
+        };
+
+        setCollaborators((prev) =>
+          prev.map((item) => (item.id === membershipId ? normalized : item))
+        );
+      }
+
+      pushFeedback({
+        type: "success",
+        message:
+          nextRole === "moderator"
+            ? "Member promoted to moderator."
+            : "Member set to viewer.",
+      });
+      await onRefresh();
+    } catch (err) {
+      console.error("Role update failed", err);
+      pushFeedback({
+        type: "error",
+        message: "Could not update that member. Please try again.",
+      });
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleRemoveCollaborator = async (membershipId: string) => {
+    if (!playlist) return;
+    setActionId(membershipId);
+
+    try {
+      const { error } = await supabase
+        .from("playlist_memberships")
+        .delete()
+        .eq("id", membershipId);
+
+      if (error) throw error;
+
+      setCollaborators((prev) =>
+        prev.filter((item) => item.id !== membershipId)
+      );
+      pushFeedback({
+        type: "success",
+        message: "Removed shared access.",
+      });
+      await onRefresh();
+    } catch (err) {
+      console.error("Remove collaborator failed", err);
+      pushFeedback({
+        type: "error",
+        message: "Could not remove that member right now.",
+      });
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleToggleVisibility = async () => {
+    if (!playlist) return;
+    setVisibilityBusy(true);
+    try {
+      await onToggleVisibility(playlist);
+      await onRefresh();
+    } finally {
+      setVisibilityBusy(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!playlist) return;
+    if (typeof navigator === "undefined" || !navigator.clipboard) {
+      pushFeedback({
+        type: "error",
+        message: "Clipboard access is unavailable in this browser.",
+      });
+      return;
+    }
+    setCopying(true);
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/playlists/${playlist.id}`
+      );
+      pushFeedback({
+        type: "success",
+        message: "Playlist link copied.",
+      });
+    } catch (err) {
+      console.error("Copy link failed", err);
+      pushFeedback({
+        type: "error",
+        message: "Could not copy the link. Please try again.",
+      });
+    } finally {
+      setCopying(false);
+    }
+  };
+  return (
+    <AnimatePresence>
+      {isOpen && playlist ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center px-4 py-10"
+        >
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.6 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-neutral-900/70 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.98 }}
+            role="dialog"
+            aria-modal="true"
+            className="relative z-10 w-full max-w-2xl rounded-3xl border border-white/70 bg-white/95 p-6 shadow-2xl backdrop-blur-lg dark:border-white/10 dark:bg-lernex-charcoal"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">
+                  Share “{playlist.name}”
+                </h2>
+                <p className="mt-1 text-sm text-neutral-500 dark:text-white/60">
+                  Invite moderators to curate with you or share read-only access with friends. Only owners and moderators can edit lessons.
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className="rounded-full border border-neutral-200/60 bg-white/80 p-2 text-neutral-500 transition hover:border-neutral-300 hover:text-neutral-700 dark:border-white/10 dark:bg-white/10 dark:text-white/70"
+                aria-label="Close share sheet"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-6">
+              <div className="rounded-2xl border border-neutral-200/70 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-lernex-blue/10 text-sm font-semibold text-lernex-blue dark:bg-lernex-blue/20 dark:text-lernex-blue/80">
+                    {getInitials(playlist.owner)}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-neutral-800 dark:text-white">
+                      {playlist.owner?.full_name ??
+                        playlist.owner?.username ??
+                        "Playlist owner"}
+                    </p>
+                    <p className="text-xs text-neutral-500 dark:text-white/60">
+                      Owner
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-lernex-blue/10 px-3 py-1 text-[11px] font-semibold text-lernex-blue dark:bg-lernex-blue/20 dark:text-lernex-blue/80">
+                    <ShieldCheck className="h-3 w-3" />
+                    Full control
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-neutral-800 dark:text-white">
+                  Collaborators
+                </h3>
+                <div className="space-y-3">
+                  {loadingCollaborators ? (
+                    <div className="space-y-2">
+                      {Array.from({ length: 2 }).map((_, idx) => (
+                        <div
+                          key={idx}
+                          className="h-14 animate-pulse rounded-2xl border border-neutral-200/70 bg-white/70 dark:border-white/10 dark:bg-white/10"
+                        />
+                      ))}
+                    </div>
+                  ) : collaborators.length > 0 ? (
+                    collaborators.map((collab) => {
+                      const isModerator = collab.role === "moderator";
+                      const isPending = actionId === collab.id;
+                      return (
+                        <div
+                          key={collab.id}
+                          className="flex items-center justify-between gap-3 rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-sm shadow-sm dark:border-white/10 dark:bg-white/10"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-900/5 text-sm font-semibold text-neutral-600 dark:bg-white/10 dark:text-white/70">
+                              {getInitials(collab.profile)}
+                            </div>
+                            <div>
+                              <p className="font-medium text-neutral-800 dark:text-white">
+                                {collab.profile?.full_name ??
+                                  collab.profile?.username ??
+                                  "Shared member"}
+                              </p>
+                              <p className="text-xs text-neutral-500 dark:text-white/60">
+                                {isModerator ? "Moderator" : "Viewer"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() =>
+                                void handleRoleChange(
+                                  collab.id,
+                                  isModerator ? "viewer" : "moderator"
+                                )
+                              }
+                              disabled={isPending}
+                              className="inline-flex items-center gap-1 rounded-full border border-neutral-200/70 bg-white px-3 py-1 text-[11px] font-semibold text-neutral-600 transition hover:border-lernex-blue/40 hover:text-lernex-blue disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/10 dark:text-white/70"
+                            >
+                              {isPending ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : isModerator ? (
+                                <Check className="h-3.5 w-3.5" />
+                              ) : (
+                                <ShieldCheck className="h-3.5 w-3.5" />
+                              )}
+                              {isModerator ? "Set viewer" : "Promote"}
+                            </button>
+                            <button
+                              onClick={() => void handleRemoveCollaborator(collab.id)}
+                              disabled={isPending}
+                              className="inline-flex items-center gap-1 rounded-full border border-red-200/60 bg-red-50 px-3 py-1 text-[11px] font-semibold text-red-600 transition hover:border-red-300 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200"
+                            >
+                              {isPending ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <X className="h-3.5 w-3.5" />
+                              )}
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-neutral-300/80 bg-white/70 px-4 py-5 text-sm text-neutral-500 dark:border-white/10 dark:bg-white/10 dark:text-white/60">
+                      You have not shared this playlist yet. Invite someone below to start collaborating.
+                    </div>
+                  )}
+                  {collaboratorError ? (
+                    <div className="rounded-2xl border border-red-200/70 bg-red-50/80 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                      {collaboratorError}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-neutral-800 dark:text-white">
+                  Invite people
+                </h3>
+                <div className="rounded-2xl border border-neutral-200/70 bg-white/80 p-4 dark:border-white/10 dark:bg-white/10">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-300 dark:text-white/40" />
+                    <input
+                      value={personQuery}
+                      onChange={(event) => setPersonQuery(event.target.value)}
+                      placeholder="Search by name or username..."
+                      className="w-full rounded-full border border-neutral-200/70 bg-white/90 px-12 py-2.5 text-sm text-neutral-700 outline-none transition focus:border-lernex-blue/50 focus:ring-2 focus:ring-lernex-blue/20 dark:border-white/10 dark:bg-white/10 dark:text-white"
+                    />
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {searchingPeople ? (
+                      <div className="space-y-2">
+                        {Array.from({ length: 2 }).map((_, idx) => (
+                          <div
+                            key={idx}
+                            className="h-12 animate-pulse rounded-full bg-neutral-200/60 dark:bg-white/10"
+                          />
+                        ))}
+                      </div>
+                    ) : peopleResults.length > 0 ? (
+                      peopleResults.map((profile) => {
+                        const pending = actionId === profile.id;
+                        return (
+                          <div
+                            key={profile.id}
+                            className="flex items-center justify-between gap-3 rounded-full border border-neutral-200/70 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-white/10"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-900/5 text-xs font-semibold text-neutral-600 dark:bg-white/10 dark:text-white/70">
+                                {getInitials(profile)}
+                              </div>
+                              <div>
+                                <p className="font-medium text-neutral-700 dark:text-white">
+                                  {profile.full_name ?? profile.username ?? "User"}
+                                </p>
+                                <p className="text-[11px] text-neutral-400 dark:text-white/50">
+                                  {profile.username ?? "No username"}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() =>
+                                  void handleAddCollaborator(profile, "viewer")
+                                }
+                                disabled={pending}
+                                className="inline-flex items-center gap-1 rounded-full border border-neutral-200/70 bg-white px-3 py-1 text-[11px] font-semibold text-neutral-600 transition hover:border-lernex-blue/40 hover:text-lernex-blue disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/10 dark:text-white/70"
+                              >
+                                {pending ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <UserPlus className="h-3.5 w-3.5" />
+                                )}
+                                Add viewer
+                              </button>
+                              <button
+                                onClick={() =>
+                                  void handleAddCollaborator(profile, "moderator")
+                                }
+                                disabled={pending}
+                                className="inline-flex items-center gap-1 rounded-full bg-lernex-blue px-3 py-1 text-[11px] font-semibold text-white shadow-sm transition hover:bg-lernex-blue/90 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {pending ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <ShieldCheck className="h-3.5 w-3.5" />
+                                )}
+                                Add moderator
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : personQuery.trim() ? (
+                      <div className="rounded-full border border-dashed border-neutral-300/80 bg-white/60 px-3 py-2 text-center text-xs text-neutral-500 dark:border-white/10 dark:bg-white/10 dark:text-white/60">
+                        No accounts found. Double-check spelling and try again.
+                      </div>
+                    ) : (
+                      <p className="text-xs text-neutral-400 dark:text-white/40">
+                        Start typing to find Lernex users to share with.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-neutral-200/70 bg-white/80 p-4 dark:border-white/10 dark:bg-white/10">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-neutral-800 dark:text-white">
+                      Shareable link
+                    </h3>
+                    <p className="mt-1 text-xs text-neutral-500 dark:text-white/60">
+                      Anyone with this link can view the playlist if it is public.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => void handleCopyLink()}
+                      disabled={copying}
+                      className="inline-flex items-center gap-2 rounded-full border border-neutral-200/70 bg-white px-4 py-2 text-xs font-semibold text-neutral-700 transition hover:border-lernex-blue/40 hover:text-lernex-blue disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/10 dark:text-white/80"
+                    >
+                      {copying ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                      Copy link
+                    </button>
+                    <button
+                      onClick={() => void handleToggleVisibility()}
+                      disabled={visibilityBusy}
+                      className="inline-flex items-center gap-2 rounded-full bg-lernex-blue px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-lernex-blue/90 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {visibilityBusy ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : playlist.is_public ? (
+                        <Lock className="h-3.5 w-3.5" />
+                      ) : (
+                        <Globe className="h-3.5 w-3.5" />
+                      )}
+                      {visibilityBusy
+                        ? "Saving..."
+                        : playlist.is_public
+                        ? "Make private"
+                        : "Make public"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+function getInitials(profile: ProfileLite | null): string {
+  if (!profile) return "??";
+  const source = profile.full_name ?? profile.username ?? "";
+  if (!source) return "??";
+  const trimmed = source.trim();
+  if (!trimmed) return "??";
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+function describeTimestamp(value: string | null): string {
+  if (!value) return "Created recently";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Created recently";
+
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) {
+    return "Created today";
+  }
+  if (diffDays === 1) {
+    return "Created yesterday";
+  }
+  if (diffDays < 7) {
+    return `Created ${diffDays} days ago`;
+  }
+  const diffWeeks = Math.round(diffDays / 7);
+  if (diffWeeks < 5) {
+    return `Created ${diffWeeks} week${diffWeeks === 1 ? "" : "s"} ago`;
+  }
+
+  try {
+    return `Created ${new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(date)}`;
+  } catch {
+    return date.toLocaleDateString();
+  }
+}
+
+function isPostgrestError(
+  value: unknown
+): value is { code?: string; message?: string } {
+  return Boolean(
+    value && typeof value === "object" && "code" in (value as Record<string, unknown>)
+  );
+}
+
