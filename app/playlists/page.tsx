@@ -173,21 +173,15 @@ export default function Playlists() {
           .select("id, playlist_id, role")
           .eq("profile_id", userId);
 
-        if (membershipError) {
-          if (
-            isPostgrestError(membershipError) &&
-            membershipError.code === "42P01"
-          ) {
-            console.info(
-              "[playlists] playlist_memberships table not found; sharing features unavailable"
-            );
-          } else if (
-            !isPostgrestError(membershipError) ||
-            membershipError.code !== "PGRST302"
-          ) {
-            throw membershipError;
-          }
-        } else if (membershipData) {
+      if (membershipError) {
+        if (isMissingTableError(membershipError)) {
+          console.info(
+            "[playlists] playlist_memberships table not found; sharing features unavailable"
+          );
+        } else {
+          throw membershipError;
+        }
+      } else if (membershipData) {
           membershipMap = Object.fromEntries(
             (
               membershipData as {
@@ -752,7 +746,10 @@ function SharePanel({
         .order("created_at", { ascending: true });
 
       if (error) {
-        if (isPostgrestError(error) && error.code === "42P01") {
+        if (isMissingTableError(error)) {
+          console.info(
+            "[share-panel] playlist_memberships table missing; skipping collaborator load"
+          );
           setCollaborators([]);
           return;
         }
@@ -858,7 +855,7 @@ function SharePanel({
         .maybeSingle();
 
       if (error) {
-        if (isPostgrestError(error) && error.code === "42P01") {
+        if (isMissingTableError(error)) {
           pushFeedback({
             type: "error",
             message:
@@ -898,10 +895,18 @@ function SharePanel({
       await onRefresh();
     } catch (err) {
       console.error("Add collaborator failed", err);
-      pushFeedback({
-        type: "error",
-        message: "Could not update sharing. Try again in a moment.",
-      });
+      if (isMissingTableError(err)) {
+        pushFeedback({
+          type: "error",
+          message:
+            "Sharing is not available yet. Run the playlist_memberships migration first.",
+        });
+      } else {
+        pushFeedback({
+          type: "error",
+          message: "Could not update sharing. Try again in a moment.",
+        });
+      }
     } finally {
       setActionId(null);
     }
@@ -945,10 +950,18 @@ function SharePanel({
       await onRefresh();
     } catch (err) {
       console.error("Role update failed", err);
-      pushFeedback({
-        type: "error",
-        message: "Could not update that member. Please try again.",
-      });
+      if (isMissingTableError(err)) {
+        pushFeedback({
+          type: "error",
+          message:
+            "Sharing is not available yet. Run the playlist_memberships migration first.",
+        });
+      } else {
+        pushFeedback({
+          type: "error",
+          message: "Could not update that member. Please try again.",
+        });
+      }
     } finally {
       setActionId(null);
     }
@@ -976,10 +989,18 @@ function SharePanel({
       await onRefresh();
     } catch (err) {
       console.error("Remove collaborator failed", err);
-      pushFeedback({
-        type: "error",
-        message: "Could not remove that member right now.",
-      });
+      if (isMissingTableError(err)) {
+        pushFeedback({
+          type: "error",
+          message:
+            "Sharing is not available yet. Run the playlist_memberships migration first.",
+        });
+      } else {
+        pushFeedback({
+          type: "error",
+          message: "Could not remove that member right now.",
+        });
+      }
     } finally {
       setActionId(null);
     }
@@ -1364,7 +1385,9 @@ function normalizeCollaboratorRow(value: unknown): CollaboratorRow | null {
   const created =
     typeof record.created_at === "string" ? record.created_at : null;
   const profileSource =
-    "profile" in record ? (record as Record<string, unknown>).profile : record.profiles;
+    "profile" in record
+      ? (record as Record<string, unknown>).profile
+      : (record as Record<string, unknown>).profiles;
   const profile = normalizeProfileLiteRecord(profileSource ?? null);
 
   return {
@@ -1424,11 +1447,42 @@ function describeTimestamp(value: string | null): string {
   }
 }
 
-function isPostgrestError(
-  value: unknown
-): value is { code?: string; message?: string } {
-  return Boolean(
-    value && typeof value === "object" && "code" in (value as Record<string, unknown>)
+type PostgrestErrorLike = {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+  status?: number;
+};
+
+function isPostgrestError(value: unknown): value is PostgrestErrorLike {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return (
+    "code" in record ||
+    "message" in record ||
+    "details" in record ||
+    "hint" in record
   );
+}
+
+function isMissingTableError(value: unknown): boolean {
+  if (!isPostgrestError(value)) return false;
+  const code = (value.code ?? "").toUpperCase();
+  if (code === "42P01" || code === "PGRST302" || code === "PGRST114") {
+    return true;
+  }
+  const status =
+    typeof value.status === "number" ? value.status : Number(value.status);
+  if (status === 404) return true;
+  const message = (value.message ?? "").toLowerCase();
+  if (message.includes("not found") || message.includes("does not exist")) {
+    return true;
+  }
+  const details = typeof value.details === "string" ? value.details.toLowerCase() : "";
+  if (details.includes("not found") || details.includes("does not exist")) {
+    return true;
+  }
+  return false;
 }
 

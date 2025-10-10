@@ -13,7 +13,7 @@ type AppFeedClientProps = {
 };
 
 const MAIN_FALLBACK_BACKGROUND =
-  "radial-gradient(circle at 18% 20%, rgba(46,119,255,0.4), transparent 55%), radial-gradient(circle at 88% 18%, rgba(171,67,255,0.36), transparent 60%), radial-gradient(circle at 52% 88%, rgba(20,180,149,0.26), transparent 68%), linear-gradient(135deg, #050716 0%, #010208 100%)";
+  "radial-gradient(circle at 18% 20%, rgba(80,140,255,0.42), transparent 55%), radial-gradient(circle at 88% 22%, rgba(155,99,255,0.34), transparent 62%), radial-gradient(circle at 50% 88%, rgba(45,220,190,0.28), transparent 70%), linear-gradient(135deg, #0c133a 0%, #04061a 100%)";
 
 export default function AppFeedClient({ initialProfile }: AppFeedClientProps) {
   const { selectedSubjects } = useLernexStore();
@@ -53,13 +53,13 @@ export default function AppFeedClient({ initialProfile }: AppFeedClientProps) {
       <main
         ref={mainRef}
         data-app-feed-root="true"
-        className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-gradient-to-br from-[#050716] via-[#04040f] to-[#010208]"
+        className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-gradient-to-br from-[#0c133a] via-[#090f2c] to-[#04061a]"
       >
-        <div className="absolute inset-0 -z-40 bg-[radial-gradient(circle_at_18%_22%,rgba(46,119,255,0.4),transparent_55%),radial-gradient(circle_at_82%_18%,rgba(171,67,255,0.32),transparent_62%),radial-gradient(circle_at_50%_88%,rgba(20,180,149,0.26),transparent_68%)]" />
-        <div className="pointer-events-none absolute inset-0 -z-30 bg-[linear-gradient(115deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0)_35%),linear-gradient(295deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0)_42%)] opacity-40" />
-        <div className="pointer-events-none absolute inset-0 -z-20 bg-[radial-gradient(rgba(255,255,255,0.12)_1px,transparent_1px)] bg-[size:160px_160px] opacity-[0.18]" />
-        <div className="pointer-events-none absolute -left-[35%] top-1/2 -z-10 h-[900px] w-[900px] -translate-y-1/2 rounded-full bg-[conic-gradient(from_100deg_at_50%_50%,rgba(59,130,246,0.32)_0deg,rgba(236,72,153,0.22)_150deg,rgba(56,189,248,0.32)_320deg,rgba(59,130,246,0.32)_360deg)] blur-[200px] opacity-75 animate-[spin_95s_linear_infinite]" />
-        <div className="pointer-events-none absolute right-[-12%] top-[14%] -z-10 h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle,rgba(236,72,153,0.42),transparent_68%)] blur-[160px] opacity-60" />
+        <div className="absolute inset-0 -z-40 bg-[radial-gradient(circle_at_18%_22%,rgba(80,140,255,0.44),transparent_55%),radial-gradient(circle_at_82%_20%,rgba(171,99,255,0.38),transparent_60%),radial-gradient(circle_at_50%_86%,rgba(40,214,176,0.28),transparent_68%)]" />
+        <div className="pointer-events-none absolute inset-0 -z-30 bg-[linear-gradient(115deg,rgba(255,255,255,0.16)_0%,rgba(255,255,255,0)_38%),linear-gradient(300deg,rgba(255,255,255,0.1)_0%,rgba(255,255,255,0)_46%)] opacity-45" />
+        <div className="pointer-events-none absolute inset-0 -z-20 bg-[radial-gradient(rgba(255,255,255,0.14)_1px,transparent_1px)] bg-[size:160px_160px] opacity-[0.26]" />
+        <div className="pointer-events-none absolute -left-[35%] top-1/2 -z-10 h-[900px] w-[900px] -translate-y-1/2 rounded-full bg-[conic-gradient(from_100deg_at_50%_50%,rgba(59,130,246,0.36)_0deg,rgba(236,72,153,0.26)_150deg,rgba(56,189,248,0.36)_320deg,rgba(59,130,246,0.36)_360deg)] blur-[180px] opacity-80 animate-[spin_95s_linear_infinite]" />
+        <div className="pointer-events-none absolute right-[-12%] top-[14%] -z-10 h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle,rgba(236,72,153,0.5),transparent_68%)] blur-[160px] opacity-70" />
         <div className="relative mx-auto flex w-full max-w-[520px] flex-col gap-6 px-4 pb-16 pt-8">
           <header className="flex items-start justify-between gap-4">
             <div className="flex flex-col gap-1">
