@@ -26,7 +26,7 @@ type RawProfile = {
 };
 
 type AttemptAggregateRow = {
-  total_correct: number | null;
+  total_correct: unknown;
 };
 
 function toStr(value: unknown): string {
@@ -42,6 +42,20 @@ function toNumOrNull(value: unknown): number | null {
   if (value == null) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function extractTotalCorrect(value: unknown): number | null {
+  if (Array.isArray(value)) {
+    const first = value[0];
+    if (
+      first &&
+      typeof first === "object" &&
+      "correct_count" in (first as Record<string, unknown>)
+    ) {
+      return toNumOrNull((first as { correct_count?: unknown }).correct_count);
+    }
+  }
+  return toNumOrNull(value);
 }
 
 function normalizeProfiles(rows: unknown[] | null | undefined): ProfileRow[] {
@@ -193,7 +207,7 @@ export default function Leaderboard() {
             const aggregates = attemptRows
               .map((row) => ({
                 id: typeof row.user_id === "string" ? row.user_id : null,
-                totalCorrect: toNumOrNull(row.total_correct) ?? 0,
+                totalCorrect: extractTotalCorrect(row.total_correct) ?? 0,
               }))
               .sort((a, b) => (b.totalCorrect ?? 0) - (a.totalCorrect ?? 0));
             const profileIds =
@@ -278,8 +292,12 @@ export default function Leaderboard() {
           }
           const { data: myAggData, error: myAggError } = await myAggQuery;
           if (myAggError) throw myAggError;
-          const myAggRows = (myAggData ?? []) as AttemptAggregateRow[];
-          const myCorrect = toNumOrNull(myAggRows[0]?.total_correct) ?? 0;
+          const myAggRows = Array.isArray(myAggData)
+            ? (myAggData as AttemptAggregateRow[])
+            : [];
+          const myCorrect = extractTotalCorrect(
+            myAggRows[0]?.total_correct
+          ) ?? 0;
           if (myCorrect > 0) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let rankQuery: any = supabase

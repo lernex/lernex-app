@@ -590,7 +590,6 @@ function PlaylistCard({
 }: PlaylistCardProps) {
   const isOwner = playlist.userRole === "owner";
   const isModerator = playlist.userRole === "moderator";
-  const isViewer = !isOwner && !isModerator;
 
   const roleBadgeClass = isOwner
     ? "bg-lernex-blue/10 text-lernex-blue"
@@ -740,6 +739,7 @@ function SharePanel({
   const [actionId, setActionId] = useState<string | null>(null);
   const [visibilityBusy, setVisibilityBusy] = useState(false);
   const [copying, setCopying] = useState(false);
+  const playlistId = playlist?.id ?? null;
 
   const loadCollaborators = useCallback(async () => {
     if (!playlist) return;
@@ -783,9 +783,9 @@ function SharePanel({
   }, [playlist, supabase]);
 
   useEffect(() => {
-    if (!isOpen || !playlist) return;
+    if (!isOpen || !playlistId) return;
     void loadCollaborators();
-  }, [isOpen, playlist?.id, loadCollaborators]);
+  }, [isOpen, playlistId, loadCollaborators]);
 
   useEffect(() => {
     if (!isOpen) {
