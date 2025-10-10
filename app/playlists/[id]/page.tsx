@@ -269,7 +269,7 @@ export default function PlaylistDetail() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, supabaseClient]);
 
   const createdAtLabel = useMemo(
     () => formatDate(playlist?.created_at ?? null),

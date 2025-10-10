@@ -25,6 +25,10 @@ type RawProfile = {
   streak?: unknown;
 };
 
+type AttemptAggregateRow = {
+  total_correct: number | null;
+};
+
 function toStr(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
 }
@@ -274,7 +278,8 @@ export default function Leaderboard() {
           }
           const { data: myAggData, error: myAggError } = await myAggQuery;
           if (myAggError) throw myAggError;
-          const myCorrect = toNumOrNull(myAggData?.[0]?.total_correct) ?? 0;
+          const myAggRows = (myAggData ?? []) as AttemptAggregateRow[];
+          const myCorrect = toNumOrNull(myAggRows[0]?.total_correct) ?? 0;
           if (myCorrect > 0) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let rankQuery: any = supabase
