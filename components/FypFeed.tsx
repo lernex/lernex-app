@@ -243,23 +243,37 @@ export default function FypFeed() {
     });
   }, [MAX_BUFFER_SIZE, MAX_LOOKBACK, setCompletedMap, setI]);
 
-  const ensureBuffer = useCallback(async (minAhead = 3) => {
+  const ensureBuffer = useCallback(async (minAhead = 1) => {
     if (fetching.current || rotation.length === 0) return;
     fetching.current = true;
     const requestToken = requestSeqRef.current;
     const controller = new AbortController();
     activeAbortRef.current = controller;
-    let bufferAhead = Math.max(0, items.length - i);
-    let needed = Math.max(0, minAhead - bufferAhead);
+    const clampedIndex = items.length > 0
+      ? Math.min(i, Math.max(0, items.length - 1))
+      : -1;
+    let hasCurrent = clampedIndex >= 0;
+    let lessonsAhead = hasCurrent ? Math.max(0, items.length - (clampedIndex + 1)) : 0;
+    let neededCurrent = hasCurrent ? 0 : 1;
+    let neededAhead = Math.max(0, minAhead - lessonsAhead);
+    let needed = neededCurrent + neededAhead;
     let guard = 0;
     let fetchedAny = false;
     let sawProgress = false;
     let lastRetryAfterSeconds: number | null = null;
-    const maxGuard = rotation.length === 1 ? Math.max(6, minAhead * 4) : rotation.length * 4;
+    const maxGuard = rotation.length === 1
+      ? Math.max(6, (minAhead + neededCurrent) * 4)
+      : rotation.length * 4;
     let consecutiveCooldownSkips = 0;
-    try { console.debug("[fyp] ensureBuffer", { minAhead, have: bufferAhead, rotation }); } catch {}
+    let attemptedFetch = false;
+    try { console.debug("[fyp] ensureBuffer", { minAhead, hasCurrent, ahead: lessonsAhead, rotation }); } catch {}
     try {
-      while (needed > 0 && guard++ < maxGuard && requestSeqRef.current === requestToken) {
+      while (
+        needed > 0 &&
+        !attemptedFetch &&
+        guard++ < maxGuard &&
+        requestSeqRef.current === requestToken
+      ) {
         const idx = subjIdxRef.current % rotation.length;
         subjIdxRef.current = idx + 1;
         const subject = rotation[idx];
@@ -314,13 +328,20 @@ export default function FypFeed() {
             setError(null);
           },
         });
+        attemptedFetch = true;
         if (requestSeqRef.current !== requestToken) break;
         if (lesson) {
           cooldownRef.current.delete(subject);
           appendLesson(lesson);
           fetchedAny = true;
-          bufferAhead += 1;
-          needed = Math.max(0, minAhead - bufferAhead);
+          if (!hasCurrent) {
+            hasCurrent = true;
+          } else {
+            lessonsAhead += 1;
+          }
+          neededCurrent = hasCurrent ? 0 : 1;
+          neededAhead = Math.max(0, minAhead - lessonsAhead);
+          needed = neededCurrent + neededAhead;
           consecutiveCooldownSkips = 0;
           setLoadingInfo(null);
         } else {
@@ -380,13 +401,12 @@ export default function FypFeed() {
     setAutoAdvancing(false);
     setLoadingInfo(null);
     setError(null);
-    void ensureBuffer(4);
-  }, [initialized, items.length, fypSnapshot, subjectsKey, ensureBuffer, setFypSnapshot]);
+  }, [initialized, items.length, fypSnapshot, subjectsKey, setFypSnapshot]);
 
   // Bootstrap
   useEffect(() => {
     if (!initialized) {
-      void ensureBuffer(1);
+      void ensureBuffer(0);
     }
   }, [initialized, ensureBuffer]);
 
@@ -437,10 +457,14 @@ export default function FypFeed() {
     subjIdxRef.current = 0;
   }, [subjectsKey, setFypSnapshot]);
 
-  // Keep prefetching ahead
+  // Keep at least one upcoming lesson ready
   useEffect(() => {
-    if (items.length - i <= 2) void ensureBuffer(4);
-  }, [i, items.length, ensureBuffer]);
+    if (!initialized) return;
+    if (items.length === 0) return;
+    const clampedIndex = Math.min(i, Math.max(0, items.length - 1));
+    const upcoming = Math.max(0, items.length - (clampedIndex + 1));
+    if (upcoming <= 0) void ensureBuffer(1);
+  }, [initialized, i, items.length, ensureBuffer]);
 
   const prev = useCallback(() => {
     setI((x) => Math.max(0, x - 1));
@@ -493,8 +517,9 @@ export default function FypFeed() {
       window.clearTimeout(autoAdvanceRef.current);
       autoAdvanceRef.current = null;
     }
-    if (items.length - (i + 1) <= 2) {
-      void ensureBuffer(4);
+    const remaining = Math.max(0, items.length - (i + 1));
+    if (remaining <= 0) {
+      void ensureBuffer(1);
     }
     if (!autoAdvanceEnabled) {
       setAutoAdvancing(false);
@@ -608,7 +633,7 @@ export default function FypFeed() {
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-red-500">
           <div>{error}</div>
           <button
-            onClick={() => { setError(null); setLoadingInfo(null); setInitialized(false); void ensureBuffer(1); }}
+            onClick={() => { setError(null); setLoadingInfo(null); setInitialized(false); void ensureBuffer(0); }}
             className="px-3 py-1.5 rounded-full text-sm border bg-neutral-50 dark:bg-neutral-800 text-neutral-600 hover:text-neutral-900 dark:text-neutral-200"
           >
             Retry
