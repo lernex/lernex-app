@@ -179,6 +179,7 @@ export default function FypFeed() {
   const [completedMap, setCompletedMap] = useState<Record<string, boolean>>({});
   const [showCompleteHint, setShowCompleteHint] = useState(false);
   const [autoAdvancing, setAutoAdvancing] = useState(false);
+  const subjectsKeyInitRef = useRef(false);
   const autoAdvanceRef = useRef<number | null>(null);
   const hintTimeoutRef = useRef<number | null>(null);
   const activeAbortRef = useRef<AbortController | null>(null);
@@ -428,6 +429,10 @@ export default function FypFeed() {
 
   // Reset buffer when class selection changes significantly
   useEffect(() => {
+    if (!subjectsKeyInitRef.current) {
+      subjectsKeyInitRef.current = true;
+      return;
+    }
     // Reset feed when user changes selected subjects (class switch/merge)
     setFypSnapshot(null);
     setItems([]);
