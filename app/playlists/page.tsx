@@ -59,10 +59,6 @@ type CollaboratorRow = {
   profile: ProfileLite | null;
 };
 
-type CollaboratorQueryRow = CollaboratorRow & {
-  profiles: ProfileLite | null;
-};
-
 type SharePanelProps = {
   isOpen: boolean;
   playlist: PlaylistCardMeta | null;
@@ -763,15 +759,12 @@ function SharePanel({
         throw error;
       }
 
-      const rows = (data ?? []) as CollaboratorQueryRow[];
-      const mapped = rows.map<CollaboratorRow>((row) => ({
-        id: row.id,
-        playlist_id: row.playlist_id,
-        profile_id: row.profile_id,
-        role: row.role,
-        created_at: row.created_at,
-        profile: row.profiles ?? null,
-      }));
+      const rawRows = Array.isArray(data) ? data : [];
+      const mapped = rawRows
+        .map((row) => normalizeCollaboratorRow(row))
+        .filter(
+          (row): row is CollaboratorRow => row !== null
+        );
 
       setCollaborators(mapped);
     } catch (err) {
@@ -877,27 +870,20 @@ function SharePanel({
       }
 
       if (data) {
-        const row = data as CollaboratorQueryRow;
-        const normalized: CollaboratorRow = {
-          id: row.id,
-          playlist_id: row.playlist_id,
-          profile_id: row.profile_id,
-          role: row.role,
-          created_at: row.created_at,
-          profile: row.profiles ?? null,
-        };
-
-        setCollaborators((prev) => {
-          const index = prev.findIndex(
-            (item) => item.profile_id === normalized.profile_id
-          );
-          if (index >= 0) {
-            const copy = [...prev];
-            copy[index] = normalized;
-            return copy;
-          }
-          return [...prev, normalized];
-        });
+        const normalized = normalizeCollaboratorRow(data);
+        if (normalized) {
+          setCollaborators((prev) => {
+            const index = prev.findIndex(
+              (item) => item.profile_id === normalized.profile_id
+            );
+            if (index >= 0) {
+              const copy = [...prev];
+              copy[index] = normalized;
+              return copy;
+            }
+            return [...prev, normalized];
+          });
+        }
       }
 
       pushFeedback({
@@ -941,19 +927,12 @@ function SharePanel({
       if (error) throw error;
 
       if (data) {
-        const row = data as CollaboratorQueryRow;
-        const normalized: CollaboratorRow = {
-          id: row.id,
-          playlist_id: row.playlist_id,
-          profile_id: row.profile_id,
-          role: row.role,
-          created_at: row.created_at,
-          profile: row.profiles ?? null,
-        };
-
-        setCollaborators((prev) =>
-          prev.map((item) => (item.id === membershipId ? normalized : item))
-        );
+        const normalized = normalizeCollaboratorRow(data);
+        if (normalized) {
+          setCollaborators((prev) =>
+            prev.map((item) => (item.id === membershipId ? normalized : item))
+          );
+        }
       }
 
       pushFeedback({
@@ -1339,6 +1318,65 @@ function SharePanel({
     </AnimatePresence>
   );
 }
+function toStringOrNull(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return null;
+}
+
+function normalizeProfileLiteRecord(value: unknown): ProfileLite | null {
+  if (!value) return null;
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const normalized = normalizeProfileLiteRecord(entry);
+      if (normalized) return normalized;
+    }
+    return null;
+  }
+
+  if (typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const id = toStringOrNull(record.id);
+  if (!id) return null;
+  return {
+    id,
+    full_name: toStringOrNull(record.full_name),
+    username: toStringOrNull(record.username),
+    avatar_url: toStringOrNull(record.avatar_url),
+  };
+}
+
+function normalizeCollaboratorRow(value: unknown): CollaboratorRow | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const id = toStringOrNull(record.id);
+  const playlistId = toStringOrNull(record.playlist_id);
+  const profileId = toStringOrNull(record.profile_id);
+
+  if (!id || !playlistId || !profileId) return null;
+
+  const roleRaw = toStringOrNull(record.role);
+  const role: "viewer" | "moderator" =
+    roleRaw === "moderator" ? "moderator" : "viewer";
+
+  const created =
+    typeof record.created_at === "string" ? record.created_at : null;
+  const profileSource =
+    "profile" in record ? (record as Record<string, unknown>).profile : record.profiles;
+  const profile = normalizeProfileLiteRecord(profileSource ?? null);
+
+  return {
+    id,
+    playlist_id: playlistId,
+    profile_id: profileId,
+    role,
+    created_at: created,
+    profile,
+  };
+}
+
 function getInitials(profile: ProfileLite | null): string {
   if (!profile) return "??";
   const source = profile.full_name ?? profile.username ?? "";
