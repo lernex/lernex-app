@@ -413,7 +413,7 @@ export default function Playlists() {
     setShareOpen(true);
   };
 
-  const handleDeleteRequest = (playlist: PlaylistCardMeta) => {
+  const handleDeleteRequest = async (playlist: PlaylistCardMeta) => {
     if (playlist.userRole !== "owner") return;
     setDeleteTarget(playlist.id);
     setDeleteConfirmOpen(true);
@@ -668,7 +668,7 @@ export default function Playlists() {
                 </div>
                 <div className="flex-1">
                   <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">
-                    Delete "{deleteCandidate.name}"?
+                    Delete &quot;{deleteCandidate.name}&quot;?
                   </h2>
                   <p className="mt-2 text-sm text-neutral-500 dark:text-white/60">
                     This removes the playlist and any shared access for everyone. This action cannot be undone.
