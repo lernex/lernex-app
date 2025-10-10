@@ -93,7 +93,7 @@ html {
   }
   .aurora-field {
     position: absolute;
-    inset: -45% -35%;
+    inset: -50% -40%;
     overflow: hidden;
     pointer-events: none;
   }
@@ -101,35 +101,60 @@ html {
     position: absolute;
     inset: 0;
     margin: auto;
-    width: 160%;
-    height: 160%;
-    opacity: 0.55;
-    filter: blur(140px);
+    width: 175%;
+    height: 175%;
+    opacity: 0.72;
+    filter: blur(180px);
     mix-blend-mode: screen;
     transform-origin: 50% 50%;
     will-change: transform;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
   }
   .aurora-layer--one {
+    --aurora-duration: 36s;
+    --aurora-delay: 0s;
     background:
-      radial-gradient(45% 55% at 30% 35%, rgba(87, 167, 255, 0.55), transparent 70%),
-      radial-gradient(40% 60% at 70% 40%, rgba(236, 72, 153, 0.45), transparent 72%),
-      radial-gradient(50% 65% at 50% 80%, rgba(56, 189, 248, 0.38), transparent 75%);
-    animation: aurora-drift-a 32s ease-in-out infinite;
+      radial-gradient(48% 58% at 28% 32%, rgba(96, 180, 255, 0.68), transparent 72%),
+      radial-gradient(42% 62% at 72% 42%, rgba(239, 91, 197, 0.52), transparent 74%),
+      radial-gradient(52% 68% at 52% 82%, rgba(54, 209, 248, 0.42), transparent 78%);
   }
   .aurora-layer--two {
+    --aurora-duration: 48s;
+    --aurora-delay: 6s;
     background:
-      radial-gradient(45% 55% at 70% 30%, rgba(167, 139, 250, 0.48), transparent 72%),
-      radial-gradient(40% 60% at 25% 60%, rgba(45, 212, 191, 0.42), transparent 70%),
-      radial-gradient(40% 55% at 55% 80%, rgba(59, 130, 246, 0.4), transparent 75%);
-    animation: aurora-drift-b 38s ease-in-out infinite;
+      radial-gradient(46% 60% at 74% 30%, rgba(190, 163, 255, 0.55), transparent 74%),
+      radial-gradient(42% 60% at 26% 63%, rgba(56, 224, 190, 0.46), transparent 72%),
+      radial-gradient(42% 58% at 58% 82%, rgba(79, 148, 255, 0.46), transparent 78%);
   }
   .aurora-layer--three {
+    --aurora-duration: 60s;
+    --aurora-delay: 12s;
     background:
-      radial-gradient(50% 60% at 40% 30%, rgba(166, 193, 255, 0.42), transparent 70%),
-      radial-gradient(45% 55% at 65% 70%, rgba(236, 72, 153, 0.35), transparent 74%),
-      radial-gradient(35% 50% at 35% 80%, rgba(52, 211, 153, 0.3), transparent 75%);
-    opacity: 0.45;
-    animation: aurora-drift-c 44s ease-in-out infinite;
+      radial-gradient(52% 64% at 40% 28%, rgba(176, 210, 255, 0.48), transparent 75%),
+      radial-gradient(46% 58% at 66% 74%, rgba(246, 116, 200, 0.38), transparent 78%),
+      radial-gradient(38% 52% at 34% 82%, rgba(64, 229, 168, 0.36), transparent 80%);
+    opacity: 0.58;
+  }
+  [data-aurora-motion="play"] .aurora-layer {
+    animation-duration: var(--aurora-duration, 42s);
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+    animation-delay: var(--aurora-delay, 0s);
+    animation-fill-mode: both;
+  }
+  [data-aurora-motion="play"] .aurora-layer--one {
+    animation-name: aurora-drift-a;
+  }
+  [data-aurora-motion="play"] .aurora-layer--two {
+    animation-name: aurora-drift-b;
+  }
+  [data-aurora-motion="play"] .aurora-layer--three {
+    animation-name: aurora-drift-c;
+  }
+  [data-aurora-motion="pause"] .aurora-layer {
+    animation: none !important;
   }
 }
 
@@ -146,12 +171,6 @@ html {
   .animate-fade-in {
     animation: fadeIn 0.3s ease-out forwards;
   }
-
-@media (prefers-reduced-motion: reduce) {
-  .aurora-layer {
-    animation: none !important;
-  }
-}
 
 @keyframes gradient-logo-shift {
   0% {

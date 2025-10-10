@@ -7,18 +7,30 @@ import { useLernexStore } from "@/lib/store";
 import { ProfileBasicsProvider } from "@/app/providers/ProfileBasicsProvider";
 import WelcomeTourOverlay from "@/components/WelcomeTourOverlay";
 import type { ProfileBasics } from "@/lib/profile-basics";
+import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 
 type AppFeedClientProps = {
   initialProfile?: ProfileBasics | null;
 };
 
 const MAIN_FALLBACK_BACKGROUND =
-  "radial-gradient(circle at 18% 20%, rgba(80,140,255,0.42), transparent 55%), radial-gradient(circle at 88% 22%, rgba(155,99,255,0.34), transparent 62%), radial-gradient(circle at 50% 88%, rgba(45,220,190,0.28), transparent 70%), linear-gradient(135deg, #0c133a 0%, #04061a 100%)";
+  "radial-gradient(circle at 22% 24%, rgba(96,180,255,0.6), transparent 58%), radial-gradient(circle at 80% 20%, rgba(239,91,197,0.45), transparent 62%), radial-gradient(circle at 48% 88%, rgba(68,225,195,0.34), transparent 68%), linear-gradient(135deg, #111d4d 0%, #09123a 48%, #03041a 100%)";
 
 export default function AppFeedClient({ initialProfile }: AppFeedClientProps) {
   const { selectedSubjects } = useLernexStore();
   const hasSelection = selectedSubjects.length > 0;
   const mainRef = useRef<HTMLElement | null>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
+
+  useEffect(() => {
+    const mainEl = mainRef.current;
+    if (!mainEl) return;
+    mainEl.dataset.auroraMotion = prefersReducedMotion ? "pause" : "play";
+    console.debug("[AppFeedClient] aurora motion preference", {
+      prefersReducedMotion,
+      dataset: { ...mainEl.dataset },
+    });
+  }, [prefersReducedMotion]);
 
   useEffect(() => {
     const mainEl = mainRef.current;
@@ -53,11 +65,12 @@ export default function AppFeedClient({ initialProfile }: AppFeedClientProps) {
       <main
         ref={mainRef}
         data-app-feed-root="true"
-        className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-gradient-to-br from-[#0c133a] via-[#090f2c] to-[#04061a]"
+        data-aurora-motion={prefersReducedMotion ? "pause" : "play"}
+        className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-gradient-to-br from-[#111d4d] via-[#0b1645] to-[#03051a]"
       >
-        <div className="absolute inset-0 -z-40 bg-[radial-gradient(circle_at_18%_22%,rgba(80,140,255,0.44),transparent_55%),radial-gradient(circle_at_82%_20%,rgba(171,99,255,0.38),transparent_60%),radial-gradient(circle_at_50%_86%,rgba(40,214,176,0.28),transparent_68%)]" />
-        <div className="pointer-events-none absolute inset-0 -z-30 bg-[linear-gradient(115deg,rgba(255,255,255,0.16)_0%,rgba(255,255,255,0)_38%),linear-gradient(300deg,rgba(255,255,255,0.1)_0%,rgba(255,255,255,0)_46%)] opacity-45" />
-        <div className="pointer-events-none absolute inset-0 -z-20 bg-[radial-gradient(rgba(255,255,255,0.14)_1px,transparent_1px)] bg-[size:160px_160px] opacity-[0.26]" />
+        <div className="absolute inset-0 -z-40 bg-[radial-gradient(circle_at_20%_24%,rgba(109,184,255,0.6),transparent_58%),radial-gradient(circle_at_84%_20%,rgba(226,102,213,0.48),transparent_62%),radial-gradient(circle_at_50%_86%,rgba(74,226,197,0.32),transparent_70%)]" />
+        <div className="pointer-events-none absolute inset-0 -z-30 bg-[linear-gradient(118deg,rgba(255,255,255,0.2)_0%,rgba(255,255,255,0)_36%),linear-gradient(304deg,rgba(140,177,255,0.16)_0%,rgba(255,255,255,0)_48%)] opacity-50" />
+        <div className="pointer-events-none absolute inset-0 -z-20 bg-[radial-gradient(rgba(255,255,255,0.16)_1px,transparent_1px)] bg-[size:160px_160px] opacity-[0.28]" />
         <div className="aurora-field" style={{ zIndex: -15 }}>
           <div className="aurora-layer aurora-layer--one" />
           <div className="aurora-layer aurora-layer--two" />
@@ -92,8 +105,8 @@ export default function AppFeedClient({ initialProfile }: AppFeedClientProps) {
           )}
 
           <div className="relative">
-            <div className="pointer-events-none absolute -left-32 -right-32 -top-24 bottom-[-25%] -z-10 bg-[radial-gradient(circle_at_25%_18%,rgba(56,189,248,0.55),transparent_65%),radial-gradient(circle_at_78%_74%,rgba(147,51,234,0.45),transparent_68%),radial-gradient(circle_at_50%_105%,rgba(34,197,94,0.22),transparent_75%)] blur-[120px]" />
-            <div className="pointer-events-none absolute inset-0 -z-20 rounded-[40px] border border-white/15 bg-white/10 opacity-50 blur-3xl backdrop-blur-xl" />
+            <div className="pointer-events-none absolute -left-32 -right-32 -top-24 bottom-[-25%] -z-10 bg-[radial-gradient(circle_at_24%_20%,rgba(94,180,255,0.6),transparent_64%),radial-gradient(circle_at_78%_74%,rgba(183,112,255,0.5),transparent_70%),radial-gradient(circle_at_50%_105%,rgba(64,229,168,0.3),transparent_78%)] blur-[120px]" />
+            <div className="pointer-events-none absolute inset-0 -z-20 rounded-[40px] border border-white/20 bg-white/10 opacity-55 blur-3xl backdrop-blur-2xl" />
             <FypFeed />
           </div>
         </div>
