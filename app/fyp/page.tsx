@@ -15,6 +15,11 @@ export default function FypPage() {
         <div className="pointer-events-none absolute inset-0 -z-40 bg-[radial-gradient(circle_at_18%_20%,rgba(80,140,255,0.44),transparent_55%),radial-gradient(circle_at_88%_22%,rgba(171,99,255,0.36),transparent_62%),radial-gradient(circle_at_52%_88%,rgba(40,214,176,0.28),transparent_70%)]" />
         <div className="pointer-events-none absolute inset-0 -z-30 bg-[linear-gradient(120deg,rgba(255,255,255,0.16)_0%,rgba(255,255,255,0)_32%),linear-gradient(300deg,rgba(255,255,255,0.1)_0%,rgba(255,255,255,0)_40%)] opacity-50" />
         <div className="pointer-events-none absolute inset-0 -z-20 bg-[radial-gradient(rgba(255,255,255,0.14)_1px,transparent_1px)] bg-[size:160px_160px] opacity-[0.22]" />
+        <div className="aurora-field" style={{ zIndex: -15 }}>
+          <div className="aurora-layer aurora-layer--one" />
+          <div className="aurora-layer aurora-layer--two" />
+          <div className="aurora-layer aurora-layer--three" />
+        </div>
         <div className="pointer-events-none absolute -left-[35%] top-1/2 -z-10 h-[880px] w-[880px] -translate-y-1/2 rounded-full bg-[conic-gradient(from_120deg_at_50%_50%,rgba(59,130,246,0.36)_0deg,rgba(236,72,153,0.26)_160deg,rgba(56,189,248,0.32)_320deg,rgba(59,130,246,0.36)_360deg)] blur-[190px] opacity-82 animate-[spin_90s_linear_infinite]" />
         <div className="pointer-events-none absolute right-[-10%] top-[12%] -z-10 h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle,rgba(236,72,153,0.5),transparent_68%)] blur-[150px] opacity-72" />
         <div className="pointer-events-none absolute left-[-12%] bottom-[8%] -z-10 h-[360px] w-[360px] rounded-full bg-[radial-gradient(circle,rgba(34,197,94,0.36),transparent_70%)] blur-[140px] opacity-68" />

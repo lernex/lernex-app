@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  AlertTriangle,
   ArrowUpRight,
   Check,
   Copy,
@@ -17,6 +18,7 @@ import {
   Share2,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UserCog,
   UserPlus,
   Users,
@@ -73,8 +75,10 @@ type SharePanelProps = {
 type PlaylistCardProps = {
   playlist: PlaylistCardMeta;
   busy: boolean;
+  deleting: boolean;
   onToggleVisibility: (playlist: PlaylistCardMeta) => Promise<void>;
   onOpenShare: (playlist: PlaylistCardMeta) => void;
+  onDelete: (playlist: PlaylistCardMeta) => Promise<void>;
 };
 
 const FILTERS: { key: FilterKey; label: string }[] = [
@@ -99,6 +103,10 @@ export default function Playlists() {
   const [busyMap, setBusyMap] = useState<Record<string, boolean>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     supabase.auth
@@ -108,6 +116,7 @@ export default function Playlists() {
         if (sessionError) {
           console.error("[playlists] session fetch failed", sessionError);
         }
+
         setUserId(data?.session?.user?.id ?? null);
         setSessionReady(true);
       });
@@ -296,6 +305,26 @@ export default function Playlists() {
     [playlists, selectedId]
   );
 
+  const deleteCandidate = useMemo(
+    () => (deleteTarget ? playlists.find((item) => item.id === deleteTarget) ?? null : null),
+    [deleteTarget, playlists]
+  );
+
+  const isDeletingSelected = deleteCandidate
+    ? deletingId === deleteCandidate.id
+    : false;
+
+  useEffect(() => {
+    if (!deleteConfirmOpen) {
+      setDeleteError(null);
+      return;
+    }
+    if (!deleteCandidate) {
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
+    }
+  }, [deleteConfirmOpen, deleteCandidate]);
+
   const handleCreate = async () => {
     const trimmed = createName.trim();
     if (!trimmed || creating) return;
@@ -384,6 +413,62 @@ export default function Playlists() {
     setShareOpen(true);
   };
 
+  const handleDeleteRequest = (playlist: PlaylistCardMeta) => {
+    if (playlist.userRole !== "owner") return;
+    setDeleteTarget(playlist.id);
+    setDeleteConfirmOpen(true);
+    setDeleteError(null);
+  };
+
+  const handleDeleteCancel = () => {
+    if (deletingId) return;
+    setDeleteConfirmOpen(false);
+    setDeleteTarget(null);
+    setDeleteError(null);
+  };
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteCandidate) return;
+    if (!userId) {
+      setDeleteError("Sign in to delete playlists.");
+      return;
+    }
+    if (deleteCandidate.userRole !== "owner") {
+      setDeleteError("Only the owner can delete this playlist.");
+      return;
+    }
+
+    setDeleteError(null);
+    setDeletingId(deleteCandidate.id);
+    try {
+      const { error: deleteErrorResponse } = await supabase
+        .from("playlists")
+        .delete()
+        .eq("id", deleteCandidate.id)
+        .eq("user_id", userId);
+      if (deleteErrorResponse) throw deleteErrorResponse;
+
+      setPlaylists((prev) =>
+        prev.filter((item) => item.id !== deleteCandidate.id)
+      );
+      setFeedback({ type: "success", message: "Playlist deleted." });
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
+      if (selectedId === deleteCandidate.id) {
+        setShareOpen(false);
+        setSelectedId(null);
+      }
+    } catch (err) {
+      console.error("Delete playlist failed", err);
+      if (isPostgrestError(err) && err.code === "42501") {
+        setDeleteError("You need to own this playlist to delete it.");
+      } else {
+        setDeleteError("Could not delete this playlist. Please try again.");
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  }, [deleteCandidate, selectedId, supabase, userId]);
   const handleCloseShare = () => {
     setShareOpen(false);
   };
@@ -511,8 +596,10 @@ export default function Playlists() {
                     key={playlist.id}
                     playlist={playlist}
                     busy={Boolean(busyMap[playlist.id])}
+                    deleting={deletingId === playlist.id}
                     onToggleVisibility={handleToggleVisibility}
                     onOpenShare={handleOpenShare}
+                    onDelete={handleDeleteRequest}
                   />
                 ))}
               </div>
@@ -553,6 +640,73 @@ export default function Playlists() {
       />
 
       <AnimatePresence>
+        {deleteConfirmOpen && deleteCandidate ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center px-4 py-10"
+          >
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.6 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-neutral-900/70 backdrop-blur-sm"
+              onClick={handleDeleteCancel}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.98 }}
+              role="dialog"
+              aria-modal="true"
+              className="relative z-10 w-full max-w-md rounded-3xl border border-white/70 bg-white/95 p-6 shadow-2xl backdrop-blur-lg dark:border-white/10 dark:bg-lernex-charcoal"
+            >
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-500 dark:bg-red-500/15 dark:text-red-200">
+                  <AlertTriangle className="h-6 w-6" />
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">
+                    Delete "{deleteCandidate.name}"?
+                  </h2>
+                  <p className="mt-2 text-sm text-neutral-500 dark:text-white/60">
+                    This removes the playlist and any shared access for everyone. This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+              {deleteError ? (
+                <div className="mt-4 rounded-2xl border border-red-200/70 bg-red-50/80 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                  {deleteError}
+                </div>
+              ) : null}
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  onClick={handleDeleteCancel}
+                  disabled={isDeletingSelected}
+                  className="inline-flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white px-4 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-300 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/10 dark:text-white/80"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleDeleteConfirm()}
+                  disabled={isDeletingSelected}
+                  className="inline-flex items-center gap-2 rounded-full bg-red-500 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-red-500/90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isDeletingSelected ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
+                  {isDeletingSelected ? "Deleting..." : "Delete playlist"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {feedback ? (
           <motion.div
             key={feedback.message}
@@ -575,8 +729,10 @@ export default function Playlists() {
 function PlaylistCard({
   playlist,
   busy,
+  deleting,
   onToggleVisibility,
   onOpenShare,
+  onDelete,
 }: PlaylistCardProps) {
   const isOwner = playlist.userRole === "owner";
   const isModerator = playlist.userRole === "moderator";
@@ -680,7 +836,8 @@ function PlaylistCard({
         {(isOwner || isModerator) && (
           <button
             onClick={() => onOpenShare(playlist)}
-            className="inline-flex items-center gap-2 rounded-full bg-lernex-blue px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-lernex-blue/90"
+            disabled={deleting}
+            className="inline-flex items-center gap-2 rounded-full bg-lernex-blue px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-lernex-blue/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Share2 className="h-3.5 w-3.5" />
             Manage access
@@ -689,21 +846,35 @@ function PlaylistCard({
         {isOwner ? (
           <button
             onClick={() => void onToggleVisibility(playlist)}
-            disabled={busy}
+            disabled={busy || deleting}
             className="inline-flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white px-4 py-2 text-xs font-semibold text-neutral-700 transition hover:border-lernex-blue/40 hover:text-lernex-blue disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/10 dark:text-white/80"
           >
-            {busy ? (
+            {busy || deleting ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : playlist.is_public ? (
               <Lock className="h-3.5 w-3.5" />
             ) : (
               <Globe className="h-3.5 w-3.5" />
             )}
-            {busy
+            {busy || deleting
               ? "Saving..."
               : playlist.is_public
               ? "Make private"
               : "Make public"}
+          </button>
+        ) : null}
+        {isOwner ? (
+          <button
+            onClick={() => onDelete(playlist)}
+            disabled={deleting}
+            className="inline-flex items-center gap-2 rounded-full border border-red-200/60 bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 transition hover:border-red-300 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200"
+          >
+            {deleting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="h-3.5 w-3.5" />
+            )}
+            {deleting ? "Deleting..." : "Delete"}
           </button>
         ) : null}
       </div>
@@ -1485,4 +1656,5 @@ function isMissingTableError(value: unknown): boolean {
   }
   return false;
 }
+
 
