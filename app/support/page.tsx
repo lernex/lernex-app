@@ -273,7 +273,7 @@ export default function SupportPage() {
   }, [query, activeCategory]);
 
   return (
-    <main className="min-h-[calc(100vh-56px)] bg-gradient-to-b from-neutral-50 via-white to-neutral-100 text-neutral-900 dark:from-neutral-950 dark:via-neutral-950 dark:to-neutral-900 dark:text-white">
+    <main className="min-h-[calc(100vh-56px)] text-neutral-900 dark:text-white">
       <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
         <section className="overflow-hidden rounded-3xl border border-neutral-200 bg-white/90 p-8 shadow-xl shadow-neutral-200/40 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 dark:shadow-none sm:p-10">
           <div className="grid gap-8 lg:grid-cols-[2fr,1fr]">
