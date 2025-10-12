@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useLernexStore } from "@/lib/store";
 import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
+import type { Database } from "@/lib/types_db";
 
 const POINTS_PER_CORRECT = 10;
 
@@ -25,10 +27,6 @@ type RawProfile = {
   streak?: unknown;
 };
 
-type AttemptAggregateRow = {
-  total_correct: unknown;
-};
-
 function toStr(value: unknown): string {
   return typeof value === "string" ? value : String(value ?? "");
 }
@@ -42,20 +40,6 @@ function toNumOrNull(value: unknown): number | null {
   if (value == null) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function extractTotalCorrect(value: unknown): number | null {
-  if (Array.isArray(value)) {
-    const first = value[0];
-    if (
-      first &&
-      typeof first === "object" &&
-      "correct_count" in (first as Record<string, unknown>)
-    ) {
-      return toNumOrNull((first as { correct_count?: unknown }).correct_count);
-    }
-  }
-  return toNumOrNull(value);
 }
 
 function normalizeProfiles(rows: unknown[] | null | undefined): ProfileRow[] {
@@ -90,23 +74,71 @@ function uniqueIds(values: (string | null | undefined)[]): string[] {
   return Array.from(seen);
 }
 
-type QueryWithUrl = {
-  url?: {
-    searchParams?: URLSearchParams;
-  };
+type AppSupabaseClient = SupabaseClient<Database>;
+
+const ATTEMPT_PAGE_SIZE = 1000;
+const ATTEMPT_MAX_PAGES = 50;
+
+type AttemptRow = {
+  user_id: unknown;
+  correct_count: unknown;
 };
 
-function applyGroupParam<T>(query: T, group: string): T {
-  const target = query as unknown as QueryWithUrl;
-  const params = target.url?.searchParams;
-  if (params) {
-    params.set("group", group);
+async function fetchAttemptTotals(
+  supabase: AppSupabaseClient,
+  rangeStart: string | null,
+  scopedIds: string[] | null
+): Promise<Map<string, number>> {
+  const totals = new Map<string, number>();
+  const targetIds =
+    scopedIds && scopedIds.length ? Array.from(new Set(scopedIds)) : null;
+
+  for (let page = 0; page < ATTEMPT_MAX_PAGES; page += 1) {
+    let query = supabase
+      .from("attempts")
+      .select("user_id, correct_count, created_at")
+      .not("user_id", "is", null)
+      .order("created_at", { ascending: false });
+
+    if (rangeStart) {
+      query = query.gte("created_at", rangeStart);
+    }
+    if (targetIds && targetIds.length) {
+      query = query.in("user_id", targetIds);
+    }
+
+    const from = page * ATTEMPT_PAGE_SIZE;
+    const to = from + ATTEMPT_PAGE_SIZE - 1;
+
+    const { data, error } = await query.range(from, to);
+    if (error) throw error;
+
+    const rows = Array.isArray(data) ? (data as AttemptRow[]) : [];
+    if (rows.length === 0) break;
+
+    rows.forEach((row) => {
+      const uid = typeof row.user_id === "string" ? row.user_id : null;
+      const correct = toNumOrNull(row.correct_count);
+      if (!uid || correct == null) return;
+      totals.set(uid, (totals.get(uid) ?? 0) + correct);
+    });
+
+    if (rows.length < ATTEMPT_PAGE_SIZE) {
+      break;
+    }
+    if (page === ATTEMPT_MAX_PAGES - 1) {
+      console.warn("[leaderboard] attempt aggregation reached max pages", {
+        rangeStart,
+        scopedIds: targetIds?.length ?? 0,
+      });
+    }
   }
-  return query;
+
+  return totals;
 }
 
 export default function Leaderboard() {
-  const supabase = useMemo(() => supabaseBrowser(), []);
+  const supabase = useMemo<AppSupabaseClient>(() => supabaseBrowser(), []);
   const { accuracyBySubject } = useLernexStore();
   const { stats } = useProfileStats();
   const points = stats?.points ?? 0;
@@ -176,6 +208,7 @@ export default function Leaderboard() {
         }
 
         let pointsRows: ProfileRow[] = [];
+        let aggregatedTotals: Map<string, number> | null = null;
         if (range === "all") {
           if (scope === "friends" && scopedIds && scopedIds.length === 0) {
             pointsRows = [];
@@ -195,65 +228,69 @@ export default function Leaderboard() {
         } else {
           if (scope === "friends" && scopedIds && scopedIds.length === 0) {
             pointsRows = [];
+            aggregatedTotals = new Map();
           } else {
-            let attemptQuery = supabase
-              .from("attempts")
-              .select("user_id, total_correct:sum(correct_count)")
-              .not("user_id", "is", null);
-            if (rangeStart) {
-              attemptQuery = attemptQuery.gte("created_at", rangeStart);
-            }
-            attemptQuery = applyGroupParam(attemptQuery, "user_id");
+            const totals = await fetchAttemptTotals(
+              supabase,
+              rangeStart,
+              scope === "friends" ? scopedIds : null
+            );
+            aggregatedTotals = totals;
 
-            let attemptRows: Record<string, unknown>[] = [];
+            let aggregates: { id: string; totalCorrect: number }[];
             if (scope === "friends" && scopedIds && scopedIds.length) {
-              const { data, error: attemptError } = await attemptQuery.in("user_id", scopedIds);
-              if (attemptError) throw attemptError;
-              attemptRows = (data ?? []) as Record<string, unknown>[];
+              aggregates = scopedIds.map((id) => ({
+                id,
+                totalCorrect: totals.get(id) ?? 0,
+              }));
+              aggregates.sort((a, b) => b.totalCorrect - a.totalCorrect);
             } else {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const orderedQuery = (attemptQuery as any)
-                .order("total_correct", { ascending: false })
-                .limit(40);
-              const { data, error: attemptError } = await orderedQuery;
-              if (attemptError) throw attemptError;
-              attemptRows = (data ?? []) as Record<string, unknown>[];
+              aggregates = Array.from(totals.entries())
+                .map(([id, totalCorrect]) => ({
+                  id,
+                  totalCorrect,
+                }))
+                .filter((entry) => entry.totalCorrect > 0)
+                .sort((a, b) => b.totalCorrect - a.totalCorrect);
             }
 
-            const aggregates = attemptRows
-              .map((row) => ({
-                id: typeof row.user_id === "string" ? row.user_id : null,
-                totalCorrect: extractTotalCorrect(row.total_correct) ?? 0,
-              }))
-              .sort((a, b) => (b.totalCorrect ?? 0) - (a.totalCorrect ?? 0));
-            const profileIds =
-              scope === "friends" && scopedIds && scopedIds.length
-                ? scopedIds
-                : uniqueIds(aggregates.map((entry) => entry.id));
+            if (aggregates.length) {
+              const PROFILE_FETCH_LIMIT = 60;
+              let profileIds: string[] = [];
+              if (scope === "friends" && scopedIds && scopedIds.length) {
+                profileIds = scopedIds;
+              } else {
+                profileIds = aggregates
+                  .slice(0, PROFILE_FETCH_LIMIT)
+                  .map((entry) => entry.id);
+                if (uid && !profileIds.includes(uid)) {
+                  profileIds.push(uid);
+                }
+              }
 
-            let profiles: ProfileRow[] = [];
-            if (profileIds.length) {
-              const { data: profileData, error: profileError } = await supabase
-                .from("profiles")
-                .select("id, username, points, streak")
-                .in("id", profileIds);
-              if (profileError) throw profileError;
-              profiles = normalizeProfiles(profileData ?? []);
+              let profiles: ProfileRow[] = [];
+              if (profileIds.length) {
+                const { data: profileData, error: profileError } = await supabase
+                  .from("profiles")
+                  .select("id, username, points, streak")
+                  .in("id", profileIds);
+                if (profileError) throw profileError;
+                profiles = normalizeProfiles(profileData ?? []);
+              }
+
+              const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
+              pointsRows = aggregates.slice(0, 20).map((entry) => {
+                const base = profileMap.get(entry.id);
+                return {
+                  id: entry.id,
+                  username: base?.username ?? null,
+                  points: entry.totalCorrect * POINTS_PER_CORRECT,
+                  streak: base?.streak ?? null,
+                };
+              });
+            } else {
+              pointsRows = [];
             }
-
-            const aggregateMap = new Map<string, number>();
-            aggregates.forEach((entry) => {
-              if (!entry.id) return;
-              aggregateMap.set(entry.id, entry.totalCorrect * POINTS_PER_CORRECT);
-            });
-
-            pointsRows = profiles
-              .map((profile) => ({
-                ...profile,
-                points: aggregateMap.get(profile.id) ?? 0,
-              }))
-              .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
-              .slice(0, 20);
           }
         }
 
@@ -298,44 +335,21 @@ export default function Leaderboard() {
           const { count: higherPoints, error: rankError } = await rankQuery;
           if (rankError) throw rankError;
           setRankPoints(((higherPoints as number | null) ?? 0) + 1);
-        } else {
-          let myAggQuery = supabase
-            .from("attempts")
-            .select("total_correct:sum(correct_count)")
-            .eq("user_id", uid);
-          if (rangeStart) {
-            myAggQuery = myAggQuery.gte("created_at", rangeStart);
-          }
-          const { data: myAggData, error: myAggError } = await myAggQuery;
-          if (myAggError) throw myAggError;
-          const myAggRows = Array.isArray(myAggData)
-            ? (myAggData as AttemptAggregateRow[])
-            : [];
-          const myCorrect = extractTotalCorrect(
-            myAggRows[0]?.total_correct
-          ) ?? 0;
+        } else if (aggregatedTotals) {
+          const myCorrect = aggregatedTotals.get(uid) ?? 0;
           if (myCorrect > 0) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            let rankQuery: any = supabase
-              .from("attempts")
-              .select("user_id, total_correct:sum(correct_count)", {
-                count: "exact",
-                head: true,
-              });
-            rankQuery = applyGroupParam(rankQuery, "user_id");
-            rankQuery = rankQuery.gt("total_correct", myCorrect);
-            if (rangeStart) {
-              rankQuery = rankQuery.gte("created_at", rangeStart);
-            }
-            if (scope === "friends" && scopedIds && scopedIds.length) {
-              rankQuery = rankQuery.in("user_id", scopedIds);
-            }
-            const { count: higherRange, error: rangeRankError } = await rankQuery;
-            if (rangeRankError) throw rangeRankError;
-            setRankPoints(((higherRange as number | null) ?? 0) + 1);
+            let higherRange = 0;
+            aggregatedTotals.forEach((value) => {
+              if (value > myCorrect) {
+                higherRange += 1;
+              }
+            });
+            setRankPoints(higherRange + 1);
           } else {
             setRankPoints(null);
           }
+        } else {
+          setRankPoints(null);
         }
 
         const myStreak = stats?.streak ?? 0;
