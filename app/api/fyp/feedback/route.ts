@@ -70,20 +70,20 @@ const classifyLessonTone = (lesson: Lesson): string[] => {
     if (normalized) tags.add(normalized);
   };
 
-  const heuristics: { test: RegExp; tag: string }[] = [
-    { test: /\bstep[-\s]?by[-\s]?step\b|\bfirst\b.*\bnext\b/i, tag: "step-by-step" },
-    { test: /\breal[-\s]?world\b|\beveryday\b|\bpractical\b/i, tag: "real-world" },
-    { test: /\bimagine\b|\bvisuali[sz]e\b|\bdiagram\b|\bgraph\b/i, tag: "visual" },
-    { test: /\bstory\b|\bnarrative\b|\bcharacter\b/i, tag: "story-driven" },
-    { test: /\bchallenge\b|\bproof\b|\brigor/i, tag: "challenge-oriented" },
-    { test: /\bfun\b|\bexciting\b|\badventure\b|\bplayful\b/i, tag: "playful" },
-    { test: /\bcoach\b|\bmentor\b|\bguide\b|\bsupport/i, tag: "supportive" },
-    { test: /\bquick\b|\bfast\b|\bspeed\b|\befficient\b/i, tag: "fast-paced" },
-    { test: /\bpractice\b|\btry this\b|\bexercise\b/i, tag: "practice-heavy" },
+  const heuristics: { pattern: RegExp; tag: string }[] = [
+    { pattern: /\bstep[-\s]?by[-\s]?step\b|\bfirst\b.*\bnext\b/i, tag: "step-by-step" },
+    { pattern: /\breal[-\s]?world\b|\beveryday\b|\bpractical\b/i, tag: "real-world" },
+    { pattern: /\bimagine\b|\bvisuali[sz]e\b|\bdiagram\b|\bgraph\b/i, tag: "visual" },
+    { pattern: /\bstory\b|\bnarrative\b|\bcharacter\b/i, tag: "story-driven" },
+    { pattern: /\bchallenge\b|\bproof\b|\brigor/i, tag: "challenge-oriented" },
+    { pattern: /\bfun\b|\bexciting\b|\badventure\b|\bplayful\b/i, tag: "playful" },
+    { pattern: /\bcoach\b|\bmentor\b|\bguide\b|\bsupport/i, tag: "supportive" },
+    { pattern: /\bquick\b|\bfast\b|\bspeed\b|\befficient\b/i, tag: "fast-paced" },
+    { pattern: /\bpractice\b|\btry this\b|\bexercise\b/i, tag: "practice-heavy" },
   ];
 
   for (const h of heuristics) {
-    if (h.test(body)) add(h.tag);
+    if (h.pattern.test(body)) add(h.tag);
   }
 
   const exclamations = (lesson.content.match(/!/g) ?? []).length;
