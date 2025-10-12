@@ -36,9 +36,13 @@ export const siteConfig = {
   ],
 };
 
-function toAbsoluteUrl(path: string): string {
+function toAbsoluteUrl(path?: string | URL | null): string {
   if (!path) {
     return normalizedSiteUrl;
+  }
+
+  if (path instanceof URL) {
+    return path.toString();
   }
 
   try {
@@ -49,9 +53,26 @@ function toAbsoluteUrl(path: string): string {
   }
 }
 
-type OgImages = NonNullable<NonNullable<Metadata["openGraph"]>["images"]>;
+type NormalizedOgImage =
+  | string
+  | {
+      url: string;
+      alt?: string;
+      width?: number;
+      height?: number;
+      type?: string;
+    };
 
-function normalizeOgImages(images?: OgImages, fallback?: string): OgImages | undefined {
+function normalizeOgImages(
+  images?: Metadata["openGraph"] extends undefined
+    ? undefined
+    : Metadata["openGraph"] extends infer T
+      ? T extends { images?: infer U }
+        ? U
+        : undefined
+      : undefined,
+  fallback?: string
+): NormalizedOgImage[] | undefined {
   if (!images || (Array.isArray(images) && images.length === 0)) {
     if (!fallback) return undefined;
     return [{ url: toAbsoluteUrl(fallback) }];
@@ -59,15 +80,46 @@ function normalizeOgImages(images?: OgImages, fallback?: string): OgImages | und
 
   const list = Array.isArray(images) ? images : [images];
 
-  return list.map((entry) => {
-    if (typeof entry === "string") {
+  return list.map((entry): NormalizedOgImage => {
+    if (typeof entry === "string" || entry instanceof URL) {
       return toAbsoluteUrl(entry);
     }
-    if (entry instanceof URL) {
-      return entry;
+
+    if (entry && typeof entry === "object") {
+      const record = entry as {
+        url?: string | URL | null;
+        alt?: unknown;
+        width?: unknown;
+        height?: unknown;
+        type?: unknown;
+      };
+      const normalizedUrl = record.url
+        ? toAbsoluteUrl(record.url)
+        : fallback
+          ? toAbsoluteUrl(fallback)
+          : normalizedSiteUrl;
+
+      const alt =
+        typeof record.alt === "string"
+          ? record.alt
+          : record.alt != null
+            ? String(record.alt)
+            : undefined;
+
+      const width = typeof record.width === "number" ? record.width : undefined;
+      const height = typeof record.height === "number" ? record.height : undefined;
+      const type = typeof record.type === "string" ? record.type : undefined;
+
+      return {
+        url: normalizedUrl,
+        ...(alt ? { alt } : {}),
+        ...(width ? { width } : {}),
+        ...(height ? { height } : {}),
+        ...(type ? { type } : {}),
+      };
     }
-    const url = "url" in entry && entry.url ? toAbsoluteUrl(entry.url) : fallback ? toAbsoluteUrl(fallback) : normalizedSiteUrl;
-    return { ...entry, url };
+
+    return fallback ? { url: toAbsoluteUrl(fallback) } : toAbsoluteUrl("");
   });
 }
 
@@ -149,15 +201,20 @@ export function buildMetadata(options: BuildMetadataOptions = {}): Metadata {
   const resolvedDescription = description ?? siteConfig.description;
   const canonical = path ? toAbsoluteUrl(path) : siteConfig.url;
   const resolvedKeywords = keywords ?? siteConfig.keywords;
+  const normalizedImages = normalizeOgImages(openGraph?.images, siteConfig.ogImage);
   const resolvedOgImage =
-    (openGraph && normalizeOgImages(openGraph.images, siteConfig.ogImage)?.[0])?.toString?.() ?? defaultOgImage;
+    normalizedImages && normalizedImages.length > 0
+      ? typeof normalizedImages[0] === "string"
+        ? normalizedImages[0]
+        : normalizedImages[0].url
+      : defaultOgImage;
 
-  const ogImages = normalizeOgImages(openGraph?.images, siteConfig.ogImage) ?? [
+  const ogImages = normalizedImages ?? [
     {
       url: defaultOgImage,
       width: 1200,
       height: 630,
-      alt: openGraph?.title ?? `${siteConfig.name} cover image`,
+      alt: String(openGraph?.title ?? `${siteConfig.name} cover image`),
     },
   ];
 
@@ -167,16 +224,27 @@ export function buildMetadata(options: BuildMetadataOptions = {}): Metadata {
     title: openGraph?.title ?? (title ? `${title} | ${siteConfig.name}` : defaultMetadata.openGraph?.title ?? siteConfig.name),
     description: openGraph?.description ?? resolvedDescription,
     url: canonical,
-    images: ogImages,
+    images: ogImages as NonNullable<Metadata["openGraph"]>["images"],
   };
 
   const baseTwitter = defaultMetadata.twitter;
+  const twitterImagesSource = twitter?.images ?? (typeof baseTwitter === "object" ? baseTwitter?.images : undefined);
+  const twitterImages = (() => {
+    if (!twitterImagesSource) return [resolvedOgImage];
+    if (Array.isArray(twitterImagesSource)) {
+      return twitterImagesSource.map((value) =>
+        value instanceof URL ? value.toString() : String(value)
+      );
+    }
+    return [twitterImagesSource instanceof URL ? twitterImagesSource.toString() : String(twitterImagesSource)];
+  })();
+
   const mergedTwitter: NonNullable<Metadata["twitter"]> = {
     ...(typeof baseTwitter === "object" ? baseTwitter : { card: "summary_large_image" }),
     ...twitter,
     title: twitter?.title ?? (title ? `${title} | ${siteConfig.name}` : siteConfig.name),
     description: twitter?.description ?? resolvedDescription,
-    images: twitter?.images ?? (Array.isArray(baseTwitter?.images) ? baseTwitter?.images : [resolvedOgImage]),
+    images: twitterImages,
   };
 
   return {
