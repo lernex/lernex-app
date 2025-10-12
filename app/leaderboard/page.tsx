@@ -90,6 +90,21 @@ function uniqueIds(values: (string | null | undefined)[]): string[] {
   return Array.from(seen);
 }
 
+type QueryWithUrl = {
+  url?: {
+    searchParams?: URLSearchParams;
+  };
+};
+
+function applyGroupParam<T>(query: T, group: string): T {
+  const target = query as unknown as QueryWithUrl;
+  const params = target.url?.searchParams;
+  if (params) {
+    params.set("group", group);
+  }
+  return query;
+}
+
 export default function Leaderboard() {
   const supabase = useMemo(() => supabaseBrowser(), []);
   const { accuracyBySubject } = useLernexStore();
@@ -188,6 +203,7 @@ export default function Leaderboard() {
             if (rangeStart) {
               attemptQuery = attemptQuery.gte("created_at", rangeStart);
             }
+            attemptQuery = applyGroupParam(attemptQuery, "user_id");
 
             let attemptRows: Record<string, unknown>[] = [];
             if (scope === "friends" && scopedIds && scopedIds.length) {
@@ -306,6 +322,7 @@ export default function Leaderboard() {
                 count: "exact",
                 head: true,
               });
+            rankQuery = applyGroupParam(rankQuery, "user_id");
             rankQuery = rankQuery.gt("total_correct", myCorrect);
             if (rangeStart) {
               rankQuery = rankQuery.gte("created_at", rangeStart);
