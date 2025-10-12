@@ -12,8 +12,8 @@ const ai = new Groq({
   apiKey: process.env.GROQ_API_KEY!,
 });
 const MAX_TOKENS = Math.min(
-  1200,
-  Math.max(600, Number(process.env.GROQ_PLACEMENT_MAX_TOKENS ?? "900") || 900),
+  1800,
+  Math.max(800, Number(process.env.GROQ_PLACEMENT_MAX_TOKENS ?? "1300") || 1300),
 );
 
 // Safety
@@ -129,8 +129,8 @@ ${avoidText}
 Create exactly one discriminative multiple-choice question from the course's appropriate units. Include a short explanation. The question should address a key topic within the course's own syllabus.
 `.trim();
 
-  // Groq model; cap tokens for speed
-  const model = "openai/gpt-oss-20b";
+  // Cerebras 120B model; allow a slightly larger token budget
+  const model = "cerebras/gpt-oss-120b";
   const TEMP = 0.4; // lower temp for more stable JSON
   const systemPrompt = depth === 0 ? systemNormal : systemTight;
 

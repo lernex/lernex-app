@@ -18,6 +18,10 @@ create index if not exists user_topic_lesson_cache_updated_idx
 alter table public.user_topic_lesson_cache enable row level security;
 
 drop policy if exists "Users manage own topic lesson cache" on public.user_topic_lesson_cache;
+drop policy if exists "Users read own topic lesson cache" on public.user_topic_lesson_cache;
+drop policy if exists "Users upsert own topic lesson cache" on public.user_topic_lesson_cache;
+drop policy if exists "Users update own topic lesson cache" on public.user_topic_lesson_cache;
+drop policy if exists "Users delete own topic lesson cache" on public.user_topic_lesson_cache;
 
 create policy "Users read own topic lesson cache"
   on public.user_topic_lesson_cache
@@ -58,6 +62,10 @@ create index if not exists user_subject_preferences_updated_idx
 alter table public.user_subject_preferences enable row level security;
 
 drop policy if exists "Users manage own subject preferences" on public.user_subject_preferences;
+drop policy if exists "Users read own subject preferences" on public.user_subject_preferences;
+drop policy if exists "Users upsert own subject preferences" on public.user_subject_preferences;
+drop policy if exists "Users update own subject preferences" on public.user_subject_preferences;
+drop policy if exists "Users delete own subject preferences" on public.user_subject_preferences;
 
 create policy "Users read own subject preferences"
   on public.user_subject_preferences
@@ -102,6 +110,10 @@ create index if not exists user_subject_progress_updated_idx
 alter table public.user_subject_progress enable row level security;
 
 drop policy if exists "Users manage own subject progress" on public.user_subject_progress;
+drop policy if exists "Users read own subject progress" on public.user_subject_progress;
+drop policy if exists "Users upsert own subject progress" on public.user_subject_progress;
+drop policy if exists "Users update own subject progress" on public.user_subject_progress;
+drop policy if exists "Users delete own subject progress" on public.user_subject_progress;
 
 create policy "Users read own subject progress"
   on public.user_subject_progress
@@ -157,9 +169,10 @@ create or replace function public.apply_user_subject_progress_patch(
   p_topic_idx integer default null,
   p_subtopic_idx integer default null,
   p_delivered_mini integer default null,
-  p_delivered_patch jsonb default '{}'::jsonb,
-  p_id_patch jsonb default '{}'::jsonb,
-  p_title_patch jsonb default '{}'::jsonb,
+  p_delivered_mini_delta integer default null,
+  p_delivered_delta jsonb default '{}'::jsonb,
+  p_id_append jsonb default '{}'::jsonb,
+  p_title_append jsonb default '{}'::jsonb,
   p_completion_patch jsonb default '{}'::jsonb,
   p_metrics jsonb default '{}'::jsonb
 )
@@ -171,68 +184,263 @@ as $$
 declare
   v_user_id uuid;
   v_result public.user_subject_progress%rowtype;
+  v_entry record;
+  v_new_total bigint;
+  v_existing_ids text[];
+  v_new_ids text[];
+  v_existing_titles text[];
+  v_new_titles text[];
+  v_candidate text;
+  v_idx integer;
+  v_count integer;
+  v_len integer;
+  max_id_count constant integer := 50;
+  max_title_count constant integer := 50;
 begin
   v_user_id := auth.uid();
   if v_user_id is null then
     raise exception 'apply_user_subject_progress_patch requires auth context';
   end if;
 
-  insert into public.user_subject_progress as usp (
-    user_id,
-    subject,
-    topic_idx,
-    subtopic_idx,
-    delivered_mini,
-    delivered_by_topic,
-    delivered_ids_by_topic,
-    delivered_titles_by_topic,
-    completion_map,
-    metrics
-  )
-  values (
-    v_user_id,
-    p_subject,
-    p_topic_idx,
-    p_subtopic_idx,
-    p_delivered_mini,
-    coalesce(nullif(p_delivered_patch, '{}'::jsonb), '{}'::jsonb),
-    coalesce(nullif(p_id_patch, '{}'::jsonb), '{}'::jsonb),
-    coalesce(nullif(p_title_patch, '{}'::jsonb), '{}'::jsonb),
-    coalesce(nullif(p_completion_patch, '{}'::jsonb), '{}'::jsonb),
-    coalesce(nullif(p_metrics, '{}'::jsonb), '{}'::jsonb)
-  )
-  on conflict (user_id, subject)
-  do update set
-    topic_idx = coalesce(excluded.topic_idx, usp.topic_idx),
-    subtopic_idx = coalesce(excluded.subtopic_idx, usp.subtopic_idx),
-    delivered_mini = coalesce(excluded.delivered_mini, usp.delivered_mini),
-    delivered_by_topic = case
-      when coalesce(p_delivered_patch, '{}'::jsonb) = '{}'::jsonb then usp.delivered_by_topic
-      else jsonb_strip_nulls(usp.delivered_by_topic || coalesce(p_delivered_patch, '{}'::jsonb))
-    end,
-    delivered_ids_by_topic = case
-      when coalesce(p_id_patch, '{}'::jsonb) = '{}'::jsonb then usp.delivered_ids_by_topic
-      else jsonb_strip_nulls(usp.delivered_ids_by_topic || coalesce(p_id_patch, '{}'::jsonb))
-    end,
-    delivered_titles_by_topic = case
-      when coalesce(p_title_patch, '{}'::jsonb) = '{}'::jsonb then usp.delivered_titles_by_topic
-      else jsonb_strip_nulls(usp.delivered_titles_by_topic || coalesce(p_title_patch, '{}'::jsonb))
-    end,
-    completion_map = case
-      when coalesce(p_completion_patch, '{}'::jsonb) = '{}'::jsonb then usp.completion_map
-      else jsonb_strip_nulls(usp.completion_map || coalesce(p_completion_patch, '{}'::jsonb))
-    end,
-    metrics = case
-      when coalesce(p_metrics, '{}'::jsonb) = '{}'::jsonb then usp.metrics
-      else jsonb_strip_nulls(usp.metrics || coalesce(p_metrics, '{}'::jsonb))
-    end,
-    updated_at = now()
-  returning * into v_result;
+  select *
+    into v_result
+    from public.user_subject_progress
+    where user_id = v_user_id
+      and subject = p_subject
+    for update;
+
+  if not found then
+    insert into public.user_subject_progress (
+      user_id,
+      subject,
+      topic_idx,
+      subtopic_idx,
+      delivered_mini,
+      delivered_by_topic,
+      delivered_ids_by_topic,
+      delivered_titles_by_topic,
+      completion_map,
+      metrics
+    )
+    values (
+      v_user_id,
+      p_subject,
+      p_topic_idx,
+      p_subtopic_idx,
+      coalesce(p_delivered_mini, 0),
+      '{}'::jsonb,
+      '{}'::jsonb,
+      '{}'::jsonb,
+      '{}'::jsonb,
+      '{}'::jsonb
+    )
+    returning * into v_result;
+  end if;
+
+  if p_topic_idx is not null then
+    v_result.topic_idx := p_topic_idx;
+  end if;
+
+  if p_subtopic_idx is not null then
+    v_result.subtopic_idx := p_subtopic_idx;
+  end if;
+
+  v_result.delivered_mini := coalesce(v_result.delivered_mini, 0);
+  v_result.delivered_by_topic := coalesce(v_result.delivered_by_topic, '{}'::jsonb);
+  v_result.delivered_ids_by_topic := coalesce(v_result.delivered_ids_by_topic, '{}'::jsonb);
+  v_result.delivered_titles_by_topic := coalesce(v_result.delivered_titles_by_topic, '{}'::jsonb);
+  v_result.completion_map := coalesce(v_result.completion_map, '{}'::jsonb);
+  v_result.metrics := coalesce(v_result.metrics, '{}'::jsonb);
+
+  if p_delivered_mini_delta is not null then
+    v_result.delivered_mini := greatest(0, v_result.delivered_mini + p_delivered_mini_delta);
+  end if;
+
+  if p_delivered_mini is not null then
+    v_result.delivered_mini := greatest(0, p_delivered_mini);
+  end if;
+
+  if jsonb_typeof(coalesce(p_delivered_delta, '{}'::jsonb)) = 'object' then
+    for v_entry in
+      select key, value
+      from jsonb_each(coalesce(p_delivered_delta, '{}'::jsonb))
+    loop
+      if jsonb_typeof(v_entry.value) <> 'number' then
+        continue;
+      end if;
+      v_new_total := coalesce((v_result.delivered_by_topic ->> v_entry.key)::bigint, 0)
+        + ((v_entry.value)::text)::bigint;
+      if v_new_total < 0 then
+        v_new_total := 0;
+      end if;
+      v_result.delivered_by_topic := jsonb_set(
+        v_result.delivered_by_topic,
+        ARRAY[v_entry.key],
+        to_jsonb(v_new_total),
+        true
+      );
+    end loop;
+    v_result.delivered_by_topic := jsonb_strip_nulls(v_result.delivered_by_topic);
+  end if;
+
+  if jsonb_typeof(coalesce(p_id_append, '{}'::jsonb)) = 'object' then
+    for v_entry in
+      select key, value
+      from jsonb_each(coalesce(p_id_append, '{}'::jsonb))
+    loop
+      if jsonb_typeof(v_entry.value) <> 'array' then
+        continue;
+      end if;
+
+      select coalesce(array_agg(elem), ARRAY[]::text[])
+        into v_existing_ids
+        from (
+          select btrim(elem.value) as elem
+          from jsonb_array_elements_text(coalesce(v_result.delivered_ids_by_topic -> v_entry.key, '[]'::jsonb)) elem
+          where btrim(elem.value) <> ''
+        ) existing;
+
+      select coalesce(array_agg(elem), ARRAY[]::text[])
+        into v_new_ids
+        from (
+          select btrim(elem.value) as elem
+          from jsonb_array_elements_text(v_entry.value) elem
+          where btrim(elem.value) <> ''
+        ) incoming;
+
+      v_count := array_length(v_new_ids, 1);
+      if v_count is null then
+        continue;
+      end if;
+
+      v_existing_ids := coalesce(v_existing_ids, ARRAY[]::text[]);
+      for v_idx in 1..v_count loop
+        v_candidate := v_new_ids[v_idx];
+        if v_candidate is null or v_candidate = '' then
+          continue;
+        end if;
+        v_existing_ids := array_remove(v_existing_ids, v_candidate);
+        v_existing_ids := v_existing_ids || v_candidate;
+      end loop;
+
+      v_len := coalesce(array_length(v_existing_ids, 1), 0);
+      if v_len > max_id_count then
+        v_existing_ids := v_existing_ids[v_len - max_id_count + 1 : v_len];
+      end if;
+
+      v_result.delivered_ids_by_topic := jsonb_set(
+        v_result.delivered_ids_by_topic,
+        ARRAY[v_entry.key],
+        to_jsonb(coalesce(v_existing_ids, ARRAY[]::text[])),
+        true
+      );
+    end loop;
+    v_result.delivered_ids_by_topic := jsonb_strip_nulls(v_result.delivered_ids_by_topic);
+  end if;
+
+  if jsonb_typeof(coalesce(p_title_append, '{}'::jsonb)) = 'object' then
+    for v_entry in
+      select key, value
+      from jsonb_each(coalesce(p_title_append, '{}'::jsonb))
+    loop
+      if jsonb_typeof(v_entry.value) <> 'array' then
+        continue;
+      end if;
+
+      select coalesce(array_agg(elem), ARRAY[]::text[])
+        into v_existing_titles
+        from (
+          select btrim(elem.value) as elem
+          from jsonb_array_elements_text(coalesce(v_result.delivered_titles_by_topic -> v_entry.key, '[]'::jsonb)) elem
+          where btrim(elem.value) <> ''
+        ) existing_titles;
+
+      select coalesce(array_agg(elem), ARRAY[]::text[])
+        into v_new_titles
+        from (
+          select btrim(elem.value) as elem
+          from jsonb_array_elements_text(v_entry.value) elem
+          where btrim(elem.value) <> ''
+        ) incoming_titles;
+
+      v_count := array_length(v_new_titles, 1);
+      if v_count is null then
+        continue;
+      end if;
+
+      v_existing_titles := coalesce(v_existing_titles, ARRAY[]::text[]);
+      for v_idx in 1..v_count loop
+        v_candidate := v_new_titles[v_idx];
+        if v_candidate is null or v_candidate = '' then
+          continue;
+        end if;
+        v_existing_titles := array_remove(v_existing_titles, v_candidate);
+        v_existing_titles := v_existing_titles || v_candidate;
+      end loop;
+
+      v_len := coalesce(array_length(v_existing_titles, 1), 0);
+      if v_len > max_title_count then
+        v_existing_titles := v_existing_titles[v_len - max_title_count + 1 : v_len];
+      end if;
+
+      v_result.delivered_titles_by_topic := jsonb_set(
+        v_result.delivered_titles_by_topic,
+        ARRAY[v_entry.key],
+        to_jsonb(coalesce(v_existing_titles, ARRAY[]::text[])),
+        true
+      );
+    end loop;
+    v_result.delivered_titles_by_topic := jsonb_strip_nulls(v_result.delivered_titles_by_topic);
+  end if;
+
+  if jsonb_typeof(coalesce(p_completion_patch, '{}'::jsonb)) = 'object' then
+    for v_entry in
+      select key, value
+      from jsonb_each(coalesce(p_completion_patch, '{}'::jsonb))
+    loop
+      if jsonb_typeof(v_entry.value) not in ('boolean', 'null') then
+        continue;
+      end if;
+      if jsonb_typeof(v_entry.value) = 'null' then
+        v_result.completion_map := v_result.completion_map - v_entry.key;
+      else
+        v_result.completion_map := jsonb_set(
+          v_result.completion_map,
+          ARRAY[v_entry.key],
+          v_entry.value,
+          true
+        );
+      end if;
+    end loop;
+    v_result.completion_map := jsonb_strip_nulls(v_result.completion_map);
+  end if;
+
+  if jsonb_typeof(coalesce(p_metrics, '{}'::jsonb)) = 'object' then
+    v_result.metrics := jsonb_strip_nulls(v_result.metrics || coalesce(p_metrics, '{}'::jsonb));
+  end if;
+
+  v_result.updated_at := now();
+
+  update public.user_subject_progress
+     set topic_idx = v_result.topic_idx,
+         subtopic_idx = v_result.subtopic_idx,
+         delivered_mini = v_result.delivered_mini,
+         delivered_by_topic = v_result.delivered_by_topic,
+         delivered_ids_by_topic = v_result.delivered_ids_by_topic,
+         delivered_titles_by_topic = v_result.delivered_titles_by_topic,
+         completion_map = v_result.completion_map,
+         metrics = v_result.metrics,
+         updated_at = v_result.updated_at
+   where user_id = v_user_id
+     and subject = p_subject
+   returning * into v_result;
 
   return v_result;
 end;
 $$;
 
-grant execute on function public.apply_user_subject_progress_patch(text, integer, integer, integer, jsonb, jsonb, jsonb, jsonb, jsonb) to authenticated;
+grant execute on function public.apply_user_subject_progress_patch(text, integer, integer, integer, integer, jsonb, jsonb, jsonb, jsonb, jsonb) to authenticated;
+
+drop table if exists public.lesson_cache;
 
 commit;

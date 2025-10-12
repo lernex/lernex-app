@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import OpenAI from "openai";
-import { LessonSchema } from "@/lib/schema";
+import { LessonSchema, type Lesson } from "@/lib/schema";
 import { take } from "@/lib/rate";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
@@ -25,6 +25,10 @@ function normalize(s: string) {
 function sha256(s: string) {
   return crypto.createHash("sha256").update(s).digest("hex");
 }
+
+const MAX_CACHE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+type CachedLesson = Lesson & { cachedAt?: string };
 
 
 export async function POST(req: NextRequest) {
@@ -85,20 +89,36 @@ export async function POST(req: NextRequest) {
 
     // -------- Cache check ----------
     const key = sha256(`${uid ?? ip}|${subject}|${normalize(text)}`);
-    const { data: cachedRows } = await sb
-      .from("lesson_cache")
-      .select("lesson")
-      .eq("subject", subject)
-      .eq("input_hash", key)
-      .limit(1);
+    const topicLabel = `adhoc:${key}`;
+    const cachedLessons: CachedLesson[] = [];
 
-    if (cachedRows && cachedRows[0]?.lesson) {
-      const valid = LessonSchema.safeParse(cachedRows[0].lesson);
-      if (valid.success) {
-        return new Response(JSON.stringify(valid.data), {
-          headers: { "content-type": "application/json" },
-          status: 200,
-        });
+    if (uid) {
+      const { data: cacheRow } = await sb
+        .from("user_topic_lesson_cache")
+        .select("lessons")
+        .eq("user_id", uid)
+        .eq("subject", subject)
+        .eq("topic_label", topicLabel)
+        .maybeSingle();
+
+      if (Array.isArray(cacheRow?.lessons)) {
+        const nowMs = Date.now();
+        for (const entry of cacheRow!.lessons as CachedLesson[]) {
+          if (!entry || typeof entry !== "object") continue;
+          const cachedAt = typeof entry.cachedAt === "string" ? entry.cachedAt : undefined;
+          const cachedAtMs = cachedAt ? Date.parse(cachedAt) : NaN;
+          if (Number.isFinite(cachedAtMs) && nowMs - cachedAtMs > MAX_CACHE_AGE_MS) continue;
+          const validated = LessonSchema.safeParse(entry);
+          if (!validated.success) continue;
+          const stamped: CachedLesson = { ...validated.data, cachedAt: cachedAt ?? new Date().toISOString() };
+          cachedLessons.push(stamped);
+        }
+        if (cachedLessons.length > 0) {
+          return new Response(JSON.stringify(cachedLessons[0]), {
+            headers: { "content-type": "application/json" },
+            status: 200,
+          });
+        }
       }
     }
     // -------------------------------
@@ -267,15 +287,31 @@ export async function POST(req: NextRequest) {
             }
             const validated = LessonSchema.safeParse(parsed);
             if (validated.success) {
-              try {
-                await sb.from("lesson_cache").insert({
-                  user_id: uid,
-                  subject,
-                  input_hash: key,
-                  lesson: validated.data,
-                });
-              } catch {
-                /* ignore cache errors */
+              if (uid) {
+                const stampedLesson: CachedLesson = {
+                  ...validated.data,
+                  cachedAt: new Date().toISOString(),
+                };
+                try {
+                  const existing = cachedLessons.filter(
+                    (entry) => entry && entry.id !== stampedLesson.id
+                  );
+                  const nextCache = [stampedLesson, ...existing].slice(0, 5);
+                  await sb
+                    .from("user_topic_lesson_cache")
+                    .upsert(
+                      {
+                        user_id: uid,
+                        subject,
+                        topic_label: topicLabel,
+                        lessons: nextCache,
+                        updated_at: stampedLesson.cachedAt,
+                      },
+                      { onConflict: "user_id,subject,topic_label" }
+                    );
+                } catch {
+                  /* ignore cache errors */
+                }
               }
             }
           } catch (err) {

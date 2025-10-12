@@ -248,9 +248,12 @@ export async function POST(req: NextRequest) {
             p_subject: progressSubject,
             p_topic_idx: topicIdx,
             p_subtopic_idx: subtopicIdx,
-            p_delivered_mini: deliveredMini,
+            p_delivered_mini_delta: 1,
             p_completion_patch: { [label]: completedThisSubtopic },
           };
+          if (completedThisSubtopic) {
+            rpcPayload.p_delivered_mini = 0;
+          }
 
           try {
             await supabase.rpc("apply_user_subject_progress_patch", rpcPayload);

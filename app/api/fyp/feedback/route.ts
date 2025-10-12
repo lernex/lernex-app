@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
+import { LessonSchema, type Lesson } from "@/lib/schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,111 @@ const pushUnique = (list: string[], id: string, max = 200) => {
   next.push(trimmed);
   if (next.length > max) next.splice(0, next.length - max);
   return next;
+};
+
+const normalizeToneTags = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (typeof entry !== "string") continue;
+    const normalized = entry.trim().toLowerCase().replace(/\s+/g, " ");
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+};
+
+const mergeToneTags = (existing: string[], add: string[], remove: string[], max = 12): string[] => {
+  const current = [...existing];
+  if (remove.length) {
+    const removeSet = new Set(remove.map((tag) => tag.trim().toLowerCase()));
+    for (let i = current.length - 1; i >= 0; i--) {
+      if (removeSet.has(current[i])) current.splice(i, 1);
+    }
+  }
+  for (const raw of add) {
+    const tag = raw.trim().toLowerCase();
+    if (!tag) continue;
+    const idx = current.indexOf(tag);
+    if (idx >= 0) current.splice(idx, 1);
+    current.push(tag);
+  }
+  while (current.length > max) current.shift();
+  return current;
+};
+
+const classifyLessonTone = (lesson: Lesson): string[] => {
+  const tags = new Set<string>();
+  const body = `${lesson.title}\n${lesson.content}`.toLowerCase();
+
+  const add = (tag: string) => {
+    const normalized = tag.trim().toLowerCase();
+    if (normalized) tags.add(normalized);
+  };
+
+  const heuristics: { test: RegExp; tag: string }[] = [
+    { test: /\bstep[-\s]?by[-\s]?step\b|\bfirst\b.*\bnext\b/i, tag: "step-by-step" },
+    { test: /\breal[-\s]?world\b|\beveryday\b|\bpractical\b/i, tag: "real-world" },
+    { test: /\bimagine\b|\bvisuali[sz]e\b|\bdiagram\b|\bgraph\b/i, tag: "visual" },
+    { test: /\bstory\b|\bnarrative\b|\bcharacter\b/i, tag: "story-driven" },
+    { test: /\bchallenge\b|\bproof\b|\brigor/i, tag: "challenge-oriented" },
+    { test: /\bfun\b|\bexciting\b|\badventure\b|\bplayful\b/i, tag: "playful" },
+    { test: /\bcoach\b|\bmentor\b|\bguide\b|\bsupport/i, tag: "supportive" },
+    { test: /\bquick\b|\bfast\b|\bspeed\b|\befficient\b/i, tag: "fast-paced" },
+    { test: /\bpractice\b|\btry this\b|\bexercise\b/i, tag: "practice-heavy" },
+  ];
+
+  for (const h of heuristics) {
+    if (h.test(body)) add(h.tag);
+  }
+
+  const exclamations = (lesson.content.match(/!/g) ?? []).length;
+  if (exclamations >= 2) add("energetic");
+
+  const sentences = lesson.content.split(/[\.\?!]\s+/);
+  if (sentences.filter((s) => s.trim().length > 0 && s.trim().length < 80).length >= 3) {
+    add("concise");
+  }
+
+  const difficultyTone: Record<Lesson["difficulty"], string> = {
+    intro: "gentle",
+    easy: "approachable",
+    medium: "balanced",
+    hard: "rigorous",
+  };
+  add(difficultyTone[lesson.difficulty]);
+
+  const deduped = Array.from(tags);
+  if (!deduped.length) deduped.push("neutral");
+  return deduped.slice(0, 6);
+};
+
+const findLessonForTone = async (
+  sb: ReturnType<typeof supabaseServer>,
+  userId: string,
+  subject: string,
+  lessonId: string
+): Promise<Lesson | null> => {
+  const { data: cacheRows } = await sb
+    .from("user_topic_lesson_cache")
+    .select("lessons")
+    .eq("user_id", userId)
+    .eq("subject", subject);
+
+  if (!Array.isArray(cacheRows)) return null;
+  for (const row of cacheRows) {
+    const lessons = Array.isArray(row?.lessons) ? (row.lessons as unknown[]) : [];
+    for (const raw of lessons) {
+      if (!raw || typeof raw !== "object") continue;
+      if (typeof (raw as { id?: unknown }).id !== "string") continue;
+      if ((raw as { id: string }).id !== lessonId) continue;
+      const validated = LessonSchema.safeParse(raw);
+      if (validated.success) return validated.data;
+    }
+  }
+  return null;
 };
 
 export async function POST(req: NextRequest) {
@@ -53,7 +159,7 @@ export async function POST(req: NextRequest) {
 
   const { data: prefRow } = await sb
     .from("user_subject_preferences")
-    .select("liked_ids, disliked_ids, saved_ids")
+    .select("liked_ids, disliked_ids, saved_ids, tone_tags")
     .eq("user_id", user.id)
     .eq("subject", subject)
     .maybeSingle();
@@ -61,6 +167,7 @@ export async function POST(req: NextRequest) {
   let liked = normalizeIdList(prefRow?.liked_ids);
   let disliked = normalizeIdList(prefRow?.disliked_ids);
   let saved = normalizeIdList(prefRow?.saved_ids);
+  let toneTags = normalizeToneTags(prefRow?.tone_tags);
 
   if (action === "like") {
     liked = pushUnique(liked, lesson_id);
@@ -72,6 +179,24 @@ export async function POST(req: NextRequest) {
     saved = pushUnique(saved, lesson_id);
   }
 
+  if (action === "like" || action === "dislike" || action === "save") {
+    try {
+      const lesson = await findLessonForTone(sb, user.id, subject, lesson_id);
+      if (lesson) {
+        const tags = classifyLessonTone(lesson);
+        if (tags.length) {
+          if (action === "dislike") {
+            toneTags = mergeToneTags(toneTags, [], tags);
+          } else {
+            toneTags = mergeToneTags(toneTags, tags, []);
+          }
+        }
+      }
+    } catch (toneErr) {
+      console.warn("[fyp-feedback] tone classification failed", toneErr);
+    }
+  }
+
   await sb
     .from("user_subject_preferences")
     .upsert({
@@ -80,6 +205,7 @@ export async function POST(req: NextRequest) {
       liked_ids: liked,
       disliked_ids: disliked,
       saved_ids: saved,
+      tone_tags: toneTags,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id,subject" });
 

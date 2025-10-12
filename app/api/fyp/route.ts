@@ -348,6 +348,7 @@ export async function GET(req: NextRequest) {
   const dislikedIds = toStringArray(preferenceRow?.disliked_ids);
   const savedIds = toStringArray(preferenceRow?.saved_ids);
   const toneTags = toStringArray(preferenceRow?.tone_tags);
+  const toneSample = toneTags.slice(-6).reverse();
 
   const legacyPrefs = legacyProgress.preferences ?? {};
   progress.preferences = {
@@ -546,7 +547,7 @@ export async function GET(req: NextRequest) {
       liked: likedSignatures,
       saved: savedSignatures,
     },
-    preferenceTones: toneTags.slice(0, 6),
+    preferenceTones: toneSample,
     nextUp: nextTopicCandidate?.label ?? null,
   };
 
@@ -600,7 +601,7 @@ export async function GET(req: NextRequest) {
         structuredContext,
         likedIds: likedTail,
         savedIds: savedTail,
-        toneTags: toneTags.slice(0, 6),
+        toneTags: toneSample,
         nextTopicHint: nextTopicHint ?? undefined,
       });
       try { console.debug(`[fyp][${reqId}] lesson: ok`, { subject, currentLabel }); } catch {}
@@ -637,43 +638,19 @@ export async function GET(req: NextRequest) {
   } catch (cacheErr) {
     try { console.error(`[fyp][${reqId}] cache upsert failed`, cacheErr); } catch {}
   }
-
   // Honor mini_lessons per subtopic and update progress/indices
   const nextTopicStr: string | null = currentLabel;
-  const deliveredByTopic = { ...(progress.deliveredByTopic ?? {}) };
-  const deliveredIdsByTopic = { ...(progress.deliveredIdsByTopic ?? {}) };
-  const deliveredTitlesByTopic = { ...(progress.deliveredTitlesByTopic ?? {}) };
-  deliveredByTopic[currentLabel] = (deliveredByTopic[currentLabel] ?? 0) + 1;
-
   const lid = typeof lesson.id === "string" ? lesson.id : null;
-  let idPatch: Record<string, string[]> | undefined;
-  if (lid) {
-    const list = Array.isArray(deliveredIdsByTopic[currentLabel]) ? [...deliveredIdsByTopic[currentLabel]!] : [];
-    if (!list.includes(lid)) list.push(lid);
-    while (list.length > 50) list.shift();
-    deliveredIdsByTopic[currentLabel] = list;
-    idPatch = { [currentLabel]: list };
-  }
-
-  const ltitle = typeof lesson.title === 'string' ? lesson.title.trim() : null;
-  let titlePatch: Record<string, string[]> | undefined;
-  if (ltitle) {
-    const ttl = Array.isArray(deliveredTitlesByTopic[currentLabel]) ? [...deliveredTitlesByTopic[currentLabel]!] : [];
-    if (!ttl.includes(ltitle)) ttl.push(ltitle);
-    while (ttl.length > 50) ttl.shift();
-    deliveredTitlesByTopic[currentLabel] = ttl;
-    titlePatch = { [currentLabel]: ttl };
-  }
+  const ltitle = typeof lesson.title === "string" ? lesson.title.trim() : null;
 
   const progressPatch: Record<string, unknown> = {
     p_subject: subject,
     p_topic_idx: topicIdx,
     p_subtopic_idx: subtopicIdx,
-    p_delivered_mini: deliveredMini,
-    p_delivered_patch: { [currentLabel]: deliveredByTopic[currentLabel] },
+    p_delivered_delta: { [currentLabel]: 1 },
   };
-  if (idPatch) progressPatch.p_id_patch = idPatch;
-  if (titlePatch) progressPatch.p_title_patch = titlePatch;
+  if (lid) progressPatch.p_id_append = { [currentLabel]: [lid] };
+  if (ltitle) progressPatch.p_title_append = { [currentLabel]: [ltitle] };
   if (metricsPatch) progressPatch.p_metrics = metricsPatch;
 
   try {

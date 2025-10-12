@@ -413,9 +413,10 @@ export interface Database {
           p_topic_idx?: number | null;
           p_subtopic_idx?: number | null;
           p_delivered_mini?: number | null;
-          p_delivered_patch?: Json;
-          p_id_patch?: Json;
-          p_title_patch?: Json;
+          p_delivered_mini_delta?: number | null;
+          p_delivered_delta?: Json;
+          p_id_append?: Json;
+          p_title_append?: Json;
           p_completion_patch?: Json;
           p_metrics?: Json;
         };

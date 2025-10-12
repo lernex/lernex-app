@@ -292,14 +292,14 @@ export default function SupportPage() {
               <div className="mt-6 flex flex-wrap gap-4">
                 <Link
                   href="#contact"
-                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-5 py-2.5 font-semibold text-white shadow-lg shadow-lernex-blue/40 transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lernex-purple"
+                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-5 py-2.5 font-semibold text-white shadow-lg shadow-lernex-blue/40 transition hover:opacity-90 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple"
                 >
                   Talk to support
                   <ArrowUpRight className="h-4 w-4" />
                 </Link>
                 <Link
                   href="/docs"
-                  className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-5 py-2.5 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400 dark:border-white/15 dark:text-white dark:hover:bg-white/10"
+                  className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-5 py-2.5 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-100 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-neutral-400 dark:border-white/15 dark:text-white dark:hover:bg-white/10"
                 >
                   Browse guides
                 </Link>
@@ -342,7 +342,7 @@ export default function SupportPage() {
             <Link
               key={item.title}
               href={item.href}
-              className="group relative flex h-full flex-col rounded-2xl border border-neutral-200 bg-white/90 p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
+              className="group relative flex h-full flex-col rounded-2xl border border-neutral-200 bg-white/90 p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
             >
               <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-lernex-purple/10 text-lernex-purple transition group-hover:bg-lernex-purple group-hover:text-white">
                 <item.icon className="h-6 w-6" />
@@ -421,7 +421,7 @@ export default function SupportPage() {
                 <Link
                   key={article.title}
                   href={article.href}
-                  className="group flex flex-col rounded-2xl border border-neutral-200 bg-white/90 p-6 transition hover:-translate-y-1 hover:border-lernex-purple hover:shadow-lg hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
+                  className="group flex flex-col rounded-2xl border border-neutral-200 bg-white/90 p-6 transition hover:-translate-y-1 hover:border-lernex-purple hover:shadow-lg hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
                 >
                   <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-400 group-hover:text-lernex-purple">
                     {article.category}
@@ -445,7 +445,7 @@ export default function SupportPage() {
             </div>
             <Link
               href="mailto:status@lernex.app"
-              className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:border-lernex-purple hover:text-lernex-purple focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:text-neutral-200"
+              className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:border-lernex-purple hover:text-lernex-purple focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:text-neutral-200"
             >
               Notify me
               <ArrowUpRight className="h-4 w-4" />
@@ -494,7 +494,7 @@ export default function SupportPage() {
                 key={channel.name}
                 id={channel.id}
                 href={channel.href}
-                className="group flex h-full flex-col justify-between rounded-2xl border border-neutral-200 bg-white/90 p-6 transition hover:-translate-y-1 hover:border-lernex-purple hover:shadow-lg hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
+                className="group flex h-full flex-col justify-between rounded-2xl border border-neutral-200 bg-white/90 p-6 transition hover:-translate-y-1 hover:border-lernex-purple hover:shadow-lg hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
               >
                 <div className="flex items-center gap-4">
                   <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-lernex-blue/10 text-lernex-blue transition group-hover:bg-lernex-purple group-hover:text-white">
@@ -528,7 +528,7 @@ export default function SupportPage() {
               {faqs.map((faq) => (
                 <details
                   key={faq.question}
-                  className="group rounded-2xl border border-neutral-200 bg-white/90 p-4 transition hover:border-lernex-purple focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
+                  className="group rounded-2xl border border-neutral-200 bg-white/90 p-4 transition hover:border-lernex-purple focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
                 >
                   <summary className="flex cursor-pointer items-center justify-between gap-4 text-left text-sm font-semibold text-neutral-900 marker:hidden dark:text-white">
                     {faq.question}
@@ -545,7 +545,7 @@ export default function SupportPage() {
               <Link
                 key={resource.title}
                 href={resource.href}
-                className="group flex items-center gap-4 rounded-2xl border border-neutral-200 bg-white/90 p-4 transition hover:-translate-y-1 hover:border-lernex-purple hover:shadow-md hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
+                className="group flex items-center gap-4 rounded-2xl border border-neutral-200 bg-white/90 p-4 transition hover:-translate-y-1 hover:border-lernex-purple hover:shadow-md hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
               >
                 <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-lernex-purple/10 text-lernex-purple transition group-hover:bg-lernex-purple group-hover:text-white">
                   <resource.icon className="h-6 w-6" />
@@ -578,7 +578,7 @@ export default function SupportPage() {
             </div>
             <a
               href="mailto:feedback@lernex.app"
-              className="inline-flex items-center gap-2 rounded-full bg-lernex-purple px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-lernex-purple/30 transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lernex-purple"
+              className="inline-flex items-center gap-2 rounded-full bg-lernex-purple px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-lernex-purple/30 transition hover:opacity-90 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple"
             >
               Email feedback@lernex.app
               <ArrowUpRight className="h-4 w-4" />
