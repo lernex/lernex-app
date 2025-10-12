@@ -487,9 +487,10 @@ export async function GET(req: NextRequest) {
   const dislikedIds = dedupeTail(progress.preferences?.disliked, 30);
   const likedTail = dedupeTail(progress.preferences?.liked, 30);
   const savedTail = dedupeTail(progress.preferences?.saved, 30);
+  const dislikedTail = dedupeTail(progress.preferences?.disliked, 30);
 
   const recentIdSignatures = recentDeliveredIds.slice(-6).map(shortHash);
-  const dislikedSignatures = dislikedIds.slice(-8).map(shortHash);
+  const dislikedSignatures = dislikedTail.slice(-8).map(shortHash);
   const likedSignatures = likedTail.slice(-8).map(shortHash);
   const savedSignatures = savedTail.slice(-6).map(shortHash);
 
@@ -570,7 +571,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const avoidLessonIds = [...recentDeliveredIds, ...dislikedIds].filter((id): id is string => typeof id === "string" && id.length > 0);
+  const avoidLessonIds = [...recentDeliveredIds, ...dislikedTail].filter((id): id is string => typeof id === "string" && id.length > 0);
   const avoidTitles = recentDeliveredTitles.slice(-10);
   const avoidIdSet = new Set(avoidLessonIds);
 
