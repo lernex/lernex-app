@@ -282,6 +282,11 @@ function shortHash(value: string) {
   return createHash("sha1").update(trimmed).digest("base64url").slice(0, 10);
 }
 
+function hashSample(values: string[] | undefined, limit: number) {
+  if (!Array.isArray(values) || !values.length) return [];
+  return dedupeStrings(values, limit).map(shortHash);
+}
+
 function stringifyStructuredContext(context: Record<string, unknown>) {
   try {
     const json = JSON.stringify(context);
@@ -438,6 +443,13 @@ export async function generateLessonForTopic(
   ) => {
     if (!uid) return;
     const usagePayload = summary ?? { input_tokens: null, output_tokens: null };
+    const avoidSample = hashSample(opts.avoidIds, 6);
+    const likedSample = hashSample(opts.likedIds, 6);
+    const savedSample = hashSample(opts.savedIds, 6);
+    const toneSample = Array.isArray(opts.toneTags) ? dedupeStrings(opts.toneTags, 6) : [];
+    const structuredKeys = opts.structuredContext
+      ? Object.keys(opts.structuredContext).slice(0, 6)
+      : null;
     const metadata: Record<string, unknown> = {
       feature: "fyp-lesson",
       route: "fyp",
@@ -447,6 +459,17 @@ export async function generateLessonForTopic(
       pace,
       difficulty,
       accuracyPct: accuracy,
+      avoidIdsCount: Array.isArray(opts.avoidIds) ? opts.avoidIds.length : 0,
+      avoidIdsSample: avoidSample.length ? avoidSample : undefined,
+      avoidTitlesCount: Array.isArray(opts.avoidTitles) ? opts.avoidTitles.length : 0,
+      likedCount: Array.isArray(opts.likedIds) ? opts.likedIds.length : 0,
+      likedSample: likedSample.length ? likedSample : undefined,
+      savedCount: Array.isArray(opts.savedIds) ? opts.savedIds.length : 0,
+      savedSample: savedSample.length ? savedSample : undefined,
+      toneTags: toneSample.length ? toneSample : undefined,
+      nextTopicHintProvided: Boolean(opts.nextTopicHint && opts.nextTopicHint.trim().length > 0),
+      mapSummary: opts.mapSummary ?? undefined,
+      structuredContextKeys: structuredKeys ?? undefined,
     };
     if (summary == null) metadata.missingUsage = true;
     if (errorDetails) {

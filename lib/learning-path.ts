@@ -591,15 +591,44 @@ Constraints:
     fallback: fallbackUsed || deterministicFallback,
   });
 
+  const usageMetaBase = {
+    feature: "fyp-learning-path",
+    subject,
+    course,
+    mastery,
+    pace,
+    accuracySubject: accSubj,
+    accuracyAll: accAll,
+    cachedOutline: hasCachedOutline,
+    attempts: attemptsCount,
+    fallbackUsed,
+    deterministicFallback,
+    deltaGuidanceCount: deltaGuidance.length,
+  };
+
   try {
-    await logUsage(sb, uid, ip, "metric/level-map-attempts", { input_tokens: attemptsCount, output_tokens: fallbackUsed || deterministicFallback ? 1 : 0 });
+    await logUsage(
+      sb,
+      uid,
+      ip,
+      "metric/level-map-attempts",
+      { input_tokens: attemptsCount, output_tokens: fallbackUsed || deterministicFallback ? 1 : 0 },
+      { metadata: { ...usageMetaBase, stage: "attempts" } },
+    );
   } catch {}
 
   if (uid && completion?.usage) {
     const u = completion.usage as unknown as { prompt_tokens?: unknown; completion_tokens?: unknown };
     const promptTokens = typeof u.prompt_tokens === "number" ? u.prompt_tokens : null;
     const completionTokens = typeof u.completion_tokens === "number" ? u.completion_tokens : null;
-    await logUsage(sb, uid, ip, model, { input_tokens: promptTokens, output_tokens: completionTokens });
+    await logUsage(
+      sb,
+      uid,
+      ip,
+      model,
+      { input_tokens: promptTokens, output_tokens: completionTokens },
+      { metadata: { ...usageMetaBase, stage: "completion", promptTokens, completionTokens } },
+    );
   }
 
   if (!raw) raw = "{}";
@@ -673,7 +702,14 @@ Constraints:
 
   if (deterministicFallback) {
     try {
-      await logUsage(sb, uid, ip, "metric/level-map-fallback", { input_tokens: attemptsCount, output_tokens: 0 });
+      await logUsage(
+        sb,
+        uid,
+        ip,
+        "metric/level-map-fallback",
+        { input_tokens: attemptsCount, output_tokens: 0 },
+        { metadata: { ...usageMetaBase, stage: "fallback" } },
+      );
     } catch {}
   }
 
