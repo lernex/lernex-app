@@ -484,7 +484,6 @@ export async function GET(req: NextRequest) {
 
   const recentDeliveredIds = dedupeTail(progress.deliveredIdsByTopic?.[currentLabel], 24);
   const recentDeliveredTitles = dedupeTail(progress.deliveredTitlesByTopic?.[currentLabel], 24);
-  const dislikedIds = dedupeTail(progress.preferences?.disliked, 30);
   const likedTail = dedupeTail(progress.preferences?.liked, 30);
   const savedTail = dedupeTail(progress.preferences?.saved, 30);
   const dislikedTail = dedupeTail(progress.preferences?.disliked, 30);
