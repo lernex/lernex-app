@@ -151,76 +151,116 @@ export async function POST(req: NextRequest) {
     if (eventType === "lesson-finish" && progressSubject && typeof topic === "string") {
       const { data: state } = await supabase
         .from("user_subject_state")
-        .select("path, next_topic")
+        .select("path")
         .eq("user_id", uid)
         .eq("subject", progressSubject)
         .maybeSingle();
-      type Sub = { name: string; mini_lessons: number; completed?: boolean };
-      type TopicEntry = { name: string; completed?: boolean; subtopics?: Sub[] };
-      type Progress = { topicIdx?: number; subtopicIdx?: number; deliveredMini?: number };
-      const path = state?.path as { topics?: TopicEntry[]; progress?: Progress } | null;
+      type Subtopic = { name: string; mini_lessons: number; completed?: boolean };
+      type TopicEntry = { name: string; subtopics?: Subtopic[] };
+      const path = state?.path as { topics?: TopicEntry[] } | null;
       const topics = path?.topics ?? [];
-      const [tName, sName] = topic.split(">").map((x: string) => x.trim());
-      const ti = topics.findIndex((t) => t?.name === tName);
-      if (ti >= 0) {
-        const subs = (topics[ti]?.subtopics ?? []) as Sub[];
-        const si = subs.findIndex((s) => s?.name === sName);
-        if (si >= 0) {
-          const cur = subs[si]!;
-          const planned = Math.max(1, Number(cur.mini_lessons || 1));
-          const prog = (path?.progress ?? {}) as Progress;
-          const curDelivered = Math.max(0, Number(prog.deliveredMini ?? 0));
-          let deliveredMini = curDelivered + 1;
-          let topicIdx = typeof prog.topicIdx === "number" ? prog.topicIdx : ti;
-          let subtopicIdx = typeof prog.subtopicIdx === "number" ? prog.subtopicIdx : si;
-          let nextTopicStr: string | null = `${tName} > ${sName}`;
+      const [rawTopic, rawSubtopic] = topic.split(">").map((x: string) => x.trim());
+      const ti = topics.findIndex((t) => t?.name === rawTopic);
+      if (ti < 0) {
+        console.warn("[api/attempt] topic not found for progress update", { topic });
+      } else {
+        const subs = (topics[ti]?.subtopics ?? []) as Subtopic[];
+        const si = subs.findIndex((s) => s?.name === rawSubtopic);
+        if (si < 0) {
+          console.warn("[api/attempt] subtopic not found for progress update", { topic });
+        } else {
+          const current = subs[si]!;
+          const planned = Math.max(1, Number(current.mini_lessons || 1));
+          const label = `${rawTopic} > ${rawSubtopic}`;
+
+          const { data: progressRow } = await supabase
+            .from("user_subject_progress")
+            .select("topic_idx, subtopic_idx, delivered_mini, completion_map")
+            .eq("user_id", uid)
+            .eq("subject", progressSubject)
+            .maybeSingle();
+
+          const completionMapRaw = (progressRow?.completion_map as Record<string, boolean> | null) ?? {};
+          const completionMap: Record<string, boolean> = { ...completionMapRaw };
+          const prevDeliveredMini = typeof progressRow?.delivered_mini === "number" && Number.isFinite(progressRow.delivered_mini)
+            ? progressRow.delivered_mini
+            : 0;
+          let deliveredMini = prevDeliveredMini + 1;
+          let topicIdx = typeof progressRow?.topic_idx === "number" ? progressRow.topic_idx : ti;
+          let subtopicIdx = typeof progressRow?.subtopic_idx === "number" ? progressRow.subtopic_idx : si;
+
+          let completedThisSubtopic = false;
           if (deliveredMini >= planned) {
             deliveredMini = 0;
-            subs[si] = { ...cur, completed: true };
-            topics[ti] = {
-              ...(topics[ti] ?? {}),
-              subtopics: subs,
-              completed: subs.every((s) => s.completed === true),
-            };
-            let found: [number, number] | null = null;
-            for (let tj = ti; tj < topics.length && !found; tj++) {
-              const ss = (topics[tj]?.subtopics ?? []) as Sub[];
-              for (let sj = tj === ti ? si + 1 : 0; sj < ss.length; sj++) {
-                if (ss[sj]?.completed !== true) {
-                  found = [tj, sj];
-                  break;
+            completedThisSubtopic = true;
+          }
+          completionMap[label] = completedThisSubtopic;
+
+          const isCompleted = (topicName: string, subtopicName: string, fallback?: boolean) => {
+            const key = `${topicName} > ${subtopicName}`;
+            if (typeof completionMap[key] === "boolean") return completionMap[key] === true;
+            return fallback === true;
+          };
+
+          const findNextIncomplete = () => {
+            for (let tj = ti; tj < topics.length; tj++) {
+              const topicEntry = topics[tj];
+              if (!topicEntry) continue;
+              const subtopics = topicEntry.subtopics ?? [];
+              const start = tj === ti ? si + 1 : 0;
+              for (let sj = start; sj < subtopics.length; sj++) {
+                const subEntry = subtopics[sj];
+                if (!subEntry) continue;
+                if (!isCompleted(topicEntry.name, subEntry.name, (subEntry as { completed?: boolean }).completed)) {
+                  return { topicIdx: tj, subtopicIdx: sj, label: `${topicEntry.name} > ${subEntry.name}` };
                 }
               }
             }
-            if (!found) {
-              for (let tj = 0; tj < ti && !found; tj++) {
-                const ss = (topics[tj]?.subtopics ?? []) as Sub[];
-                for (let sj = 0; sj < ss.length; sj++) {
-                  if (ss[sj]?.completed !== true) {
-                    found = [tj, sj];
-                    break;
-                  }
+            for (let tj = 0; tj < topics.length; tj++) {
+              const topicEntry = topics[tj];
+              if (!topicEntry) continue;
+              const subtopics = topicEntry.subtopics ?? [];
+              for (let sj = 0; sj < subtopics.length; sj++) {
+                if (tj === ti && sj <= si) continue;
+                const subEntry = subtopics[sj];
+                if (!subEntry) continue;
+                if (!isCompleted(topicEntry.name, subEntry.name, (subEntry as { completed?: boolean }).completed)) {
+                  return { topicIdx: tj, subtopicIdx: sj, label: `${topicEntry.name} > ${subEntry.name}` };
                 }
               }
             }
-            if (found) {
-              topicIdx = found[0];
-              subtopicIdx = found[1];
-              const nt = topics[topicIdx];
-              const ns = (nt?.subtopics ?? [])[subtopicIdx];
-              if (nt && ns) nextTopicStr = `${nt.name} > ${ns.name}`;
+            return null as null;
+          };
+
+          let nextTopicStr: string | null = label;
+          if (completedThisSubtopic) {
+            const next = findNextIncomplete();
+            if (next) {
+              topicIdx = next.topicIdx;
+              subtopicIdx = next.subtopicIdx;
+              nextTopicStr = next.label;
             } else {
               nextTopicStr = null;
             }
           }
-          const newPath = {
-            ...(path ?? {}),
-            topics,
-            progress: { ...(path?.progress ?? {}), topicIdx, subtopicIdx, deliveredMini },
+
+          const rpcPayload: Record<string, unknown> = {
+            p_subject: progressSubject,
+            p_topic_idx: topicIdx,
+            p_subtopic_idx: subtopicIdx,
+            p_delivered_mini: deliveredMini,
+            p_completion_patch: { [label]: completedThisSubtopic },
           };
+
+          try {
+            await supabase.rpc("apply_user_subject_progress_patch", rpcPayload);
+          } catch (progressErr) {
+            console.error("[api/attempt] progress patch failed", progressErr);
+          }
+
           const { error: stateUpdateError } = await supabase
             .from("user_subject_state")
-            .update({ next_topic: nextTopicStr, path: newPath, updated_at: new Date().toISOString() })
+            .update({ next_topic: nextTopicStr, updated_at: new Date().toISOString() })
             .eq("user_id", uid)
             .eq("subject", progressSubject);
           if (stateUpdateError) {

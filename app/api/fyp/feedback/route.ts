@@ -1,17 +1,31 @@
 import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
-import type { LevelMap } from "@/lib/learning-path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type PathProgress = {
-  deliveredByTopic?: Record<string, number>;
-  deliveredIdsByTopic?: Record<string, string[]>;
-  preferences?: { liked?: string[]; disliked?: string[]; saved?: string[] };
+const normalizeIdList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (typeof entry !== "string") continue;
+    const trimmed = entry.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    result.push(trimmed);
+  }
+  return result;
 };
 
-type PathWithProgress = LevelMap & { progress?: PathProgress };
+const pushUnique = (list: string[], id: string, max = 200) => {
+  const trimmed = id.trim();
+  if (!trimmed) return list;
+  const next = list.filter((value) => value !== trimmed);
+  next.push(trimmed);
+  if (next.length > max) next.splice(0, next.length - max);
+  return next;
+};
 
 export async function POST(req: NextRequest) {
   const sb = supabaseServer();
@@ -22,44 +36,56 @@ export async function POST(req: NextRequest) {
   if (typeof subject !== "string" || typeof lesson_id !== "string") {
     return new Response(JSON.stringify({ error: "Invalid payload" }), { status: 400 });
   }
-  if (!["like","dislike","save"].includes(String(action))) {
+  if (!["like", "dislike", "save"].includes(String(action))) {
     return new Response(JSON.stringify({ error: "Invalid action" }), { status: 400 });
   }
 
   const { data: state } = await sb
     .from("user_subject_state")
-    .select("path")
+    .select("subject")
     .eq("user_id", user.id)
     .eq("subject", subject)
     .maybeSingle();
 
-  const path = state?.path as PathWithProgress | null;
-  if (!path) return new Response(JSON.stringify({ error: "No learning path" }), { status: 400 });
-
-  const progress: PathProgress = path.progress ?? {};
-  progress.preferences = progress.preferences ?? {};
-  const prefs = progress.preferences;
-  const pushUnique = (arr: string[] | undefined, id: string) => {
-    const a = arr ?? [];
-    if (!a.includes(id)) a.push(id);
-    return a.slice(-200);
-  };
-
-  if (action === "like") {
-    prefs.liked = pushUnique(prefs.liked, lesson_id);
-    // If previously disliked, remove it
-    prefs.disliked = (prefs.disliked ?? []).filter((x) => x !== lesson_id);
-  } else if (action === "dislike") {
-    prefs.disliked = pushUnique(prefs.disliked, lesson_id);
-    prefs.liked = (prefs.liked ?? []).filter((x) => x !== lesson_id);
-  } else if (action === "save") {
-    prefs.saved = pushUnique(prefs.saved, lesson_id);
+  if (!state) {
+    return new Response(JSON.stringify({ error: "No learning path" }), { status: 400 });
   }
 
-  const newPath: PathWithProgress = { ...path, progress };
+  const { data: prefRow } = await sb
+    .from("user_subject_preferences")
+    .select("liked_ids, disliked_ids, saved_ids")
+    .eq("user_id", user.id)
+    .eq("subject", subject)
+    .maybeSingle();
+
+  let liked = normalizeIdList(prefRow?.liked_ids);
+  let disliked = normalizeIdList(prefRow?.disliked_ids);
+  let saved = normalizeIdList(prefRow?.saved_ids);
+
+  if (action === "like") {
+    liked = pushUnique(liked, lesson_id);
+    disliked = disliked.filter((value) => value !== lesson_id);
+  } else if (action === "dislike") {
+    disliked = pushUnique(disliked, lesson_id);
+    liked = liked.filter((value) => value !== lesson_id);
+  } else if (action === "save") {
+    saved = pushUnique(saved, lesson_id);
+  }
+
+  await sb
+    .from("user_subject_preferences")
+    .upsert({
+      user_id: user.id,
+      subject,
+      liked_ids: liked,
+      disliked_ids: disliked,
+      saved_ids: saved,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id,subject" });
+
   await sb
     .from("user_subject_state")
-    .update({ path: newPath, updated_at: new Date().toISOString() })
+    .update({ updated_at: new Date().toISOString() })
     .eq("user_id", user.id)
     .eq("subject", subject);
 

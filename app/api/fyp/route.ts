@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { generateLessonForTopic } from "@/lib/fyp";
@@ -8,6 +9,25 @@ import { acquireGenLock, releaseGenLock } from "@/lib/db-lock";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+const shortHash = (value: string) => {
+  const trimmed = value.trim();
+  if (trimmed.length <= 10) return trimmed;
+  return createHash("sha1").update(trimmed).digest("base64url").slice(0, 10);
+};
+
+const dedupeTail = (values: string[] | undefined, limit: number) => {
+  if (!Array.isArray(values) || limit <= 0) return [];
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (let i = values.length - 1; i >= 0 && result.length < limit; i--) {
+    const raw = typeof values[i] === "string" ? values[i]!.trim() : "";
+    if (!raw || seen.has(raw)) continue;
+    seen.add(raw);
+    result.push(raw);
+  }
+  return result.reverse();
+};
 
 export async function GET(req: NextRequest) {
   const sb = supabaseServer();
@@ -140,6 +160,20 @@ export async function GET(req: NextRequest) {
     .eq("subject", subject)
     .maybeSingle();
 
+  const { data: progressRow } = await sb
+    .from("user_subject_progress")
+    .select("topic_idx, subtopic_idx, delivered_mini, delivered_by_topic, delivered_ids_by_topic, delivered_titles_by_topic, completion_map, metrics")
+    .eq("user_id", user.id)
+    .eq("subject", subject)
+    .maybeSingle();
+
+  const { data: preferenceRow } = await sb
+    .from("user_subject_preferences")
+    .select("liked_ids, disliked_ids, saved_ids, tone_tags")
+    .eq("user_id", user.id)
+    .eq("subject", subject)
+    .maybeSingle();
+
   type CachedLesson = Lesson & { cachedAt?: string };
   type PathProgress = {
     deliveredByTopic?: Record<string, number>;
@@ -150,7 +184,7 @@ export async function GET(req: NextRequest) {
     topicIdx?: number;
     subtopicIdx?: number;
     deliveredMini?: number;
-    lessonCache?: Record<string, CachedLesson[]>;
+    completionMap?: Record<string, boolean>;
     metrics?: {
       accuracyPct?: number | null;
       pace?: "slow" | "normal" | "fast";
@@ -260,44 +294,131 @@ export async function GET(req: NextRequest) {
     try { console.warn(`[fyp][${reqId}] empty-topics`); } catch {}
     return new Response(JSON.stringify({ error: "No topics in level map" }), { status: 400 });
   }
-  const progress: PathProgress = path.progress ?? {};
+  const legacyProgress = (path.progress ?? {}) as PathProgress;
 
-  // Helper: find first incomplete subtopic if completion flags exist
+  const mergeRecord = <T>(base: Record<string, T>, patch: unknown) => {
+    if (!patch || typeof patch !== "object" || Array.isArray(patch)) return base;
+    for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
+      if (value !== undefined && value !== null) {
+        base[key] = value as T;
+      }
+    }
+    return base;
+  };
+
+  const toStringArray = (value: unknown): string[] => {
+    if (!Array.isArray(value)) return [];
+    const result: string[] = [];
+    for (const entry of value) {
+      if (typeof entry === "string") {
+        const trimmed = entry.trim();
+        if (trimmed.length) result.push(trimmed);
+      }
+    }
+    return result;
+  };
+
+  const fallbackArray = (value: string[] | undefined) =>
+    Array.isArray(value) ? value.filter((v) => typeof v === "string" && v.trim().length > 0).map((v) => v.trim()) : [];
+
+  const progress: PathProgress = {};
+  progress.deliveredByTopic = mergeRecord(
+    { ...(legacyProgress.deliveredByTopic ?? {}) },
+    progressRow?.delivered_by_topic
+  );
+  const legacyDeliveredIds = legacyProgress.deliveredIdsByTopic ?? legacyProgress.deliveredIdsByKey ?? {};
+  progress.deliveredIdsByTopic = mergeRecord(
+    { ...legacyDeliveredIds },
+    progressRow?.delivered_ids_by_topic
+  );
+  progress.deliveredTitlesByTopic = mergeRecord(
+    { ...(legacyProgress.deliveredTitlesByTopic ?? {}) },
+    progressRow?.delivered_titles_by_topic
+  );
+  progress.completionMap = mergeRecord(
+    { ...(legacyProgress.completionMap ?? {}) },
+    progressRow?.completion_map
+  );
+  progress.topicIdx = typeof progressRow?.topic_idx === "number" ? progressRow.topic_idx : legacyProgress.topicIdx;
+  progress.subtopicIdx = typeof progressRow?.subtopic_idx === "number" ? progressRow.subtopic_idx : legacyProgress.subtopicIdx;
+  progress.deliveredMini = typeof progressRow?.delivered_mini === "number" ? progressRow.delivered_mini : legacyProgress.deliveredMini;
+  progress.metrics = (progressRow?.metrics as PathProgress["metrics"] | null | undefined) ?? legacyProgress.metrics;
+
+  const likedIds = toStringArray(preferenceRow?.liked_ids);
+  const dislikedIds = toStringArray(preferenceRow?.disliked_ids);
+  const savedIds = toStringArray(preferenceRow?.saved_ids);
+  const toneTags = toStringArray(preferenceRow?.tone_tags);
+
+  const legacyPrefs = legacyProgress.preferences ?? {};
+  progress.preferences = {
+    liked: likedIds.length ? likedIds : fallbackArray(legacyPrefs.liked),
+    disliked: dislikedIds.length ? dislikedIds : fallbackArray(legacyPrefs.disliked),
+    saved: savedIds.length ? savedIds : fallbackArray(legacyPrefs.saved),
+  };
+
+  const completionMap = progress.completionMap ?? {};
+  const isMarkedComplete = (topicName: string, subtopicName: string, fallbackCompleted?: boolean) => {
+    const key = `${topicName} > ${subtopicName}`;
+    if (completionMap[key] === true) return true;
+    if (completionMap[key] === false) return false;
+    return fallbackCompleted === true;
+  };
+
   const findFirstIncomplete = () => {
     for (let ti = 0; ti < topics.length; ti++) {
-      const subs = topics[ti]?.subtopics ?? [];
+      const topicEntry = topics[ti];
+      if (!topicEntry) continue;
+      const subs = topicEntry.subtopics ?? [];
       for (let si = 0; si < subs.length; si++) {
-        // Treat "completed !== true" as incomplete for robustness
-        if (subs[si]?.completed !== true) return [ti, si] as [number, number];
+        const sub = subs[si];
+        if (!sub) continue;
+        if (!isMarkedComplete(topicEntry.name, sub.name, (sub as { completed?: boolean }).completed)) {
+          return [ti, si] as [number, number];
+        }
       }
     }
     return null as null;
   };
 
-  // Decode indices from progress, fall back to next_topic or first incomplete
-  let topicIdx = Math.max(0, Math.min(progress.topicIdx ?? 0, topics.length - 1));
-  let subtopicIdx = Math.max(0, Math.min(progress.subtopicIdx ?? 0, (topics[topicIdx]?.subtopics?.length ?? 1) - 1));
-  let deliveredMini = Math.max(0, Number(progress.deliveredMini ?? 0));
-  // If no indices tracked yet, try to infer from next_topic string
+  let topicIdx = typeof progress.topicIdx === "number" && Number.isFinite(progress.topicIdx)
+    ? Math.max(0, Math.min(progress.topicIdx, topics.length - 1))
+    : 0;
+  let subtopicIdx = typeof progress.subtopicIdx === "number" && Number.isFinite(progress.subtopicIdx)
+    ? Math.max(0, Math.min(progress.subtopicIdx, (topics[topicIdx]?.subtopics?.length ?? 1) - 1))
+    : 0;
+  let deliveredMini = typeof progress.deliveredMini === "number" && Number.isFinite(progress.deliveredMini)
+    ? Math.max(0, progress.deliveredMini)
+    : 0;
+
   if ((progress.topicIdx == null || progress.subtopicIdx == null) && typeof state?.next_topic === "string") {
     const [tName, sName] = state.next_topic.split(">").map((x) => x.trim());
-    const tIdx = topics.findIndex((t) => t.name === tName);
+    const tIdx = topics.findIndex((t) => t?.name === tName);
     if (tIdx >= 0) {
       topicIdx = tIdx;
       const subs = topics[tIdx]?.subtopics ?? [];
-      const sIdx = subs.findIndex((s) => s.name === sName);
+      const sIdx = subs.findIndex((s) => s?.name === sName);
       if (sIdx >= 0) subtopicIdx = sIdx;
     }
   }
-  // If everything is at defaults or completion flags suggest an earlier/later spot, prefer first incomplete
+
+  if (subtopicIdx >= (topics[topicIdx]?.subtopics?.length ?? 1)) {
+    subtopicIdx = Math.max(0, (topics[topicIdx]?.subtopics?.length ?? 1) - 1);
+  }
+
   const firstInc = findFirstIncomplete();
   if (firstInc) {
-    const [ti, si] = firstInc;
-    // If current subtopic is already marked completed, jump to the first incomplete
-    if (topics[topicIdx]?.subtopics?.[subtopicIdx]?.completed === true) {
-      topicIdx = ti; subtopicIdx = si; deliveredMini = 0;
+    const currentTopic = topics[topicIdx];
+    const currentSub = currentTopic?.subtopics?.[subtopicIdx];
+    const currentCompleted = currentTopic && currentSub
+      ? isMarkedComplete(currentTopic.name, currentSub.name, (currentSub as { completed?: boolean }).completed)
+      : false;
+    if (currentCompleted) {
+      topicIdx = firstInc[0];
+      subtopicIdx = firstInc[1];
+      deliveredMini = 0;
     }
   }
+
   const curTopic = topics[topicIdx];
   const curSub = curTopic?.subtopics?.[subtopicIdx];
   if (!curTopic || !curSub) {
@@ -306,6 +427,30 @@ export async function GET(req: NextRequest) {
   }
   const currentLabel = `${curTopic.name} > ${curSub.name}`;
 
+  const findNextIncompleteAfterCurrent = () => {
+    for (let ti = topicIdx; ti < topics.length; ti++) {
+      const topicEntry = topics[ti];
+      if (!topicEntry) continue;
+      const subs = topicEntry.subtopics ?? [];
+      const start = ti === topicIdx ? subtopicIdx + 1 : 0;
+      for (let si = start; si < subs.length; si++) {
+        const sub = subs[si];
+        if (!sub) continue;
+        if (!isMarkedComplete(topicEntry.name, sub.name, (sub as { completed?: boolean }).completed)) {
+          return { topicIdx: ti, subtopicIdx: si, label: `${topicEntry.name} > ${sub.name}` };
+        }
+      }
+    }
+    const first = findFirstIncomplete();
+    if (first && (first[0] !== topicIdx || first[1] !== subtopicIdx)) {
+      const topicEntry = topics[first[0]];
+      const sub = topicEntry?.subtopics?.[first[1]];
+      if (topicEntry && sub) return { topicIdx: first[0], subtopicIdx: first[1], label: `${topicEntry.name} > ${sub.name}` };
+    }
+    return null as null;
+  };
+
+  let metricsPatch: Record<string, unknown> | null = null;
   const baseMetrics = progress.metrics ?? null;
   const metricsAgeMs = baseMetrics?.computedAt ? Date.now() - +new Date(baseMetrics.computedAt) : Number.POSITIVE_INFINITY;
   const metricsFresh = Number.isFinite(metricsAgeMs) && metricsAgeMs < METRICS_REFRESH_MS;
@@ -320,28 +465,55 @@ export async function GET(req: NextRequest) {
     pace = performance.pace;
     performanceSampleSize = performance.sampleSize;
     performanceRecentSample = performance.recentSample;
+    const computedAt = new Date().toISOString();
     progress.metrics = {
       accuracyPct,
       pace,
-      computedAt: new Date().toISOString(),
+      computedAt,
+      sampleSize: performance.sampleSize,
+      recentSample: performance.recentSample,
+    };
+    metricsPatch = {
+      accuracyPct,
+      pace,
+      computedAt,
       sampleSize: performance.sampleSize,
       recentSample: performance.recentSample,
     };
   }
 
-  const recentIds = (
-    progress.deliveredIdsByTopic?.[currentLabel] ||
-    progress.deliveredIdsByKey?.[currentLabel] ||
-    []
-  ).slice(-20);
-  const recentTitles = (progress.deliveredTitlesByTopic?.[currentLabel] || []).slice(-20);
-  const disliked = (progress.preferences?.disliked ?? []).slice(-20);
-  type SubDone = { completed?: boolean };
-  const totalSubs = topics.reduce((sum, t) => sum + (t.subtopics?.length ?? 0), 0);
-  const doneSubs = topics.reduce((sum, t) => sum + ((t.subtopics?.filter((s) => (s as SubDone).completed === true)?.length) ?? 0), 0);
+  const recentDeliveredIds = dedupeTail(progress.deliveredIdsByTopic?.[currentLabel], 24);
+  const recentDeliveredTitles = dedupeTail(progress.deliveredTitlesByTopic?.[currentLabel], 24);
+  const dislikedIds = dedupeTail(progress.preferences?.disliked, 30);
+  const likedTail = dedupeTail(progress.preferences?.liked, 30);
+  const savedTail = dedupeTail(progress.preferences?.saved, 30);
+
+  const recentIdSignatures = recentDeliveredIds.slice(-6).map(shortHash);
+  const dislikedSignatures = dislikedIds.slice(-8).map(shortHash);
+  const likedSignatures = likedTail.slice(-8).map(shortHash);
+  const savedSignatures = savedTail.slice(-6).map(shortHash);
+
+  const totalSubs = topics.reduce((sum, topic) => sum + ((topic?.subtopics?.length ?? 0)), 0);
+  const doneSubs = topics.reduce((sum, topic) => {
+    if (!topic?.subtopics) return sum;
+    return sum + topic.subtopics.reduce((inner, sub) => {
+      if (!sub) return inner;
+      return inner + (isMarkedComplete(topic.name, sub.name, (sub as { completed?: boolean }).completed) ? 1 : 0);
+    }, 0);
+  }, 0);
   const compPct = totalSubs > 0 ? Math.round((doneSubs / totalSubs) * 100) : 0;
   const plannedMini = Math.max(1, Number(curSub.mini_lessons || 1));
-  const mapSummary = `Course:${state?.course ?? ''}; Topic#${topicIdx+1}/${topics.length}; Sub#${subtopicIdx+1}/${curTopic?.subtopics?.length ?? 1}; Completed:${compPct}%; Mini:${deliveredMini}/${plannedMini}`;
+  const nextTopicCandidate = findNextIncompleteAfterCurrent();
+  const nextTopicHint = nextTopicCandidate && nextTopicCandidate.label !== currentLabel
+    ? `Next up: ${nextTopicCandidate.label}`
+    : null;
+  const mapSummary = [
+    `course=${state?.course ?? "n/a"}`,
+    `topic=${topicIdx + 1}/${topics.length}`,
+    `subtopic=${subtopicIdx + 1}/${curTopic?.subtopics?.length ?? 1}`,
+    `curriculum=${compPct}%`,
+    `mini=${deliveredMini}/${plannedMini}`,
+  ].join("|");
 
   const structuredContext = {
     subject,
@@ -359,9 +531,7 @@ export async function GET(req: NextRequest) {
       deliveredMini,
       applications: Array.isArray(curSub.applications) ? curSub.applications.slice(0, 2) : undefined,
     },
-    completion: {
-      curriculumPercent: compPct,
-    },
+    completion: { curriculumPercent: compPct, done: doneSubs, total: totalSubs },
     performance: {
       accuracyPct,
       pace,
@@ -369,29 +539,39 @@ export async function GET(req: NextRequest) {
       recentSample: performanceRecentSample,
       computedAt: progress.metrics?.computedAt ?? baseMetrics?.computedAt ?? null,
     },
-    recentLessons: {
-      deliveredIds: recentIds,
-      deliveredTitles: recentTitles,
-      disliked,
+    recentLessonSignatures: {
+      deliveredIds: recentIdSignatures,
+      deliveredTitles: recentDeliveredTitles.slice(-6),
+      disliked: dislikedSignatures,
+      liked: likedSignatures,
+      saved: savedSignatures,
     },
+    preferenceTones: toneTags.slice(0, 6),
+    nextUp: nextTopicCandidate?.label ?? null,
   };
 
-  const rawCache = (progress.lessonCache ?? {}) as Record<string, CachedLesson[]>;
+  const { data: cacheRow } = await sb
+    .from("user_topic_lesson_cache")
+    .select("lessons")
+    .eq("user_id", user.id)
+    .eq("subject", subject)
+    .eq("topic_label", currentLabel)
+    .maybeSingle();
+
   const nowMs = Date.now();
-  const cacheByTopic: Record<string, CachedLesson[]> = {};
-  for (const [label, entries] of Object.entries(rawCache)) {
-    if (!Array.isArray(entries) || entries.length === 0) continue;
-    const fresh = entries.filter((entry) => {
-      if (!entry?.cachedAt) return false;
-      const ts = +new Date(entry.cachedAt);
-      return Number.isFinite(ts) && nowMs - ts <= MAX_CACHE_AGE_MS;
-    });
-    if (fresh.length) cacheByTopic[label] = fresh;
+  const cachedCandidates: CachedLesson[] = [];
+  if (Array.isArray(cacheRow?.lessons)) {
+    for (const raw of cacheRow!.lessons as CachedLesson[]) {
+      if (!raw) continue;
+      const stamped = raw.cachedAt ? +new Date(raw.cachedAt) : NaN;
+      if (!Number.isFinite(stamped) || nowMs - stamped > MAX_CACHE_AGE_MS) continue;
+      cachedCandidates.push(raw);
+      if (cachedCandidates.length >= 5) break;
+    }
   }
-  progress.lessonCache = cacheByTopic;
-  const cachedCandidatesRaw = cacheByTopic[currentLabel];
-  const cachedCandidates: CachedLesson[] = Array.isArray(cachedCandidatesRaw) ? [...cachedCandidatesRaw] : [];
-  const avoidLessonIds = [...recentIds, ...disliked].filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+  const avoidLessonIds = [...recentDeliveredIds, ...dislikedIds].filter((id): id is string => typeof id === "string" && id.length > 0);
+  const avoidTitles = recentDeliveredTitles.slice(-10);
   const avoidIdSet = new Set(avoidLessonIds);
 
   let lesson: Lesson;
@@ -400,7 +580,7 @@ export async function GET(req: NextRequest) {
     const cachedId = typeof entry.id === 'string' ? entry.id : null;
     if (cachedId && avoidIdSet.has(cachedId)) return false;
     const cachedTitle = typeof entry.title === 'string' ? entry.title.trim() : '';
-    if (cachedTitle && recentTitles.includes(cachedTitle)) return false;
+    if (cachedTitle && recentDeliveredTitles.includes(cachedTitle)) return false;
     return true;
   });
 
@@ -415,9 +595,13 @@ export async function GET(req: NextRequest) {
         accuracyPct: accuracyPct ?? undefined,
         difficultyPref: (state?.difficulty as Difficulty | undefined) ?? undefined,
         avoidIds: Array.from(avoidIdSet),
-        avoidTitles: recentTitles,
+        avoidTitles,
         mapSummary,
         structuredContext,
+        likedIds: likedTail,
+        savedIds: savedTail,
+        toneTags: toneTags.slice(0, 6),
+        nextTopicHint: nextTopicHint ?? undefined,
       });
       try { console.debug(`[fyp][${reqId}] lesson: ok`, { subject, currentLabel }); } catch {}
     } catch (e) {
@@ -439,54 +623,68 @@ export async function GET(req: NextRequest) {
   const stampedLesson: CachedLesson = { ...lesson, cachedAt: new Date().toISOString() };
   const nextCache = [stampedLesson, ...cachedCandidates.filter((entry) => entry && entry.id !== stampedLesson.id)];
   while (nextCache.length > 5) nextCache.pop();
-  cacheByTopic[currentLabel] = nextCache;
-  progress.lessonCache = cacheByTopic;
+
+  try {
+    await sb
+      .from("user_topic_lesson_cache")
+      .upsert({
+        user_id: user.id,
+        subject,
+        topic_label: currentLabel,
+        lessons: nextCache,
+        updated_at: stampedLesson.cachedAt,
+      }, { onConflict: "user_id,subject,topic_label" });
+  } catch (cacheErr) {
+    try { console.error(`[fyp][${reqId}] cache upsert failed`, cacheErr); } catch {}
+  }
 
   // Honor mini_lessons per subtopic and update progress/indices
   const nextTopicStr: string | null = currentLabel;
-  const deliveredByTopic = progress.deliveredByTopic || {};
-  const deliveredIdsByTopic = progress.deliveredIdsByTopic || {};
-  const deliveredTitlesByTopic = progress.deliveredTitlesByTopic || {};
-  deliveredByTopic[currentLabel] = (deliveredByTopic[currentLabel] || 0) + 1;
-  // plannedMini used only for context in mapSummary; not needed here
-  const lid = lesson.id as string | undefined;
-  const list = deliveredIdsByTopic[currentLabel] || [];
+  const deliveredByTopic = { ...(progress.deliveredByTopic ?? {}) };
+  const deliveredIdsByTopic = { ...(progress.deliveredIdsByTopic ?? {}) };
+  const deliveredTitlesByTopic = { ...(progress.deliveredTitlesByTopic ?? {}) };
+  deliveredByTopic[currentLabel] = (deliveredByTopic[currentLabel] ?? 0) + 1;
+
+  const lid = typeof lesson.id === "string" ? lesson.id : null;
+  let idPatch: Record<string, string[]> | undefined;
   if (lid) {
+    const list = Array.isArray(deliveredIdsByTopic[currentLabel]) ? [...deliveredIdsByTopic[currentLabel]!] : [];
     if (!list.includes(lid)) list.push(lid);
     while (list.length > 50) list.shift();
     deliveredIdsByTopic[currentLabel] = list;
+    idPatch = { [currentLabel]: list };
   }
-  const ttl = (deliveredTitlesByTopic[currentLabel] || []);
+
   const ltitle = typeof lesson.title === 'string' ? lesson.title.trim() : null;
+  let titlePatch: Record<string, string[]> | undefined;
   if (ltitle) {
+    const ttl = Array.isArray(deliveredTitlesByTopic[currentLabel]) ? [...deliveredTitlesByTopic[currentLabel]!] : [];
     if (!ttl.includes(ltitle)) ttl.push(ltitle);
     while (ttl.length > 50) ttl.shift();
     deliveredTitlesByTopic[currentLabel] = ttl;
+    titlePatch = { [currentLabel]: ttl };
   }
-  // Completion and advancement are handled on quiz finish (/api/attempt).
-  // Keep indices and deliveredMini unchanged here; leave topics as-is.
-  const updatedTopics = topics;
 
-  // Recompute next label
-  // Keep nextTopicStr as current when not auto-advancing.
-
-  const newPath: PathWithProgress = {
-    ...(path as PathWithProgress),
-    topics: updatedTopics as unknown as PathWithProgress['topics'],
-    progress: {
-      ...(path.progress || {}),
-      deliveredByTopic,
-      deliveredIdsByTopic,
-      deliveredTitlesByTopic,
-      lessonCache: cacheByTopic,
-      topicIdx,
-      subtopicIdx,
-      deliveredMini,
-    },
+  const progressPatch: Record<string, unknown> = {
+    p_subject: subject,
+    p_topic_idx: topicIdx,
+    p_subtopic_idx: subtopicIdx,
+    p_delivered_mini: deliveredMini,
+    p_delivered_patch: { [currentLabel]: deliveredByTopic[currentLabel] },
   };
+  if (idPatch) progressPatch.p_id_patch = idPatch;
+  if (titlePatch) progressPatch.p_title_patch = titlePatch;
+  if (metricsPatch) progressPatch.p_metrics = metricsPatch;
+
+  try {
+    await sb.rpc("apply_user_subject_progress_patch", progressPatch);
+  } catch (progressErr) {
+    try { console.error(`[fyp][${reqId}] progress patch failed`, progressErr); } catch {}
+  }
+
   await sb
     .from("user_subject_state")
-    .update({ next_topic: nextTopicStr, path: newPath, updated_at: new Date().toISOString() })
+    .update({ next_topic: nextTopicStr, updated_at: new Date().toISOString() })
     .eq("user_id", user.id)
     .eq("subject", subject);
 

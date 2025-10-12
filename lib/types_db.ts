@@ -98,6 +98,138 @@ export interface Database {
         };
         Relationships: [];
       };
+      user_subject_preferences: {
+        Row: {
+          user_id: string;
+          subject: string;
+          liked_ids: string[];
+          disliked_ids: string[];
+          saved_ids: string[];
+          tone_tags: string[];
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          subject: string;
+          liked_ids?: string[];
+          disliked_ids?: string[];
+          saved_ids?: string[];
+          tone_tags?: string[];
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          subject?: string;
+          liked_ids?: string[];
+          disliked_ids?: string[];
+          saved_ids?: string[];
+          tone_tags?: string[];
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: [];
+      };
+      user_subject_progress: {
+        Row: {
+          user_id: string;
+          subject: string;
+          topic_idx: number | null;
+          subtopic_idx: number | null;
+          delivered_mini: number | null;
+          delivered_by_topic: Json;
+          delivered_ids_by_topic: Json;
+          delivered_titles_by_topic: Json;
+          completion_map: Json;
+          metrics: Json;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          subject: string;
+          topic_idx?: number | null;
+          subtopic_idx?: number | null;
+          delivered_mini?: number | null;
+          delivered_by_topic?: Json;
+          delivered_ids_by_topic?: Json;
+          delivered_titles_by_topic?: Json;
+          completion_map?: Json;
+          metrics?: Json;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          subject?: string;
+          topic_idx?: number | null;
+          subtopic_idx?: number | null;
+          delivered_mini?: number | null;
+          delivered_by_topic?: Json;
+          delivered_ids_by_topic?: Json;
+          delivered_titles_by_topic?: Json;
+          completion_map?: Json;
+          metrics?: Json;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: [];
+      };
+      user_topic_lesson_cache: {
+        Row: {
+          user_id: string;
+          subject: string;
+          topic_label: string;
+          lessons: Json;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          subject: string;
+          topic_label: string;
+          lessons?: Json;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          subject?: string;
+          topic_label?: string;
+          lessons?: Json;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: [];
+      };
+      course_outline_cache: {
+        Row: {
+          subject: string;
+          course: string;
+          outline: Json;
+          embedding: number[] | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          subject: string;
+          course: string;
+          outline: Json;
+          embedding?: number[] | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          subject?: string;
+          course?: string;
+          outline?: Json;
+          embedding?: number[] | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: [];
+      };
       playlists: {
         Row: {
           id: string;
@@ -275,6 +407,20 @@ export interface Database {
     Functions: {
       // If you created ensure_profile() per earlier steps:
       ensure_profile?: { Args: Record<string, never>; Returns: void };
+      apply_user_subject_progress_patch: {
+        Args: {
+          p_subject: string;
+          p_topic_idx?: number | null;
+          p_subtopic_idx?: number | null;
+          p_delivered_mini?: number | null;
+          p_delivered_patch?: Json;
+          p_id_patch?: Json;
+          p_title_patch?: Json;
+          p_completion_patch?: Json;
+          p_metrics?: Json;
+        };
+        Returns: Database["public"]["Tables"]["user_subject_progress"]["Row"];
+      };
     };
     Enums: {
       difficulty: "intro" | "easy" | "medium" | "hard";

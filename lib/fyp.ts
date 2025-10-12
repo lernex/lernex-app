@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Difficulty } from "@/types/placement";
@@ -18,6 +19,10 @@ type LessonOptions = {
   avoidTitles?: string[];
   mapSummary?: string;
   structuredContext?: Record<string, unknown>;
+  likedIds?: string[];
+  savedIds?: string[];
+  toneTags?: string[];
+  nextTopicHint?: string;
 };
 
 const MAX_GUARDRAIL_ITEMS = 6;
@@ -271,9 +276,15 @@ function truncateText(input: string, maxChars: number) {
   return `${trimmed.slice(0, Math.max(0, maxChars - 3)).trimEnd()}...`;
 }
 
+function shortHash(value: string) {
+  const trimmed = value.trim();
+  if (trimmed.length <= 10) return trimmed;
+  return createHash("sha1").update(trimmed).digest("base64url").slice(0, 10);
+}
+
 function stringifyStructuredContext(context: Record<string, unknown>) {
   try {
-    const json = JSON.stringify(context, null, 2);
+    const json = JSON.stringify(context);
     if (!json) return "";
     return truncateText(json, MAX_CONTEXT_CHARS);
   } catch {
@@ -310,6 +321,23 @@ function buildSourceText(
       learnerSignals.join("\n"),
     ].join("\n"),
   );
+
+  const preferenceLines: string[] = [];
+  const likedHashes = opts.likedIds ? dedupeStrings(opts.likedIds, 6).map(shortHash) : [];
+  const savedHashes = opts.savedIds ? dedupeStrings(opts.savedIds, 6).map(shortHash) : [];
+  const toneTags = opts.toneTags ? dedupeStrings(opts.toneTags, 6) : [];
+
+  if (likedHashes.length) preferenceLines.push(`- Learner responded well to recent lessons: ${likedHashes.join(", ")}`);
+  if (savedHashes.length) preferenceLines.push(`- Saved lessons to revisit (hashed ids): ${savedHashes.join(", ")}`);
+  if (toneTags.length) preferenceLines.push(`- Preferred lesson tone cues: ${toneTags.join(", ")}`);
+  if (preferenceLines.length) {
+    sections.push(
+      [
+        "Preference Signals (reinforce effective patterns without repeating identical content):",
+        preferenceLines.join("\n"),
+      ].join("\n"),
+    );
+  }
 
   sections.push(
     [
@@ -385,6 +413,7 @@ export async function generateLessonForTopic(
     subject,
     difficulty,
     sourceText,
+    nextTopicHint: opts.nextTopicHint,
   });
 
   const requestPayload = {

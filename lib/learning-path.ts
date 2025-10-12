@@ -251,6 +251,113 @@ function isPendingFresh(row: StoredLevelMap | null) {
   return ageMs < LEVEL_MAP_PENDING_TIMEOUT_MS;
 }
 
+async function loadCourseOutline(
+  sb: SupabaseClient,
+  subject: string,
+  course: string
+): Promise<LevelMap | null> {
+  const { data, error } = await sb
+    .from("course_outline_cache")
+    .select("outline")
+    .eq("subject", subject)
+    .eq("course", course)
+    .maybeSingle();
+  if (error) {
+    console.warn("[learning-path] loadCourseOutline failed", error);
+    return null;
+  }
+  const outline = data?.outline as LevelMap | null;
+  if (!outline || !Array.isArray(outline.topics) || !outline.topics.length) return null;
+  return outline;
+}
+
+function sanitizeOutline(map: LevelMap): LevelMap {
+  return {
+    subject: map.subject,
+    course: map.course,
+    topics: (map.topics ?? []).map((topic) => ({
+      name: topic.name,
+      subtopics: (topic.subtopics ?? []).map((sub) => ({
+        name: sub.name,
+        mini_lessons: sub.mini_lessons,
+        applications: sub.applications ?? [],
+      })),
+    })),
+    cross_subjects: map.cross_subjects ?? [],
+    persona: map.persona ? { ...map.persona } : undefined,
+  };
+}
+
+async function saveCourseOutline(
+  sb: SupabaseClient,
+  subject: string,
+  course: string,
+  map: LevelMap
+) {
+  const outline = sanitizeOutline(map);
+  try {
+    await sb
+      .from("course_outline_cache")
+      .upsert(
+        {
+          subject,
+          course,
+          outline,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "subject,course" },
+      );
+  } catch (err) {
+    console.warn("[learning-path] saveCourseOutline failed", err);
+  }
+}
+
+function summarizeOutline(map: LevelMap): string {
+  const topics = Array.isArray(map.topics) ? map.topics : [];
+  if (!topics.length) return "(no cached outline)";
+  const maxTopics = Math.min(topics.length, 8);
+  const lines: string[] = [];
+  for (let idx = 0; idx < maxTopics; idx++) {
+    const topic = topics[idx];
+    if (!topic) continue;
+    const subs = Array.isArray(topic.subtopics) ? topic.subtopics : [];
+    const maxSubs = Math.min(subs.length, 5);
+    const subLines = [];
+    for (let s = 0; s < maxSubs; s++) {
+      const sub = subs[s];
+      if (!sub?.name) continue;
+      const lessons = Math.max(1, Number(sub.mini_lessons || 1));
+      subLines.push(`${sub.name} (${lessons})`);
+    }
+    if (subs.length > maxSubs) subLines.push("...");
+    const prefix = `${idx + 1}. ${topic.name ?? "Untitled Topic"}`;
+    lines.push(subLines.length ? `${prefix}: ${subLines.join("; ")}` : prefix);
+  }
+  if (topics.length > maxTopics) {
+    lines.push(`... ${topics.length - maxTopics} more topics in cache`);
+  }
+  return lines.join("\n");
+}
+
+function buildDeltaGuidance(
+  mastery: number,
+  pace: "slow" | "normal" | "fast",
+  accSubj: number | null,
+  accAll: number | null
+): string[] {
+  const guidance: string[] = [];
+  if (mastery < 45) guidance.push("Reinforce foundations with scaffolded intro units before accelerating.");
+  if (mastery > 70) guidance.push("Allow for optional acceleration paths or enrichment challenges.");
+  if (pace === "slow") guidance.push("Keep mini_lessons lean and sequential; avoid parallel topic jumps.");
+  if (pace === "fast") guidance.push("Bundle related subtopics where possible and add extension tasks.");
+  if (accSubj !== null && accSubj < 55) guidance.push("Add diagnostic checkpoints after early topics to address misconceptions.");
+  if (accSubj !== null && accSubj > 85) guidance.push("Introduce stretch applications to maintain engagement.");
+  if (accAll !== null && accAll > 80 && accSubj !== null && accSubj < accAll - 10) {
+    guidance.push("Bridge from stronger subjects to this course with cross-subject applications.");
+  }
+  return guidance;
+}
+
 export async function generateLearningPath(
   sb: SupabaseClient,
   uid: string,
@@ -343,6 +450,15 @@ export async function generateLearningPath(
 
   touchProgress({ phase: "Synthesizing performance signals", pct: 0.28 });
 
+  const cachedOutline = await loadCourseOutline(sb, subject, course);
+  const hasCachedOutline = !!cachedOutline;
+  if (hasCachedOutline) {
+    touchProgress({ phase: "Adapting cached outline", pct: 0.32 });
+  }
+
+  const deltaGuidance = buildDeltaGuidance(mastery, pace, accSubj, accAll);
+  const outlineSummary = hasCachedOutline && cachedOutline ? summarizeOutline(cachedOutline) : null;
+
   const system = `You are a curriculum planner generating a compact level map.
 Return ONLY a VALID JSON object (no markdown fences, no comments) with this structure and constraints:
 {
@@ -370,6 +486,10 @@ Constraints:
 - Keep the response concise (under ~4800 tokens).
 `.trim();
 
+  const adaptiveSystem = hasCachedOutline
+    ? `${system}\n\nWhen provided with an existing outline summary, refine it instead of rebuilding from scratch. Preserve structure unless learner data requires reordering or additions.`
+    : system;
+
   const userPrompt = [
     `Subject: ${subject}`,
     `Course: ${course}`,
@@ -380,12 +500,18 @@ Constraints:
     coSubjects.length ? `Other courses: ${coSubjects.slice(0, 3).map((c) => `${c.subject}${c.course ? ` (${c.course})` : ""}`).join(", ")}` : undefined,
     interests.length ? `Interests (prioritize cross-subject applications relevant to): ${interests.slice(0, 6).join(", ")}` : undefined,
     notes ? `Additional notes: ${notes}` : undefined,
+    deltaGuidance.length ? `Targeted adjustments:\n${deltaGuidance.map((line) => `- ${line}`).join("\n")}` : undefined,
+    outlineSummary ? `Existing outline summary (edit in place):\n${outlineSummary}` : undefined,
     `Design goals:`,
     `- Tailor topic ordering and mini_lessons to the learner's mastery and pace.`,
     `- Highlight cross_subjects that connect ${subject} concepts to the listed courses/interests.`,
-    `- Keep the map compact but comprehensive (avoid redundant units).`,
+    hasCachedOutline ? `- Prefer editing the cached outline; only introduce or remove topics when necessary.` : `- Keep the map compact but comprehensive (avoid redundant units).`,
     `Task: Create the level map JSON exactly as per the schema.`
   ].filter(Boolean).join("\n");
+
+  const primaryMaxTokens = hasCachedOutline ? Math.min(MAX_TOK_MAIN, 3600) : MAX_TOK_MAIN;
+  const retryMaxTokens = hasCachedOutline ? Math.min(MAX_TOK_RETRY, 3200) : MAX_TOK_RETRY;
+  const fallbackMaxTokens = hasCachedOutline ? Math.min(MAX_TOK_FALLBACK, 2800) : MAX_TOK_FALLBACK;
 
   let raw = "";
   let completion: OpenAI.Chat.Completions.ChatCompletion | null = null;
@@ -406,10 +532,10 @@ Constraints:
     completion = await client.chat.completions.create({
       model,
       temperature,
-      max_tokens: MAX_TOK_MAIN,
+      max_tokens: primaryMaxTokens,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: system },
+        { role: "system", content: adaptiveSystem },
         { role: "user", content: userPrompt },
       ],
     });
@@ -426,10 +552,10 @@ Constraints:
         completion = await client.chat.completions.create({
           model,
           temperature,
-          max_tokens: MAX_TOK_RETRY,
+          max_tokens: retryMaxTokens,
           response_format: { type: "json_object" },
           messages: [
-            { role: "system", content: system },
+            { role: "system", content: adaptiveSystem },
             { role: "user", content: userPrompt },
           ],
         });
@@ -446,9 +572,9 @@ Constraints:
           completion = await client.chat.completions.create({
             model,
             temperature,
-            max_tokens: MAX_TOK_FALLBACK,
+            max_tokens: fallbackMaxTokens,
             messages: [
-              { role: "system", content: system },
+              { role: "system", content: adaptiveSystem },
               { role: "user", content: userPrompt },
             ],
           });
@@ -522,11 +648,11 @@ Constraints:
         attemptsCount += 1;
         fallbackUsed = true;
         touchProgress({ phase: "Repairing map output", pct: 0.72, attempts: attemptsCount, fallback: true });
-        const repairSys = system + "\nFinal requirement: Respond with ONLY a single strict JSON object (no prose). If previous output was truncated, regenerate compactly (<= 9 topics, <= 4 subtopics each, applications <= 2).";
+        const repairSys = adaptiveSystem + "\nFinal requirement: Respond with ONLY a single strict JSON object (no prose). If previous output was truncated, regenerate compactly (<= 9 topics, <= 4 subtopics each, applications <= 2).";
         const repair = await client.chat.completions.create({
           model,
           temperature,
-          max_tokens: MAX_TOK_MAIN,
+          max_tokens: primaryMaxTokens,
           response_format: { type: "json_object" },
           messages: [
             { role: "system", content: repairSys },
@@ -637,6 +763,10 @@ Constraints:
 
   touchProgress({ phase: "Finalizing personalized map", pct: 0.9, attempts: attemptsCount, fallback: fallbackFlag });
   touchProgress({ phase: "Learning path ready", pct: 1, attempts: attemptsCount, fallback: fallbackFlag });
+
+  if (!deterministicFallback) {
+    await saveCourseOutline(sb, subject, course, parsed);
+  }
 
   return parsed;
 }
