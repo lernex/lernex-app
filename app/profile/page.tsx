@@ -24,7 +24,7 @@ type FeedbackTone = "success" | "error" | "info";
 type FeedbackState = { message: string; tone: FeedbackTone };
 
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid";
-type ThemePreference = "light" | "dark" | "system";
+type ThemePreference = "light" | "dark";
 
 const toneClass: Record<FeedbackTone, string> = {
   success: "text-emerald-600 dark:text-emerald-400",
@@ -138,11 +138,9 @@ export default function SettingsPage() {
         }
         setInitialUsername(fetchedUsername.trim());
         setDob(typeof data.dob === "string" ? data.dob : "");
-        const themePrefRaw = data?.theme_pref;
-        const nextTheme: ThemePreference =
-          themePrefRaw === "system" || themePrefRaw === "light" || themePrefRaw === "dark"
-            ? themePrefRaw
-            : "dark";
+        const themePrefRaw =
+          typeof data?.theme_pref === "string" ? (data.theme_pref as string) : null;
+        const nextTheme: ThemePreference = themePrefRaw === "light" ? "light" : "dark";
         setThemePreference(nextTheme);
         setTheme(nextTheme);
         setUsernameStatus("idle");
@@ -773,7 +771,6 @@ export default function SettingsPage() {
                   disabled={accountLoading || preferencesSaving}
                   className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950"
                 >
-                  <option value="system">System</option>
                   <option value="dark">Dark</option>
                   <option value="light">Light</option>
                 </select>

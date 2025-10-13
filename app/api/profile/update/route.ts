@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   const { error } = await sb.from("profiles").update({
     username: typeof username === "string" ? username : undefined,
     dob: typeof dob === "string" ? dob : undefined,
-    theme_pref: ["light","dark","system"].includes(theme_pref) ? theme_pref : undefined,
+    theme_pref: theme_pref === "light" || theme_pref === "dark" ? theme_pref : undefined,
     updated_at: new Date().toISOString(),
   }).eq("id", user.id);
 

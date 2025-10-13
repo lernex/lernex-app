@@ -157,9 +157,9 @@ export default function Generate() {
   }, [lesson]);
 
   return (
-    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center text-neutral-900 dark:text-white">
-      <div className="w-full max-w-md px-4 py-6 space-y-4">
-        <div className="rounded-2xl bg-white/80 border border-neutral-200 p-5 space-y-3 backdrop-blur dark:bg-neutral-900/70 dark:border-neutral-800">
+    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center bg-neutral-50 px-4 py-10 text-neutral-900 dark:bg-neutral-950 dark:text-white">
+      <div className="w-full max-w-md space-y-4 py-6">
+        <div className="rounded-2xl border border-neutral-200 bg-white/80 p-5 space-y-3 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/70">
           <h1 className="text-xl font-semibold">Generate a Micro-Lesson</h1>
 
           {(loading || progress > 0) && (
@@ -214,7 +214,7 @@ export default function Generate() {
 
         {/* Show streaming text immediately if lesson object not ready yet */}
         {!lesson && streamed && (
-          <div className="rounded-2xl bg-neutral-900 border border-neutral-800 p-4 whitespace-pre-wrap">
+          <div className="rounded-2xl border border-neutral-200 bg-white/90 p-4 text-neutral-700 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-200 whitespace-pre-wrap">
             {/* Use incremental rendering to avoid flashing while streaming */}
             <FormattedText text={streamed} incremental />
           </div>
@@ -222,7 +222,7 @@ export default function Generate() {
 
         {/* Empty-state helper */}
         {!lesson && !streamed && (
-          <div className="rounded-2xl border border-dashed border-neutral-300 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
+          <div className="rounded-2xl border border-dashed border-neutral-300 bg-white/80 p-4 text-sm text-neutral-600 shadow-sm dark:border-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-300">
             Paste a concept or definition to turn it into a short lesson with a quick quiz. Great inputs:
             <ul className="mt-2 list-disc pl-5">
               <li>Key theorem statements or laws</li>
