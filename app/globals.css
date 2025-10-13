@@ -4,6 +4,11 @@
   --background: #ffffff;
   --foreground: #171717;
   --primary: #2F80ED;
+  --surface-page: #f6f8fb;
+  --surface-panel: rgba(255, 255, 255, 0.94);
+  --surface-card: rgba(255, 255, 255, 0.9);
+  --surface-muted: rgba(255, 255, 255, 0.8);
+  --surface-border: rgba(203, 213, 225, 0.55);
 }
 
 
@@ -23,10 +28,15 @@
 .dark {
   --background: #1C1C1E;
   --foreground: #f2f2f2;
+  --surface-page: #05070d;
+  --surface-panel: rgba(9, 12, 20, 0.9);
+  --surface-card: rgba(12, 16, 26, 0.82);
+  --surface-muted: rgba(18, 23, 34, 0.75);
+  --surface-border: rgba(71, 85, 105, 0.45);
 }
 
 body {
-  background: var(--background);
+  background: var(--surface-page);
   color: var(--foreground);
   @apply antialiased;
 }

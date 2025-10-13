@@ -60,13 +60,19 @@ export default function SettingsPage() {
   const { setTheme } = useTheme();
   const [dob, setDob] = useState<string>("");
   const [themePreference, setThemePreference] = useState<ThemePreference>("dark");
+  const themePreferenceRef = useRef<ThemePreference>("dark");
   const [accountLoading, setAccountLoading] = useState(true);
   const [preferencesSaving, setPreferencesSaving] = useState(false);
+  const [themeUpdating, setThemeUpdating] = useState(false);
   const [preferencesFeedback, setPreferencesFeedback] = useState<FeedbackState | null>(null);
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
   const [usernameStatusMessage, setUsernameStatusMessage] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [initialUsername, setInitialUsername] = useState<string>("");
+
+  useEffect(() => {
+    themePreferenceRef.current = themePreference;
+  }, [themePreference]);
 
   useEffect(() => {
     let active = true;
@@ -142,6 +148,7 @@ export default function SettingsPage() {
           typeof data?.theme_pref === "string" ? (data.theme_pref as string) : null;
         const nextTheme: ThemePreference = themePrefRaw === "light" ? "light" : "dark";
         setThemePreference(nextTheme);
+        themePreferenceRef.current = nextTheme;
         setTheme(nextTheme);
         setUsernameStatus("idle");
         setUsernameStatusMessage("");
@@ -407,6 +414,45 @@ export default function SettingsPage() {
       setAvatarSaving(false);
     }
   }, [avatar, avatarUrlInput, supabase, userId]);
+  const handleThemePreferenceChange = useCallback(
+    async (next: ThemePreference) => {
+      const previous = themePreferenceRef.current;
+      if (next === previous) return;
+      setThemePreference(next);
+      setTheme(next);
+      setThemeUpdating(true);
+      try {
+        const res = await fetch("/api/profile/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ theme_pref: next }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(
+            (payload as { error?: string } | undefined)?.error || "Could not update theme preference.",
+          );
+        }
+        themePreferenceRef.current = next;
+        setPreferencesFeedback((current) => {
+          if (current?.tone === "info" && current?.message?.includes("Saving settings")) {
+            return current;
+          }
+          return { message: "Theme preference saved.", tone: "success" };
+        });
+      } catch (error) {
+        const message =
+          (error as { message?: string } | undefined)?.message || "Could not update theme preference.";
+        themePreferenceRef.current = previous;
+        setThemePreference(previous);
+        setTheme(previous);
+        setPreferencesFeedback({ message, tone: "error" });
+      } finally {
+        setThemeUpdating(false);
+      }
+    },
+    [setPreferencesFeedback, setTheme],
+  );
   const handlePreferencesSave = useCallback(async () => {
     setPreferencesSaving(true);
     setPreferencesFeedback({ message: "Saving settings...", tone: "info" });
@@ -674,7 +720,7 @@ export default function SettingsPage() {
           </div>
           <div className="inline-flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
             <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-            Changes take effect once you save.
+            Theme updates apply instantly; other changes take effect after you save.
           </div>
         </div>
         <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr),minmax(0,1.2fr)]">
@@ -763,12 +809,8 @@ export default function SettingsPage() {
                 <select
                   id="themePref"
                   value={themePreference}
-                  onChange={(event) => {
-                    const next = event.target.value as ThemePreference;
-                    setThemePreference(next);
-                    setTheme(next);
-                  }}
-                  disabled={accountLoading || preferencesSaving}
+                  onChange={(event) => handleThemePreferenceChange(event.target.value as ThemePreference)}
+                  disabled={accountLoading || preferencesSaving || themeUpdating}
                   className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950"
                 >
                   <option value="dark">Dark</option>

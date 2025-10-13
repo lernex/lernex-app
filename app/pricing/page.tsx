@@ -172,7 +172,7 @@ export default function Pricing() {
   );
 
   return (
-    <main className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-neutral-50 text-neutral-900 dark:bg-neutral-900 dark:text-white">
+    <main className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-[var(--surface-page)] text-neutral-900 transition-colors dark:text-white">
       <div className="pointer-events-none absolute inset-0 -z-20 bg-gradient-to-br from-white via-sky-50/60 to-indigo-50/40 dark:hidden" />
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute inset-x-0 top-[-20%] h-[60%] bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.28),_transparent_65%)] dark:bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.32),_transparent_60%)]" />
@@ -197,10 +197,10 @@ export default function Pricing() {
             Choose the plan that matches your ambition. Every upgrade comes with smarter AI tutors, richer analytics, and a team cheering for your breakthroughs.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-sm text-neutral-500 dark:text-neutral-300">
-            <div className="flex items-center gap-2 rounded-full bg-white/85 px-4 py-2 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.25)] ring-1 ring-neutral-200/60 backdrop-blur-sm dark:bg-white/10 dark:ring-0 dark:shadow-none">
+          <div className="flex items-center gap-2 rounded-full border border-[var(--surface-border)] bg-[var(--surface-muted)] px-4 py-2 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.25)] backdrop-blur-sm dark:shadow-none">
               <ShieldCheck className="h-4 w-4" /> 14-day love-it-or-refund guarantee
             </div>
-            <div className="flex items-center gap-2 rounded-full bg-white/85 px-4 py-2 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.25)] ring-1 ring-neutral-200/60 backdrop-blur-sm dark:bg-white/10 dark:ring-0 dark:shadow-none">
+          <div className="flex items-center gap-2 rounded-full border border-[var(--surface-border)] bg-[var(--surface-muted)] px-4 py-2 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.25)] backdrop-blur-sm dark:shadow-none">
               <CheckCircle2 className="h-4 w-4" /> No hidden fees & cancel anytime
             </div>
           </div>
@@ -315,7 +315,7 @@ export default function Pricing() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.3 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="mt-20 grid gap-6 rounded-3xl border border-neutral-200/80 bg-gradient-to-br from-white via-white to-slate-100/80 p-8 shadow-[0_45px_120px_-65px_rgba(30,64,175,0.32)] backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/70 dark:shadow-[0_60px_150px_-80px_rgba(0,0,0,0.7)] md:grid-cols-[1.3fr_1fr]"
+          className="mt-20 grid gap-6 rounded-3xl border border-[var(--surface-border)] bg-gradient-to-br from-white via-white to-slate-100/80 p-8 shadow-[0_45px_120px_-65px_rgba(30,64,175,0.32)] backdrop-blur dark:bg-gradient-to-br dark:from-[#101829] dark:via-[#0b1220] dark:to-[#090e1a] dark:shadow-[0_60px_150px_-80px_rgba(0,0,0,0.7)] md:grid-cols-[1.3fr_1fr]"
         >
           <div>
             <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">Still thinking it over?</h2>
@@ -326,7 +326,7 @@ export default function Pricing() {
               {guaranteePoints.map(point => (
                 <span
                   key={point}
-                  className="flex items-center gap-2 rounded-full bg-white/85 px-3 py-2 shadow-[0_18px_48px_-30px_rgba(30,64,175,0.22)] ring-1 ring-neutral-200/60 dark:bg-neutral-800/70 dark:ring-0 dark:shadow-none"
+                  className="flex items-center gap-2 rounded-full border border-[var(--surface-border)] bg-[var(--surface-muted)] px-3 py-2 shadow-[0_18px_48px_-30px_rgba(30,64,175,0.22)] dark:shadow-none"
                 >
                   <ShieldCheck className="h-4 w-4 text-emerald-500" />
                   {point}
@@ -334,7 +334,7 @@ export default function Pricing() {
               ))}
             </div>
           </div>
-          <div className="rounded-2xl border border-neutral-200/80 bg-gradient-to-br from-white via-slate-50 to-blue-50/70 p-6 text-sm text-neutral-600 shadow-[0_35px_90px_-55px_rgba(30,64,175,0.35)] dark:border-neutral-700 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800 dark:text-neutral-200 dark:shadow-[0_45px_120px_-70px_rgba(0,0,0,0.7)]">
+          <div className="rounded-2xl border border-[var(--surface-border)] bg-gradient-to-br from-white via-slate-50 to-blue-50/70 p-6 text-sm text-neutral-600 shadow-[0_35px_90px_-55px_rgba(30,64,175,0.35)] dark:bg-gradient-to-br dark:from-[#101829] dark:via-[#0b1220] dark:to-[#09101c] dark:text-neutral-200 dark:shadow-[0_45px_120px_-70px_rgba(0,0,0,0.7)]">
             <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">What happens after you upgrade?</h3>
             <ul className="mt-4 space-y-3">
               <li className="flex items-start gap-2">

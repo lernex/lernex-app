@@ -209,7 +209,7 @@ function Avatar(props: { name: string; src: string | null; size?: number }) {
 
 function StatCard(props: { icon: ReactNode; label: string; value: string; hint?: string }) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50 to-sky-50/60 p-4 shadow-[0_22px_45px_-28px_rgba(47,128,237,0.32)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_30px_60px_-32px_rgba(47,128,237,0.4)] dark:border-neutral-800 dark:bg-white/5 dark:shadow-[0_18px_45px_-30px_rgba(0,0,0,0.9)] dark:hover:shadow-[0_18px_45px_-26px_rgba(0,0,0,0.85)]">
+    <div className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50 to-sky-50/60 p-4 shadow-[0_22px_45px_-28px_rgba(47,128,237,0.32)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_30px_60px_-32px_rgba(47,128,237,0.4)] dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_18px_45px_-30px_rgba(0,0,0,0.9)] dark:hover:shadow-[0_18px_45px_-26px_rgba(0,0,0,0.85)]">
       <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 dark:hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-lernex-blue/10 via-transparent to-lernex-purple/10" />
       </div>
@@ -501,7 +501,7 @@ export default function FriendsPage() {
   if (loading) {
     return (
       <main className="min-h-[calc(100vh-56px)] mx-auto flex w-full max-w-4xl items-center justify-center px-4 py-24 text-neutral-600 dark:text-neutral-200">
-        <div className="flex items-center gap-3 rounded-2xl border border-neutral-200/60 bg-white/80 px-6 py-4 text-sm shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-white/5">
+        <div className="flex items-center gap-3 rounded-2xl border border-neutral-200/60 bg-white/80 px-6 py-4 text-sm shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c]">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading your friends...
         </div>
@@ -545,7 +545,7 @@ export default function FriendsPage() {
         {toast && (
           <div
             className={cn(
-              "mb-4 flex items-center gap-2 rounded-2xl border border-neutral-200/70 bg-gradient-to-r from-white via-slate-50/70 to-white px-4 py-2 text-sm text-neutral-700 shadow-[0_24px_60px_-40px_rgba(47,128,237,0.35)] backdrop-blur-sm transition-colors dark:border-neutral-700 dark:bg-white/10 dark:text-neutral-200 dark:shadow-none",
+              "mb-4 flex items-center gap-2 rounded-2xl border border-neutral-200/70 bg-gradient-to-r from-white via-slate-50/70 to-white px-4 py-2 text-sm text-neutral-700 shadow-[0_24px_60px_-40px_rgba(47,128,237,0.35)] backdrop-blur-sm transition-colors dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-200 dark:shadow-none",
               toast.tone === "success" && "border-emerald-200 bg-emerald-50/80 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200",
               toast.tone === "error" && "border-rose-200 bg-rose-50/80 text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200",
               toast.tone === "neutral" && "border-neutral-200/70 from-white via-slate-50/60 to-white"
@@ -613,7 +613,7 @@ export default function FriendsPage() {
           "mt-8 rounded-3xl p-6",
           "border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95",
           "shadow-[0_32px_70px_-45px_rgba(47,128,237,0.38)] backdrop-blur-sm transition-colors duration-300",
-          "dark:border-neutral-800 dark:bg-white/5 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
+          "dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
         )}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -623,14 +623,14 @@ export default function FriendsPage() {
           </div>
           <button
             onClick={() => load({ silent: true })}
-            className="inline-flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white/70 px-3 py-1.5 text-xs font-medium text-neutral-600 shadow-[0_20px_40px_-30px_rgba(47,128,237,0.28)] transition hover:border-lernex-blue/40 hover:text-lernex-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/30 dark:border-neutral-700 dark:bg-white/10 dark:text-neutral-300 dark:shadow-none"
+            className="inline-flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white/70 px-3 py-1.5 text-xs font-medium text-neutral-600 shadow-[0_20px_40px_-30px_rgba(47,128,237,0.28)] transition hover:border-lernex-blue/40 hover:text-lernex-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/30 dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-none"
           >
             <RefreshCcw className="h-3.5 w-3.5" />
             Refresh list
           </button>
         </div>
         <div className="relative mt-4">
-          <div className="flex items-center gap-3 rounded-2xl border border-neutral-200/70 bg-white/95 px-3 py-2 shadow-[0_30px_55px_-45px_rgba(47,128,237,0.4)] backdrop-blur-sm transition focus-within:border-lernex-blue/40 focus-within:ring-2 focus-within:ring-lernex-blue/15 dark:border-neutral-800 dark:bg-white/10 dark:shadow-none dark:focus-within:border-lernex-blue/60">
+          <div className="flex items-center gap-3 rounded-2xl border border-neutral-200/70 bg-white/95 px-3 py-2 shadow-[0_30px_55px_-45px_rgba(47,128,237,0.4)] backdrop-blur-sm transition focus-within:border-lernex-blue/40 focus-within:ring-2 focus-within:ring-lernex-blue/15 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-none dark:focus-within:border-lernex-blue/60">
             <Search className="h-4 w-4 text-neutral-400" />
             <input
               value={searchQuery}
@@ -692,16 +692,16 @@ export default function FriendsPage() {
             <p className="text-sm text-neutral-500 dark:text-neutral-400">Respond quickly to keep momentum. Accept to sync streaks and unlock friend leaderboards.</p>
           </div>
           <div className="flex gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-            <div className="flex items-center gap-1 rounded-full border border-neutral-200/60 bg-white/80 px-3 py-1 text-neutral-600 shadow-[0_14px_30px_-24px_rgba(47,128,237,0.3)] transition dark:border-white/10 dark:bg-white/10 dark:text-neutral-300 dark:shadow-none">
+            <div className="flex items-center gap-1 rounded-full border border-neutral-200/60 bg-white/80 px-3 py-1 text-neutral-600 shadow-[0_14px_30px_-24px_rgba(47,128,237,0.3)] transition dark:border-white/10 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-none">
               <BellRing className="h-3.5 w-3.5" /> {incoming.length} incoming
             </div>
-            <div className="flex items-center gap-1 rounded-full border border-neutral-200/60 bg-white/80 px-3 py-1 text-neutral-600 shadow-[0_14px_30px_-24px_rgba(47,128,237,0.3)] transition dark:border-white/10 dark:bg-white/10 dark:text-neutral-300 dark:shadow-none">
+            <div className="flex items-center gap-1 rounded-full border border-neutral-200/60 bg-white/80 px-3 py-1 text-neutral-600 shadow-[0_14px_30px_-24px_rgba(47,128,237,0.3)] transition dark:border-white/10 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-none">
               <Send className="h-3.5 w-3.5" /> {outgoing.length} outgoing
             </div>
           </div>
         </div>
         {totalPending === 0 && (
-          <div className="mt-4 rounded-3xl border border-dashed border-neutral-200/70 bg-gradient-to-r from-white via-slate-50/70 to-white/95 p-6 text-sm text-neutral-500 shadow-[0_28px_60px_-40px_rgba(47,128,237,0.32)] backdrop-blur-sm dark:border-neutral-700 dark:bg-white/5 dark:text-neutral-300 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]">
+          <div className="mt-4 rounded-3xl border border-dashed border-neutral-200/70 bg-gradient-to-r from-white via-slate-50/70 to-white/95 p-6 text-sm text-neutral-500 shadow-[0_28px_60px_-40px_rgba(47,128,237,0.32)] backdrop-blur-sm dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]">
             No pending requests. Your friends tab is calm and ready.
           </div>
         )}
@@ -715,7 +715,7 @@ export default function FriendsPage() {
                 return (
                   <div
                     key={req.id}
-                    className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-4 shadow-[0_28px_60px_-40px_rgba(47,128,237,0.32)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_36px_70px_-38px_rgba(47,128,237,0.4)] dark:border-neutral-800 dark:bg-white/5 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
+                    className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-4 shadow-[0_28px_60px_-40px_rgba(47,128,237,0.32)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_36px_70px_-38px_rgba(47,128,237,0.4)] dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
                   >
                     <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 dark:hidden">
                       <div className="absolute inset-0 bg-gradient-to-br from-lernex-blue/10 via-transparent to-lernex-purple/10" />
@@ -748,7 +748,7 @@ export default function FriendsPage() {
                           </div>
                         </div>
                         {req.message && (
-                          <div className="mt-3 rounded-xl border border-neutral-200/70 bg-gradient-to-r from-white via-slate-50/60 to-white/95 px-3 py-2 text-xs text-neutral-600 shadow-[0_18px_32px_-26px_rgba(47,128,237,0.28)] dark:border-neutral-700 dark:bg-white/10 dark:text-neutral-300 dark:shadow-none">“{req.message}”</div>
+                          <div className="mt-3 rounded-xl border border-neutral-200/70 bg-gradient-to-r from-white via-slate-50/60 to-white/95 px-3 py-2 text-xs text-neutral-600 shadow-[0_18px_32px_-26px_rgba(47,128,237,0.28)] dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-none">“{req.message}”</div>
                         )}
                         {req.counterpart.sharedInterests.length > 0 && (
                           <div className="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
@@ -768,7 +768,7 @@ export default function FriendsPage() {
                 return (
                   <div
                     key={req.id}
-                    className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-4 shadow-[0_28px_60px_-40px_rgba(47,128,237,0.32)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_36px_70px_-38px_rgba(47,128,237,0.4)] dark:border-neutral-800 dark:bg-white/5 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
+                    className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-4 shadow-[0_28px_60px_-40px_rgba(47,128,237,0.32)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_36px_70px_-38px_rgba(47,128,237,0.4)] dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
                   >
                     <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 dark:hidden">
                       <div className="absolute inset-0 bg-gradient-to-br from-lernex-purple/10 via-transparent to-lernex-blue/10" />
@@ -784,7 +784,7 @@ export default function FriendsPage() {
                           <button
                             onClick={() => handleCancelOutgoing(req.id)}
                             disabled={cancelKey}
-                            className="inline-flex items-center gap-2 rounded-full border border-neutral-200/70 bg-white/80 px-3 py-1.5 text-xs font-medium text-neutral-600 shadow-[0_18px_36px_-28px_rgba(47,128,237,0.3)] transition hover:border-rose-300 hover:text-rose-500 disabled:cursor-not-allowed disabled:shadow-none dark:border-neutral-700 dark:bg-white/10 dark:text-neutral-300 dark:shadow-none"
+                            className="inline-flex items-center gap-2 rounded-full border border-neutral-200/70 bg-white/80 px-3 py-1.5 text-xs font-medium text-neutral-600 shadow-[0_18px_36px_-28px_rgba(47,128,237,0.3)] transition hover:border-rose-300 hover:text-rose-500 disabled:cursor-not-allowed disabled:shadow-none dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-none"
                           >
                             {cancelKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
                             Cancel
@@ -818,7 +818,7 @@ export default function FriendsPage() {
             return (
               <div
                 key={candidate.id}
-                className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-4 shadow-[0_26px_58px_-38px_rgba(47,128,237,0.34)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_34px_68px_-36px_rgba(47,128,237,0.42)] dark:border-neutral-800 dark:bg-white/5 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
+                className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-4 shadow-[0_26px_58px_-38px_rgba(47,128,237,0.34)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_34px_68px_-36px_rgba(47,128,237,0.42)] dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
               >
                 <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 dark:hidden">
                   <div className="absolute inset-0 bg-gradient-to-br from-lernex-blue/10 via-transparent to-lernex-purple/10" />
@@ -852,7 +852,7 @@ export default function FriendsPage() {
             );
           })}
           {data.suggestions.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-neutral-200/70 bg-gradient-to-r from-white via-slate-50/70 to-white/95 p-6 text-sm text-neutral-500 shadow-[0_26px_58px_-38px_rgba(47,128,237,0.34)] backdrop-blur-sm dark:border-neutral-700 dark:bg-white/5 dark:text-neutral-300 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]">
+            <div className="rounded-2xl border border-dashed border-neutral-200/70 bg-gradient-to-r from-white via-slate-50/70 to-white/95 p-6 text-sm text-neutral-500 shadow-[0_26px_58px_-38px_rgba(47,128,237,0.34)] backdrop-blur-sm dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]">
               No tailored suggestions right now. Add interests in your profile to help us recommend peers.
             </div>
           )}
@@ -869,7 +869,7 @@ export default function FriendsPage() {
             <button
               onClick={() => setSortKey("recent")}
               className={cn(
-                "rounded-full border border-neutral-200/70 bg-white/80 px-3 py-1.5 text-neutral-600 shadow-[0_18px_36px_-28px_rgba(47,128,237,0.3)] transition hover:border-lernex-blue/40 hover:text-lernex-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/20 dark:border-neutral-700 dark:bg-white/10 dark:text-neutral-300 dark:shadow-none",
+                "rounded-full border border-neutral-200/70 bg-white/80 px-3 py-1.5 text-neutral-600 shadow-[0_18px_36px_-28px_rgba(47,128,237,0.3)] transition hover:border-lernex-blue/40 hover:text-lernex-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/20 dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-none",
                 sortKey === "recent" && "border-lernex-blue/40 bg-gradient-to-r from-lernex-blue/15 to-lernex-purple/20 text-lernex-blue"
               )}
             >
@@ -878,7 +878,7 @@ export default function FriendsPage() {
             <button
               onClick={() => setSortKey("streak")}
               className={cn(
-                "rounded-full border border-neutral-200/70 bg-white/80 px-3 py-1.5 text-neutral-600 shadow-[0_18px_36px_-28px_rgba(47,128,237,0.3)] transition hover:border-lernex-blue/40 hover:text-lernex-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/20 dark:border-neutral-700 dark:bg-white/10 dark:text-neutral-300 dark:shadow-none",
+                "rounded-full border border-neutral-200/70 bg-white/80 px-3 py-1.5 text-neutral-600 shadow-[0_18px_36px_-28px_rgba(47,128,237,0.3)] transition hover:border-lernex-blue/40 hover:text-lernex-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/20 dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-none",
                 sortKey === "streak" && "border-lernex-blue/40 bg-gradient-to-r from-lernex-blue/15 to-lernex-purple/20 text-lernex-blue"
               )}
             >
@@ -887,7 +887,7 @@ export default function FriendsPage() {
             <button
               onClick={() => setSortKey("points")}
               className={cn(
-                "rounded-full border border-neutral-200/70 bg-white/80 px-3 py-1.5 text-neutral-600 shadow-[0_18px_36px_-28px_rgba(47,128,237,0.3)] transition hover:border-lernex-blue/40 hover:text-lernex-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/20 dark:border-neutral-700 dark:bg-white/10 dark:text-neutral-300 dark:shadow-none",
+                "rounded-full border border-neutral-200/70 bg-white/80 px-3 py-1.5 text-neutral-600 shadow-[0_18px_36px_-28px_rgba(47,128,237,0.3)] transition hover:border-lernex-blue/40 hover:text-lernex-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/20 dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-none",
                 sortKey === "points" && "border-lernex-blue/40 bg-gradient-to-r from-lernex-blue/15 to-lernex-purple/20 text-lernex-blue"
               )}
             >
@@ -896,7 +896,7 @@ export default function FriendsPage() {
             <button
               onClick={() => setSortKey("mutual")}
               className={cn(
-                "rounded-full border border-neutral-200/70 bg-white/80 px-3 py-1.5 text-neutral-600 shadow-[0_18px_36px_-28px_rgba(47,128,237,0.3)] transition hover:border-lernex-blue/40 hover:text-lernex-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/20 dark:border-neutral-700 dark:bg-white/10 dark:text-neutral-300 dark:shadow-none",
+                "rounded-full border border-neutral-200/70 bg-white/80 px-3 py-1.5 text-neutral-600 shadow-[0_18px_36px_-28px_rgba(47,128,237,0.3)] transition hover:border-lernex-blue/40 hover:text-lernex-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/20 dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-none",
                 sortKey === "mutual" && "border-lernex-blue/40 bg-gradient-to-r from-lernex-blue/15 to-lernex-purple/20 text-lernex-blue"
               )}
             >
@@ -905,7 +905,7 @@ export default function FriendsPage() {
           </div>
         </div>
         {sortedFriends.length === 0 && (
-          <div className="mt-4 rounded-3xl border border-dashed border-neutral-200/70 bg-gradient-to-r from-white via-slate-50/70 to-white/95 p-6 text-sm text-neutral-500 shadow-[0_28px_60px_-40px_rgba(47,128,237,0.32)] backdrop-blur-sm dark:border-neutral-700 dark:bg-white/5 dark:text-neutral-300 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]">
+          <div className="mt-4 rounded-3xl border border-dashed border-neutral-200/70 bg-gradient-to-r from-white via-slate-50/70 to-white/95 p-6 text-sm text-neutral-500 shadow-[0_28px_60px_-40px_rgba(47,128,237,0.32)] backdrop-blur-sm dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]">
             No friends yet. Start by sending a request or inviting someone with your link.
           </div>
         )}
@@ -916,7 +916,7 @@ export default function FriendsPage() {
             return (
               <article
                 key={friend.id}
-                className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-4 shadow-[0_32px_64px_-42px_rgba(47,128,237,0.34)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_40px_74px_-38px_rgba(47,128,237,0.42)] dark:border-neutral-800 dark:bg-white/5 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
+                className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-4 shadow-[0_32px_64px_-42px_rgba(47,128,237,0.34)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_40px_74px_-38px_rgba(47,128,237,0.42)] dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
               >
                 <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 dark:hidden">
                   <div className="absolute inset-0 bg-gradient-to-br from-lernex-blue/10 via-transparent to-lernex-purple/10" />
@@ -934,18 +934,18 @@ export default function FriendsPage() {
                       <button
                         onClick={() => handleRemoveFriend(friend.id, label)}
                         disabled={removeKey}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200/70 bg-white/80 text-neutral-500 shadow-[0_16px_30px_-24px_rgba(47,128,237,0.25)] transition hover:border-rose-300 hover:text-rose-500 disabled:cursor-not-allowed disabled:shadow-none dark:border-neutral-700 dark:bg-white/10 dark:text-neutral-300 dark:shadow-none"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200/70 bg-white/80 text-neutral-500 shadow-[0_16px_30px_-24px_rgba(47,128,237,0.25)] transition hover:border-rose-300 hover:text-rose-500 disabled:cursor-not-allowed disabled:shadow-none dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-none"
                         title="Remove friend"
                       >
                         {removeKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserMinus className="h-4 w-4" />}
                       </button>
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-neutral-600 dark:text-neutral-400">
-                      <div className="rounded-xl border border-neutral-200/60 bg-white/85 px-3 py-2 shadow-[0_22px_40px_-28px_rgba(47,128,237,0.3)] dark:border-neutral-700 dark:bg-white/10 dark:shadow-none">
+                      <div className="rounded-xl border border-neutral-200/60 bg-white/85 px-3 py-2 shadow-[0_22px_40px_-28px_rgba(47,128,237,0.3)] dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-none">
                         <div className="flex items-center gap-2"><Flame className="h-3.5 w-3.5 text-orange-500" /> {friend.streak} day streak</div>
                         <div className="mt-1 text-[11px] text-neutral-400 dark:text-neutral-500">Last studied {formatRelative(friend.lastStudyDate)}</div>
                       </div>
-                      <div className="rounded-xl border border-neutral-200/60 bg-white/85 px-3 py-2 shadow-[0_22px_40px_-28px_rgba(47,128,237,0.3)] dark:border-neutral-700 dark:bg-white/10 dark:shadow-none">
+                      <div className="rounded-xl border border-neutral-200/60 bg-white/85 px-3 py-2 shadow-[0_22px_40px_-28px_rgba(47,128,237,0.3)] dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-none">
                         <div className="flex items-center gap-2"><Star className="h-3.5 w-3.5 text-amber-500" /> {friend.points} pts</div>
                         <div className="mt-1 text-[11px] text-neutral-400 dark:text-neutral-500">Mutual {friend.mutualFriends}</div>
                       </div>
@@ -958,7 +958,7 @@ export default function FriendsPage() {
                     <div className="mt-4 flex flex-wrap gap-2 text-xs">
                       <button
                         onClick={() => setToast({ message: "Nudge sent to " + label + " (coming soon)", tone: "neutral" })}
-                        className="inline-flex items-center gap-2 rounded-full border border-neutral-200/70 bg-white/80 px-3 py-1.5 text-neutral-600 shadow-[0_18px_36px_-28px_rgba(47,128,237,0.3)] transition hover:border-lernex-blue/40 hover:text-lernex-blue disabled:cursor-not-allowed dark:border-neutral-700 dark:bg-white/10 dark:text-neutral-300 dark:shadow-none"
+                        className="inline-flex items-center gap-2 rounded-full border border-neutral-200/70 bg-white/80 px-3 py-1.5 text-neutral-600 shadow-[0_18px_36px_-28px_rgba(47,128,237,0.3)] transition hover:border-lernex-blue/40 hover:text-lernex-blue disabled:cursor-not-allowed dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-none"
                       >
                         <Send className="h-3.5 w-3.5" /> Send nudge
                       </button>
@@ -989,7 +989,7 @@ export default function FriendsPage() {
             "mt-4 rounded-3xl p-4",
             "border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95",
             "shadow-[0_32px_70px_-45px_rgba(47,128,237,0.38)] backdrop-blur-sm transition-colors duration-300",
-            "dark:border-neutral-800 dark:bg-white/5 dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
+            "dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
           )}
         >
           {data.recentActivity.length === 0 && (
@@ -1003,7 +1003,7 @@ export default function FriendsPage() {
                 return (
                   <li
                     key={item.userId + ":" + index}
-                    className="flex items-center gap-4 rounded-2xl border border-neutral-200/60 bg-white/80 px-2 py-2 text-neutral-600 shadow-[0_24px_55px_-38px_rgba(47,128,237,0.32)] transition hover:border-lernex-blue/40 hover:bg-lernex-blue/5 dark:border-neutral-700 dark:bg-white/5 dark:text-neutral-300 dark:shadow-none dark:hover:border-neutral-600 dark:hover:bg-white/10"
+                    className="flex items-center gap-4 rounded-2xl border border-neutral-200/60 bg-white/80 px-2 py-2 text-neutral-600 shadow-[0_24px_55px_-38px_rgba(47,128,237,0.32)] transition hover:border-lernex-blue/40 hover:bg-lernex-blue/5 dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-none dark:hover:border-neutral-600 dark:hover:bg-white/10"
                   >
                     <Avatar name={label} src={item.avatarUrl} size={40} />
                     <div className="flex-1">

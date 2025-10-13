@@ -9,58 +9,40 @@ type ThemeMode = "light" | "dark";
 const sanitizeTheme = (value: string | null): ThemeMode | null =>
   value === "light" || value === "dark" ? value : null;
 
-const readStoredTheme = (): ThemeMode | null => {
-  if (typeof window === "undefined") return null;
+function migrateLegacyStorage() {
+  if (typeof window === "undefined") return;
   try {
-    return sanitizeTheme(window.localStorage.getItem(STORAGE_KEY));
+    const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (legacy == null) return;
+    const next = sanitizeTheme(legacy);
+    if (next) {
+      window.localStorage.setItem(STORAGE_KEY, next);
+    }
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
-    return null;
+    /* no-op */
   }
-};
+}
 
 function SyncThemeFromProfile() {
-  const { resolvedTheme, setTheme } = useTheme();
+  const { setTheme } = useTheme();
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
-      if (legacy != null) {
-        const migrated = sanitizeTheme(legacy);
-        if (migrated) {
-          window.localStorage.setItem(STORAGE_KEY, migrated);
-        }
-        window.localStorage.removeItem(LEGACY_STORAGE_KEY);
-      }
-    } catch {}
+    migrateLegacyStorage();
   }, []);
-
-  useEffect(() => {
-    const stored = readStoredTheme();
-    if (!stored) {
-      if (typeof window !== "undefined") {
-        try {
-          window.localStorage.setItem(STORAGE_KEY, "dark");
-        } catch {}
-      }
-      if (resolvedTheme !== "dark") setTheme("dark");
-      return;
-    }
-    if (stored !== resolvedTheme) {
-      setTheme(stored);
-    }
-  }, [resolvedTheme, setTheme]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     let cancelled = false;
-    const initialStored = (() => {
+
+    const stored = (() => {
       try {
-        return window.localStorage.getItem(STORAGE_KEY);
+        return sanitizeTheme(window.localStorage.getItem(STORAGE_KEY));
       } catch {
         return null;
       }
     })();
+    if (stored) return;
 
     (async () => {
       try {
@@ -69,23 +51,10 @@ function SyncThemeFromProfile() {
         const me = await res.json();
         const pref = sanitizeTheme(me?.theme_pref ?? null);
         if (!pref || cancelled) return;
-
-        const currentStored = (() => {
-          try {
-            return window.localStorage.getItem(STORAGE_KEY);
-          } catch {
-            return null;
-          }
-        })();
-
-        if (currentStored && currentStored !== initialStored) {
-          return;
-        }
-        if (currentStored === pref) {
-          return;
-        }
         setTheme(pref);
-      } catch {}
+      } catch {
+        /* ignore */
+      }
     })();
 
     return () => {

@@ -480,7 +480,7 @@ export default function Playlists() {
       </div>
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-20 pt-10 sm:px-6 lg:px-8">
         <div className="space-y-8">
-          <section className="relative overflow-hidden rounded-3xl border border-white/70 bg-gradient-to-br from-white via-[#f6f9ff] to-white p-8 shadow-[0_32px_75px_-48px_rgba(47,128,237,0.45)] backdrop-blur-xl dark:border-white/10 dark:from-lernex-blue/15 dark:via-lernex-charcoal/40 dark:to-lernex-purple/15">
+        <section className="relative overflow-hidden rounded-3xl border border-white/70 bg-gradient-to-br from-white via-[#f6f9ff] to-white p-8 shadow-[0_32px_75px_-48px_rgba(47,128,237,0.45)] backdrop-blur-xl dark:border-white/10 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c]">
             <motion.span
               initial={{ opacity: 0, scale: 0.6 }}
               animate={{ opacity: 0.6, scale: 1 }}
@@ -583,7 +583,7 @@ export default function Playlists() {
               ) : null}
             </div>
           </section>
-          <section className="rounded-3xl border border-neutral-200/70 bg-gradient-to-br from-white via-white to-[#f5f9ff] p-6 shadow-[0_24px_80px_-50px_rgba(47,128,237,0.42)] backdrop-blur dark:border-white/10 dark:bg-white/5">
+        <section className="rounded-3xl border border-[var(--surface-border)] bg-gradient-to-br from-white via-white to-[#f5f9ff] p-6 shadow-[0_24px_80px_-50px_rgba(47,128,237,0.42)] backdrop-blur dark:bg-gradient-to-br dark:from-[#0f172a] dark:via-[#0b1220] dark:to-[#080d18]">
             {loading ? (
               <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
                 {Array.from({ length: 6 }).map((_, idx) => (
@@ -664,7 +664,7 @@ export default function Playlists() {
               exit={{ opacity: 0, y: 20, scale: 0.98 }}
               role="dialog"
               aria-modal="true"
-              className="relative z-10 w-full max-w-md rounded-3xl border border-neutral-200/80 bg-gradient-to-br from-white via-[#f7f9ff] to-white p-6 shadow-2xl backdrop-blur-lg dark:border-white/10 dark:bg-lernex-charcoal"
+              className="relative z-10 w-full max-w-md rounded-3xl border border-[var(--surface-border)] bg-gradient-to-br from-white via-[#f7f9ff] to-white p-6 shadow-2xl backdrop-blur-lg dark:bg-gradient-to-br dark:from-[#111a2c] dark:via-[#0d1524] dark:to-[#0a101d]"
             >
               <div className="flex items-start gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-500 dark:bg-red-500/15 dark:text-red-200">
@@ -771,7 +771,7 @@ function PlaylistCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className="group flex h-full flex-col justify-between rounded-3xl border border-neutral-200/80 bg-gradient-to-br from-white via-white to-[#f6f9ff] p-6 shadow-[0_20px_60px_-40px_rgba(47,128,237,0.38)] transition-all hover:-translate-y-1 hover:border-lernex-blue/60 hover:shadow-[0_32px_80px_-42px_rgba(47,128,237,0.55)] dark:border-white/10 dark:bg-white/10"
+      className="group flex h-full flex-col justify-between rounded-3xl border border-[var(--surface-border)] bg-gradient-to-br from-white via-white to-[#f6f9ff] p-6 shadow-[0_20px_60px_-40px_rgba(47,128,237,0.38)] transition-all hover:-translate-y-1 hover:border-lernex-blue/60 hover:shadow-[0_32px_80px_-42px_rgba(47,128,237,0.55)] dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c]"
     >
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
@@ -1242,7 +1242,7 @@ function SharePanel({
             exit={{ opacity: 0, y: 20, scale: 0.98 }}
             role="dialog"
             aria-modal="true"
-            className="relative z-10 w-full max-w-2xl rounded-3xl border border-neutral-200/80 bg-gradient-to-br from-white via-[#f7f9ff] to-white p-6 shadow-2xl backdrop-blur-lg dark:border-white/10 dark:bg-lernex-charcoal"
+            className="relative z-10 w-full max-w-2xl rounded-3xl border border-[var(--surface-border)] bg-gradient-to-br from-white via-[#f7f9ff] to-white p-6 shadow-2xl backdrop-blur-lg dark:bg-gradient-to-br dark:from-[#111a2c] dark:via-[#0d1524] dark:to-[#0a101d]"
           >
             <div className="flex items-start justify-between gap-4">
               <div>

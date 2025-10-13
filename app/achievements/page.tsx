@@ -1,4 +1,4 @@
-ï»¿"use client";
+"use client";
 
 import Link from "next/link";
 import type { JSX } from "react";
@@ -629,7 +629,7 @@ export default function AchievementsPage(): JSX.Element {
   if (!user && !statsLoading) {
     return (
       <main className="min-h-[calc(100vh-56px)] mx-auto flex w-full max-w-3xl items-center justify-center px-4 py-16 text-neutral-900 dark:text-white">
-        <div className="w-full max-w-xl rounded-3xl border border-white/70 bg-gradient-to-br from-white via-sky-50 to-white p-10 text-center shadow-xl ring-1 ring-black/5 backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:ring-0">
+        <div className="w-full max-w-xl rounded-3xl border border-white/70 bg-gradient-to-br from-white via-sky-50 to-white p-10 text-center shadow-xl ring-1 ring-black/5 backdrop-blur-sm dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0">
           <Sparkles className="mx-auto h-10 w-10 text-lernex-blue" />
           <h1 className="mt-4 text-3xl font-semibold">Achievements</h1>
           <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
@@ -676,7 +676,7 @@ export default function AchievementsPage(): JSX.Element {
         </div>
       )}
 
-      <section className="relative overflow-hidden rounded-3xl border border-white/70 bg-gradient-to-br from-white via-sky-50 to-indigo-50 p-6 shadow-lg ring-1 ring-black/5 backdrop-blur-sm transition-colors dark:border-neutral-800 dark:from-lernex-blue/20 dark:via-neutral-950 dark:to-neutral-950 dark:ring-0">
+      <section className="relative overflow-hidden rounded-3xl border border-white/70 bg-gradient-to-br from-white via-sky-50 to-indigo-50 p-6 shadow-lg ring-1 ring-black/5 backdrop-blur-sm transition-colors dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#080d18] dark:ring-0">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute -left-32 -top-28 h-72 w-72 rounded-full bg-lernex-blue/20 blur-3xl opacity-80 dark:bg-lernex-blue/40 -z-10"
@@ -713,7 +713,7 @@ export default function AchievementsPage(): JSX.Element {
               </span>
             </div>
           </div>
-          <div className="grid w-full max-w-sm grid-cols-2 gap-3 rounded-2xl border border-white/60 bg-white/80 p-4 text-sm shadow-inner ring-1 ring-black/5 backdrop-blur dark:border-neutral-800/70 dark:bg-neutral-900/80 dark:ring-0 md:max-w-xs">
+          <div className="grid w-full max-w-sm grid-cols-2 gap-3 rounded-2xl border border-white/60 bg-white/80 p-4 text-sm shadow-inner ring-1 ring-black/5 backdrop-blur dark:border-neutral-800/70 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0 md:max-w-xs">
             <div>
               <div className="text-xs text-neutral-500 dark:text-neutral-400">
                 Current streak
@@ -743,7 +743,7 @@ export default function AchievementsPage(): JSX.Element {
                 Accuracy
               </div>
               <div className="mt-1 text-2xl font-semibold">
-                {accuracyPercent != null ? `${accuracyPercent}%` : "â€”"}
+                {accuracyPercent != null ? `${accuracyPercent}%` : "—"}
               </div>
               <div className="mt-1 text-[11px] text-neutral-500">
                 Based on {totalQuestions} questions
@@ -804,7 +804,7 @@ export default function AchievementsPage(): JSX.Element {
           {
             id: "accuracy",
             label: "Overall accuracy",
-            value: accuracyPercent != null ? `${accuracyPercent}%` : "â€”",
+            value: accuracyPercent != null ? `${accuracyPercent}%` : "—",
             icon: Target,
             progress:
               accuracyPercent != null ? Math.min(1, accuracyPercent / 100) : 0,
@@ -818,7 +818,7 @@ export default function AchievementsPage(): JSX.Element {
           return (
             <div
               key={stat.id}
-              className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-lg dark:border-neutral-800 dark:bg-neutral-900/80 dark:ring-0"
+              className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-lg dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0"
             >
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -850,7 +850,7 @@ export default function AchievementsPage(): JSX.Element {
       </section>
 
       <section className="mt-8 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-neutral-900/80 dark:ring-0">
+        <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">Weekly rhythm</h2>
@@ -912,7 +912,7 @@ export default function AchievementsPage(): JSX.Element {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-neutral-900/80 dark:ring-0">
+        <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">Subject focus</h2>
@@ -940,7 +940,7 @@ export default function AchievementsPage(): JSX.Element {
                     <span className="text-neutral-500 dark:text-neutral-400">
                       {subject.accuracy != null
                         ? `${Math.round(subject.accuracy * 100)}%`
-                        : "â€”"}
+                        : "—"}
                     </span>
                   </div>
                   <div className="mt-2 h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-800">
@@ -1013,7 +1013,7 @@ export default function AchievementsPage(): JSX.Element {
                 className={`relative overflow-hidden rounded-2xl border p-5 transition ${
                   badge.unlocked
                     ? "border-lernex-blue/30 bg-lernex-blue/10 text-lernex-blue-950 shadow ring-1 ring-lernex-blue/30"
-                    : "border-white/70 bg-gradient-to-br from-white via-slate-50 to-white text-neutral-900 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-white dark:ring-0"
+                    : "border-white/70 bg-gradient-to-br from-white via-slate-50 to-white text-neutral-900 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-white dark:ring-0"
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -1063,7 +1063,7 @@ export default function AchievementsPage(): JSX.Element {
       </section>
 
       <section className="mt-8 grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-neutral-900/80 dark:ring-0 lg:col-span-2">
+        <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0 lg:col-span-2">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">Recent highlights</h2>
@@ -1110,7 +1110,7 @@ export default function AchievementsPage(): JSX.Element {
         </div>
 
         <div className="flex h-full flex-col gap-4">
-          <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-neutral-900/80 dark:ring-0">
+          <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0">
             <h2 className="text-lg font-semibold">Next best action</h2>
             {primarySubject ? (
               <div className="mt-3 text-sm">
@@ -1182,7 +1182,7 @@ export default function AchievementsPage(): JSX.Element {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 text-sm shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-neutral-900/80 dark:ring-0">
+          <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 text-sm shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0">
             <h2 className="text-lg font-semibold">More ways to celebrate</h2>
             <ul className="mt-3 space-y-3 text-xs text-neutral-600 dark:text-neutral-300">
               <li>
