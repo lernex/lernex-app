@@ -2,18 +2,22 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import Groq from "groq-sdk";
-import type { ChatCompletion } from "groq-sdk/resources/chat/completions";
+import OpenAI from "openai";
+import type { ChatCompletion } from "openai/resources/chat/completions";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlacementState, PlacementItem, Difficulty, PlacementNextResponse } from "@/types/placement";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
-const ai = new Groq({
-  apiKey: process.env.GROQ_API_KEY!,
+const ai = new OpenAI({
+  apiKey: process.env.CEREBRAS_API_KEY!,
+  baseURL: process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1",
 });
 const MAX_TOKENS = Math.min(
   1800,
-  Math.max(800, Number(process.env.GROQ_PLACEMENT_MAX_TOKENS ?? "1300") || 1300),
+  Math.max(
+    800,
+    Number(process.env.CEREBRAS_PLACEMENT_MAX_TOKENS ?? process.env.GROQ_PLACEMENT_MAX_TOKENS ?? "1300") || 1300,
+  ),
 );
 
 // Safety

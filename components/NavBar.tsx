@@ -375,13 +375,6 @@ export default function NavBar() {
                         >
                           Settings
                         </Link>
-                        <Link
-                          href="/profile"
-                          className="block px-4 py-2 text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
-                          onClick={() => setOpen(false)}
-                        >
-                          Profile
-                        </Link>
                         <a
                           href="https://lernex-1.gitbook.io/lernex"
                           className="block px-4 py-2 text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
@@ -477,13 +470,6 @@ export default function NavBar() {
                       onClick={() => setOpen(false)}
                     >
                       Settings
-                    </Link>
-                    <Link
-                      href="/profile"
-                      className="block px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
-                      onClick={() => setOpen(false)}
-                    >
-                      Profile
                     </Link>
                     <a
                       href="https://lernex-1.gitbook.io/lernex"

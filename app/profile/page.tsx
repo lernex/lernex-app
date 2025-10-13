@@ -13,6 +13,8 @@ import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { AnimatePresence, motion } from "framer-motion";
 import { Camera, CheckCircle2, Loader2, UploadCloud } from "lucide-react";
 
@@ -20,6 +22,9 @@ const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 type FeedbackTone = "success" | "error" | "info";
 type FeedbackState = { message: string; tone: FeedbackTone };
+
+type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid";
+type ThemePreference = "light" | "dark" | "system";
 
 const toneClass: Record<FeedbackTone, string> = {
   success: "text-emerald-600 dark:text-emerald-400",
@@ -33,7 +38,7 @@ const cardMotion = {
   transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
 } as const;
 
-export default function Profile() {
+export default function SettingsPage() {
   const { accuracyBySubject } = useLernexStore();
   const { stats } = useProfileStats();
   const points = stats?.points ?? 0;
@@ -51,6 +56,17 @@ export default function Profile() {
   const [isDragActive, setIsDragActive] = useState(false);
   const supabase = useMemo(() => supabaseBrowser(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const router = useRouter();
+  const { setTheme } = useTheme();
+  const [dob, setDob] = useState<string>("");
+  const [themePreference, setThemePreference] = useState<ThemePreference>("dark");
+  const [accountLoading, setAccountLoading] = useState(true);
+  const [preferencesSaving, setPreferencesSaving] = useState(false);
+  const [preferencesFeedback, setPreferencesFeedback] = useState<FeedbackState | null>(null);
+  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
+  const [usernameStatusMessage, setUsernameStatusMessage] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [initialUsername, setInitialUsername] = useState<string>("");
 
   useEffect(() => {
     let active = true;
@@ -80,6 +96,7 @@ export default function Profile() {
           const profileUsername =
             typeof profile?.username === "string" ? (profile.username as string) : "";
           setUsername(profileUsername);
+          setInitialUsername(profileUsername.trim());
           const storedAvatar =
             typeof profile?.avatar_url === "string" ? (profile.avatar_url as string) : null;
           if (storedAvatar && storedAvatar !== metaAvatar) {
@@ -94,6 +111,63 @@ export default function Profile() {
     };
   }, [supabase]);
 
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        setAccountLoading(true);
+        const res = await fetch("/api/profile/me", { cache: "no-store" });
+        if (!active) return;
+        if (res.status === 401) {
+          router.replace("/login");
+          return;
+        }
+        if (!res.ok) {
+          setPreferencesFeedback({
+            message: "Failed to load account settings.",
+            tone: "error",
+          });
+          return;
+        }
+        const data = await res.json().catch(() => null);
+        if (!active || !data) return;
+        const fetchedUsername =
+          typeof data.username === "string" ? (data.username as string) : "";
+        if (fetchedUsername.trim()) {
+          setUsername(fetchedUsername);
+        }
+        setInitialUsername(fetchedUsername.trim());
+        setDob(typeof data.dob === "string" ? data.dob : "");
+        const themePrefRaw = data?.theme_pref;
+        const nextTheme: ThemePreference =
+          themePrefRaw === "system" || themePrefRaw === "light" || themePrefRaw === "dark"
+            ? themePrefRaw
+            : "dark";
+        setThemePreference(nextTheme);
+        setTheme(nextTheme);
+        setUsernameStatus("idle");
+        setUsernameStatusMessage("");
+        setPreferencesFeedback(null);
+      } catch {
+        if (!active) return;
+        setPreferencesFeedback({
+          message: "Could not load account settings.",
+          tone: "error",
+        });
+      } finally {
+        if (active) {
+          setAccountLoading(false);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      active = false;
+    };
+  }, [router, setTheme]);
+
   useEffect(
     () => () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -101,14 +175,79 @@ export default function Profile() {
     [previewUrl],
   );
 
+  useEffect(() => {
+    const trimmed = username.trim();
+    const baseline = initialUsername.trim();
+    if (!trimmed) {
+      setUsernameStatus("idle");
+      setUsernameStatusMessage("");
+      return;
+    }
+    if (trimmed === baseline) {
+      setUsernameStatus("available");
+      setUsernameStatusMessage("Current username");
+      return;
+    }
+    if (trimmed.length < 3 || trimmed.length > 20 || !/^[a-zA-Z0-9_]+$/.test(trimmed)) {
+      setUsernameStatus("invalid");
+      setUsernameStatusMessage("3-20 chars: letters, numbers, _");
+      return;
+    }
+    const controller = new AbortController();
+    setUsernameStatus("checking");
+    setUsernameStatusMessage("Checking...");
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/profile/username/check?username=${encodeURIComponent(trimmed)}`,
+          { cache: "no-store", signal: controller.signal },
+        );
+        if (!res.ok) {
+          throw new Error("check failed");
+        }
+        const payload = await res.json().catch(() => ({}));
+        if (controller.signal.aborted) return;
+        if (payload?.available) {
+          setUsernameStatus("available");
+          setUsernameStatusMessage("Available");
+        } else {
+          setUsernameStatus("taken");
+          setUsernameStatusMessage("Taken");
+        }
+      } catch {
+        if (controller.signal.aborted) return;
+        setUsernameStatus("invalid");
+        setUsernameStatusMessage("Could not check");
+      }
+    }, 350);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [username, initialUsername]);
+
   const handleUsernameSave = useCallback(async () => {
     const trimmed = username.trim();
     if (!trimmed) {
       setUsernameFeedback({ message: "Username cannot be empty.", tone: "error" });
       return;
     }
+    if (usernameStatus === "checking") {
+      setUsernameFeedback({
+        message: "Hang tight, still checking availability.",
+        tone: "info",
+      });
+      return;
+    }
+    if (usernameStatus === "invalid" || usernameStatus === "taken") {
+      setUsernameFeedback({
+        message: usernameStatusMessage || "Choose a different username.",
+        tone: "error",
+      });
+      return;
+    }
     setUsernameSaving(true);
-    setUsernameFeedback({ message: "Saving username…", tone: "info" });
+    setUsernameFeedback({ message: "Saving username...", tone: "info" });
     try {
       const res = await fetch("/api/profile/update", {
         method: "POST",
@@ -120,6 +259,9 @@ export default function Profile() {
         throw new Error(payload?.error || "Failed to save profile.");
       }
       setUsername(trimmed);
+      setInitialUsername(trimmed);
+      setUsernameStatus("available");
+      setUsernameStatusMessage("Available");
       setUsernameFeedback({ message: "Profile updated.", tone: "success" });
     } catch (error) {
       const message =
@@ -128,7 +270,7 @@ export default function Profile() {
     } finally {
       setUsernameSaving(false);
     }
-  }, [username]);
+  }, [username, usernameStatus, usernameStatusMessage]);
 
   const handleUpload = useCallback(
     async (file: File) => {
@@ -267,6 +409,52 @@ export default function Profile() {
       setAvatarSaving(false);
     }
   }, [avatar, avatarUrlInput, supabase, userId]);
+  const handlePreferencesSave = useCallback(async () => {
+    setPreferencesSaving(true);
+    setPreferencesFeedback({ message: "Saving settings...", tone: "info" });
+    try {
+      const res = await fetch("/api/profile/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dob: dob ? dob : null,
+          theme_pref: themePreference,
+        }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to save settings.");
+      }
+      setPreferencesFeedback({ message: "Settings saved.", tone: "success" });
+    } catch (error) {
+      const message =
+        (error as { message?: string } | undefined)?.message || "Could not save settings.";
+      setPreferencesFeedback({ message, tone: "error" });
+    } finally {
+      setPreferencesSaving(false);
+    }
+  }, [dob, themePreference]);
+
+  const handleDeleteAccount = useCallback(async () => {
+    if (!window.confirm("Delete your account? This cannot be undone.")) return;
+    setDeleteBusy(true);
+    setPreferencesFeedback({ message: "Deleting account...", tone: "info" });
+    try {
+      const res = await fetch("/api/profile/delete", { method: "POST" });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload?.error || "Could not delete account.");
+      }
+      window.location.href = "/";
+    } catch (error) {
+      const message =
+        (error as { message?: string } | undefined)?.message || "Could not delete account.";
+      setPreferencesFeedback({ message, tone: "error" });
+    } finally {
+      setDeleteBusy(false);
+    }
+  }, []);
+
   const subjects = useMemo(
     () => Object.entries(accuracyBySubject).sort((a, b) => b[1].total - a[1].total),
     [accuracyBySubject],
@@ -282,9 +470,8 @@ export default function Profile() {
   const nextMilestone = Math.max(0, 7 - ((streak ?? 0) % 7));
 
   return (
-    <main className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-gradient-to-br from-lernex-blue/5 via-white/10 to-transparent px-0 text-neutral-900 dark:from-[#0f172a] dark:via-[#020617] dark:to-black dark:text-white">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_farthest-side_at_top,_rgba(59,130,246,0.22),_transparent)] dark:bg-[radial-gradient(circle_farthest-side_at_top,_rgba(56,189,248,0.25),_transparent)]" />
-      <div className="relative z-10 mx-auto w-full max-w-5xl px-4 pb-16 pt-12">
+    <main className="min-h-[calc(100vh-56px)] px-0 text-neutral-900 dark:text-white">
+      <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-12">
         <input
           ref={fileInputRef}
           type="file"
@@ -482,17 +669,15 @@ export default function Profile() {
       >
         <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
           <div>
-            <h3 className="text-base font-semibold">Profile preferences</h3>
+            <h3 className="text-base font-semibold">Account settings</h3>
             <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              Fine-tune your username and avatar from one place.
+              Manage how others see you and how Lernex behaves.
             </p>
           </div>
-          <Link
-            href="/settings"
-            className="inline-flex items-center gap-2 rounded-full border border-white/40 px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10"
-          >
-            Manage settings
-          </Link>
+          <div className="inline-flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+            <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            Changes take effect once you save.
+          </div>
         </div>
         <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr),minmax(0,1.2fr)]">
           <div className="rounded-2xl border border-white/30 bg-white/70 p-5 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-neutral-950/60">
@@ -507,13 +692,34 @@ export default function Profile() {
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               placeholder="your_name"
-              className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 dark:border-neutral-700 dark:bg-neutral-950"
+              disabled={accountLoading}
+              className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950"
             />
-            <div className="mt-3 flex items-center gap-2">
+            {usernameStatus !== "idle" && usernameStatusMessage ? (
+              <p
+                className={`mt-2 text-xs font-medium ${
+                  usernameStatus === "available"
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : usernameStatus === "checking"
+                    ? "text-neutral-500 dark:text-neutral-400"
+                    : "text-rose-600 dark:text-rose-400"
+                }`}
+              >
+                {usernameStatusMessage}
+              </p>
+            ) : null}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={handleUsernameSave}
-                disabled={usernameSaving || !username.trim()}
+                disabled={
+                  usernameSaving ||
+                  !username.trim() ||
+                  usernameStatus === "checking" ||
+                  usernameStatus === "invalid" ||
+                  usernameStatus === "taken" ||
+                  username.trim() === initialUsername.trim()
+                }
                 className="inline-flex items-center justify-center rounded-xl bg-lernex-blue px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg disabled:pointer-events-none disabled:opacity-60"
               >
                 {usernameSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save username"}
@@ -532,8 +738,87 @@ export default function Profile() {
                 </motion.p>
               ) : null}
             </AnimatePresence>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <label
+                  htmlFor="dob"
+                  className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400"
+                >
+                  Date of birth
+                </label>
+                <input
+                  id="dob"
+                  type="date"
+                  value={dob}
+                  onChange={(event) => setDob(event.target.value)}
+                  disabled={accountLoading || preferencesSaving}
+                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label
+                  htmlFor="themePref"
+                  className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400"
+                >
+                  Theme preference
+                </label>
+                <select
+                  id="themePref"
+                  value={themePreference}
+                  onChange={(event) => {
+                    const next = event.target.value as ThemePreference;
+                    setThemePreference(next);
+                    setTheme(next);
+                  }}
+                  disabled={accountLoading || preferencesSaving}
+                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950"
+                >
+                  <option value="system">System</option>
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handlePreferencesSave}
+                disabled={preferencesSaving || accountLoading}
+                className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg disabled:pointer-events-none disabled:opacity-60"
+              >
+                {preferencesSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save settings"}
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/onboarding")}
+                className="inline-flex items-center justify-center rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10"
+              >
+                Edit subjects
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deleteBusy}
+                className="ml-auto inline-flex items-center justify-center rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg disabled:pointer-events-none disabled:opacity-60"
+              >
+                {deleteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete account"}
+              </button>
+            </div>
+            <AnimatePresence mode="wait">
+              {preferencesFeedback ? (
+                <motion.p
+                  key={`${preferencesFeedback.tone}-${preferencesFeedback.message}`}
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 6 }}
+                  className={`mt-3 text-xs font-medium ${toneClass[preferencesFeedback.tone]}`}
+                >
+                  {preferencesFeedback.message}
+                </motion.p>
+              ) : null}
+            </AnimatePresence>
             <p className="mt-4 text-xs text-neutral-500 dark:text-neutral-400">
-              Tip: Clear usernames and expressive avatars help friends recognize you faster.
+              Tip: Keep your profile details current so recommendations stay relevant.
             </p>
           </div>
           <div className="space-y-4">
