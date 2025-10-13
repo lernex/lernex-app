@@ -133,8 +133,12 @@ ${avoidText}
 Create exactly one discriminative multiple-choice question from the course's appropriate units. Include a short explanation. The question should address a key topic within the course's own syllabus.
 `.trim();
 
-  // Cerebras 120B model; allow a slightly larger token budget
-  const model = "cerebras/gpt-oss-120b";
+  // Reuse explicit placement model if provided, otherwise fall back to existing Cerebras defaults
+  const model =
+    process.env.CEREBRAS_PLACEMENT_MODEL?.trim() ||
+    process.env.CEREBRAS_QUIZ_MODEL?.trim() ||
+    process.env.CEREBRAS_LESSON_MODEL?.trim() ||
+    "gpt-oss-120b";
   const TEMP = 0.4; // lower temp for more stable JSON
   const systemPrompt = depth === 0 ? systemNormal : systemTight;
 

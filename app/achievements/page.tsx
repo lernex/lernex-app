@@ -629,7 +629,7 @@ export default function AchievementsPage(): JSX.Element {
   if (!user && !statsLoading) {
     return (
       <main className="min-h-[calc(100vh-56px)] mx-auto flex w-full max-w-3xl items-center justify-center px-4 py-16 text-neutral-900 dark:text-white">
-        <div className="w-full max-w-xl rounded-3xl border border-neutral-200 bg-white/90 p-10 text-center shadow-lg backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/80">
+        <div className="w-full max-w-xl rounded-3xl border border-white/70 bg-gradient-to-br from-white via-sky-50 to-white p-10 text-center shadow-xl ring-1 ring-black/5 backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:ring-0">
           <Sparkles className="mx-auto h-10 w-10 text-lernex-blue" />
           <h1 className="mt-4 text-3xl font-semibold">Achievements</h1>
           <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
@@ -650,7 +650,19 @@ export default function AchievementsPage(): JSX.Element {
   }
 
   return (
-    <main className="min-h-[calc(100vh-56px)] mx-auto w-full max-w-5xl px-4 py-10 text-neutral-900 dark:text-white">
+    <main className="relative min-h-[calc(100vh-56px)] mx-auto w-full max-w-5xl overflow-hidden px-4 py-10 text-neutral-900 dark:text-white">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-[-40vw] -top-40 h-80 rounded-full bg-gradient-to-br from-sky-100 via-white to-transparent opacity-80 blur-3xl dark:hidden -z-10"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-[-25vw] top-1/2 h-[520px] -translate-y-1/2 rounded-full bg-gradient-to-br from-rose-50 via-amber-50/80 to-transparent opacity-70 blur-3xl dark:hidden -z-10"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-[-35vw] -top-48 hidden h-[520px] rounded-full bg-gradient-to-br from-lernex-blue/30 via-neutral-900/60 to-transparent opacity-70 blur-3xl dark:block -z-10"
+      />
       {error && (
         <div className="mb-6 flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
           <span>{error}</span>
@@ -664,10 +676,18 @@ export default function AchievementsPage(): JSX.Element {
         </div>
       )}
 
-      <section className="relative overflow-hidden rounded-3xl border border-neutral-200 bg-gradient-to-br from-lernex-blue/10 via-white to-white p-6 shadow-sm backdrop-blur dark:border-neutral-800 dark:from-lernex-blue/20 dark:via-neutral-950 dark:to-neutral-950">
+      <section className="relative overflow-hidden rounded-3xl border border-white/70 bg-gradient-to-br from-white via-sky-50 to-indigo-50 p-6 shadow-lg ring-1 ring-black/5 backdrop-blur-sm transition-colors dark:border-neutral-800 dark:from-lernex-blue/20 dark:via-neutral-950 dark:to-neutral-950 dark:ring-0">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -left-32 -top-28 h-72 w-72 rounded-full bg-lernex-blue/20 blur-3xl opacity-80 dark:bg-lernex-blue/40 -z-10"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-40 -bottom-32 h-96 w-96 rounded-full bg-sky-200/50 blur-3xl opacity-70 dark:hidden -z-10"
+        />
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-lernex-blue dark:bg-white/10 dark:text-lernex-blue/90">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-lernex-blue shadow-sm ring-1 ring-black/5 dark:bg-white/10 dark:text-lernex-blue/90 dark:ring-0">
               <Sparkles className="h-3.5 w-3.5" />
               Achievements
             </span>
@@ -679,21 +699,21 @@ export default function AchievementsPage(): JSX.Element {
               a stronger learning journey.
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
-              <span className="inline-flex items-center gap-2 rounded-full bg-neutral-900/5 px-3 py-1 dark:bg-white/10">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 shadow-sm ring-1 ring-black/5 dark:bg-white/10 dark:ring-0">
                 <Flame className="h-3.5 w-3.5 text-lernex-blue" />
                 {describeRelativeDays(daysSinceLastStudy)}
               </span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-neutral-900/5 px-3 py-1 dark:bg-white/10">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 shadow-sm ring-1 ring-black/5 dark:bg-white/10 dark:ring-0">
                 <BookOpen className="h-3.5 w-3.5 text-lernex-blue" />
                 {lessonsCompleted} lessons completed
               </span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-neutral-900/5 px-3 py-1 dark:bg-white/10">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 shadow-sm ring-1 ring-black/5 dark:bg-white/10 dark:ring-0">
                 <TrendingUp className="h-3.5 w-3.5 text-lernex-blue" />
                 {masteredCount} subjects mastered
               </span>
             </div>
           </div>
-          <div className="grid w-full max-w-sm grid-cols-2 gap-3 rounded-2xl border border-white/40 bg-white/60 p-4 text-sm shadow-inner backdrop-blur dark:border-neutral-800/70 dark:bg-neutral-900/80 md:max-w-xs">
+          <div className="grid w-full max-w-sm grid-cols-2 gap-3 rounded-2xl border border-white/60 bg-white/80 p-4 text-sm shadow-inner ring-1 ring-black/5 backdrop-blur dark:border-neutral-800/70 dark:bg-neutral-900/80 dark:ring-0 md:max-w-xs">
             <div>
               <div className="text-xs text-neutral-500 dark:text-neutral-400">
                 Current streak
@@ -798,7 +818,7 @@ export default function AchievementsPage(): JSX.Element {
           return (
             <div
               key={stat.id}
-              className="rounded-2xl border border-neutral-200 bg-white/90 p-5 shadow-sm transition hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900/80"
+              className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-lg dark:border-neutral-800 dark:bg-neutral-900/80 dark:ring-0"
             >
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -809,7 +829,7 @@ export default function AchievementsPage(): JSX.Element {
                     {stat.value}
                   </div>
                 </div>
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-lernex-blue/10 text-lernex-blue dark:bg-lernex-blue/20 dark:text-lernex-blue/90">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-lernex-blue/15 via-lernex-blue/10 to-white text-lernex-blue ring-1 ring-lernex-blue/20 dark:bg-lernex-blue/20 dark:text-lernex-blue/90 dark:ring-0">
                   <Icon className="h-5 w-5" />
                 </span>
               </div>
@@ -830,7 +850,7 @@ export default function AchievementsPage(): JSX.Element {
       </section>
 
       <section className="mt-8 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-neutral-200 bg-white/90 p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80">
+        <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-neutral-900/80 dark:ring-0">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">Weekly rhythm</h2>
@@ -859,7 +879,7 @@ export default function AchievementsPage(): JSX.Element {
                   key={day.key}
                   className="flex w-full flex-col items-center gap-2 text-xs"
                 >
-                  <div className="relative flex h-32 w-full items-end overflow-hidden rounded-full bg-neutral-200/70 dark:bg-neutral-800">
+                  <div className="relative flex h-32 w-full items-end overflow-hidden rounded-full bg-white/80 ring-1 ring-black/5 dark:bg-neutral-800 dark:ring-0">
                     <div
                       className={`w-full rounded-full bg-gradient-to-t from-lernex-blue/70 to-lernex-blue/40 transition-[height] ${
                         day.isToday ? "ring-2 ring-lernex-blue/60" : ""
@@ -867,7 +887,7 @@ export default function AchievementsPage(): JSX.Element {
                       style={{ height: `${heightBase}%` }}
                     />
                     {day.perfect > 0 && (
-                      <span className="absolute inset-x-0 top-2 mx-auto flex h-6 w-6 items-center justify-center rounded-full border border-white/50 bg-white/90 text-[10px] font-semibold text-lernex-blue shadow dark:border-neutral-700 dark:bg-neutral-900">
+                      <span className="absolute inset-x-0 top-2 mx-auto flex h-6 w-6 items-center justify-center rounded-full border border-white/60 bg-white/95 text-[10px] font-semibold text-lernex-blue shadow-sm ring-1 ring-black/5 dark:border-neutral-700 dark:bg-neutral-900 dark:ring-0">
                         {day.perfect}
                       </span>
                     )}
@@ -892,7 +912,7 @@ export default function AchievementsPage(): JSX.Element {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-neutral-200 bg-white/90 p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80">
+        <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-neutral-900/80 dark:ring-0">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">Subject focus</h2>
@@ -943,7 +963,7 @@ export default function AchievementsPage(): JSX.Element {
               ))
             )}
           </ul>
-          <div className="mt-6 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-xs text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+          <div className="mt-6 rounded-xl border border-white/70 bg-gradient-to-r from-white via-sky-50 to-slate-50 p-4 text-xs text-neutral-600 ring-1 ring-black/5 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:ring-0">
             {needsAttention ? (
               <>
                 <div className="font-semibold text-neutral-800 dark:text-neutral-100">
@@ -992,8 +1012,8 @@ export default function AchievementsPage(): JSX.Element {
                 key={badge.id}
                 className={`relative overflow-hidden rounded-2xl border p-5 transition ${
                   badge.unlocked
-                    ? "border-lernex-blue/30 bg-lernex-blue/10 text-lernex-blue-950 shadow"
-                    : "border-neutral-200 bg-white/90 text-neutral-900 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-white"
+                    ? "border-lernex-blue/30 bg-lernex-blue/10 text-lernex-blue-950 shadow ring-1 ring-lernex-blue/30"
+                    : "border-white/70 bg-gradient-to-br from-white via-slate-50 to-white text-neutral-900 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-white dark:ring-0"
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -1010,7 +1030,7 @@ export default function AchievementsPage(): JSX.Element {
                     className={`inline-flex items-center justify-center rounded-full px-2 py-1 text-[10px] font-semibold ${
                       badge.unlocked
                         ? "bg-white/70 text-lernex-blue"
-                        : "bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                        : "bg-white/80 text-neutral-700 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-0"
                     }`}
                   >
                     {badge.unlocked ? "Unlocked" : "Locked"}
@@ -1043,7 +1063,7 @@ export default function AchievementsPage(): JSX.Element {
       </section>
 
       <section className="mt-8 grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-neutral-200 bg-white/90 p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 lg:col-span-2">
+        <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-neutral-900/80 dark:ring-0 lg:col-span-2">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">Recent highlights</h2>
@@ -1062,14 +1082,14 @@ export default function AchievementsPage(): JSX.Element {
                 const Icon = event.icon;
                 return (
                   <li key={event.id} className="relative">
-                    <span className="absolute -left-[30px] flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200 bg-white text-lernex-blue shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    <span className="absolute -left-[30px] flex h-8 w-8 items-center justify-center rounded-full border border-white/60 bg-white/95 text-lernex-blue shadow-sm ring-1 ring-black/5 dark:border-neutral-700 dark:bg-neutral-900 dark:ring-0">
                       <Icon className="h-4 w-4" />
                     </span>
                     <div
                       className={`rounded-2xl border px-4 py-3 text-sm ${
                         event.highlight
-                          ? "border-lernex-blue/40 bg-lernex-blue/10 text-lernex-blue-950 dark:border-lernex-blue/40 dark:bg-lernex-blue/15 dark:text-white"
-                          : "border-neutral-200 bg-white/80 dark:border-neutral-800 dark:bg-neutral-900/70"
+                          ? "border-lernex-blue/40 bg-lernex-blue/10 text-lernex-blue-950 ring-1 ring-lernex-blue/30 shadow-sm dark:border-lernex-blue/40 dark:bg-lernex-blue/15 dark:text-white dark:ring-lernex-blue/20"
+                          : "border-white/60 bg-gradient-to-br from-white via-slate-50 to-white ring-1 ring-black/5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70 dark:ring-0"
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -1090,7 +1110,7 @@ export default function AchievementsPage(): JSX.Element {
         </div>
 
         <div className="flex h-full flex-col gap-4">
-          <div className="rounded-2xl border border-neutral-200 bg-white/90 p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80">
+          <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-neutral-900/80 dark:ring-0">
             <h2 className="text-lg font-semibold">Next best action</h2>
             {primarySubject ? (
               <div className="mt-3 text-sm">
@@ -1162,7 +1182,7 @@ export default function AchievementsPage(): JSX.Element {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-neutral-200 bg-white/90 p-5 text-sm shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80">
+          <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 text-sm shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-neutral-900/80 dark:ring-0">
             <h2 className="text-lg font-semibold">More ways to celebrate</h2>
             <ul className="mt-3 space-y-3 text-xs text-neutral-600 dark:text-neutral-300">
               <li>

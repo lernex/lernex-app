@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
+import { useTheme } from "next-themes";
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
@@ -340,18 +341,26 @@ function RadialMeter({ value, label }: { value: number; label: string }) {
   );
 }
 
-function HeatmapGrid({ points }: { points: HeatmapPoint[] }) {
+function HeatmapGrid({ points, isDark }: { points: HeatmapPoint[]; isDark: boolean }) {
   const maxAttempts = points.reduce((max, point) => Math.max(max, point.attempts), 0);
   return (
     <div className="grid grid-cols-7 gap-2">
       {points.map((point) => {
         const intensity = maxAttempts > 0 ? point.attempts / maxAttempts : 0;
-        const bg = intensity === 0 ? "rgba(15,23,42,0.06)" : `rgba(47,128,237,${0.18 + intensity * 0.55})`;
+        const baseFill = isDark ? "rgba(15, 23, 42, 0.42)" : "rgba(148, 163, 184, 0.18)";
+        const accentStart = isDark
+          ? `rgba(56, 189, 248, ${(0.18 + intensity * 0.5).toFixed(2)})`
+          : `rgba(37, 99, 235, ${(0.22 + intensity * 0.55).toFixed(2)})`;
+        const accentEnd = isDark
+          ? `rgba(37, 99, 235, ${(0.16 + intensity * 0.45).toFixed(2)})`
+          : `rgba(14, 165, 233, ${(0.18 + intensity * 0.4).toFixed(2)})`;
+        const background =
+          intensity === 0 ? baseFill : `linear-gradient(140deg, ${accentStart} 0%, ${accentEnd} 100%)`;
         return (
           <div
             key={point.date}
-            className="aspect-square rounded-lg border border-transparent transition hover:border-lernex-blue/60"
-            style={{ background: bg }}
+            className="group aspect-square rounded-lg border border-slate-200/60 shadow-[0_12px_28px_-18px_rgba(15,23,42,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:border-lernex-blue/60 hover:shadow-[0_16px_28px_-12px_rgba(37,99,235,0.45)] dark:border-slate-800/80 dark:shadow-[0_14px_32px_-18px_rgba(0,0,0,0.6)]"
+            style={{ background }}
             title={`${point.date}: ${point.attempts} ${point.attempts === 1 ? "session" : "sessions"}`}
           />
         );
@@ -360,14 +369,19 @@ function HeatmapGrid({ points }: { points: HeatmapPoint[] }) {
   );
 }
 
+const pageShell =
+  "relative mx-auto w-full overflow-hidden rounded-[32px] bg-gradient-to-br from-slate-50/80 via-white/90 to-slate-100/80 text-slate-900 shadow-[0_45px_120px_-60px_rgba(15,23,42,0.4)] dark:from-[#030712]/90 dark:via-[#060b19]/90 dark:to-[#0f172a]/90 dark:text-white";
+
 const cardBase =
-  "rounded-2xl border border-neutral-200 bg-white/90 p-6 shadow-sm backdrop-blur-sm transition hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900/80";
+  "group relative overflow-hidden rounded-2xl border border-slate-100/80 bg-gradient-to-br from-white/95 via-white/90 to-slate-50/90 p-6 ring-1 ring-black/5 backdrop-blur-xl shadow-[0_22px_48px_-24px_rgba(15,23,42,0.3)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_34px_65px_-22px_rgba(15,23,42,0.36)] dark:border-slate-800/80 dark:bg-[radial-gradient(circle_at_top_left,rgba(17,24,39,0.88),rgba(15,23,42,0.92))] dark:ring-white/5 dark:hover:ring-lernex-blue/40";
 
 const chipBase =
-  "inline-flex items-center gap-2 rounded-full border border-neutral-200 px-3 py-1 text-xs font-medium text-neutral-600 dark:border-neutral-700 dark:text-neutral-300";
+  "inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-3 py-1 text-xs font-medium text-slate-600 shadow-[0_6px_18px_rgba(15,23,42,0.08)] transition-colors duration-200 hover:border-lernex-blue/40 hover:text-lernex-blue dark:border-slate-700/70 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-lernex-blue/50";
 
 export default function AnalyticsPage() {
   const supabase = useMemo(() => supabaseBrowser(), []);
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const { user, userId, stats, loading: statsLoading } = useProfileStats();
   const [attempts, setAttempts] = useState<AttemptRow[]>([]);
   const [attemptCount, setAttemptCount] = useState(0);
@@ -693,12 +707,12 @@ export default function AnalyticsPage() {
 
   if (waitingForAuth || (loading && attempts.length === 0 && !error)) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-10 text-neutral-900 dark:text-white">
+      <main className={`${pageShell} max-w-5xl px-4 py-10`}>
         <div className="space-y-6">
           {[...Array(4)].map((_, idx) => (
             <div
               key={idx}
-              className="h-40 animate-pulse rounded-2xl border border-neutral-200 bg-neutral-100/70 dark:border-neutral-800 dark:bg-neutral-900/60"
+              className="h-40 animate-pulse rounded-2xl border border-slate-100/80 bg-gradient-to-br from-slate-100/70 via-white/80 to-white/95 dark:border-slate-800/80 dark:bg-[linear-gradient(140deg,rgba(30,41,59,0.55),rgba(15,23,42,0.7))]"
             />
           ))}
         </div>
@@ -708,7 +722,7 @@ export default function AnalyticsPage() {
 
   if (!user) {
     return (
-      <main className="mx-auto w-full max-w-3xl px-4 py-12 text-neutral-900 dark:text-white">
+      <main className={`${pageShell} max-w-3xl px-4 py-12`}>
         <div className={`${cardBase} text-center`}>
           <Sparkles className="mx-auto h-8 w-8 text-lernex-blue" />
           <h1 className="mt-4 text-2xl font-semibold">Sign in to unlock your analytics</h1>
@@ -721,7 +735,7 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 pb-16 pt-10 text-neutral-900 dark:text-white">
+    <main className={`${pageShell} max-w-6xl px-4 pb-16 pt-10`}>
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-neutral-500 dark:text-neutral-400">
@@ -750,7 +764,7 @@ export default function AnalyticsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 self-start md:self-auto">
-          <div className="rounded-full border border-neutral-200 bg-white/70 px-1.5 py-1 dark:border-neutral-800 dark:bg-neutral-900/60">
+          <div className="rounded-full border border-slate-200/70 bg-white/80 px-1.5 py-1 shadow-[0_8px_20px_-12px_rgba(15,23,42,0.35)] backdrop-blur-md transition dark:border-slate-800/70 dark:bg-slate-900/60 dark:shadow-[0_10px_28px_-18px_rgba(0,0,0,0.55)]">
             {[7, 14, 30].map((option) => (
               <button
                 key={option}
@@ -758,8 +772,8 @@ export default function AnalyticsPage() {
                 onClick={() => setTimeframe(option as 7 | 14 | 30)}
                 className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
                   timeframe === option
-                    ? "bg-lernex-blue text-white shadow"
-                    : "text-neutral-600 hover:bg-neutral-200/60 dark:text-neutral-300 dark:hover:bg-neutral-800/70"
+                    ? "bg-lernex-blue text-white shadow-[0_12px_24px_-12px_rgba(37,99,235,0.55)]"
+                    : "text-slate-500 hover:bg-slate-100/80 dark:text-slate-300 dark:hover:bg-slate-800/70"
                 }`}
               >
                 {option}d
@@ -768,7 +782,7 @@ export default function AnalyticsPage() {
           </div>
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-600 transition hover:border-lernex-blue hover:text-lernex-blue dark:border-neutral-700 dark:text-neutral-300"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-[0_10px_28px_-18px_rgba(15,23,42,0.35)] transition-colors hover:border-lernex-blue/50 hover:text-lernex-blue dark:border-slate-700/70 dark:bg-slate-900/60 dark:text-slate-200 dark:shadow-[0_12px_32px_-16px_rgba(0,0,0,0.55)]"
             onClick={() => fetchAnalytics().catch(() => {})}
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
@@ -909,7 +923,10 @@ export default function AnalyticsPage() {
               <Sparkline values={accuracySeries} />
               <div className="mt-4 flex gap-3 text-[11px] text-neutral-500 dark:text-neutral-400">
                 {dailySeries.slice(-3).map((day) => (
-                  <div key={day.date} className="flex-1 rounded-xl bg-neutral-100/60 p-3 dark:bg-neutral-800/60">
+                  <div
+                    key={day.date}
+                    className="flex-1 rounded-xl border border-slate-100/70 bg-gradient-to-br from-slate-100/80 via-white/80 to-white/95 p-3 shadow-sm transition hover:shadow-md dark:border-slate-800/70 dark:bg-[linear-gradient(135deg,rgba(30,41,59,0.55),rgba(15,23,42,0.7))]"
+                  >
                     <div className="text-[10px] uppercase tracking-wide">{formatDateLabel(day.date)}</div>
                     <div className="mt-1 text-sm font-semibold">{formatPercent(day.total > 0 ? day.correct / day.total : 0)}</div>
                     <div className="text-[11px]">{day.attempts} {day.attempts === 1 ? "session" : "sessions"}</div>
@@ -937,7 +954,7 @@ export default function AnalyticsPage() {
                   })}
                 </div>
               </div>
-              <div className="rounded-2xl bg-neutral-100/60 p-4 text-xs text-neutral-600 dark:bg-neutral-800/60 dark:text-neutral-300">
+              <div className="rounded-2xl border border-slate-100/70 bg-gradient-to-br from-slate-100/75 via-white/80 to-white/95 p-4 text-xs text-neutral-600 shadow-sm dark:border-slate-800/70 dark:bg-[linear-gradient(140deg,rgba(30,41,59,0.55),rgba(15,23,42,0.72))] dark:text-neutral-300">
                 <div className="flex items-center gap-2">
                   <CircleCheck className="h-4 w-4 text-emerald-500" />
                   {formatNumber(perfectSessions)} perfect sessions so far
@@ -956,7 +973,7 @@ export default function AnalyticsPage() {
             <span className="text-xs text-neutral-500 dark:text-neutral-400">Last 4 weeks</span>
           </div>
           <div className="mt-5">
-            <HeatmapGrid points={heatmapSeries} />
+            <HeatmapGrid points={heatmapSeries} isDark={isDark} />
           </div>
           <div className="mt-4 text-xs text-neutral-500 dark:text-neutral-400">
             Strongest day: {(() => {
@@ -1026,12 +1043,15 @@ export default function AnalyticsPage() {
           </div>
           <ul className="mt-5 space-y-4 text-sm text-neutral-600 dark:text-neutral-300">
             {recommendations.length === 0 ? (
-              <li className="rounded-xl bg-neutral-100/60 p-4 text-xs text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-300">
+              <li className="rounded-xl border border-slate-100/70 bg-gradient-to-br from-slate-100/75 via-white/85 to-white/95 p-4 text-xs text-neutral-500 shadow-sm dark:border-slate-800/70 dark:bg-[linear-gradient(140deg,rgba(30,41,59,0.55),rgba(15,23,42,0.72))] dark:text-neutral-300">
                 Keep exploring lessons to discover new personalised recommendations.
               </li>
             ) : (
               recommendations.map((rec) => (
-                <li key={rec.id} className="rounded-xl bg-neutral-100/60 p-4 dark:bg-neutral-800/60">
+                <li
+                  key={rec.id}
+                  className="rounded-xl border border-slate-100/70 bg-gradient-to-br from-slate-100/75 via-white/85 to-white/95 p-4 shadow-sm transition hover:shadow-md dark:border-slate-800/70 dark:bg-[linear-gradient(140deg,rgba(30,41,59,0.55),rgba(15,23,42,0.72))]"
+                >
                   <div className="flex items-start gap-3">
                     <rec.icon className="mt-1 h-5 w-5 text-lernex-blue" />
                     <div>
@@ -1052,9 +1072,9 @@ export default function AnalyticsPage() {
             <h2 className="text-lg font-semibold">Recent sessions</h2>
             <span className="text-xs text-neutral-500 dark:text-neutral-400">Latest quizzes</span>
           </div>
-          <div className="mt-4 overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800">
+          <div className="mt-4 overflow-hidden rounded-2xl border border-slate-100/80 shadow-[0_12px_36px_-24px_rgba(15,23,42,0.28)] dark:border-slate-800/80 dark:shadow-[0_16px_40px_-24px_rgba(0,0,0,0.55)]">
             <table className="min-w-full divide-y divide-neutral-200 text-sm dark:divide-neutral-800">
-              <thead className="bg-neutral-100/70 text-xs uppercase tracking-wide text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-300">
+              <thead className="bg-gradient-to-r from-slate-100/75 via-white/80 to-white/95 text-xs uppercase tracking-wide text-neutral-500 dark:bg-[linear-gradient(140deg,rgba(30,41,59,0.6),rgba(15,23,42,0.78))] dark:text-neutral-300">
                 <tr>
                   <th className="px-4 py-3 text-left">Subject</th>
                   <th className="px-4 py-3 text-left">Accuracy</th>
@@ -1064,7 +1084,10 @@ export default function AnalyticsPage() {
               </thead>
               <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
                 {attempts.slice(0, 8).map((attempt, index) => (
-                  <tr key={`${attempt.createdAt}-${index}`} className="bg-white/70 text-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-200">
+                  <tr
+                    key={`${attempt.createdAt}-${index}`}
+                    className="bg-gradient-to-r from-white/95 via-white/90 to-slate-50/85 text-neutral-700 transition hover:bg-lernex-blue/5 dark:bg-[linear-gradient(140deg,rgba(17,24,39,0.82),rgba(15,23,42,0.9))] dark:text-neutral-200"
+                  >
                     <td className="px-4 py-3 font-medium">{attempt.subject}</td>
                     <td className="px-4 py-3">
                       {attempt.total > 0 ? `${attempt.correctCount}/${attempt.total}` : "—"}
@@ -1120,7 +1143,10 @@ export default function AnalyticsPage() {
               </div>
               <div className="mt-2 space-y-2">
                 {usageSummary.byModel.slice(0, 4).map((entry) => (
-                  <div key={entry.model} className="flex items-center justify-between rounded-xl bg-neutral-100/60 px-3 py-2 dark:bg-neutral-800/60">
+                  <div
+                    key={entry.model}
+                    className="flex items-center justify-between rounded-xl border border-slate-100/70 bg-gradient-to-br from-slate-100/75 via-white/88 to-white/95 px-3 py-2 shadow-sm dark:border-slate-800/70 dark:bg-[linear-gradient(145deg,rgba(30,41,59,0.55),rgba(15,23,42,0.72))]"
+                  >
                     <div>
                       <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">{entry.model}</div>
                       <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -1131,7 +1157,7 @@ export default function AnalyticsPage() {
                   </div>
                 ))}
                 {usageSummary.byModel.length === 0 ? (
-                  <div className="rounded-xl bg-neutral-100/60 px-3 py-2 text-[11px] text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-300">
+                  <div className="rounded-xl border border-slate-100/70 bg-gradient-to-r from-slate-100/70 via-white/85 to-white/95 px-3 py-2 text-[11px] text-neutral-500 shadow-sm dark:border-slate-800/70 dark:bg-[linear-gradient(145deg,rgba(30,41,59,0.55),rgba(15,23,42,0.72))] dark:text-neutral-300">
                     Usage insights appear once you start generating lessons.
                   </div>
                 ) : null}
@@ -1162,7 +1188,7 @@ export default function AnalyticsPage() {
               </Link>
               <Link
                 href="/playlists"
-                className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-600 transition hover:border-lernex-blue hover:text-lernex-blue dark:border-neutral-700 dark:text-neutral-200"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-600 shadow-[0_10px_28px_-18px_rgba(15,23,42,0.35)] transition-colors hover:border-lernex-blue/50 hover:text-lernex-blue dark:border-slate-700/70 dark:bg-slate-900/60 dark:text-slate-200 dark:shadow-[0_14px_32px_-18px_rgba(0,0,0,0.55)]"
               >
                 <TrendingUp className="h-4 w-4" />
                 Explore playlists

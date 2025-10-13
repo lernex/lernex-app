@@ -473,10 +473,14 @@ export default function Playlists() {
     setShareOpen(false);
   };
   return (
-    <main className="relative min-h-[calc(100vh-56px)] bg-gradient-to-b from-white via-white to-lernex-gray/30 text-neutral-900 transition-colors dark:from-lernex-charcoal dark:via-lernex-charcoal/98 dark:to-lernex-charcoal/90 dark:text-white">
-      <div className="mx-auto w-full max-w-6xl px-4 pb-20 pt-10 sm:px-6 lg:px-8">
+    <main className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-gradient-to-b from-[#f6f9ff] via-white to-[#eef1ff] text-neutral-900 transition-colors dark:from-lernex-charcoal dark:via-lernex-charcoal/98 dark:to-lernex-charcoal/90 dark:text-white">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-48 left-[8%] h-72 w-72 rounded-full bg-lernex-blue/20 blur-[140px] dark:hidden" />
+        <div className="absolute bottom-[-160px] right-[10%] h-80 w-80 rounded-full bg-lernex-purple/20 blur-[160px] dark:hidden" />
+      </div>
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-20 pt-10 sm:px-6 lg:px-8">
         <div className="space-y-8">
-          <section className="relative overflow-hidden rounded-3xl border border-white/60 bg-gradient-to-br from-lernex-blue/10 via-white/85 to-lernex-purple/10 p-8 shadow-xl backdrop-blur-lg dark:border-white/10 dark:from-lernex-blue/15 dark:via-lernex-charcoal/40 dark:to-lernex-purple/15">
+          <section className="relative overflow-hidden rounded-3xl border border-white/70 bg-gradient-to-br from-white via-[#f6f9ff] to-white p-8 shadow-[0_32px_75px_-48px_rgba(47,128,237,0.45)] backdrop-blur-xl dark:border-white/10 dark:from-lernex-blue/15 dark:via-lernex-charcoal/40 dark:to-lernex-purple/15">
             <motion.span
               initial={{ opacity: 0, scale: 0.6 }}
               animate={{ opacity: 0.6, scale: 1 }}
@@ -510,7 +514,7 @@ export default function Playlists() {
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                     placeholder="Search by playlist name, topic, or creator..."
-                    className="w-full rounded-full border border-white/70 bg-white/80 px-12 py-3 text-sm text-neutral-800 shadow-sm outline-none transition focus:border-lernex-blue/60 focus:ring-2 focus:ring-lernex-blue/30 dark:border-white/10 dark:bg-white/10 dark:text-white"
+                    className="w-full rounded-full border border-neutral-200/70 bg-white/85 px-12 py-3 text-sm text-neutral-800 shadow-sm outline-none transition focus:border-lernex-blue/60 focus:ring-2 focus:ring-lernex-blue/30 dark:border-white/10 dark:bg-white/10 dark:text-white"
                   />
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row lg:w-auto">
@@ -524,7 +528,7 @@ export default function Playlists() {
                       }
                     }}
                     placeholder="Name your next playlist"
-                    className="w-full rounded-full border border-white/70 bg-white/80 px-4 py-3 text-sm text-neutral-800 shadow-sm outline-none transition focus:border-lernex-blue/60 focus:ring-2 focus:ring-lernex-blue/30 dark:border-white/10 dark:bg-white/10 dark:text-white"
+                    className="w-full rounded-full border border-neutral-200/70 bg-white/85 px-4 py-3 text-sm text-neutral-800 shadow-sm outline-none transition focus:border-lernex-blue/60 focus:ring-2 focus:ring-lernex-blue/30 dark:border-white/10 dark:bg-white/10 dark:text-white"
                   />
                   <button
                     onClick={() => void handleCreate()}
@@ -551,7 +555,7 @@ export default function Playlists() {
                       className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${
                         active
                           ? "border-lernex-blue/60 bg-lernex-blue/10 text-lernex-blue shadow-sm"
-                          : "border-white/60 bg-white/60 text-neutral-600 hover:border-lernex-blue/40 hover:text-lernex-blue dark:border-white/10 dark:bg-white/10 dark:text-white/70"
+                          : "border-neutral-200/80 bg-white/75 text-neutral-600 hover:border-lernex-blue/40 hover:text-lernex-blue dark:border-white/10 dark:bg-white/10 dark:text-white/70"
                       }`}
                     >
                       {index === 0 ? (
@@ -562,7 +566,7 @@ export default function Playlists() {
                         className={`h-5 min-w-[20px] rounded-full px-1 text-center text-[11px] ${
                           active
                             ? "bg-lernex-blue/90 text-white"
-                            : "bg-white/70 text-neutral-500 dark:bg-white/10 dark:text-white/60"
+                            : "bg-neutral-100 text-neutral-600 dark:bg-white/10 dark:text-white/60"
                         }`}
                       >
                         {filterCounts[filter.key]}
@@ -579,13 +583,13 @@ export default function Playlists() {
               ) : null}
             </div>
           </section>
-          <section className="rounded-3xl border border-neutral-200/70 bg-white/80 p-6 shadow-lg shadow-lernex-blue/5 backdrop-blur dark:border-white/10 dark:bg-white/5">
+          <section className="rounded-3xl border border-neutral-200/70 bg-gradient-to-br from-white via-white to-[#f5f9ff] p-6 shadow-[0_24px_80px_-50px_rgba(47,128,237,0.42)] backdrop-blur dark:border-white/10 dark:bg-white/5">
             {loading ? (
               <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
                 {Array.from({ length: 6 }).map((_, idx) => (
                   <div
                     key={idx}
-                    className="h-64 animate-pulse rounded-3xl border border-white/70 bg-white/80 shadow-sm dark:border-white/10 dark:bg-white/10"
+                    className="h-64 animate-pulse rounded-3xl border border-neutral-200/70 bg-white/80 shadow-sm dark:border-white/10 dark:bg-white/10"
                   />
                 ))}
               </div>
@@ -660,7 +664,7 @@ export default function Playlists() {
               exit={{ opacity: 0, y: 20, scale: 0.98 }}
               role="dialog"
               aria-modal="true"
-              className="relative z-10 w-full max-w-md rounded-3xl border border-white/70 bg-white/95 p-6 shadow-2xl backdrop-blur-lg dark:border-white/10 dark:bg-lernex-charcoal"
+              className="relative z-10 w-full max-w-md rounded-3xl border border-neutral-200/80 bg-gradient-to-br from-white via-[#f7f9ff] to-white p-6 shadow-2xl backdrop-blur-lg dark:border-white/10 dark:bg-lernex-charcoal"
             >
               <div className="flex items-start gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-500 dark:bg-red-500/15 dark:text-red-200">
@@ -767,7 +771,7 @@ function PlaylistCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className="group flex h-full flex-col justify-between rounded-3xl border border-white/70 bg-white/85 p-6 shadow-lg shadow-lernex-blue/5 transition hover:-translate-y-1 hover:border-lernex-blue/60 hover:shadow-xl dark:border-white/10 dark:bg-white/10"
+      className="group flex h-full flex-col justify-between rounded-3xl border border-neutral-200/80 bg-gradient-to-br from-white via-white to-[#f6f9ff] p-6 shadow-[0_20px_60px_-40px_rgba(47,128,237,0.38)] transition-all hover:-translate-y-1 hover:border-lernex-blue/60 hover:shadow-[0_32px_80px_-42px_rgba(47,128,237,0.55)] dark:border-white/10 dark:bg-white/10"
     >
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
@@ -1238,7 +1242,7 @@ function SharePanel({
             exit={{ opacity: 0, y: 20, scale: 0.98 }}
             role="dialog"
             aria-modal="true"
-            className="relative z-10 w-full max-w-2xl rounded-3xl border border-white/70 bg-white/95 p-6 shadow-2xl backdrop-blur-lg dark:border-white/10 dark:bg-lernex-charcoal"
+            className="relative z-10 w-full max-w-2xl rounded-3xl border border-neutral-200/80 bg-gradient-to-br from-white via-[#f7f9ff] to-white p-6 shadow-2xl backdrop-blur-lg dark:border-white/10 dark:bg-lernex-charcoal"
           >
             <div className="flex items-start justify-between gap-4">
               <div>

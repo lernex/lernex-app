@@ -31,7 +31,8 @@ const tiers: Tier[] = [
     originalPrice: null,
     badge: 'Getting started',
     highlight: false,
-    accent: 'border-neutral-200/80 bg-white/80 dark:border-neutral-800 dark:bg-neutral-900/70',
+    accent:
+      'border-neutral-200/80 bg-white/90 shadow-[0_35px_90px_-45px_rgba(15,23,42,0.2)] backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/70 dark:shadow-[0_45px_110px_-60px_rgba(0,0,0,0.7)]',
     buttonClasses:
       'border border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:hover:bg-neutral-800/90',
     cta: 'Start for free',
@@ -53,7 +54,7 @@ const tiers: Tier[] = [
     badge: 'Most popular',
     highlight: true,
     accent:
-      'border-transparent bg-gradient-to-br from-lernex-blue/90 via-lernex-blue to-indigo-600/80 shadow-xl shadow-lernex-blue/20 dark:from-lernex-blue dark:via-lernex-blue/90 dark:to-indigo-500',
+      'border-transparent bg-gradient-to-br from-lernex-blue/90 via-lernex-blue to-indigo-500/80 shadow-[0_55px_120px_-60px_rgba(37,99,235,0.55)] dark:from-lernex-blue dark:via-lernex-blue/90 dark:to-indigo-500 dark:shadow-[0_55px_120px_-65px_rgba(37,99,235,0.55)]',
     buttonClasses:
       'bg-white text-neutral-900 hover:bg-white/90 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-900/90',
     cta: 'Accelerate with Premium',
@@ -75,7 +76,7 @@ const tiers: Tier[] = [
     badge: 'Best value for power users',
     highlight: false,
     accent:
-      'border-neutral-200/80 bg-white/90 dark:border-neutral-800 dark:bg-neutral-900/70',
+      'border-neutral-200/80 bg-white/90 shadow-[0_35px_90px_-45px_rgba(15,23,42,0.2)] backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/70 dark:shadow-[0_45px_110px_-60px_rgba(0,0,0,0.7)]',
     buttonClasses:
       'bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-white/90',
     cta: 'Go Pro and scale',
@@ -172,9 +173,10 @@ export default function Pricing() {
 
   return (
     <main className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-neutral-50 text-neutral-900 dark:bg-neutral-900 dark:text-white">
+      <div className="pointer-events-none absolute inset-0 -z-20 bg-gradient-to-br from-white via-sky-50/60 to-indigo-50/40 dark:hidden" />
       <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute inset-x-0 top-[-20%] h-[60%] bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.18),_transparent_65%)]" />
-        <div className="absolute bottom-[-30%] left-1/2 h-[70%] w-[80%] -translate-x-1/2 bg-[radial-gradient(circle,_rgba(14,116,144,0.12),_transparent_70%)]" />
+        <div className="absolute inset-x-0 top-[-20%] h-[60%] bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.28),_transparent_65%)] dark:bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.32),_transparent_60%)]" />
+        <div className="absolute bottom-[-30%] left-1/2 h-[70%] w-[85%] -translate-x-1/2 bg-[radial-gradient(circle,_rgba(129,140,248,0.18),_transparent_72%)] dark:bg-[radial-gradient(circle,_rgba(14,116,144,0.12),_transparent_70%)]" />
       </div>
 
       <div className="relative mx-auto w-full max-w-6xl px-6 py-16 md:py-24">
@@ -184,7 +186,7 @@ export default function Pricing() {
           transition={{ duration: 0.6 }}
           className="mx-auto max-w-3xl text-center"
         >
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-neutral-500 shadow-sm backdrop-blur dark:border-white/20 dark:bg-white/10 dark:text-neutral-200">
+          <span className="inline-flex items-center gap-2 rounded-full border border-neutral-200/70 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-neutral-600 shadow-[0_18px_45px_-30px_rgba(59,130,246,0.6)] backdrop-blur dark:border-white/20 dark:bg-white/10 dark:text-neutral-200 dark:shadow-none">
             <Sparkles className="h-3.5 w-3.5" />
             Invest in your future self
           </span>
@@ -195,10 +197,10 @@ export default function Pricing() {
             Choose the plan that matches your ambition. Every upgrade comes with smarter AI tutors, richer analytics, and a team cheering for your breakthroughs.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-sm text-neutral-500 dark:text-neutral-300">
-            <div className="flex items-center gap-2 rounded-full bg-white/70 px-4 py-2 shadow-sm backdrop-blur dark:bg-white/10">
+            <div className="flex items-center gap-2 rounded-full bg-white/85 px-4 py-2 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.25)] ring-1 ring-neutral-200/60 backdrop-blur-sm dark:bg-white/10 dark:ring-0 dark:shadow-none">
               <ShieldCheck className="h-4 w-4" /> 14-day love-it-or-refund guarantee
             </div>
-            <div className="flex items-center gap-2 rounded-full bg-white/70 px-4 py-2 shadow-sm backdrop-blur dark:bg-white/10">
+            <div className="flex items-center gap-2 rounded-full bg-white/85 px-4 py-2 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.25)] ring-1 ring-neutral-200/60 backdrop-blur-sm dark:bg-white/10 dark:ring-0 dark:shadow-none">
               <CheckCircle2 className="h-4 w-4" /> No hidden fees & cancel anytime
             </div>
           </div>
@@ -297,7 +299,7 @@ export default function Pricing() {
 
                 <div className="mt-6 space-y-3">
                   {tier.features.map(feature => (
-                    <div key={feature} className="flex items-start gap-3 text-sm text-neutral-700 dark:text-neutral-200">
+                    <div key={feature} className="flex items-start gap-3 text-sm text-neutral-600 dark:text-neutral-200">
                       <CheckCircle2 className={`h-4 w-4 flex-shrink-0 ${tier.highlight ? 'text-white' : 'text-lernex-blue dark:text-lernex-blue'}`} />
                       <span>{feature}</span>
                     </div>
@@ -313,7 +315,7 @@ export default function Pricing() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.3 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="mt-20 grid gap-6 rounded-3xl border border-neutral-200 bg-white/70 p-8 shadow-xl shadow-neutral-200/40 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/70 dark:shadow-neutral-900/20 md:grid-cols-[1.3fr_1fr]"
+          className="mt-20 grid gap-6 rounded-3xl border border-neutral-200/80 bg-gradient-to-br from-white via-white to-slate-100/80 p-8 shadow-[0_45px_120px_-65px_rgba(30,64,175,0.32)] backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/70 dark:shadow-[0_60px_150px_-80px_rgba(0,0,0,0.7)] md:grid-cols-[1.3fr_1fr]"
         >
           <div>
             <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">Still thinking it over?</h2>
@@ -322,14 +324,17 @@ export default function Pricing() {
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-neutral-600 dark:text-neutral-300">
               {guaranteePoints.map(point => (
-                <span key={point} className="flex items-center gap-2 rounded-full bg-neutral-100 px-3 py-2 dark:bg-neutral-800/70">
+                <span
+                  key={point}
+                  className="flex items-center gap-2 rounded-full bg-white/85 px-3 py-2 shadow-[0_18px_48px_-30px_rgba(30,64,175,0.22)] ring-1 ring-neutral-200/60 dark:bg-neutral-800/70 dark:ring-0 dark:shadow-none"
+                >
                   <ShieldCheck className="h-4 w-4 text-emerald-500" />
                   {point}
                 </span>
               ))}
             </div>
           </div>
-          <div className="rounded-2xl border border-neutral-200 bg-gradient-to-br from-neutral-50 via-white to-neutral-100 p-6 text-sm text-neutral-600 shadow-sm dark:border-neutral-700 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800 dark:text-neutral-200">
+          <div className="rounded-2xl border border-neutral-200/80 bg-gradient-to-br from-white via-slate-50 to-blue-50/70 p-6 text-sm text-neutral-600 shadow-[0_35px_90px_-55px_rgba(30,64,175,0.35)] dark:border-neutral-700 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800 dark:text-neutral-200 dark:shadow-[0_45px_120px_-70px_rgba(0,0,0,0.7)]">
             <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">What happens after you upgrade?</h3>
             <ul className="mt-4 space-y-3">
               <li className="flex items-start gap-2">
