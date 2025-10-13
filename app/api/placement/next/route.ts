@@ -158,6 +158,17 @@ Create exactly one discriminative multiple-choice question from the course's app
       const content = completion.choices?.[0]?.message?.content as string | undefined;
       return { raw: content ?? "", completion };
     } catch (err: unknown) {
+      try {
+        console.error("[placement][makeQuestion] completion error", {
+          jsonMode,
+          depth,
+          subject: state.subject,
+          course: state.course,
+          difficulty: state.difficulty,
+          maxTokens,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      } catch {}
       if (jsonMode) {
         const failed = (err as { error?: { failed_generation?: string } } | null)?.error?.failed_generation;
         if (typeof failed === "string" && failed.trim().length > 0) {
