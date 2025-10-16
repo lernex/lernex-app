@@ -86,7 +86,9 @@ type BadgeCategoryKey =
   | "momentum"
   | "precision"
   | "explorer"
-  | "weekly";
+  | "weekly"
+  | "lifetime"
+  | "legendary";
 
 const TIER_THEMES: Record<BadgeTier, { chip: string; icon: string }> = {
   Bronze: {
@@ -176,6 +178,24 @@ const BADGE_CATEGORY_META: Record<
     headerAccentClass:
       "bg-rose-200/60 text-rose-900 dark:bg-rose-500/25 dark:text-rose-100",
   },
+  lifetime: {
+    title: "Lifetime Milestones",
+    description: "Track the depth of your journey with days and question volume.",
+    order: 6,
+    accentClass:
+      "bg-gradient-to-br from-sky-200/15 via-blue-200/10 to-cyan-300/10 dark:from-sky-500/20 dark:via-blue-500/15 dark:to-cyan-500/10",
+    headerAccentClass:
+      "bg-sky-200/60 text-sky-900 dark:bg-sky-500/25 dark:text-sky-100",
+  },
+  legendary: {
+    title: "Legend Status",
+    description: "Ultra-rare achievements for learners who keep going far past the finish line.",
+    order: 7,
+    accentClass:
+      "bg-gradient-to-br from-yellow-200/20 via-amber-200/10 to-emerald-200/15 dark:from-yellow-500/20 dark:via-amber-500/15 dark:to-emerald-500/15",
+    headerAccentClass:
+      "bg-yellow-200/70 text-yellow-900 dark:bg-yellow-500/25 dark:text-yellow-100",
+  },
 };
 
 type ActivityDay = {
@@ -200,6 +220,7 @@ function toNumber(value: unknown, fallback = 0): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
+
 
 function toStringOrNull(value: unknown): string | null {
   if (typeof value === "string") {
@@ -493,6 +514,57 @@ export default function AchievementsPage(): JSX.Element {
     [subjectSummaries]
   );
 
+  const totalStudyDays = useMemo(() => {
+    const days = new Set<string>();
+    attempts.forEach((attempt) => {
+      if (!attempt.createdAt) return;
+      days.add(attempt.createdAt.slice(0, 10));
+    });
+    return days.size;
+  }, [attempts]);
+
+  const multiSessionDays = useMemo(() => {
+    const sessionsByDay = new Map<string, number>();
+    attempts.forEach((attempt) => {
+      if (!attempt.createdAt) return;
+      const key = attempt.createdAt.slice(0, 10);
+      sessionsByDay.set(key, (sessionsByDay.get(key) ?? 0) + 1);
+    });
+    let denseDays = 0;
+    sessionsByDay.forEach((value) => {
+      if (value >= 3) denseDays += 1;
+    });
+    return denseDays;
+  }, [attempts]);
+
+  const highAccuracySubjects = useMemo(
+    () =>
+      subjectSummaries.filter(
+        (item) => (item.accuracy ?? 0) >= 0.85 && item.lessons >= 3
+      ).length,
+    [subjectSummaries]
+  );
+
+  const eliteAccuracySubjects = useMemo(
+    () =>
+      subjectSummaries.filter(
+        (item) => (item.accuracy ?? 0) >= 0.95 && item.lessons >= 5
+      ).length,
+    [subjectSummaries]
+  );
+
+  const advancedMasteryCount = useMemo(
+    () =>
+      subjectStates.filter((state) => (state.mastery ?? 0) >= 70).length,
+    [subjectStates]
+  );
+
+  const eliteMasteryCount = useMemo(
+    () =>
+      subjectStates.filter((state) => (state.mastery ?? 0) >= 90).length,
+    [subjectStates]
+  );
+
   const activityByDay = useMemo<ActivityDay[]>(() => {
     const map = new Map<string, { count: number; perfect: number }>();
     attempts.forEach((attempt) => {
@@ -524,6 +596,11 @@ export default function AchievementsPage(): JSX.Element {
     }
     return days;
   }, [attempts]);
+
+  const perfectDaysThisWeek = useMemo(
+    () => activityByDay.filter((day) => day.perfect > 0).length,
+    [activityByDay]
+  );
 
   const weeklyTotal = useMemo(
     () => activityByDay.reduce((sum, day) => sum + day.count, 0),
@@ -655,6 +732,28 @@ export default function AchievementsPage(): JSX.Element {
         order: 4,
       },
       {
+        id: "points-5000",
+        title: "Point Powerhouse",
+        description: "Accumulate 5,000 lifetime points.",
+        icon: Medal,
+        current: points,
+        target: 5000,
+        category: "progress",
+        tier: "Platinum",
+        order: 5,
+      },
+      {
+        id: "points-10000",
+        title: "Point Phenomenon",
+        description: "Surpass 10,000 lifetime points.",
+        icon: Trophy,
+        current: points,
+        target: 10000,
+        category: "progress",
+        tier: "Mythic",
+        order: 6,
+      },
+      {
         id: "lessons-1",
         title: "First Steps",
         description: "Complete your first full lesson.",
@@ -663,7 +762,7 @@ export default function AchievementsPage(): JSX.Element {
         target: 1,
         category: "progress",
         tier: "Bronze",
-        order: 5,
+        order: 7,
       },
       {
         id: "lessons-10",
@@ -674,7 +773,7 @@ export default function AchievementsPage(): JSX.Element {
         target: 10,
         category: "progress",
         tier: "Silver",
-        order: 6,
+        order: 8,
       },
       {
         id: "lessons-25",
@@ -685,7 +784,7 @@ export default function AchievementsPage(): JSX.Element {
         target: 25,
         category: "progress",
         tier: "Gold",
-        order: 7,
+        order: 9,
       },
       {
         id: "lessons-50",
@@ -695,8 +794,41 @@ export default function AchievementsPage(): JSX.Element {
         current: lessonsCompleted,
         target: 50,
         category: "progress",
+        tier: "Platinum",
+        order: 10,
+      },
+      {
+        id: "lessons-75",
+        title: "Study Marathoner",
+        description: "Carry momentum through 75 lessons.",
+        icon: TrendingUp,
+        current: lessonsCompleted,
+        target: 75,
+        category: "progress",
+        tier: "Platinum",
+        order: 11,
+      },
+      {
+        id: "lessons-100",
+        title: "Centurion Learner",
+        description: "Celebrate 100 completed lessons.",
+        icon: Trophy,
+        current: lessonsCompleted,
+        target: 100,
+        category: "progress",
         tier: "Mythic",
-        order: 8,
+        order: 12,
+      },
+      {
+        id: "lessons-150",
+        title: "Limitless Scholar",
+        description: "Finish 150 lessons across your Lernex journey.",
+        icon: Crown,
+        current: lessonsCompleted,
+        target: 150,
+        category: "progress",
+        tier: "Mythic",
+        order: 13,
       },
       // Momentum Makers
       {
@@ -736,12 +868,45 @@ export default function AchievementsPage(): JSX.Element {
         id: "streak-30",
         title: "Relentless Rhythm",
         description: "Hit a 30-day streak without breaking focus.",
-        icon: Trophy,
+        icon: Flame,
         current: streak,
         target: 30,
         category: "momentum",
         tier: "Platinum",
         order: 4,
+      },
+      {
+        id: "streak-45",
+        title: "Heatwave Hopper",
+        description: "Sustain a 45-day streak of study wins.",
+        icon: Flame,
+        current: streak,
+        target: 45,
+        category: "momentum",
+        tier: "Platinum",
+        order: 5,
+      },
+      {
+        id: "streak-60",
+        title: "Daily Dynamo",
+        description: "Push your streak to 60 straight days.",
+        icon: Flame,
+        current: streak,
+        target: 60,
+        category: "momentum",
+        tier: "Mythic",
+        order: 6,
+      },
+      {
+        id: "streak-90",
+        title: "Seasoned Sprinter",
+        description: "Master a 90-day streak without slowing down.",
+        icon: Crown,
+        current: streak,
+        target: 90,
+        category: "momentum",
+        tier: "Mythic",
+        order: 7,
       },
       {
         id: "active-days-4",
@@ -752,7 +917,7 @@ export default function AchievementsPage(): JSX.Element {
         target: 4,
         category: "momentum",
         tier: "Silver",
-        order: 5,
+        order: 8,
       },
       {
         id: "active-days-6",
@@ -763,7 +928,18 @@ export default function AchievementsPage(): JSX.Element {
         target: 6,
         category: "momentum",
         tier: "Gold",
-        order: 6,
+        order: 9,
+      },
+      {
+        id: "active-days-7",
+        title: "Full Week Finisher",
+        description: "Log lessons on every day of the week.",
+        icon: CalendarCheck2,
+        current: activeDays,
+        target: 7,
+        category: "momentum",
+        tier: "Platinum",
+        order: 10,
       },
       // Precision Plays
       {
@@ -778,6 +954,28 @@ export default function AchievementsPage(): JSX.Element {
         order: 1,
       },
       {
+        id: "accuracy-80",
+        title: "True North",
+        description: "Hold steady at 80% accuracy.",
+        icon: Compass,
+        current: accuracyPercent ?? 0,
+        target: 80,
+        category: "precision",
+        tier: "Silver",
+        order: 2,
+      },
+      {
+        id: "accuracy-85",
+        title: "Bullseye Build",
+        description: "Climb to 85% overall accuracy.",
+        icon: Target,
+        current: accuracyPercent ?? 0,
+        target: 85,
+        category: "precision",
+        tier: "Gold",
+        order: 3,
+      },
+      {
         id: "accuracy-90",
         title: "Sharpshooter",
         description: "Reach 90% lesson accuracy.",
@@ -785,8 +983,8 @@ export default function AchievementsPage(): JSX.Element {
         current: accuracyPercent ?? 0,
         target: 90,
         category: "precision",
-        tier: "Gold",
-        order: 2,
+        tier: "Platinum",
+        order: 4,
       },
       {
         id: "accuracy-95",
@@ -797,7 +995,18 @@ export default function AchievementsPage(): JSX.Element {
         target: 95,
         category: "precision",
         tier: "Platinum",
-        order: 3,
+        order: 5,
+      },
+      {
+        id: "accuracy-98",
+        title: "Unerring Focus",
+        description: "Touch an exceptional 98% accuracy.",
+        icon: Sparkles,
+        current: accuracyPercent ?? 0,
+        target: 98,
+        category: "precision",
+        tier: "Mythic",
+        order: 6,
       },
       {
         id: "perfect-1",
@@ -808,7 +1017,7 @@ export default function AchievementsPage(): JSX.Element {
         target: 1,
         category: "precision",
         tier: "Bronze",
-        order: 4,
+        order: 7,
       },
       {
         id: "perfect-5",
@@ -819,18 +1028,51 @@ export default function AchievementsPage(): JSX.Element {
         target: 5,
         category: "precision",
         tier: "Silver",
-        order: 5,
+        order: 8,
       },
       {
-        id: "perfect-12",
-        title: "Faultless Dozen",
-        description: "Celebrate 12 perfect lessons.",
+        id: "perfect-10",
+        title: "Flawless Ten",
+        description: "Stack up 10 perfect lessons.",
+        icon: Medal,
+        current: perfectCount,
+        target: 10,
+        category: "precision",
+        tier: "Gold",
+        order: 9,
+      },
+      {
+        id: "perfect-20",
+        title: "Precision Surge",
+        description: "Celebrate 20 perfect lesson runs.",
+        icon: Trophy,
+        current: perfectCount,
+        target: 20,
+        category: "precision",
+        tier: "Platinum",
+        order: 10,
+      },
+      {
+        id: "perfect-30",
+        title: "Perfect Parade",
+        description: "Deliver 30 perfect lessons overall.",
         icon: Crown,
         current: perfectCount,
-        target: 12,
+        target: 30,
         category: "precision",
         tier: "Mythic",
-        order: 6,
+        order: 11,
+      },
+      {
+        id: "perfect-50",
+        title: "Champion of Perfection",
+        description: "Reach 50 perfect lessons across your history.",
+        icon: Award,
+        current: perfectCount,
+        target: 50,
+        category: "precision",
+        tier: "Mythic",
+        order: 12,
       },
       // Explorer Kudos
       {
@@ -867,6 +1109,28 @@ export default function AchievementsPage(): JSX.Element {
         order: 3,
       },
       {
+        id: "subjects-10",
+        title: "Polymath Path",
+        description: "Branch out into 10 different subjects.",
+        icon: Sparkles,
+        current: uniqueSubjects,
+        target: 10,
+        category: "explorer",
+        tier: "Platinum",
+        order: 4,
+      },
+      {
+        id: "subjects-12",
+        title: "Boundless Scholar",
+        description: "Dive into 12 distinct learning paths.",
+        icon: Crown,
+        current: uniqueSubjects,
+        target: 12,
+        category: "explorer",
+        tier: "Mythic",
+        order: 5,
+      },
+      {
         id: "mastered-1",
         title: "Subject Specialist",
         description: "Master 1 subject with high accuracy.",
@@ -875,18 +1139,95 @@ export default function AchievementsPage(): JSX.Element {
         target: 1,
         category: "explorer",
         tier: "Gold",
-        order: 4,
+        order: 6,
       },
       {
         id: "mastered-3",
         title: "Focused Maestro",
         description: "Master 3 subjects with consistent accuracy.",
-        icon: Crown,
+        icon: Medal,
         current: masteredCount,
         target: 3,
         category: "explorer",
+        tier: "Platinum",
+        order: 7,
+      },
+      {
+        id: "mastered-5",
+        title: "Curriculum Virtuoso",
+        description: "Master 5 subjects with strong accuracy.",
+        icon: Trophy,
+        current: masteredCount,
+        target: 5,
+        category: "explorer",
         tier: "Mythic",
-        order: 5,
+        order: 8,
+      },
+      {
+        id: "mastered-8",
+        title: "Mastery Sage",
+        description: "Master 8 subjects at elite consistency.",
+        icon: Crown,
+        current: masteredCount,
+        target: 8,
+        category: "explorer",
+        tier: "Mythic",
+        order: 9,
+      },
+      {
+        id: "accuracy-subjects-2",
+        title: "Accuracy Ambassador",
+        description: "Keep 2 subjects at 85%+ accuracy.",
+        icon: Target,
+        current: highAccuracySubjects,
+        target: 2,
+        category: "explorer",
+        tier: "Gold",
+        order: 10,
+      },
+      {
+        id: "accuracy-subjects-4",
+        title: "Precision Polymath",
+        description: "Maintain 4 subjects at 85%+ accuracy.",
+        icon: Star,
+        current: highAccuracySubjects,
+        target: 4,
+        category: "explorer",
+        tier: "Platinum",
+        order: 11,
+      },
+      {
+        id: "accuracy-subjects-elite-2",
+        title: "Cross-Subject Sniper",
+        description: "Hold 2 subjects at 95%+ accuracy.",
+        icon: Star,
+        current: eliteAccuracySubjects,
+        target: 2,
+        category: "explorer",
+        tier: "Mythic",
+        order: 12,
+      },
+      {
+        id: "advanced-mastery-3",
+        title: "Advanced Analyst",
+        description: "Raise mastery above 70% in 3 subjects.",
+        icon: BookOpen,
+        current: advancedMasteryCount,
+        target: 3,
+        category: "explorer",
+        tier: "Platinum",
+        order: 13,
+      },
+      {
+        id: "elite-mastery-2",
+        title: "Mastery Mentor",
+        description: "Reach 90% mastery in 2 subjects.",
+        icon: Crown,
+        current: eliteMasteryCount,
+        target: 2,
+        category: "explorer",
+        tier: "Mythic",
+        order: 14,
       },
       // Weekly Rhythm
       {
@@ -922,8 +1263,339 @@ export default function AchievementsPage(): JSX.Element {
         tier: "Gold",
         order: 3,
       },
+      {
+        id: "weekly-10",
+        title: "Weekly Wonder",
+        description: "Reach 10 lessons in one week.",
+        icon: Rocket,
+        current: weeklyTotal,
+        target: 10,
+        category: "weekly",
+        tier: "Platinum",
+        order: 4,
+      },
+      {
+        id: "weekly-14",
+        title: "Weeklong Warrior",
+        description: "Go big with 14 lessons in a week.",
+        icon: Crown,
+        current: weeklyTotal,
+        target: 14,
+        category: "weekly",
+        tier: "Mythic",
+        order: 5,
+      },
+      {
+        id: "perfect-week-3",
+        title: "Blue Badge Blitz",
+        description: "Score perfect lessons on 3 days this week.",
+        icon: Sparkles,
+        current: perfectDaysThisWeek,
+        target: 3,
+        category: "weekly",
+        tier: "Platinum",
+        order: 6,
+      },
+      {
+        id: "perfect-week-5",
+        title: "Perfect Week Legend",
+        description: "Earn perfect lessons on 5 days this week.",
+        icon: Star,
+        current: perfectDaysThisWeek,
+        target: 5,
+        category: "weekly",
+        tier: "Mythic",
+        order: 7,
+      },
+      // Lifetime Milestones
+      {
+        id: "study-days-10",
+        title: "Habit Builder",
+        description: "Study on 10 different days overall.",
+        icon: CalendarCheck2,
+        current: totalStudyDays,
+        target: 10,
+        category: "lifetime",
+        tier: "Bronze",
+        order: 1,
+      },
+      {
+        id: "study-days-30",
+        title: "Monthly Momentum",
+        description: "Log study sessions on 30 unique days.",
+        icon: CalendarCheck2,
+        current: totalStudyDays,
+        target: 30,
+        category: "lifetime",
+        tier: "Silver",
+        order: 2,
+      },
+      {
+        id: "study-days-100",
+        title: "Centennial Student",
+        description: "Record learning on 100 separate days.",
+        icon: CalendarCheck2,
+        current: totalStudyDays,
+        target: 100,
+        category: "lifetime",
+        tier: "Gold",
+        order: 3,
+      },
+      {
+        id: "study-days-200",
+        title: "Calendar Champion",
+        description: "Build a 200-day study history.",
+        icon: CalendarCheck2,
+        current: totalStudyDays,
+        target: 200,
+        category: "lifetime",
+        tier: "Platinum",
+        order: 4,
+      },
+      {
+        id: "multi-session-5",
+        title: "Double Duty",
+        description: "Complete 3+ sessions on 5 different days.",
+        icon: Timer,
+        current: multiSessionDays,
+        target: 5,
+        category: "lifetime",
+        tier: "Silver",
+        order: 5,
+      },
+      {
+        id: "multi-session-15",
+        title: "Triple Threat",
+        description: "Pack 3+ sessions into 15 different days.",
+        icon: Timer,
+        current: multiSessionDays,
+        target: 15,
+        category: "lifetime",
+        tier: "Gold",
+        order: 6,
+      },
+      {
+        id: "multi-session-30",
+        title: "Session Sprinter",
+        description: "Stack dense study on 30 days.",
+        icon: Flame,
+        current: multiSessionDays,
+        target: 30,
+        category: "lifetime",
+        tier: "Platinum",
+        order: 7,
+      },
+      {
+        id: "questions-1000",
+        title: "Question Crusader",
+        description: "Answer 1,000 questions in total.",
+        icon: BookOpen,
+        current: totalQuestions,
+        target: 1000,
+        category: "lifetime",
+        tier: "Silver",
+        order: 8,
+      },
+      {
+        id: "questions-2500",
+        title: "Curiosity Engine",
+        description: "Answer 2,500 total questions.",
+        icon: BookOpen,
+        current: totalQuestions,
+        target: 2500,
+        category: "lifetime",
+        tier: "Gold",
+        order: 9,
+      },
+      {
+        id: "questions-5000",
+        title: "Knowledge Keeper",
+        description: "Bank 5,000 answered questions.",
+        icon: BookOpen,
+        current: totalQuestions,
+        target: 5000,
+        category: "lifetime",
+        tier: "Platinum",
+        order: 10,
+      },
+      {
+        id: "questions-10000",
+        title: "Quiz Marathoner",
+        description: "Power through 10,000 questions.",
+        icon: Trophy,
+        current: totalQuestions,
+        target: 10000,
+        category: "lifetime",
+        tier: "Mythic",
+        order: 11,
+      },
+      {
+        id: "correct-500",
+        title: "Accuracy Accumulator",
+        description: "Earn 500 correct answers.",
+        icon: Medal,
+        current: totalCorrect,
+        target: 500,
+        category: "lifetime",
+        tier: "Gold",
+        order: 12,
+      },
+      {
+        id: "correct-1500",
+        title: "Solution Specialist",
+        description: "Reach 1,500 correct answers.",
+        icon: Trophy,
+        current: totalCorrect,
+        target: 1500,
+        category: "lifetime",
+        tier: "Platinum",
+        order: 13,
+      },
+      {
+        id: "correct-3000",
+        title: "Answer Atlas",
+        description: "Log 3,000 correct answers overall.",
+        icon: Crown,
+        current: totalCorrect,
+        target: 3000,
+        category: "lifetime",
+        tier: "Mythic",
+        order: 14,
+      },
+      // Legendary Goals
+      {
+        id: "points-15000",
+        title: "Point Vanguard",
+        description: "Build a towering 15,000 points.",
+        icon: Crown,
+        current: points,
+        target: 15000,
+        category: "legendary",
+        tier: "Mythic",
+        order: 1,
+      },
+      {
+        id: "points-25000",
+        title: "Point Legend",
+        description: "Collect an awe-inspiring 25,000 points.",
+        icon: Trophy,
+        current: points,
+        target: 25000,
+        category: "legendary",
+        tier: "Mythic",
+        order: 2,
+      },
+      {
+        id: "lessons-200",
+        title: "Learning Luminary",
+        description: "Complete 200 lessons for lasting mastery.",
+        icon: Trophy,
+        current: lessonsCompleted,
+        target: 200,
+        category: "legendary",
+        tier: "Mythic",
+        order: 3,
+      },
+      {
+        id: "lessons-300",
+        title: "Endless Explorer",
+        description: "Charge through 300 total lessons.",
+        icon: Crown,
+        current: lessonsCompleted,
+        target: 300,
+        category: "legendary",
+        tier: "Mythic",
+        order: 4,
+      },
+      {
+        id: "streak-120",
+        title: "Momentum Master",
+        description: "Protect a 120-day streak.",
+        icon: Flame,
+        current: streak,
+        target: 120,
+        category: "legendary",
+        tier: "Mythic",
+        order: 5,
+      },
+      {
+        id: "streak-180",
+        title: "Streak Sovereign",
+        description: "Keep your streak blazing for 180 days.",
+        icon: Flame,
+        current: streak,
+        target: 180,
+        category: "legendary",
+        tier: "Mythic",
+        order: 6,
+      },
+      {
+        id: "perfect-75",
+        title: "Diamond Precision",
+        description: "Complete 75 perfect lessons.",
+        icon: Medal,
+        current: perfectCount,
+        target: 75,
+        category: "legendary",
+        tier: "Mythic",
+        order: 7,
+      },
+      {
+        id: "perfect-100",
+        title: "Perfect Pinnacle",
+        description: "Hit 100 perfect lessons overall.",
+        icon: Crown,
+        current: perfectCount,
+        target: 100,
+        category: "legendary",
+        tier: "Mythic",
+        order: 8,
+      },
+      {
+        id: "mastered-10",
+        title: "Mastery Maestro",
+        description: "Master 10 subjects at elite accuracy.",
+        icon: Award,
+        current: masteredCount,
+        target: 10,
+        category: "legendary",
+        tier: "Mythic",
+        order: 9,
+      },
+      {
+        id: "elite-mastery-5",
+        title: "Mastery Luminary",
+        description: "Reach 90% mastery in 5 subjects.",
+        icon: Star,
+        current: eliteMasteryCount,
+        target: 5,
+        category: "legendary",
+        tier: "Mythic",
+        order: 10,
+      },
+      {
+        id: "study-days-365",
+        title: "Yearlong Scholar",
+        description: "Study on 365 different days.",
+        icon: CalendarCheck2,
+        current: totalStudyDays,
+        target: 365,
+        category: "legendary",
+        tier: "Mythic",
+        order: 11,
+      },
+      {
+        id: "questions-20000",
+        title: "Knowledge Titan",
+        description: "Answer an incredible 20,000 questions.",
+        icon: BookOpen,
+        current: totalQuestions,
+        target: 20000,
+        category: "legendary",
+        tier: "Mythic",
+        order: 12,
+      },
     ];
-
     const computed = definitions.map((item) => ({
       ...item,
       unlocked: item.current >= item.target && item.target > 0,
@@ -973,6 +1645,15 @@ export default function AchievementsPage(): JSX.Element {
     uniqueSubjects,
     masteredCount,
     weeklyTotal,
+    totalQuestions,
+    totalCorrect,
+    totalStudyDays,
+    multiSessionDays,
+    highAccuracySubjects,
+    eliteAccuracySubjects,
+    advancedMasteryCount,
+    eliteMasteryCount,
+    perfectDaysThisWeek,
   ]);
 
   const timelineEvents = useMemo<TimelineEvent[]>(() => {
@@ -1660,5 +2341,3 @@ export default function AchievementsPage(): JSX.Element {
     </main>
   );
 }
-
-
