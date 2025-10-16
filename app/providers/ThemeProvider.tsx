@@ -24,7 +24,25 @@ function migrateLegacyStorage() {
   }
 }
 
-function SyncThemeFromProfile() {
+function getStoredTheme(): ThemeMode | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return sanitizeTheme(window.localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+function persistTheme(value: ThemeMode) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+function SyncThemeFromProfile({ initialTheme }: { initialTheme?: ThemeMode | null }) {
   const { setTheme } = useTheme();
 
   useEffect(() => {
@@ -35,14 +53,18 @@ function SyncThemeFromProfile() {
     if (typeof window === "undefined") return;
     let cancelled = false;
 
-    const stored = (() => {
-      try {
-        return sanitizeTheme(window.localStorage.getItem(STORAGE_KEY));
-      } catch {
-        return null;
-      }
-    })();
-    if (stored) return;
+    const applyTheme = (next: ThemeMode) => {
+      if (cancelled) return;
+      setTheme(next);
+      persistTheme(next);
+    };
+
+    let stored = getStoredTheme();
+
+    if (initialTheme && initialTheme !== stored) {
+      applyTheme(initialTheme);
+      stored = initialTheme;
+    }
 
     (async () => {
       try {
@@ -50,8 +72,8 @@ function SyncThemeFromProfile() {
         if (!res.ok) return;
         const me = await res.json();
         const pref = sanitizeTheme(me?.theme_pref ?? null);
-        if (!pref || cancelled) return;
-        setTheme(pref);
+        if (!pref || pref === stored || cancelled) return;
+        applyTheme(pref);
       } catch {
         /* ignore */
       }
@@ -60,15 +82,28 @@ function SyncThemeFromProfile() {
     return () => {
       cancelled = true;
     };
-  }, [setTheme]);
+  }, [initialTheme, setTheme]);
 
   return null;
 }
 
-export default function ThemeProvider({ children }: { children: React.ReactNode }) {
+export default function ThemeProvider({
+  children,
+  initialTheme,
+}: {
+  children: React.ReactNode;
+  initialTheme?: ThemeMode | null;
+}) {
+  const sanitizedInitial = initialTheme ? sanitizeTheme(initialTheme) : null;
+
   return (
-    <NextThemes attribute="class" defaultTheme="dark" enableSystem={false} storageKey={STORAGE_KEY}>
-      <SyncThemeFromProfile />
+    <NextThemes
+      attribute="class"
+      defaultTheme={sanitizedInitial ?? "dark"}
+      enableSystem={false}
+      storageKey={STORAGE_KEY}
+    >
+      <SyncThemeFromProfile initialTheme={sanitizedInitial} />
       {children}
     </NextThemes>
   );

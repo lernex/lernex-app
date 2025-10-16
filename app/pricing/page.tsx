@@ -233,81 +233,92 @@ export default function Pricing() {
           viewport={{ once: true, amount: 0.2 }}
           className="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3"
         >
-          {tiers.map((tier, index) => (
-            <motion.div
-              key={tier.id}
-              custom={index}
-              variants={cardVariants}
-              whileHover={{ y: -10, rotateX: 0.2, rotateY: -0.2 }}
-              className={`relative rounded-3xl border p-8 transition-all duration-500 ${tier.highlight ? 'overflow-visible' : 'overflow-hidden'} ${tier.accent}`}
-            >
-              {tier.highlight && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="absolute left-1/2 top-[-18px] inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-neutral-900 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-white shadow-lg shadow-neutral-900/40 dark:bg-white dark:text-neutral-900"
-                >
-                  <Sparkles className="h-3.5 w-3.5" /> {tier.badge}
-                </motion.div>
-              )}
+          {tiers.map((tier, index) => {
+            const isHighlight = tier.highlight;
+            const headingClass = isHighlight ? "text-white" : "text-neutral-900 dark:text-white";
+            const taglineClass = isHighlight ? "text-white/80" : "text-neutral-600 dark:text-neutral-300";
+            const priceClass = isHighlight ? "text-white" : "text-neutral-900 dark:text-white";
+            const priceSuffixClass = isHighlight ? "text-white/80" : "text-neutral-500 dark:text-neutral-400";
+            const originalPriceClass = isHighlight ? "text-white/70" : "text-neutral-400 dark:text-neutral-500";
+            const sellingPointClass = isHighlight ? "text-emerald-200" : "text-emerald-500 dark:text-emerald-300";
+            const featureTextClass = isHighlight ? "text-white/80" : "text-neutral-600 dark:text-neutral-200";
 
-              {!tier.highlight && (
-                <div className="absolute right-4 top-4 text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
-                  {tier.badge}
-                </div>
-              )}
+            return (
+              <motion.div
+                key={tier.id}
+                custom={index}
+                variants={cardVariants}
+                whileHover={{ y: -10, rotateX: 0.2, rotateY: -0.2 }}
+                className={`relative rounded-3xl border p-8 transition-all duration-500 ${isHighlight ? 'overflow-visible' : 'overflow-hidden'} ${tier.accent}`}
+              >
+                {isHighlight && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="absolute left-1/2 top-[-18px] inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-neutral-900 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-white shadow-lg shadow-neutral-900/40 dark:bg-white dark:text-neutral-900"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> {tier.badge}
+                  </motion.div>
+                )}
 
-              <div className="space-y-4">
-                <div>
-                  <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">{tier.name}</h2>
-                  <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">{tier.tagline}</p>
-                </div>
-
-                <div>
-                  <div className="flex items-baseline gap-2">
-                    {tier.originalPrice && (
-                      <span className="text-sm text-neutral-400 line-through dark:text-neutral-500">{tier.originalPrice}</span>
-                    )}
-                    <span className="text-4xl font-bold text-neutral-900 dark:text-white">{tier.price}</span>
-                    <span className="text-sm text-neutral-500 dark:text-neutral-400">{tier.priceSuffix}</span>
+                {!isHighlight && (
+                  <div className="absolute right-4 top-4 text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+                    {tier.badge}
                   </div>
-                  <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-emerald-500 dark:text-emerald-300">
-                    {tier.sellingPoint}
-                  </p>
-                </div>
+                )}
 
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => handleSelect(tier)}
-                  disabled={loadingTier === tier.id}
-                  className={`group mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold tracking-wide transition disabled:cursor-not-allowed disabled:opacity-60 ${tier.buttonClasses}`}
-                >
-                  {loadingTier === tier.id ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Redirecting...</span>
-                    </>
-                  ) : (
-                    <>
-                      {tier.cta}
-                      <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
-                    </>
-                  )}
-                </motion.button>
+                <div className="space-y-4">
+                  <div>
+                    <h2 className={`text-2xl font-semibold ${headingClass}`}>{tier.name}</h2>
+                    <p className={`mt-2 text-sm ${taglineClass}`}>{tier.tagline}</p>
+                  </div>
 
-                <div className="mt-6 space-y-3">
-                  {tier.features.map(feature => (
-                    <div key={feature} className="flex items-start gap-3 text-sm text-neutral-600 dark:text-neutral-200">
-                      <CheckCircle2 className={`h-4 w-4 flex-shrink-0 ${tier.highlight ? 'text-white' : 'text-lernex-blue dark:text-lernex-blue'}`} />
-                      <span>{feature}</span>
+                  <div>
+                    <div className="flex items-baseline gap-2">
+                      {tier.originalPrice && (
+                        <span className={`text-sm line-through ${originalPriceClass}`}>{tier.originalPrice}</span>
+                      )}
+                      <span className={`text-4xl font-bold ${priceClass}`}>{tier.price}</span>
+                      <span className={`text-sm ${priceSuffixClass}`}>{tier.priceSuffix}</span>
                     </div>
-                  ))}
+                    <p className={`mt-2 text-xs font-semibold uppercase tracking-wide ${sellingPointClass}`}>
+                      {tier.sellingPoint}
+                    </p>
+                  </div>
+
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleSelect(tier)}
+                    disabled={loadingTier === tier.id}
+                    className={`group mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold tracking-wide transition disabled:cursor-not-allowed disabled:opacity-60 ${tier.buttonClasses}`}
+                  >
+                    {loadingTier === tier.id ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Redirecting...</span>
+                      </>
+                    ) : (
+                      <>
+                        {tier.cta}
+                        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+                      </>
+                    )}
+                  </motion.button>
+
+                  <div className="mt-6 space-y-3">
+                    {tier.features.map(feature => (
+                      <div key={feature} className={`flex items-start gap-3 text-sm ${featureTextClass}`}>
+                        <CheckCircle2 className={`h-4 w-4 flex-shrink-0 ${isHighlight ? 'text-white' : 'text-lernex-blue dark:text-lernex-blue'}`} />
+                        <span>{feature}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </motion.div>
 
         <motion.div

@@ -419,28 +419,28 @@ export default function Leaderboard() {
       </div>
 
       <section className="mt-6 grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-neutral-200 p-4 text-center dark:border-neutral-800">
+        <div className="rounded-xl border border-neutral-200 bg-white/90 p-4 text-center shadow-sm transition-colors dark:border-neutral-800 dark:bg-neutral-900/60">
           <div className="text-xs text-neutral-500 dark:text-neutral-400">🔥 Your Streak</div>
           <div className="text-2xl font-semibold">{streak}</div>
           {rankStreak && (
             <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Rank #{rankStreak}</div>
           )}
         </div>
-        <div className="rounded-xl border border-neutral-200 p-4 text-center dark:border-neutral-800">
+        <div className="rounded-xl border border-neutral-200 bg-white/90 p-4 text-center shadow-sm transition-colors dark:border-neutral-800 dark:bg-neutral-900/60">
           <div className="text-xs text-neutral-500 dark:text-neutral-400">⭐ Your Points</div>
           <div className="text-2xl font-semibold">{points}</div>
           {rankPoints && (
             <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Rank #{rankPoints}</div>
           )}
         </div>
-        <div className="rounded-xl border border-neutral-200 p-4 text-center dark:border-neutral-800">
+        <div className="rounded-xl border border-neutral-200 bg-white/90 p-4 text-center shadow-sm transition-colors dark:border-neutral-800 dark:bg-neutral-900/60">
           <div className="text-xs text-neutral-500 dark:text-neutral-400">Best Subject</div>
           <div className="text-lg font-medium">{bestSubject ?? "—"}</div>
         </div>
       </section>
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
+        <div className="rounded-xl border border-neutral-200 bg-white/90 p-4 shadow-sm transition-colors dark:border-neutral-800 dark:bg-neutral-900/60">
           <div className="mb-2 text-sm font-semibold">Top Points</div>
           {error ? (
             <div className="text-sm text-rose-500 dark:text-rose-400">{error}</div>
@@ -454,14 +454,16 @@ export default function Leaderboard() {
                     <li
                       key={row.id}
                       aria-current={row.id === userId ? "true" : undefined}
-                      className={`flex items-center justify-between rounded-lg px-3 py-2 ring-offset-2 transition ${
+                      className={`flex items-center justify-between rounded-lg border border-transparent px-3 py-2 ring-offset-2 ring-offset-white transition dark:ring-offset-lernex-charcoal ${
                         row.id === userId
-                          ? "bg-lernex-blue/15 ring-2 ring-lernex-blue/40 dark:bg-lernex-blue/20"
-                          : "bg-white/60 hover:bg-white/80 dark:bg-white/5 dark:hover:bg-white/10"
+                          ? "bg-lernex-blue/15 ring-2 ring-lernex-blue/40 dark:bg-lernex-blue/25 dark:ring-lernex-blue/50"
+                          : "bg-white/90 hover:bg-white dark:bg-neutral-900/70 dark:hover:bg-neutral-900/60"
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="w-6 text-right text-sm text-neutral-500">{index + 1}</span>
+                        <span className="w-6 text-right text-sm text-neutral-500 dark:text-neutral-400">
+                          {index + 1}
+                        </span>
                         <span className="text-sm">
                           {row.username ?? `Learner #${row.id.slice(0, 6)}`}
                         </span>
@@ -480,7 +482,7 @@ export default function Leaderboard() {
             </ol>
           )}
         </div>
-        <div className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
+        <div className="rounded-xl border border-neutral-200 bg-white/90 p-4 shadow-sm transition-colors dark:border-neutral-800 dark:bg-neutral-900/60">
           <div className="mb-2 text-sm font-semibold">Top Streaks</div>
           {error ? (
             <div className="text-sm text-rose-500 dark:text-rose-400">{error}</div>
@@ -494,14 +496,16 @@ export default function Leaderboard() {
                     <li
                       key={row.id}
                       aria-current={row.id === userId ? "true" : undefined}
-                      className={`flex items-center justify-between rounded-lg px-3 py-2 ring-offset-2 transition ${
+                      className={`flex items-center justify-between rounded-lg border border-transparent px-3 py-2 ring-offset-2 ring-offset-white transition dark:ring-offset-lernex-charcoal ${
                         row.id === userId
-                          ? "bg-lernex-blue/15 ring-2 ring-lernex-blue/40 dark:bg-lernex-blue/20"
-                          : "bg-white/60 hover:bg-white/80 dark:bg-white/5 dark:hover:bg-white/10"
+                          ? "bg-lernex-blue/15 ring-2 ring-lernex-blue/40 dark:bg-lernex-blue/25 dark:ring-lernex-blue/50"
+                          : "bg-white/90 hover:bg-white dark:bg-neutral-900/70 dark:hover:bg-neutral-900/60"
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="w-6 text-right text-sm text-neutral-500">{index + 1}</span>
+                        <span className="w-6 text-right text-sm text-neutral-500 dark:text-neutral-400">
+                          {index + 1}
+                        </span>
                         <span className="text-sm">
                           {row.username ?? `Learner #${row.id.slice(0, 6)}`}
                         </span>
@@ -522,7 +526,7 @@ export default function Leaderboard() {
         </div>
       </section>
 
-      <div className="mt-6 rounded-xl border border-neutral-200 p-4 text-sm dark:border-neutral-800">
+      <div className="mt-6 rounded-xl border border-neutral-200 bg-white/90 p-4 text-sm transition-colors dark:border-neutral-800 dark:bg-neutral-900/60">
         Want to climb the board? Try a <Link href="/playlists" className="underline">playlist</Link> or
         generate a fresh <Link href="/generate" className="underline">micro-lesson</Link>.
       </div>

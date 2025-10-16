@@ -245,12 +245,12 @@ const additionalResources: AdditionalResource[] = [
 
 const toneStyles: Record<Tone, { badge: string; iconWrap: string }> = {
   ok: {
-    badge: 'bg-lernex-green/15 text-lernex-green',
-    iconWrap: 'bg-lernex-green/10 text-lernex-green',
+    badge: 'bg-lernex-green/15 text-lernex-green dark:bg-lernex-green/25 dark:text-lernex-green',
+    iconWrap: 'bg-lernex-green/10 text-lernex-green dark:bg-lernex-green/20 dark:text-lernex-green',
   },
   warn: {
-    badge: 'bg-lernex-yellow/20 text-lernex-yellow',
-    iconWrap: 'bg-lernex-yellow/10 text-lernex-yellow',
+    badge: 'bg-lernex-yellow/20 text-lernex-yellow dark:bg-lernex-yellow/25 dark:text-lernex-yellow',
+    iconWrap: 'bg-lernex-yellow/10 text-lernex-yellow dark:bg-lernex-yellow/20 dark:text-lernex-yellow',
   },
 };
 
@@ -278,7 +278,7 @@ export default function SupportPage() {
         <section className="overflow-hidden rounded-3xl border border-neutral-200 bg-white/90 p-8 shadow-xl shadow-neutral-200/40 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 dark:shadow-none sm:p-10">
           <div className="grid gap-8 lg:grid-cols-[2fr,1fr]">
             <div>
-              <span className="inline-flex items-center gap-2 rounded-full bg-lernex-purple/10 px-3 py-1 text-sm font-medium text-lernex-purple dark:bg-lernex-purple/20">
+              <span className="inline-flex items-center gap-2 rounded-full bg-lernex-purple/10 px-3 py-1 text-sm font-medium text-lernex-purple dark:bg-lernex-purple/25 dark:text-lernex-purple">
                 We’re here for you
                 <ArrowUpRight className="h-4 w-4" />
               </span>
@@ -308,7 +308,7 @@ export default function SupportPage() {
             <div className="grid gap-4 rounded-2xl border border-neutral-200 bg-white/60 p-5 text-sm text-neutral-700 shadow-inner shadow-neutral-200/60 dark:border-white/10 dark:bg-white/5 dark:text-neutral-200">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-neutral-900 dark:text-white">Today’s queue</span>
-                <span className="rounded-full bg-lernex-green/15 px-3 py-1 text-xs font-semibold text-lernex-green">
+                <span className="rounded-full bg-lernex-green/15 px-3 py-1 text-xs font-semibold text-lernex-green dark:bg-lernex-green/25 dark:text-lernex-green">
                   All clear
                 </span>
               </div>
@@ -344,7 +344,7 @@ export default function SupportPage() {
               href={item.href}
               className="group relative flex h-full flex-col rounded-2xl border border-neutral-200 bg-white/90 p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
             >
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-lernex-purple/10 text-lernex-purple transition group-hover:bg-lernex-purple group-hover:text-white">
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-lernex-purple/10 text-lernex-purple transition group-hover:bg-lernex-purple group-hover:text-white dark:bg-lernex-purple/25 dark:text-lernex-purple">
                 <item.icon className="h-6 w-6" />
               </span>
               <h2 className="mt-4 text-lg font-semibold text-neutral-900 dark:text-white">{item.title}</h2>
@@ -484,7 +484,7 @@ export default function SupportPage() {
                 Choose the channel that fits your style. We track every message so you don’t have to repeat yourself.
               </p>
             </div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-lernex-blue/10 px-4 py-2 text-sm font-semibold text-lernex-blue dark:bg-lernex-blue/20">
+            <span className="inline-flex items-center gap-2 rounded-full bg-lernex-blue/10 px-4 py-2 text-sm font-semibold text-lernex-blue dark:bg-lernex-blue/20 dark:text-lernex-blue">
               24/7 coverage for premium plans
             </span>
           </div>
@@ -497,7 +497,7 @@ export default function SupportPage() {
                 className="group flex h-full flex-col justify-between rounded-2xl border border-neutral-200 bg-white/90 p-6 transition hover:-translate-y-1 hover:border-lernex-purple hover:shadow-lg hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
               >
                 <div className="flex items-center gap-4">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-lernex-blue/10 text-lernex-blue transition group-hover:bg-lernex-purple group-hover:text-white">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-lernex-blue/10 text-lernex-blue transition group-hover:bg-lernex-purple group-hover:text-white dark:bg-lernex-blue/20 dark:text-lernex-blue">
                     <channel.icon className="h-6 w-6" />
                   </span>
                   <div>
@@ -547,7 +547,7 @@ export default function SupportPage() {
                 href={resource.href}
                 className="group flex items-center gap-4 rounded-2xl border border-neutral-200 bg-white/90 p-4 transition hover:-translate-y-1 hover:border-lernex-purple hover:shadow-md hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
               >
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-lernex-purple/10 text-lernex-purple transition group-hover:bg-lernex-purple group-hover:text-white">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-lernex-purple/10 text-lernex-purple transition group-hover:bg-lernex-purple group-hover:text-white dark:bg-lernex-purple/25 dark:text-lernex-purple">
                   <resource.icon className="h-6 w-6" />
                 </span>
                 <div>

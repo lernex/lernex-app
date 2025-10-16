@@ -157,13 +157,13 @@ export default function Generate() {
   }, [lesson]);
 
   return (
-    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center bg-neutral-50 px-4 py-10 text-neutral-900 dark:bg-neutral-950 dark:text-white">
+    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center bg-surface-page px-4 py-10 text-foreground">
       <div className="w-full max-w-md space-y-4 py-6">
-        <div className="rounded-2xl border border-neutral-200 bg-white/80 p-5 space-y-3 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/70">
+        <div className="rounded-2xl border border-surface bg-surface-panel p-5 space-y-3 shadow-sm backdrop-blur transition-colors">
           <h1 className="text-xl font-semibold">Generate a Micro-Lesson</h1>
 
           {(loading || progress > 0) && (
-            <div className="h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
+            <div className="h-2 w-full rounded-full bg-surface-muted overflow-hidden">
               <div className="h-full bg-lernex-blue transition-[width] duration-200" style={{ width: `${progress}%` }} />
             </div>
           )}
@@ -178,7 +178,7 @@ export default function Generate() {
               <button
                 key={opt.key}
                 onClick={() => setMode(opt.key as typeof mode)}
-                className={`rounded-full border px-3 py-1.5 text-sm ${mode === opt.key ? "bg-lernex-blue text-white border-blue-600" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700"}`}
+                className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${mode === opt.key ? "border-blue-600 bg-lernex-blue text-white" : "border-surface bg-surface-muted text-neutral-700 dark:text-neutral-200"}`}
               >
                 {opt.label}
               </button>
@@ -189,14 +189,14 @@ export default function Generate() {
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Subject (e.g., Algebra 1)"
-            className="w-full px-3 py-2 rounded-xl bg-white border border-neutral-300 text-neutral-900 outline-none focus:ring-2 focus:ring-lernex-blue/40 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
+            className="w-full rounded-xl border border-surface bg-surface-card px-3 py-2 text-foreground outline-none transition focus:ring-2 focus:ring-lernex-blue/40 placeholder:text-neutral-500 dark:placeholder:text-neutral-400"
           />
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={6}
-            placeholder="Paste study text here… (≥ 20 chars)"
-            className="w-full px-3 py-2 rounded-xl bg-white border border-neutral-300 text-neutral-900 outline-none focus:ring-2 focus:ring-lernex-blue/40 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
+            placeholder="Paste study text here... (>= 20 chars)"
+            className="w-full rounded-xl border border-surface bg-surface-card px-3 py-2 text-foreground outline-none transition focus:ring-2 focus:ring-lernex-blue/40 placeholder:text-neutral-500 dark:placeholder:text-neutral-400"
           />
           <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
             <span>Tip: Keep it 2 short paragraphs for best results.</span>
@@ -205,16 +205,16 @@ export default function Generate() {
           <button
             onClick={run}
             disabled={loading || text.trim().length < 20}
-            className="w-full py-3 rounded-2xl bg-gradient-to-r from-lernex-blue to-lernex-purple shadow-sm hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full rounded-2xl bg-gradient-to-r from-lernex-blue to-lernex-purple py-3 text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? "Generating…" : "Generate"}
+            {loading ? "Generating..." : "Generate"}
           </button>
           {err && <div className="text-red-500 dark:text-red-400 text-sm">{err}</div>}
         </div>
 
         {/* Show streaming text immediately if lesson object not ready yet */}
         {!lesson && streamed && (
-          <div className="rounded-2xl border border-neutral-200 bg-white/90 p-4 text-neutral-700 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-200 whitespace-pre-wrap">
+          <div className="whitespace-pre-wrap rounded-2xl border border-surface bg-surface-card p-4 text-neutral-700 shadow-sm dark:text-neutral-200">
             {/* Use incremental rendering to avoid flashing while streaming */}
             <FormattedText text={streamed} incremental />
           </div>
@@ -222,7 +222,7 @@ export default function Generate() {
 
         {/* Empty-state helper */}
         {!lesson && !streamed && (
-          <div className="rounded-2xl border border-dashed border-neutral-300 bg-white/80 p-4 text-sm text-neutral-600 shadow-sm dark:border-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-300">
+          <div className="rounded-2xl border border-dashed border-surface bg-surface-muted p-4 text-sm text-neutral-600 shadow-sm dark:text-neutral-300">
             Paste a concept or definition to turn it into a short lesson with a quick quiz. Great inputs:
             <ul className="mt-2 list-disc pl-5">
               <li>Key theorem statements or laws</li>

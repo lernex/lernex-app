@@ -485,13 +485,13 @@ export default function Playlists() {
               initial={{ opacity: 0, scale: 0.6 }}
               animate={{ opacity: 0.6, scale: 1 }}
               transition={{ duration: 1.2, ease: "easeOut" }}
-              className="pointer-events-none absolute -top-24 -left-20 hidden h-52 w-52 rounded-full bg-lernex-blue/25 blur-3xl md:block"
+              className="pointer-events-none absolute -top-24 -left-20 hidden h-52 w-52 rounded-full bg-lernex-blue/25 blur-3xl md:block dark:hidden"
             />
             <motion.span
               initial={{ opacity: 0, scale: 0.6 }}
               animate={{ opacity: 0.55, scale: 1 }}
               transition={{ duration: 1.4, delay: 0.1, ease: "easeOut" }}
-              className="pointer-events-none absolute -bottom-24 right-10 hidden h-60 w-60 rounded-full bg-lernex-purple/25 blur-3xl md:block"
+              className="pointer-events-none absolute -bottom-24 right-10 hidden h-60 w-60 rounded-full bg-lernex-purple/25 blur-3xl md:block dark:hidden"
             />
             <div className="relative z-10 flex flex-col gap-6">
               <div>
@@ -554,7 +554,7 @@ export default function Playlists() {
                       onClick={() => setActiveFilter(filter.key)}
                       className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${
                         active
-                          ? "border-lernex-blue/60 bg-lernex-blue/10 text-lernex-blue shadow-sm"
+                          ? "border-lernex-blue/60 bg-lernex-blue/10 text-lernex-blue shadow-sm dark:border-lernex-blue/60 dark:bg-lernex-blue/20 dark:text-lernex-blue/80"
                           : "border-neutral-200/80 bg-white/75 text-neutral-600 hover:border-lernex-blue/40 hover:text-lernex-blue dark:border-white/10 dark:bg-white/10 dark:text-white/70"
                       }`}
                     >
@@ -742,9 +742,9 @@ function PlaylistCard({
   const isModerator = playlist.userRole === "moderator";
 
   const roleBadgeClass = isOwner
-    ? "bg-lernex-blue/10 text-lernex-blue"
+    ? "bg-lernex-blue/10 text-lernex-blue dark:bg-lernex-blue/20 dark:text-lernex-blue/80"
     : isModerator
-    ? "bg-lernex-purple/10 text-lernex-purple"
+    ? "bg-lernex-purple/10 text-lernex-purple dark:bg-lernex-purple/25 dark:text-lernex-purple/90"
     : playlist.is_public
     ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-200"
     : "bg-neutral-900/5 text-neutral-600 dark:bg-white/10 dark:text-white/60";
@@ -778,7 +778,7 @@ function PlaylistCard({
           <span
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
               playlist.is_public
-                ? "bg-lernex-blue/15 text-lernex-blue"
+                ? "bg-lernex-blue/15 text-lernex-blue dark:bg-lernex-blue/25 dark:text-lernex-blue/80"
                 : "bg-neutral-900/5 text-neutral-600 dark:bg-white/10 dark:text-white/70"
             }`}
           >

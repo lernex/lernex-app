@@ -98,33 +98,37 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
   };
 
   const baseClass =
-    "relative flex h-full flex-col overflow-hidden rounded-[28px] border border-white/20 bg-gradient-to-br from-white/95 via-white/80 to-white/65 shadow-xl ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-2xl backdrop-blur-xl dark:border-white/10 dark:from-white/10 dark:via-white/5 dark:to-white/0";
+    "relative flex h-full flex-col overflow-hidden rounded-[28px] border border-surface bg-surface-card shadow-xl ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-2xl backdrop-blur-xl";
   const rootClass = className ? baseClass + " " + className : baseClass;
 
+  const actionBase =
+    "px-3 py-1.5 rounded-full border transition-colors transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40";
+
   const helpfulClass = [
-    "px-3 py-1.5 rounded-full border transition-shadow",
+    actionBase,
     liked
-      ? "border-green-400/70 bg-green-50/80 text-green-700 shadow-sm dark:border-green-500/50 dark:bg-green-500/10 dark:text-green-300"
-      : "border-neutral-200/80 bg-neutral-100/80 text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700/70 dark:bg-neutral-800/60 dark:text-neutral-300 dark:hover:bg-neutral-800",
+      ? "border-green-500/70 bg-green-500/15 text-green-700 shadow-sm dark:text-green-200"
+      : "border-surface bg-surface-muted text-neutral-600 hover:bg-surface-card dark:text-neutral-300",
   ].join(" ");
 
   const saveClass = [
-    "px-3 py-1.5 rounded-full border transition-shadow",
+    actionBase,
     saved
-      ? "border-amber-400/70 bg-amber-50/80 text-amber-700 shadow-sm dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-200"
-      : "border-neutral-200/80 bg-neutral-100/80 text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700/70 dark:bg-neutral-800/60 dark:text-neutral-300 dark:hover:bg-neutral-800",
+      ? "border-amber-400/70 bg-amber-400/15 text-amber-700 shadow-sm dark:text-amber-200"
+      : "border-surface bg-surface-muted text-neutral-600 hover:bg-surface-card dark:text-neutral-300",
   ].join(" ");
 
   const dislikeClass = [
-    "ml-auto px-3 py-1.5 rounded-full border transition-shadow",
+    "ml-auto",
+    actionBase,
     disliked
-      ? "border-red-400/70 bg-red-50/80 text-red-700 shadow-sm dark:border-red-400/40 dark:bg-red-500/10 dark:text-red-200"
-      : "border-neutral-200/80 bg-neutral-100/80 text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700/70 dark:bg-neutral-800/60 dark:text-neutral-300 dark:hover:bg-neutral-800",
+      ? "border-red-500/70 bg-red-500/15 text-red-700 shadow-sm dark:text-red-200"
+      : "border-surface bg-surface-muted text-neutral-600 hover:bg-surface-card dark:text-neutral-300",
   ].join(" ");
 
   return (
     <div ref={cardRef} className={rootClass}>
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.2),transparent_55%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.18),transparent_48%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.08),transparent_60%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-80 dark:opacity-40 bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.2),transparent_55%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.18),transparent_48%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.08),transparent_60%)]" />
       <div className="relative flex min-h-0 flex-1 flex-col gap-4 px-5 py-6 sm:px-6 md:py-7">
         <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">
           {lesson.subject}

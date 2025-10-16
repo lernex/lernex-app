@@ -719,7 +719,7 @@ export default function AchievementsPage(): JSX.Element {
                 Current streak
               </div>
               <div className="mt-1 text-2xl font-semibold">{streak}</div>
-              <div className="mt-1 text-[11px] text-neutral-500">
+              <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
                 {milestoneStreak.next > streak
                   ? `${milestoneStreak.next - streak} days until ${milestoneStreak.next}`
                   : "New streak milestone reached"}
@@ -732,7 +732,7 @@ export default function AchievementsPage(): JSX.Element {
               <div className="mt-1 text-2xl font-semibold">
                 {points.toLocaleString()}
               </div>
-              <div className="mt-1 text-[11px] text-neutral-500">
+              <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
                 {milestonePoints.next > points
                   ? `${milestonePoints.next - points} to reach ${milestonePoints.next}`
                   : "Keep stacking points"}
@@ -745,7 +745,7 @@ export default function AchievementsPage(): JSX.Element {
               <div className="mt-1 text-2xl font-semibold">
                 {accuracyPercent != null ? `${accuracyPercent}%` : "�"}
               </div>
-              <div className="mt-1 text-[11px] text-neutral-500">
+              <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
                 Based on {totalQuestions} questions
               </div>
             </div>
@@ -756,7 +756,7 @@ export default function AchievementsPage(): JSX.Element {
               <div className="mt-1 text-2xl font-semibold">
                 {perfectCount.toLocaleString()}
               </div>
-              <div className="mt-1 text-[11px] text-neutral-500">
+              <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
                 {perfectCount >= 5
                   ? "Amazing consistency"
                   : `${Math.max(0, 5 - perfectCount)} to unlock badge`}
@@ -895,7 +895,7 @@ export default function AchievementsPage(): JSX.Element {
                   <span className="font-medium text-neutral-600 dark:text-neutral-300">
                     {day.label}
                   </span>
-                  <span className="text-[11px] text-neutral-500">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                     {day.count} lesson{day.count === 1 ? "" : "s"}
                   </span>
                 </div>
@@ -1012,7 +1012,7 @@ export default function AchievementsPage(): JSX.Element {
                 key={badge.id}
                 className={`relative overflow-hidden rounded-2xl border p-5 transition ${
                   badge.unlocked
-                    ? "border-lernex-blue/30 bg-lernex-blue/10 text-lernex-blue-950 shadow ring-1 ring-lernex-blue/30"
+                    ? "border-lernex-blue/30 bg-lernex-blue/10 text-lernex-blue-950 shadow ring-1 ring-lernex-blue/30 dark:border-lernex-blue/40 dark:bg-lernex-blue/20 dark:text-white dark:ring-lernex-blue/20"
                     : "border-white/70 bg-gradient-to-br from-white via-slate-50 to-white text-neutral-900 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-white dark:ring-0"
                 }`}
               >
@@ -1029,7 +1029,7 @@ export default function AchievementsPage(): JSX.Element {
                   <span
                     className={`inline-flex items-center justify-center rounded-full px-2 py-1 text-[10px] font-semibold ${
                       badge.unlocked
-                        ? "bg-white/70 text-lernex-blue"
+                        ? "bg-white/70 text-lernex-blue dark:bg-lernex-blue/25 dark:text-white"
                         : "bg-white/80 text-neutral-700 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-0"
                     }`}
                   >

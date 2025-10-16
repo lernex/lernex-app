@@ -101,6 +101,30 @@ html {
     animation: gradient-logo-shift 1.8s ease-in-out;
     filter: drop-shadow(0 0 0.35rem rgba(47, 128, 237, 0.2));
   }
+
+  .bg-surface-page {
+    background-color: var(--surface-page);
+  }
+
+  .bg-surface-panel {
+    background-color: var(--surface-panel);
+  }
+
+  .bg-surface-card {
+    background-color: var(--surface-card);
+  }
+
+  .bg-surface-muted {
+    background-color: var(--surface-muted);
+  }
+
+  .border-surface {
+    border-color: var(--surface-border);
+  }
+
+  .text-foreground {
+    color: var(--foreground);
+  }
 }
 
 @keyframes fadeIn {

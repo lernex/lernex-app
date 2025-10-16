@@ -664,13 +664,13 @@ export default function PlaylistDetail() {
                     initial={{ opacity: 0, scale: 0.6 }}
                     animate={{ opacity: 0.65, scale: 1 }}
                     transition={{ duration: 1.2, ease: "easeOut" }}
-                    className="pointer-events-none absolute -top-20 -right-10 hidden h-56 w-56 rounded-full bg-lernex-blue/25 blur-3xl md:block"
+                    className="pointer-events-none absolute -top-20 -right-10 hidden h-56 w-56 rounded-full bg-lernex-blue/25 blur-3xl md:block dark:hidden"
                   />
                   <motion.span
                     initial={{ opacity: 0, scale: 0.6 }}
                     animate={{ opacity: 0.55, scale: 1 }}
                     transition={{ duration: 1.4, delay: 0.1, ease: "easeOut" }}
-                    className="pointer-events-none absolute -bottom-24 left-1/2 hidden h-64 w-64 -translate-x-1/2 rounded-full bg-lernex-purple/25 blur-3xl md:block"
+                    className="pointer-events-none absolute -bottom-24 left-1/2 hidden h-64 w-64 -translate-x-1/2 rounded-full bg-lernex-purple/25 blur-3xl md:block dark:hidden"
                   />
                   <div className="relative z-10 flex flex-col gap-6">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

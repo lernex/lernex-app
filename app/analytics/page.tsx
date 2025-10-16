@@ -259,7 +259,12 @@ function pickTrendIcon(delta: number): typeof ArrowUpRight | typeof ArrowDownRig
   return Activity;
 }
 
-function Sparkline({ values, color = "#2F80ED", height = 72 }: { values: number[]; color?: string; height?: number }) {
+function Sparkline({
+  values,
+  color = "#2F80ED",
+  height = 72,
+  isDark = false,
+}: { values: number[]; color?: string; height?: number; isDark?: boolean }) {
   const gradientId = useId();
   const width = values.length > 1 ? 180 : 120;
   if (values.length === 0) {
@@ -279,13 +284,16 @@ function Sparkline({ values, color = "#2F80ED", height = 72 }: { values: number[
   const lastValue = values[values.length - 1];
   const lastX = values.length === 1 ? width / 2 : width;
   const lastY = height - ((lastValue - min) / range) * height;
+  const areaStartOpacity = isDark ? 0.4 : 0.35;
+  const areaEndOpacity = isDark ? 0.12 : 0.02;
+  const markerStroke = isDark ? "rgba(15, 23, 42, 0.85)" : "rgba(255, 255, 255, 0.9)";
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
       <defs>
         <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.35} />
-          <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+          <stop offset="0%" stopColor={color} stopOpacity={areaStartOpacity} />
+          <stop offset="100%" stopColor={color} stopOpacity={areaEndOpacity} />
         </linearGradient>
       </defs>
       <polygon points={areaPoints} fill={`url(#${gradientId})`} opacity={0.8} />
@@ -297,18 +305,19 @@ function Sparkline({ values, color = "#2F80ED", height = 72 }: { values: number[
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx={lastX} cy={lastY} r={4} fill={color} stroke="#fff" strokeWidth={1.5} />
+      <circle cx={lastX} cy={lastY} r={4} fill={color} stroke={markerStroke} strokeWidth={1.5} />
     </svg>
   );
 }
 
-function RadialMeter({ value, label }: { value: number; label: string }) {
+function RadialMeter({ value, label, isDark = false }: { value: number; label: string; isDark?: boolean }) {
   const radius = 36;
   const strokeWidth = 10;
   const circumference = 2 * Math.PI * radius;
   const normalized = clamp01(value);
   const offset = circumference * (1 - normalized);
   const gradientId = useId();
+  const trackColor = isDark ? "rgba(148, 163, 184, 0.25)" : "rgba(15, 23, 42, 0.12)";
 
   return (
     <div className="relative flex h-24 w-24 items-center justify-center">
@@ -320,7 +329,7 @@ function RadialMeter({ value, label }: { value: number; label: string }) {
             <stop offset="100%" stopColor="#19B5FE" />
           </linearGradient>
         </defs>
-        <circle cx="54" cy="54" r={radius} stroke="rgba(15, 23, 42, 0.08)" strokeWidth={strokeWidth} fill="none" />
+        <circle cx="54" cy="54" r={radius} stroke={trackColor} strokeWidth={strokeWidth} fill="none" />
         <circle
           cx="54"
           cy="54"
@@ -381,7 +390,10 @@ const chipBase =
 export default function AnalyticsPage() {
   const supabase = useMemo(() => supabaseBrowser(), []);
   const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    if (typeof document === "undefined") return false;
+    return document.documentElement.classList.contains("dark");
+  });
   const { user, userId, stats, loading: statsLoading } = useProfileStats();
   const [attempts, setAttempts] = useState<AttemptRow[]>([]);
   const [attemptCount, setAttemptCount] = useState(0);
@@ -393,6 +405,11 @@ export default function AnalyticsPage() {
   const [error, setError] = useState<string | null>(null);
   const [timeframe, setTimeframe] = useState<7 | 14 | 30>(14);
   const mountedRef = useRef(true);
+
+  useEffect(() => {
+    if (!resolvedTheme) return;
+    setIsDark(resolvedTheme === "dark");
+  }, [resolvedTheme]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -818,7 +835,7 @@ export default function AnalyticsPage() {
               <h3 className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Avg accuracy</h3>
               <p className="mt-2 text-3xl font-semibold">{formatPercent(averageAccuracy)}</p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-lernex-blue/10 text-lernex-blue">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-lernex-blue/10 text-lernex-blue dark:bg-lernex-blue/25">
               <Target className="h-6 w-6" />
             </div>
           </div>
@@ -833,7 +850,7 @@ export default function AnalyticsPage() {
             </span>
           </div>
           <div className="mt-4">
-            <Sparkline values={accuracySeries} />
+            <Sparkline values={accuracySeries} isDark={isDark} />
           </div>
         </div>
 
@@ -843,7 +860,7 @@ export default function AnalyticsPage() {
               <h3 className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Sessions tracked</h3>
               <p className="mt-2 text-3xl font-semibold">{formatNumber(attemptCount)}</p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/25">
               <Activity className="h-6 w-6" />
             </div>
           </div>
@@ -855,7 +872,7 @@ export default function AnalyticsPage() {
               <span>{formatPercent(consistency)} consistency</span>
             </div>
             <div className="mt-2 flex items-center justify-between">
-              <RadialMeter value={consistency} label="Consistency" />
+              <RadialMeter value={consistency} label="Consistency" isDark={isDark} />
               <div className="text-right text-sm">
                 <div className="font-semibold">{momentumScore}</div>
                 <div className="text-xs text-neutral-500 dark:text-neutral-400">Momentum score</div>
@@ -870,7 +887,7 @@ export default function AnalyticsPage() {
               <h3 className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Points earned</h3>
               <p className="mt-2 text-3xl font-semibold">{formatNumber(points)}</p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 dark:bg-amber-500/20">
               <Zap className="h-6 w-6" />
             </div>
           </div>
@@ -891,7 +908,7 @@ export default function AnalyticsPage() {
                 ${usageSummary.totalCost.toFixed(2)}
               </p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/10 text-purple-500">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/10 text-purple-500 dark:bg-purple-500/25">
               <LineChart className="h-6 w-6" />
             </div>
           </div>
@@ -920,7 +937,7 @@ export default function AnalyticsPage() {
                 <span>Accuracy</span>
                 <span>{formatPercent(averageAccuracy)}</span>
               </div>
-              <Sparkline values={accuracySeries} />
+              <Sparkline values={accuracySeries} isDark={isDark} />
               <div className="mt-4 flex gap-3 text-[11px] text-neutral-500 dark:text-neutral-400">
                 {dailySeries.slice(-3).map((day) => (
                   <div
@@ -946,7 +963,7 @@ export default function AnalyticsPage() {
                     return (
                       <div
                         key={day.date}
-                        className="flex-1 rounded-full bg-lernex-blue/20"
+                        className="flex-1 rounded-full bg-lernex-blue/20 dark:bg-lernex-blue/40"
                         style={{ height }}
                         title={`${formatDateLabel(day.date)} • ${day.attempts} ${day.attempts === 1 ? "session" : "sessions"}`}
                       />

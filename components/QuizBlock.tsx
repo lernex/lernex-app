@@ -261,21 +261,25 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
     }
   };
 
-  const btnClass = (idx: number) =>
-    `text-left px-3 py-2 rounded-xl border transition ${
-      selected === null
-        ? "bg-neutral-100 border-neutral-200 hover:bg-neutral-200 dark:bg-neutral-800 dark:border-neutral-700 dark:hover:bg-neutral-700"
-        : idx === (q?.correctIndex ?? -1)
-        ? "bg-green-600/80 border-green-500"
-        : idx === selected
-        ? "bg-red-600/80 border-red-500"
-        : "bg-neutral-100/60 border-neutral-200/60 dark:bg-neutral-800/60 dark:border-neutral-700/60"
-    }`;
+  const btnClass = (idx: number) => {
+    const base = "text-left px-3 py-2 rounded-xl border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40";
+    if (selected === null) {
+      return `${base} border-surface bg-surface-muted hover:bg-surface-card`;
+    }
+    const correctIdx = q?.correctIndex ?? -1;
+    if (idx === correctIdx) {
+      return `${base} border-green-500 bg-green-600/80 text-white shadow-sm`;
+    }
+    if (idx === selected) {
+      return `${base} border-red-500 bg-red-600/80 text-white shadow-sm`;
+    }
+    return `${base} border-surface bg-surface-muted`;
+  };
 
   return hasQuestions && q ? (
     <>
-      <div ref={rootRef} className="rounded-[24px] border border-neutral-200/70 bg-white/85 px-5 py-6 shadow-lg backdrop-blur transition-shadow duration-200 dark:border-neutral-800/70 dark:bg-neutral-900/80">
-        <div className="mb-3 text-sm text-neutral-700 dark:text-neutral-300">
+      <div ref={rootRef} className="rounded-[24px] border border-surface bg-surface-card px-5 py-6 shadow-lg backdrop-blur transition-shadow duration-200">
+        <div className="mb-3 text-sm text-neutral-700 dark:text-neutral-300 transition-colors">
           <FormattedText text={q.prompt} />
         </div>
         <div className="grid gap-2">
@@ -286,10 +290,10 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
           ))}
         </div>
         <div className="mt-4 flex items-center justify-between">
-          <div className="text-xs text-neutral-500 dark:text-neutral-400">
+          <div className="text-xs text-neutral-500 dark:text-neutral-400 transition-colors">
             Question {qIndex + 1} / {questions.length}
           </div>
-          <button onClick={next} className="px-4 py-2 rounded-xl bg-lernex-blue hover:bg-blue-500 transition">
+          <button onClick={next} className="rounded-xl bg-lernex-blue px-4 py-2 text-white transition hover:bg-blue-500">
             {qIndex < questions.length - 1 ? "Next" : "Finish"}
           </button>
         </div>
@@ -297,8 +301,8 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
 
       {showSummary && showSummaryOverlay && (
         <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-5 text-neutral-900 shadow-xl dark:border-neutral-800 dark:bg-neutral-900 dark:text-white">
-            <div className="text-sm uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Lesson Complete</div>
+          <div className="w-full max-w-sm rounded-2xl border border-surface bg-surface-panel p-5 text-foreground shadow-xl transition-colors">
+            <div className="text-sm uppercase tracking-wide text-neutral-500 dark:text-neutral-400 transition-colors">Lesson Complete</div>
             <h3 className="mt-1 text-xl font-semibold">Great job!</h3>
             <div className="mt-3 text-sm">
               You answered <span className="font-semibold">{correctCount}</span> out of <span className="font-semibold">{questions.length}</span> correctly
@@ -307,13 +311,13 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
             <div className="mt-4 flex items-center gap-2">
               <button
                 onClick={() => { setShowSummaryOverlay(false); }}
-                className="px-4 py-2 rounded-xl border border-neutral-300 bg-neutral-100 hover:bg-neutral-200 transition dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700"
+                className="rounded-xl border border-surface bg-surface-muted px-4 py-2 transition hover:bg-surface-card"
               >
                 Close
               </button>
               <button
                 onClick={() => { setShowSummaryOverlay(false); setQ(0); setSel(null); setCorrectCount(0); }}
-                className="ml-auto px-4 py-2 rounded-xl bg-lernex-blue hover:bg-blue-500 transition"
+                className="ml-auto rounded-xl bg-lernex-blue px-4 py-2 text-white transition hover:bg-blue-500"
               >
                 Retry Quiz
               </button>
