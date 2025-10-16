@@ -157,7 +157,7 @@ export default function Generate() {
   }, [lesson]);
 
   return (
-    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center bg-surface-page px-4 py-10 text-foreground">
+    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center px-4 py-10 text-foreground">
       <div className="w-full max-w-md space-y-4 py-6">
         <div className="rounded-2xl border border-surface bg-surface-panel p-5 space-y-3 shadow-sm backdrop-blur transition-colors">
           <h1 className="text-xl font-semibold">Generate a Micro-Lesson</h1>
