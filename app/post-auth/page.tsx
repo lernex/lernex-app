@@ -20,7 +20,7 @@ export default function PostAuth() {
 
       if (me?.placement_ready) { router.replace("/placement"); return; }
 
-      router.replace("/app");
+      router.replace("/fyp");
     })();
   }, [router]);
 

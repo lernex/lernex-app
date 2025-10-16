@@ -94,7 +94,7 @@ export default function PlacementClient() {
       if (typeof window !== "undefined") {
         window.sessionStorage.setItem("lernex:show-welcome-tour", "1");
       }
-      router.replace("/app?welcome=1");
+      router.replace("/fyp?welcome=1");
     }
   }, [router, dlog, refresh, setStats, stats]);
 
@@ -255,7 +255,7 @@ export default function PlacementClient() {
           if (!r.ok) throw new Error((("error" in data) && data.error) || "Failed prefetch");
           if (!("state" in data)) throw new Error("Invalid response");
           if (data.state?.done && (!data.state.remaining || data.state.remaining.length === 0)) {
-            router.replace("/app");
+            router.replace("/fyp");
             return;
           }
           if (stateRef.current?.step === stepForPrefetch) {

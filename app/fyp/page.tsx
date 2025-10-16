@@ -1,27 +1,23 @@
-'use client';
+import { redirect } from "next/navigation";
+import { supabaseServer } from "@/lib/supabase-server";
+import FypFeedClient from "./FypFeedClient";
+import { normalizeProfileBasics } from "@/lib/profile-basics";
 
-import FypFeed from '@/components/FypFeed';
-import SubjectChips from '@/components/SubjectChips';
-import ClassPicker from '@/components/ClassPicker';
-import FypProgress from '@/components/FypProgress';
-import { ProfileBasicsProvider } from '@/app/providers/ProfileBasicsProvider';
-import WelcomeTourOverlay from '@/components/WelcomeTourOverlay';
-export default function FypPage() {
-  return (
-    <ProfileBasicsProvider>
-      <WelcomeTourOverlay />
-      <main className="relative min-h-[calc(100vh-56px)] overflow-x-hidden overflow-y-auto bg-surface-page pb-6 text-foreground transition-colors duration-200">
-        <div className="relative z-10 mx-auto w-full max-w-[640px]" style={{ maxWidth: "min(640px, 94vw)" }}>
-          {/* Top controls */}
-          <div className="flex items-center justify-between px-4 pt-3 pb-1">
-            <div className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Your Feed</div>
-            <div className="shrink-0"><ClassPicker /></div>
-          </div>
-          <FypProgress />
-          <SubjectChips />
-          <FypFeed />
-        </div>
-      </main>
-    </ProfileBasicsProvider>
-  );
+export default async function FypHome() {
+  const sb = supabaseServer();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const { data: profileRow } = await sb
+    .from("profiles")
+    .select("interests, level_map, placement_ready")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const initialProfile = normalizeProfileBasics(profileRow ?? null);
+
+  return <FypFeedClient initialProfile={initialProfile} />;
 }

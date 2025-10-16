@@ -172,7 +172,7 @@ export default function NavBar() {
       icon: LucideIcon;
       exact?: boolean;
     }[] = [
-      { href: "/app", label: "Home", icon: Home, exact: true },
+      { href: "/fyp", label: "Home", icon: Home, exact: true },
       { href: "/pricing", label: "Pricing", icon: Diamond },
       { href: "/generate", label: "Generate", icon: Sparkles },
       { href: "/playlists", label: "Playlists", icon: BookOpen },
@@ -215,7 +215,7 @@ export default function NavBar() {
           <div className="flex h-full flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-5 pt-6">
               <Link
-                href={user ? "/app" : "/"}
+                href={user ? "/fyp" : "/"}
                 aria-label="Lernex home"
                 className="gradient-logo bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent"
               >
@@ -409,7 +409,7 @@ export default function NavBar() {
     <nav className="sticky top-0 z-20 w-full border-b border-white/10 bg-gradient-to-r from-white/80 to-white/60 text-neutral-900 shadow-sm backdrop-blur-md transition-colors dark:from-lernex-charcoal/80 dark:to-lernex-charcoal/60 dark:text-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 text-sm">
         <Link
-          href={user ? "/app" : "/"}
+          href={user ? "/fyp" : "/"}
           className="gradient-logo bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent"
         >
           Lernex

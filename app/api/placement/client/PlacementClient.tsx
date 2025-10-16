@@ -52,7 +52,7 @@ export default function PlacementClient() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ state: data.state, correctTotal, questionTotal }),
         }).catch(() => {});
-        router.replace("/app");
+        router.replace("/fyp");
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to load placement");

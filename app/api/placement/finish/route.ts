@@ -120,7 +120,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  // Clear the placement flag so /post-auth routes to /app next time
+  // Clear the placement flag so /post-auth routes to /fyp next time
   await sb.from("profiles").update({ placement_ready: false }).eq("id", user.id);
   try { console.debug(`[placement-finish][${reqId}] done`, { nextTopic }); } catch {}
   return NextResponse.json({

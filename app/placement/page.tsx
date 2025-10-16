@@ -13,7 +13,7 @@ export default async function PlacementPage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!me?.placement_ready) redirect("/app");
+  if (!me?.placement_ready) redirect("/fyp");
 
   // Server guards access; Client component runs the interactive flow.
   return <PlacementClient />;

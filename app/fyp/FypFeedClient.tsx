@@ -7,11 +7,11 @@ import { ProfileBasicsProvider } from "@/app/providers/ProfileBasicsProvider";
 import WelcomeTourOverlay from "@/components/WelcomeTourOverlay";
 import type { ProfileBasics } from "@/lib/profile-basics";
 
-type AppFeedClientProps = {
+type FypFeedClientProps = {
   initialProfile?: ProfileBasics | null;
 };
 
-export default function AppFeedClient({ initialProfile }: AppFeedClientProps) {
+export default function FypFeedClient({ initialProfile }: FypFeedClientProps) {
   const { selectedSubjects } = useLernexStore();
   const hasSelection = selectedSubjects.length > 0;
 
@@ -19,7 +19,7 @@ export default function AppFeedClient({ initialProfile }: AppFeedClientProps) {
     <ProfileBasicsProvider initialData={initialProfile ?? undefined}>
       <WelcomeTourOverlay />
       <main
-        data-app-feed-root="true"
+        data-fyp-feed-root="true"
         className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-surface-page text-foreground transition-colors duration-200"
       >
         <div className="relative mx-auto flex w-full max-w-[520px] flex-col gap-6 px-4 pb-16 pt-8">
