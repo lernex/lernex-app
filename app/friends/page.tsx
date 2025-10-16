@@ -666,7 +666,7 @@ export default function FriendsPage() {
             {searchPending && <Loader2 className="h-4 w-4 animate-spin text-neutral-400 dark:text-neutral-500" />}
           </div>
           {searchQuery.trim().length >= 2 && (
-            <div className="absolute left-0 right-0 z-20 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/80 to-white/95 shadow-[0_35px_65px_-40px_rgba(47,128,237,0.35)] backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/90 dark:shadow-none">
+            <div className="absolute left-0 right-0 z-20 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/80 to-white/95 shadow-[0_35px_65px_-40px_rgba(47,128,237,0.35)] backdrop-blur-sm dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]">
               {searchError && (
                 <div className="px-4 py-3 text-sm text-rose-500 dark:text-rose-300">{searchError}</div>
               )}
