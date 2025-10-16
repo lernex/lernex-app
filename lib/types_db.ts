@@ -28,6 +28,7 @@ export interface Database {
           updated_at: string | null;
           dob: string | null;               // date as ISO string
           placement_ready: boolean | null;  // flag to gate /placement
+          theme_pref: string | null;        // "light" or "dark"
         };
         Insert: {
           id: string;
@@ -45,6 +46,7 @@ export interface Database {
           updated_at?: string | null;
           dob?: string | null;
           placement_ready?: boolean | null;
+          theme_pref?: string | null;
         };
         Update: {
           id?: string;
@@ -62,6 +64,7 @@ export interface Database {
           updated_at?: string | null;
           dob?: string | null;
           placement_ready?: boolean | null;
+          theme_pref?: string | null;
         };
         Relationships: [];
       };
