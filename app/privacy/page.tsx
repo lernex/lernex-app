@@ -163,7 +163,7 @@ export default function PrivacyPolicy() {
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-lernex-purple/10 text-lernex-purple dark:bg-lernex-purple/20">
               7
             </span>
-            Children's Privacy
+            Children&apos;s Privacy
           </h2>
           <p className="leading-relaxed text-neutral-700 dark:text-neutral-300">
             Lernex is not intended for children under 13 (or under 16 in some regions). We do not knowingly collect data from children without parental consent. If you believe a child has provided us with personal information, please contact us immediately.
