@@ -572,17 +572,17 @@ export default function FypFeed() {
 
   return (
     <div
-      className="relative mx-auto w-full max-w-[640px] px-3 sm:px-4 lg:max-w-5xl lg:px-6 lg:pt-4 h-[calc(100vh-56px)] overflow-hidden lg:overflow-visible"
+      className="relative mx-auto h-[calc(100vh-56px)] w-full max-w-[640px] overflow-hidden px-3 transition-colors duration-200 sm:px-4 lg:max-w-5xl lg:overflow-visible lg:px-6 lg:pt-4"
       style={{ maxWidth: "min(640px, 94vw)" }}
     >
       <div className="pointer-events-none absolute inset-0 -z-20 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.26),transparent_45%),radial-gradient(circle_at_80%_80%,rgba(168,85,247,0.28),transparent_55%),radial-gradient(circle_at_50%_100%,rgba(32,211,238,0.18),transparent_70%)]" />
-        <div className="absolute -left-32 top-[-22%] h-[420px] w-[420px] rounded-full bg-lernex-blue/20 blur-3xl opacity-70" />
-        <div className="absolute -right-28 bottom-[-26%] h-[360px] w-[360px] rounded-full bg-lernex-purple/30 blur-3xl opacity-70" />
-        <div className="absolute inset-[-55%] bg-[radial-gradient(circle,rgba(255,255,255,0.1),transparent_65%)] opacity-25 blur-3xl" />
-        <div className="absolute inset-0 bg-[linear-gradient(140deg,rgba(255,255,255,0.08),rgba(255,255,255,0))] opacity-35" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.26),transparent_45%),radial-gradient(circle_at_80%_80%,rgba(168,85,247,0.28),transparent_55%),radial-gradient(circle_at_50%_100%,rgba(32,211,238,0.18),transparent_70%)] dark:bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.22),transparent_45%),radial-gradient(circle_at_80%_80%,rgba(168,85,247,0.22),transparent_55%),radial-gradient(circle_at_50%_100%,rgba(45,212,191,0.16),transparent_68%)]" />
+        <div className="absolute -left-32 top-[-22%] h-[420px] w-[420px] rounded-full bg-lernex-blue/20 blur-3xl opacity-70 dark:bg-lernex-blue/40 dark:opacity-45" />
+        <div className="absolute -right-28 bottom-[-26%] h-[360px] w-[360px] rounded-full bg-lernex-purple/30 blur-3xl opacity-70 dark:bg-lernex-purple/40 dark:opacity-45" />
+        <div className="absolute inset-[-55%] bg-[radial-gradient(circle,rgba(255,255,255,0.1),transparent_65%)] opacity-25 blur-3xl dark:bg-[radial-gradient(circle,rgba(12,16,26,0.6),transparent_60%)] dark:opacity-35" />
+        <div className="absolute inset-0 bg-[linear-gradient(140deg,rgba(255,255,255,0.08),rgba(255,255,255,0))] opacity-35 dark:bg-[linear-gradient(140deg,rgba(12,16,26,0.5),rgba(12,16,26,0))] dark:opacity-50" />
       </div>
-      <div className="pointer-events-none absolute inset-0 -z-10 rounded-[40px] border border-white/10 opacity-20" />
+      <div className="pointer-events-none absolute inset-0 -z-10 rounded-[40px] border border-black/10 opacity-20 dark:border-white/10" />
       <AnimatePresence>
         {showCompleteHint && (
           <motion.div
@@ -635,11 +635,11 @@ export default function FypFeed() {
         </div>
       )}
       {error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-red-500">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-red-500 dark:text-red-400">
           <div>{error}</div>
           <button
             onClick={() => { setError(null); setLoadingInfo(null); setInitialized(false); void ensureBuffer(0); }}
-            className="px-3 py-1.5 rounded-full text-sm border bg-neutral-50 dark:bg-neutral-800 text-neutral-600 hover:text-neutral-900 dark:text-neutral-200"
+            className="rounded-full border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-600 transition-colors hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
           >
             Retry
           </button>

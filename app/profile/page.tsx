@@ -60,19 +60,14 @@ export default function SettingsPage() {
   const { setTheme } = useTheme();
   const [dob, setDob] = useState<string>("");
   const [themePreference, setThemePreference] = useState<ThemePreference>("dark");
-  const themePreferenceRef = useRef<ThemePreference>("dark");
+  const [savedThemePreference, setSavedThemePreference] = useState<ThemePreference>("dark");
   const [accountLoading, setAccountLoading] = useState(true);
   const [preferencesSaving, setPreferencesSaving] = useState(false);
-  const [themeUpdating, setThemeUpdating] = useState(false);
   const [preferencesFeedback, setPreferencesFeedback] = useState<FeedbackState | null>(null);
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
   const [usernameStatusMessage, setUsernameStatusMessage] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [initialUsername, setInitialUsername] = useState<string>("");
-
-  useEffect(() => {
-    themePreferenceRef.current = themePreference;
-  }, [themePreference]);
 
   useEffect(() => {
     let active = true;
@@ -147,8 +142,8 @@ export default function SettingsPage() {
         const themePrefRaw =
           typeof data?.theme_pref === "string" ? (data.theme_pref as string) : null;
         const nextTheme: ThemePreference = themePrefRaw === "light" ? "light" : "dark";
+        setSavedThemePreference(nextTheme);
         setThemePreference(nextTheme);
-        themePreferenceRef.current = nextTheme;
         setTheme(nextTheme);
         setUsernameStatus("idle");
         setUsernameStatusMessage("");
@@ -414,45 +409,6 @@ export default function SettingsPage() {
       setAvatarSaving(false);
     }
   }, [avatar, avatarUrlInput, supabase, userId]);
-  const handleThemePreferenceChange = useCallback(
-    async (next: ThemePreference) => {
-      const previous = themePreferenceRef.current;
-      if (next === previous) return;
-      setThemePreference(next);
-      setTheme(next);
-      setThemeUpdating(true);
-      try {
-        const res = await fetch("/api/profile/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ theme_pref: next }),
-        });
-        const payload = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(
-            (payload as { error?: string } | undefined)?.error || "Could not update theme preference.",
-          );
-        }
-        themePreferenceRef.current = next;
-        setPreferencesFeedback((current) => {
-          if (current?.tone === "info" && current?.message?.includes("Saving settings")) {
-            return current;
-          }
-          return { message: "Theme preference saved.", tone: "success" };
-        });
-      } catch (error) {
-        const message =
-          (error as { message?: string } | undefined)?.message || "Could not update theme preference.";
-        themePreferenceRef.current = previous;
-        setThemePreference(previous);
-        setTheme(previous);
-        setPreferencesFeedback({ message, tone: "error" });
-      } finally {
-        setThemeUpdating(false);
-      }
-    },
-    [setPreferencesFeedback, setTheme],
-  );
   const handlePreferencesSave = useCallback(async () => {
     setPreferencesSaving(true);
     setPreferencesFeedback({ message: "Saving settings...", tone: "info" });
@@ -469,6 +425,8 @@ export default function SettingsPage() {
       if (!res.ok) {
         throw new Error(payload?.error || "Failed to save settings.");
       }
+      setTheme(themePreference);
+      setSavedThemePreference(themePreference);
       setPreferencesFeedback({ message: "Settings saved.", tone: "success" });
     } catch (error) {
       const message =
@@ -477,7 +435,7 @@ export default function SettingsPage() {
     } finally {
       setPreferencesSaving(false);
     }
-  }, [dob, themePreference]);
+  }, [dob, setSavedThemePreference, setTheme, themePreference]);
 
   const handleDeleteAccount = useCallback(async () => {
     if (!window.confirm("Delete your account? This cannot be undone.")) return;
@@ -809,8 +767,27 @@ export default function SettingsPage() {
                 <select
                   id="themePref"
                   value={themePreference}
-                  onChange={(event) => handleThemePreferenceChange(event.target.value as ThemePreference)}
-                  disabled={accountLoading || preferencesSaving || themeUpdating}
+                  onChange={(event) => {
+                    const nextTheme = event.target.value as ThemePreference;
+                    setThemePreference(nextTheme);
+                    if (nextTheme !== savedThemePreference) {
+                      setPreferencesFeedback({
+                        message: "Save settings to apply theme changes.",
+                        tone: "info",
+                      });
+                    } else {
+                      setPreferencesFeedback((current) => {
+                        if (
+                          current?.tone === "info" &&
+                          current?.message === "Save settings to apply theme changes."
+                        ) {
+                          return null;
+                        }
+                        return current;
+                      });
+                    }
+                  }}
+                  disabled={accountLoading || preferencesSaving}
                   className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950"
                 >
                   <option value="dark">Dark</option>

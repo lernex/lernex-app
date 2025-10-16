@@ -3,7 +3,6 @@ import Link from "next/link";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { User } from "@supabase/supabase-js";
-import ThemeToggle from "./ThemeToggle";
 import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
@@ -131,18 +130,18 @@ export default function NavBar() {
     };
 
     const tileBase =
-      "relative flex w-full min-h-[2.75rem] items-center rounded-2xl border border-white/15 bg-gradient-to-br from-white/95 via-white/80 to-white/65 px-3 text-sm font-medium text-neutral-700 shadow-sm backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:from-white/10 dark:via-white/5 dark:to-white/0 dark:text-white/90";
+      "relative flex w-full min-h-[2.75rem] items-center rounded-2xl border border-surface bg-surface-card px-3 text-sm font-medium text-foreground shadow-sm backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg dark:shadow-[0_20px_40px_-28px_rgba(0,0,0,0.6)]";
     const tilePaddingExpanded = "pl-3 pr-3.5";
     const tilePaddingCollapsed = "pl-2.5 pr-1.5";
     const tilePadding = navExpanded ? tilePaddingExpanded : tilePaddingCollapsed;
     const listPadding = navExpanded ? "px-5" : "pl-4 pr-3";
 
     const activeClasses =
-      "border-lernex-blue/60 bg-gradient-to-br from-lernex-blue/20 via-lernex-blue/10 to-lernex-purple/15 text-lernex-blue dark:border-lernex-blue/50 dark:text-lernex-blue/90";
+      "border-lernex-blue/60 bg-gradient-to-br from-lernex-blue/15 via-lernex-blue/10 to-lernex-purple/15 text-lernex-blue dark:border-lernex-blue/50 dark:from-lernex-blue/25 dark:via-lernex-blue/20 dark:to-lernex-purple/25 dark:text-lernex-blue/90";
     const iconShell =
-      "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-white/90 via-white/70 to-white/50 text-neutral-600 shadow-inner dark:from-white/10 dark:via-white/5 dark:to-white/0 dark:text-neutral-200";
+      "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-surface bg-surface-muted text-neutral-600 shadow-inner transition-colors dark:text-neutral-200";
     const activeIconShell =
-      "from-lernex-blue/20 via-lernex-blue/10 to-lernex-purple/10 text-lernex-blue dark:from-lernex-blue/25 dark:via-lernex-blue/15 dark:to-lernex-purple/15 dark:text-lernex-blue/90";
+      "border-lernex-blue/50 bg-gradient-to-br from-lernex-blue/15 via-lernex-blue/10 to-lernex-purple/20 text-lernex-blue dark:from-lernex-blue/25 dark:via-lernex-blue/20 dark:to-lernex-purple/30 dark:text-lernex-blue/90";
     const badgeBase =
       "absolute -bottom-1 -right-1 min-w-[1.75rem] rounded-full px-1.5 py-0.5 text-center text-[11px] font-semibold shadow-sm";
 
@@ -203,7 +202,7 @@ export default function NavBar() {
             width: navExpanded ? NAV_WIDTH_EXPANDED : NAV_WIDTH_COLLAPSED,
           }}
           transition={{ type: "spring", stiffness: 210, damping: 28 }}
-          className="fixed left-0 top-0 z-[22] flex h-[100dvh] max-h-screen flex-col overflow-hidden border-r border-white/10 bg-gradient-to-b from-white/90 via-white/80 to-white/65 text-neutral-900 shadow-xl backdrop-blur-xl transition-colors dark:from-lernex-charcoal/90 dark:via-lernex-charcoal/75 dark:to-lernex-charcoal/65 dark:text-white"
+          className="fixed left-0 top-0 z-[22] flex h-[100dvh] max-h-screen flex-col overflow-hidden border-r border-surface bg-surface-panel text-foreground shadow-xl shadow-neutral-900/5 backdrop-blur-xl transition-colors duration-300 dark:shadow-black/30"
           onMouseEnter={handleNavEnter}
           onMouseLeave={handleNavLeave}
           onFocusCapture={handleNavEnter}
@@ -306,7 +305,7 @@ export default function NavBar() {
                             : { opacity: 0, maxWidth: 0, marginLeft: 0 }
                         }
                         transition={{ duration: 0.24, ease: "easeOut" }}
-                        className="min-w-0 text-sm font-medium text-neutral-700 dark:text-neutral-200"
+                        className="min-w-0 text-sm font-medium text-neutral-600 dark:text-neutral-200"
                         style={{ display: "inline-block" }}
                       >
                         {label}
@@ -324,7 +323,7 @@ export default function NavBar() {
                 >
                   <button
                     onClick={() => setOpen((o) => !o)}
-                    className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/30 bg-white/80 shadow-inner transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 dark:border-white/15 dark:bg-white/10"
+                    className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-surface bg-surface-muted shadow-inner transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40"
                     aria-label="Account menu"
                     aria-expanded={open}
                   >
@@ -366,7 +365,7 @@ export default function NavBar() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 8, scale: 0.98 }}
                         transition={{ duration: 0.18 }}
-                        className="absolute right-0 bottom-full z-30 mb-3 w-56 rounded-xl border border-white/12 bg-gradient-to-br from-white/95 via-white/85 to-white/75 py-2 text-neutral-900 shadow-xl dark:from-lernex-charcoal/95 dark:via-lernex-charcoal/80 dark:to-lernex-charcoal/70 dark:text-white"
+                        className="absolute right-0 bottom-full z-30 mb-3 w-56 rounded-xl border border-surface bg-surface-panel py-2 text-foreground shadow-xl shadow-neutral-900/10 dark:shadow-black/30"
                       >
                         <Link
                           href="/settings"
@@ -384,7 +383,6 @@ export default function NavBar() {
                         >
                           Privacy
                         </a>
-                        <ThemeToggle className="w-full bg-transparent px-4 py-2 text-left text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20" />
                         <button
                           onClick={async () => {
                             await supabase.auth.signOut();
@@ -480,7 +478,6 @@ export default function NavBar() {
                     >
                       Privacy
                     </a>
-                    <ThemeToggle className="w-full bg-transparent px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20" />
                     <button
                       onClick={async () => {
                         await supabase.auth.signOut();

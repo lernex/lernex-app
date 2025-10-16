@@ -37,7 +37,7 @@ export default function SubjectChips() {
         {clearable && (
           <button
             onClick={() => setSelectedSubjects([])}
-            className="ml-auto px-3 py-1.5 rounded-full text-sm border bg-neutral-50 dark:bg-neutral-800 text-neutral-500 hover:text-neutral-700 dark:text-neutral-300"
+            className="ml-auto rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-500 transition-colors hover:text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
             title="Show all"
           >
             Clear

@@ -20,7 +20,7 @@ export default function AppFeedClient({ initialProfile }: AppFeedClientProps) {
       <WelcomeTourOverlay />
       <main
         data-app-feed-root="true"
-        className="relative min-h-[calc(100vh-56px)] overflow-hidden text-neutral-900 dark:text-white"
+        className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-surface-page text-foreground transition-colors duration-200"
       >
         <div className="relative mx-auto flex w-full max-w-[520px] flex-col gap-6 px-4 pb-16 pt-8">
           <header className="flex items-start justify-between gap-4">
@@ -39,7 +39,7 @@ export default function AppFeedClient({ initialProfile }: AppFeedClientProps) {
           </header>
 
           {!hasSelection && (
-            <div className="rounded-2xl border border-neutral-200 bg-white/90 p-4 text-sm text-neutral-700 shadow-[0_32px_90px_-60px_rgba(47,128,237,0.95)] backdrop-blur dark:border-white/10 dark:bg-white/10 dark:text-white/80">
+            <div className="rounded-2xl border border-surface bg-surface-panel p-4 text-sm text-neutral-700 shadow-[0_32px_90px_-60px_rgba(47,128,237,0.95)] backdrop-blur transition-colors duration-200 dark:text-neutral-200">
               Personalize your feed by{" "}
               <Link href="/onboarding" className="font-medium text-lernex-blue hover:underline">
                 choosing subjects

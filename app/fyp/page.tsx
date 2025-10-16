@@ -10,7 +10,7 @@ export default function FypPage() {
   return (
     <ProfileBasicsProvider>
       <WelcomeTourOverlay />
-      <main className="relative min-h-[calc(100vh-56px)] overflow-x-hidden overflow-y-auto text-neutral-900 dark:text-white pb-6">
+      <main className="relative min-h-[calc(100vh-56px)] overflow-x-hidden overflow-y-auto bg-surface-page pb-6 text-foreground transition-colors duration-200">
         <div className="relative z-10 mx-auto w-full max-w-[640px]" style={{ maxWidth: "min(640px, 94vw)" }}>
           {/* Top controls */}
           <div className="flex items-center justify-between px-4 pt-3 pb-1">
