@@ -22,7 +22,7 @@ export default function TermsAndConditions() {
       <section className="mb-8 rounded-xl border border-neutral-200 bg-gradient-to-br from-lernex-purple/5 to-lernex-blue/5 p-6 dark:border-neutral-800 dark:from-lernex-purple/10 dark:to-lernex-blue/10">
         <h2 className="mb-3 text-xl font-semibold">Acceptance of Terms</h2>
         <p className="leading-relaxed text-neutral-700 dark:text-neutral-300">
-          By accessing or using Lernex ("Service"), you agree to be bound by these Terms & Conditions. If you disagree with any part of these terms, please do not use the Service.
+          By accessing or using Lernex (&ldquo;Service&rdquo;), you agree to be bound by these Terms & Conditions. If you disagree with any part of these terms, please do not use the Service.
         </p>
       </section>
 
@@ -39,7 +39,7 @@ export default function TermsAndConditions() {
           <div className="space-y-3 text-neutral-700 dark:text-neutral-300">
             <ul className="list-inside list-disc space-y-2 pl-4">
               <li>
-                You must be at least 13 years old (or older depending on your country's laws) to use Lernex
+                You must be at least 13 years old (or older depending on your country&apos;s laws) to use Lernex
               </li>
               <li>
                 You agree not to misuse Lernex, including attempting to hack, disrupt, or cheat the system
@@ -132,7 +132,7 @@ export default function TermsAndConditions() {
           </h2>
           <div className="space-y-3 text-neutral-700 dark:text-neutral-300">
             <p className="leading-relaxed">
-              The Service is provided <span className="font-medium">"as is"</span> without warranties of any kind, either express or implied. We do not guarantee:
+              The Service is provided <span className="font-medium">&ldquo;as is&rdquo;</span> without warranties of any kind, either express or implied. We do not guarantee:
             </p>
             <ul className="list-inside list-disc space-y-2 pl-4">
               <li>Uninterrupted or error-free access to the Service</li>

@@ -22,7 +22,7 @@ export default function PrivacyPolicy() {
       <section className="mb-8 rounded-xl border border-neutral-200 bg-gradient-to-br from-lernex-blue/5 to-lernex-purple/5 p-6 dark:border-neutral-800 dark:from-lernex-blue/10 dark:to-lernex-purple/10">
         <h2 className="mb-3 text-xl font-semibold">Introduction</h2>
         <p className="leading-relaxed text-neutral-700 dark:text-neutral-300">
-          Lernex ("we," "our," or "us") values your privacy. This Privacy Policy explains how we collect, use, and protect your information when you use our website, mobile app, and related services (the "Service").
+          Lernex (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) values your privacy. This Privacy Policy explains how we collect, use, and protect your information when you use our website, mobile app, and related services (the &ldquo;Service&rdquo;).
         </p>
         <p className="mt-3 leading-relaxed text-neutral-700 dark:text-neutral-300">
           By using Lernex, you agree to the terms described in this Privacy Policy.
