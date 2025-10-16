@@ -39,6 +39,22 @@ const cardMotion = {
   transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
 } as const;
 
+function splitFullName(fullName: string | null | undefined) {
+  if (!fullName) {
+    return { first: "", last: "" };
+  }
+  const normalized = fullName.trim();
+  if (!normalized) {
+    return { first: "", last: "" };
+  }
+  const parts = normalized.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return { first: "", last: "" };
+  }
+  const [first, ...rest] = parts;
+  return { first, last: rest.join(" ") };
+}
+
 export default function SettingsPage() {
   const { accuracyBySubject } = useLernexStore();
   const { stats } = useProfileStats();
@@ -59,6 +75,8 @@ export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
   const { setTheme } = useTheme();
+  const [firstName, setFirstName] = useState<string>("");
+  const [lastName, setLastName] = useState<string>("");
   const [dob, setDob] = useState<string>("");
   const [themePreference, setThemePreference] = useState<ThemePreference>("dark");
   const [savedThemePreference, setSavedThemePreference] = useState<ThemePreference>("dark");
@@ -139,6 +157,11 @@ export default function SettingsPage() {
           setUsername(fetchedUsername);
         }
         setInitialUsername(fetchedUsername.trim());
+        const fullName =
+          typeof data.full_name === "string" ? (data.full_name as string) : null;
+        const { first, last } = splitFullName(fullName);
+        setFirstName(first);
+        setLastName(last);
         setDob(typeof data.dob === "string" ? data.dob : "");
         const themePrefRaw =
           typeof data?.theme_pref === "string" ? (data.theme_pref as string) : null;
@@ -451,6 +474,22 @@ export default function SettingsPage() {
     }
   }, [avatar, avatarUrlInput, supabase, userId]);
   const handlePreferencesSave = useCallback(async () => {
+    const trimmedFirst = firstName.trim();
+    const trimmedLast = lastName.trim();
+    if (trimmedLast && !trimmedFirst) {
+      setPreferencesFeedback({
+        message: "Add a first name before saving a last name.",
+        tone: "error",
+      });
+      return;
+    }
+    const composedFullName =
+      trimmedFirst || trimmedLast
+        ? trimmedLast
+          ? `${trimmedFirst} ${trimmedLast}`
+          : trimmedFirst
+        : null;
+
     setPreferencesSaving(true);
     setPreferencesFeedback({ message: "Saving settings...", tone: "info" });
     try {
@@ -458,6 +497,8 @@ export default function SettingsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          first_name: trimmedFirst,
+          last_name: trimmedLast,
           dob: dob ? dob : null,
           theme_pref: themePreference,
         }),
@@ -466,6 +507,21 @@ export default function SettingsPage() {
       if (!res.ok) {
         throw new Error(payload?.error || "Failed to save settings.");
       }
+
+      const authResult = await supabase.auth.updateUser({
+        data: {
+          full_name: composedFullName ?? null,
+          name: composedFullName ?? null,
+          first_name: trimmedFirst || null,
+          last_name: trimmedLast || null,
+        },
+      });
+      if (authResult.error) {
+        throw authResult.error;
+      }
+
+      setFirstName(trimmedFirst);
+      setLastName(trimmedLast);
       setTheme(themePreference);
       setSavedThemePreference(themePreference);
       setPreferencesFeedback({ message: "Settings saved.", tone: "success" });
@@ -476,7 +532,15 @@ export default function SettingsPage() {
     } finally {
       setPreferencesSaving(false);
     }
-  }, [dob, setSavedThemePreference, setTheme, themePreference]);
+  }, [
+    dob,
+    firstName,
+    lastName,
+    setSavedThemePreference,
+    setTheme,
+    supabase.auth,
+    themePreference,
+  ]);
 
   const handleDeleteAccount = useCallback(async () => {
     if (!window.confirm("Delete your account? This cannot be undone.")) return;
@@ -788,6 +852,43 @@ export default function SettingsPage() {
                 </motion.p>
               ) : null}
             </AnimatePresence>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <label
+                  htmlFor="firstName"
+                  className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400"
+                >
+                  First name
+                </label>
+                <input
+                  id="firstName"
+                  value={firstName}
+                  onChange={(event) => setFirstName(event.target.value)}
+                  placeholder="Ada"
+                  disabled={accountLoading || preferencesSaving}
+                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label
+                  htmlFor="lastName"
+                  className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400"
+                >
+                  Last name{" "}
+                  <span className="normal-case lowercase text-[0.75rem] tracking-normal text-neutral-400 dark:text-neutral-500">
+                    (optional)
+                  </span>
+                </label>
+                <input
+                  id="lastName"
+                  value={lastName}
+                  onChange={(event) => setLastName(event.target.value)}
+                  placeholder="Lovelace"
+                  disabled={accountLoading || preferencesSaving}
+                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950"
+                />
+              </div>
+            </div>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <label

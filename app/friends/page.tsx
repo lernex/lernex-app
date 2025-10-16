@@ -157,9 +157,25 @@ function formatDate(dateString: string | null) {
   return fullDateFormatter.format(value);
 }
 
-function displayName(username: string | null, fullName: string | null, fallback: string) {
-  if (fullName && fullName.trim().length > 0) return fullName;
-  if (username && username.trim().length > 0) return username;
+type DisplayNameOptions = {
+  preferUsername?: boolean;
+};
+
+function displayName(
+  username: string | null,
+  fullName: string | null,
+  fallback: string,
+  options?: DisplayNameOptions
+) {
+  const trimmedUsername = username?.trim();
+  const trimmedFullName = fullName?.trim();
+  if (options?.preferUsername) {
+    if (trimmedUsername && trimmedUsername.length > 0) return trimmedUsername;
+    if (trimmedFullName && trimmedFullName.length > 0) return trimmedFullName;
+    return fallback;
+  }
+  if (trimmedFullName && trimmedFullName.length > 0) return trimmedFullName;
+  if (trimmedUsername && trimmedUsername.length > 0) return trimmedUsername;
   return fallback;
 }
 
@@ -628,7 +644,7 @@ export default function FriendsPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold">Find classmates</h2>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">Search by username or name to add someone directly.</p>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">Search by username to add someone directly.</p>
           </div>
           <button
             onClick={() => load({ silent: true })}
@@ -644,7 +660,7 @@ export default function FriendsPage() {
             <input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search by username or name"
+              placeholder="Search by username"
               className="h-10 w-full border-none bg-transparent text-sm text-neutral-800 outline-none placeholder:text-neutral-400 dark:text-neutral-100 dark:placeholder:text-neutral-500"
             />
             {searchPending && <Loader2 className="h-4 w-4 animate-spin text-neutral-400 dark:text-neutral-500" />}
@@ -655,10 +671,10 @@ export default function FriendsPage() {
                 <div className="px-4 py-3 text-sm text-rose-500 dark:text-rose-300">{searchError}</div>
               )}
               {!searchError && searchResults.length === 0 && !searchPending && (
-                <div className="px-4 py-3 text-sm text-neutral-500 dark:text-neutral-300">No matches yet. Try another name.</div>
+                <div className="px-4 py-3 text-sm text-neutral-500 dark:text-neutral-300">No matches yet. Try another username.</div>
               )}
               {!searchError && searchResults.map((match) => {
-                const label = displayName(match.username, match.fullName, "Learner");
+                const label = displayName(match.username, match.fullName, "Learner", { preferUsername: true });
                 const pendingKey = pendingAction === "add:" + match.id;
                 return (
                   <div
@@ -718,7 +734,7 @@ export default function FriendsPage() {
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
             <div className="space-y-4">
               {incoming.map((req) => {
-                const label = displayName(req.counterpart.username, req.counterpart.fullName, "Learner");
+                const label = displayName(req.counterpart.username, req.counterpart.fullName, "Learner", { preferUsername: true });
                 const acceptKey = pendingAction === req.id + ":accept";
                 const declineKey = pendingAction === req.id + ":decline";
                 return (
@@ -772,7 +788,7 @@ export default function FriendsPage() {
             </div>
             <div className="space-y-4">
               {outgoing.map((req) => {
-                const label = displayName(req.counterpart.username, req.counterpart.fullName, "Learner");
+                const label = displayName(req.counterpart.username, req.counterpart.fullName, "Learner", { preferUsername: true });
                 const cancelKey = pendingAction === "cancel:" + req.id;
                 return (
                   <div
@@ -822,7 +838,7 @@ export default function FriendsPage() {
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {data.suggestions.slice(0, 6).map((candidate) => {
-            const label = displayName(candidate.username, candidate.fullName, "Learner");
+            const label = displayName(candidate.username, candidate.fullName, "Learner", { preferUsername: true });
             const pendingKey = pendingAction === "add:" + candidate.id;
             return (
               <div
