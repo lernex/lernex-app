@@ -30,8 +30,8 @@ export default function Footer() {
         <div>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Legal</div>
           <ul className="space-y-2">
-            <li><a href="https://lernex-1.gitbook.io/lernex" className="hover:underline">Privacy</a></li>
-            <li><a href="https://lernex-1.gitbook.io/lernex/terms-and-conditions" className="hover:underline">Terms</a></li>
+            <li><Link href="/privacy" className="hover:underline">Privacy</Link></li>
+            <li><Link href="/terms" className="hover:underline">Terms</Link></li>
           </ul>
         </div>
       </div>
