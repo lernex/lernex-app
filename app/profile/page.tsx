@@ -11,6 +11,7 @@ import {
 import { useLernexStore } from "@/lib/store";
 import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { validateUsername } from "@/lib/username";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -23,7 +24,7 @@ const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 type FeedbackTone = "success" | "error" | "info";
 type FeedbackState = { message: string; tone: FeedbackTone };
 
-type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid";
+type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid" | "blocked";
 type ThemePreference = "light" | "dark";
 
 const toneClass: Record<FeedbackTone, string> = {
@@ -188,9 +189,11 @@ export default function SettingsPage() {
       setUsernameStatusMessage("Current username");
       return;
     }
-    if (trimmed.length < 3 || trimmed.length > 20 || !/^[a-zA-Z0-9_]+$/.test(trimmed)) {
-      setUsernameStatus("invalid");
-      setUsernameStatusMessage("3-20 chars: letters, numbers, _");
+    const validation = validateUsername(trimmed);
+    if (!validation.ok) {
+      const blocked = validation.code === "reserved" || validation.code === "inappropriate";
+      setUsernameStatus(blocked ? "blocked" : "invalid");
+      setUsernameStatusMessage(validation.message);
       return;
     }
     const controller = new AbortController();
@@ -211,8 +214,21 @@ export default function SettingsPage() {
           setUsernameStatus("available");
           setUsernameStatusMessage("Available");
         } else {
-          setUsernameStatus("taken");
-          setUsernameStatusMessage("Taken");
+          const reason = typeof payload?.reason === "string" ? (payload.reason as string) : "invalid";
+          const message =
+            typeof payload?.message === "string" && payload.message.trim()
+              ? (payload.message as string)
+              : reason === "taken"
+              ? "Username already taken."
+              : "Choose a different username.";
+          if (reason === "taken") {
+            setUsernameStatus("taken");
+          } else if (reason === "reserved" || reason === "inappropriate") {
+            setUsernameStatus("blocked");
+          } else {
+            setUsernameStatus("invalid");
+          }
+          setUsernameStatusMessage(message);
         }
       } catch {
         if (controller.signal.aborted) return;
@@ -230,6 +246,8 @@ export default function SettingsPage() {
     const trimmed = username.trim();
     if (!trimmed) {
       setUsernameFeedback({ message: "Username cannot be empty.", tone: "error" });
+      setUsernameStatus("invalid");
+      setUsernameStatusMessage("Username cannot be empty.");
       return;
     }
     if (usernameStatus === "checking") {
@@ -239,11 +257,19 @@ export default function SettingsPage() {
       });
       return;
     }
-    if (usernameStatus === "invalid" || usernameStatus === "taken") {
+    if (usernameStatus === "invalid" || usernameStatus === "taken" || usernameStatus === "blocked") {
       setUsernameFeedback({
         message: usernameStatusMessage || "Choose a different username.",
         tone: "error",
       });
+      return;
+    }
+    const validation = validateUsername(trimmed);
+    if (!validation.ok) {
+      const blocked = validation.code === "reserved" || validation.code === "inappropriate";
+      setUsernameStatus(blocked ? "blocked" : "invalid");
+      setUsernameStatusMessage(validation.message);
+      setUsernameFeedback({ message: validation.message, tone: "error" });
       return;
     }
     setUsernameSaving(true);
@@ -252,14 +278,29 @@ export default function SettingsPage() {
       const res = await fetch("/api/profile/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: trimmed }),
+        body: JSON.stringify({ username: validation.normalized }),
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(payload?.error || "Failed to save profile.");
+        const reason = typeof payload?.code === "string" ? (payload.code as string) : payload?.reason;
+        const serverMessage =
+          typeof payload?.error === "string" && payload.error.trim()
+            ? (payload.error as string)
+            : "Failed to save profile.";
+        if (reason === "taken") {
+          setUsernameStatus("taken");
+          setUsernameStatusMessage(serverMessage);
+        } else if (reason === "reserved" || reason === "inappropriate") {
+          setUsernameStatus("blocked");
+          setUsernameStatusMessage(serverMessage);
+        } else if (reason === "too-short" || reason === "too-long" || reason === "invalid-characters") {
+          setUsernameStatus("invalid");
+          setUsernameStatusMessage(serverMessage);
+        }
+        throw new Error(serverMessage);
       }
-      setUsername(trimmed);
-      setInitialUsername(trimmed);
+      setUsername(validation.normalized);
+      setInitialUsername(validation.normalized);
       setUsernameStatus("available");
       setUsernameStatusMessage("Available");
       setUsernameFeedback({ message: "Profile updated.", tone: "success" });
@@ -695,7 +736,13 @@ export default function SettingsPage() {
               onChange={(event) => setUsername(event.target.value)}
               placeholder="your_name"
               disabled={accountLoading}
-              className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950"
+              className={`w-full rounded-xl border bg-white px-3 py-2 text-sm shadow-inner focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-neutral-950 ${
+                usernameStatus === "available"
+                  ? "border-emerald-500 focus:border-emerald-500 focus:ring-emerald-500/30 dark:border-emerald-400 dark:focus:ring-emerald-500/30"
+                  : usernameStatus === "taken" || usernameStatus === "invalid" || usernameStatus === "blocked"
+                  ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/30 dark:border-rose-400 dark:focus:ring-rose-500/30"
+                  : "border-neutral-200 focus:border-lernex-blue focus:ring-lernex-blue/30 dark:border-neutral-700 dark:focus:ring-lernex-blue/30"
+              }`}
             />
             {usernameStatus !== "idle" && usernameStatusMessage ? (
               <p
@@ -720,6 +767,7 @@ export default function SettingsPage() {
                   usernameStatus === "checking" ||
                   usernameStatus === "invalid" ||
                   usernameStatus === "taken" ||
+                  usernameStatus === "blocked" ||
                   username.trim() === initialUsername.trim()
                 }
                 className="inline-flex items-center justify-center rounded-xl bg-lernex-blue px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg disabled:pointer-events-none disabled:opacity-60"

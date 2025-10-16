@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import type { Database } from "@/lib/types_db";
+import {
+  escapeForILike,
+  normalizeForComparison,
+  validateUsername,
+} from "@/lib/username";
 
 export async function POST(req: Request) {
   const sb = supabaseServer();
@@ -9,14 +14,19 @@ export async function POST(req: Request) {
 
   const { username, dob } = await req.json().catch(() => ({}));
 
-  if (!username || typeof username !== "string" || username.trim().length < 3) {
+  if (!username || typeof username !== "string") {
     return NextResponse.json({ error: "Invalid username" }, { status: 400 });
   }
   if (!dob || typeof dob !== "string") {
     return NextResponse.json({ error: "Invalid dob" }, { status: 400 });
   }
 
-  const cleanUsername = username.trim();
+  const validation = validateUsername(username);
+  if (!validation.ok) {
+    return NextResponse.json({ error: validation.message, code: validation.code }, { status: 400 });
+  }
+  const cleanUsername = validation.normalized;
+  const { comparable } = validation;
   const cleanDob = dob.trim();
 
   if (!cleanDob) {
@@ -24,15 +34,29 @@ export async function POST(req: Request) {
   }
 
   // Check uniqueness (exclude current user)
-  const { data: taken } = await sb
+  const pattern = escapeForILike(cleanUsername);
+  const { data: taken, error: takenError } = await sb
     .from("profiles")
-    .select("id")
-    .eq("username", cleanUsername)
+    .select("id, username")
     .neq("id", user.id)
+    .ilike("username", pattern)
     .limit(1);
 
+  if (takenError) {
+    return NextResponse.json({ error: "Could not validate username" }, { status: 500 });
+  }
+
   if (taken && taken.length > 0) {
-    return NextResponse.json({ error: "Username already taken" }, { status: 409 });
+    const conflict =
+      taken.some(
+        (row) =>
+          row?.id &&
+          typeof row.username === "string" &&
+          normalizeForComparison(row.username) === comparable,
+      );
+    if (conflict) {
+      return NextResponse.json({ error: "Username already taken" }, { status: 409 });
+    }
   }
 
   const ensure = await sb

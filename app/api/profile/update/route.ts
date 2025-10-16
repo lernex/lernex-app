@@ -1,31 +1,51 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
+import {
+  escapeForILike,
+  normalizeForComparison,
+  validateUsername,
+} from "@/lib/username";
 
 export async function POST(req: Request) {
   const sb = supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const { username, dob, theme_pref } = await req.json().catch(()=>({}));
+  const { username, dob, theme_pref } = await req.json().catch(() => ({}));
+  let normalizedUsername: string | undefined;
+
   // If username provided, validate + check uniqueness
   if (typeof username === "string" && username.trim()) {
-    const trimmed = username.trim();
-    if (trimmed.length < 3 || trimmed.length > 20 || !/^[a-zA-Z0-9_]+$/.test(trimmed)) {
-      return NextResponse.json({ error: "Invalid username" }, { status: 400 });
+    const validation = validateUsername(username);
+    if (!validation.ok) {
+      return NextResponse.json({ error: validation.message, code: validation.code }, { status: 400 });
     }
-    const { data: taken } = await sb
+    normalizedUsername = validation.normalized;
+    const { comparable } = validation;
+    const pattern = escapeForILike(normalizedUsername);
+    const { data: taken, error: takenError } = await sb
       .from("profiles")
-      .select("id")
-      .eq("username", trimmed)
+      .select("id, username")
       .neq("id", user.id)
+      .ilike("username", pattern)
       .limit(1);
-    if (taken && taken.length > 0) {
+    if (takenError) {
+      return NextResponse.json({ error: "Could not validate username." }, { status: 500 });
+    }
+    const conflict =
+      taken?.some(
+        (row) =>
+          row?.id &&
+          typeof row.username === "string" &&
+          normalizeForComparison(row.username) === comparable,
+      ) ?? false;
+    if (conflict) {
       return NextResponse.json({ error: "Username already taken" }, { status: 409 });
     }
   }
 
   const { error } = await sb.from("profiles").update({
-    username: typeof username === "string" ? username : undefined,
+    username: normalizedUsername ?? (typeof username === "string" ? username.trim() || undefined : undefined),
     dob: typeof dob === "string" ? dob : undefined,
     theme_pref: theme_pref === "light" || theme_pref === "dark" ? theme_pref : undefined,
     updated_at: new Date().toISOString(),

@@ -5,14 +5,19 @@ import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
+  Award,
   BadgeCheck,
   BookOpen,
   CalendarCheck2,
+  Compass,
+  Crown,
   Flame,
   Medal,
   Rocket,
   Sparkles,
+  Star,
   Target,
+  Timer,
   Trophy,
   TrendingUp,
 } from "lucide-react";
@@ -56,6 +61,121 @@ type Badge = {
   progress: number;
   current: number;
   target: number;
+};
+
+type BadgeTier = "Bronze" | "Silver" | "Gold" | "Platinum" | "Mythic";
+
+type GroupedBadge = Badge & {
+  category: string;
+  tier: BadgeTier;
+  order: number;
+};
+
+type BadgeGroup = {
+  id: string;
+  title: string;
+  description: string;
+  order: number;
+  accentClass: string;
+  headerAccentClass: string;
+  badges: GroupedBadge[];
+};
+
+type BadgeCategoryKey =
+  | "progress"
+  | "momentum"
+  | "precision"
+  | "explorer"
+  | "weekly";
+
+const TIER_THEMES: Record<BadgeTier, { chip: string; icon: string }> = {
+  Bronze: {
+    chip:
+      "bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100",
+    icon:
+      "bg-amber-500/15 text-amber-600 dark:bg-amber-500/30 dark:text-amber-100",
+  },
+  Silver: {
+    chip:
+      "bg-slate-200 text-slate-900 dark:bg-slate-500/30 dark:text-slate-100",
+    icon:
+      "bg-slate-300/50 text-slate-700 dark:bg-slate-500/30 dark:text-slate-100",
+  },
+  Gold: {
+    chip:
+      "bg-yellow-200 text-yellow-900 dark:bg-yellow-500/30 dark:text-yellow-100",
+    icon:
+      "bg-yellow-300/50 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-50",
+  },
+  Platinum: {
+    chip:
+      "bg-indigo-200 text-indigo-900 dark:bg-indigo-500/25 dark:text-indigo-100",
+    icon:
+      "bg-indigo-300/40 text-indigo-600 dark:bg-indigo-500/30 dark:text-indigo-100",
+  },
+  Mythic: {
+    chip:
+      "bg-emerald-200 text-emerald-900 dark:bg-emerald-500/25 dark:text-emerald-100",
+    icon:
+      "bg-emerald-300/40 text-emerald-700 dark:bg-emerald-500/30 dark:text-emerald-100",
+  },
+};
+
+const BADGE_CATEGORY_META: Record<
+  BadgeCategoryKey,
+  {
+    title: string;
+    description: string;
+    order: number;
+    accentClass: string;
+    headerAccentClass: string;
+  }
+> = {
+  progress: {
+    title: "Progress Ladder",
+    description: "Points and lesson milestones you’ve climbed so far.",
+    order: 1,
+    accentClass:
+      "bg-gradient-to-br from-lernex-blue/10 via-indigo-400/10 to-sky-400/10 dark:from-lernex-blue/15 dark:via-indigo-600/10 dark:to-sky-500/10",
+    headerAccentClass:
+      "bg-lernex-blue/15 text-lernex-blue-900 dark:bg-lernex-blue/25 dark:text-lernex-blue-100",
+  },
+  momentum: {
+    title: "Momentum Makers",
+    description: "Habits, streaks, and weekly cadence that keep you moving.",
+    order: 2,
+    accentClass:
+      "bg-gradient-to-br from-orange-200/15 via-amber-200/10 to-amber-300/10 dark:from-orange-400/15 dark:via-amber-500/10 dark:to-amber-400/10",
+    headerAccentClass:
+      "bg-amber-200/60 text-amber-900 dark:bg-amber-500/25 dark:text-amber-100",
+  },
+  precision: {
+    title: "Precision Plays",
+    description: "Accuracy and perfect runs that show off your focus.",
+    order: 3,
+    accentClass:
+      "bg-gradient-to-br from-emerald-200/15 via-teal-200/10 to-emerald-300/10 dark:from-emerald-500/20 dark:via-teal-500/15 dark:to-emerald-400/10",
+    headerAccentClass:
+      "bg-emerald-200/60 text-emerald-900 dark:bg-emerald-500/25 dark:text-emerald-100",
+  },
+  explorer: {
+    title: "Explorer Kudos",
+    description: "Badges for branching out across subjects and mastery.",
+    order: 4,
+    accentClass:
+      "bg-gradient-to-br from-purple-200/15 via-fuchsia-200/10 to-indigo-300/10 dark:from-purple-500/20 dark:via-fuchsia-500/15 dark:to-indigo-500/10",
+    headerAccentClass:
+      "bg-purple-200/60 text-purple-900 dark:bg-purple-500/25 dark:text-purple-100",
+  },
+  weekly: {
+    title: "Weekly Rhythm",
+    description: "Keep the drumbeat steady with consistent recent sessions.",
+    order: 5,
+    accentClass:
+      "bg-gradient-to-br from-rose-200/15 via-pink-200/10 to-rose-300/10 dark:from-rose-500/20 dark:via-pink-500/15 dark:to-rose-500/10",
+    headerAccentClass:
+      "bg-rose-200/60 text-rose-900 dark:bg-rose-500/25 dark:text-rose-100",
+  },
 };
 
 type ActivityDay = {
@@ -485,8 +605,11 @@ export default function AchievementsPage(): JSX.Element {
     };
   }, [streak]);
 
-  const badges = useMemo<Badge[]>(() => {
-    const list = [
+  const badgeGroups = useMemo<BadgeGroup[]>(() => {
+    type BadgeDefinition = Omit<GroupedBadge, "unlocked" | "progress">;
+
+    const definitions: BadgeDefinition[] = [
+      // Progress Ladder
       {
         id: "points-100",
         title: "Spark Starter",
@@ -494,6 +617,9 @@ export default function AchievementsPage(): JSX.Element {
         icon: Sparkles,
         current: points,
         target: 100,
+        category: "progress",
+        tier: "Bronze",
+        order: 1,
       },
       {
         id: "points-500",
@@ -502,14 +628,31 @@ export default function AchievementsPage(): JSX.Element {
         icon: Trophy,
         current: points,
         target: 500,
+        category: "progress",
+        tier: "Silver",
+        order: 2,
       },
       {
-        id: "streak-7",
-        title: "Streak Keeper",
-        description: "Maintain a 7 day learning streak.",
-        icon: Flame,
-        current: streak,
-        target: 7,
+        id: "points-1000",
+        title: "Power Earner",
+        description: "Collect 1,000 lifetime points.",
+        icon: Award,
+        current: points,
+        target: 1000,
+        category: "progress",
+        tier: "Gold",
+        order: 3,
+      },
+      {
+        id: "points-2500",
+        title: "Point Tycoon",
+        description: "Stack up 2,500 lifetime points.",
+        icon: Crown,
+        current: points,
+        target: 2500,
+        category: "progress",
+        tier: "Platinum",
+        order: 4,
       },
       {
         id: "lessons-1",
@@ -518,6 +661,9 @@ export default function AchievementsPage(): JSX.Element {
         icon: BadgeCheck,
         current: lessonsCompleted,
         target: 1,
+        category: "progress",
+        tier: "Bronze",
+        order: 5,
       },
       {
         id: "lessons-10",
@@ -526,14 +672,143 @@ export default function AchievementsPage(): JSX.Element {
         icon: BookOpen,
         current: lessonsCompleted,
         target: 10,
+        category: "progress",
+        tier: "Silver",
+        order: 6,
+      },
+      {
+        id: "lessons-25",
+        title: "Course Climber",
+        description: "Finish 25 lessons across any subjects.",
+        icon: Rocket,
+        current: lessonsCompleted,
+        target: 25,
+        category: "progress",
+        tier: "Gold",
+        order: 7,
+      },
+      {
+        id: "lessons-50",
+        title: "Curriculum Conqueror",
+        description: "Wrap up 50 cumulative lessons.",
+        icon: Medal,
+        current: lessonsCompleted,
+        target: 50,
+        category: "progress",
+        tier: "Mythic",
+        order: 8,
+      },
+      // Momentum Makers
+      {
+        id: "streak-3",
+        title: "Sparked Streak",
+        description: "Keep a 3-day streak alive.",
+        icon: Flame,
+        current: streak,
+        target: 3,
+        category: "momentum",
+        tier: "Bronze",
+        order: 1,
+      },
+      {
+        id: "streak-7",
+        title: "Streak Keeper",
+        description: "Maintain a 7-day learning streak.",
+        icon: Flame,
+        current: streak,
+        target: 7,
+        category: "momentum",
+        tier: "Silver",
+        order: 2,
+      },
+      {
+        id: "streak-14",
+        title: "Momentum Train",
+        description: "Stay on track for 14 days straight.",
+        icon: Timer,
+        current: streak,
+        target: 14,
+        category: "momentum",
+        tier: "Gold",
+        order: 3,
+      },
+      {
+        id: "streak-30",
+        title: "Relentless Rhythm",
+        description: "Hit a 30-day streak without breaking focus.",
+        icon: Trophy,
+        current: streak,
+        target: 30,
+        category: "momentum",
+        tier: "Platinum",
+        order: 4,
+      },
+      {
+        id: "active-days-4",
+        title: "Weekday Warrior",
+        description: "Study on 4 different days in a single week.",
+        icon: CalendarCheck2,
+        current: activeDays,
+        target: 4,
+        category: "momentum",
+        tier: "Silver",
+        order: 5,
+      },
+      {
+        id: "active-days-6",
+        title: "Calendar Crusher",
+        description: "Turn 6 days active in the same week.",
+        icon: CalendarCheck2,
+        current: activeDays,
+        target: 6,
+        category: "momentum",
+        tier: "Gold",
+        order: 6,
+      },
+      // Precision Plays
+      {
+        id: "accuracy-75",
+        title: "Sharpening Aim",
+        description: "Lift accuracy to 75%.",
+        icon: Target,
+        current: accuracyPercent ?? 0,
+        target: 75,
+        category: "precision",
+        tier: "Bronze",
+        order: 1,
       },
       {
         id: "accuracy-90",
         title: "Sharpshooter",
-        description: "Reach 90 percent lesson accuracy.",
+        description: "Reach 90% lesson accuracy.",
         icon: Target,
         current: accuracyPercent ?? 0,
         target: 90,
+        category: "precision",
+        tier: "Gold",
+        order: 2,
+      },
+      {
+        id: "accuracy-95",
+        title: "Pinpoint Pro",
+        description: "Maintain elite precision at 95% accuracy.",
+        icon: Star,
+        current: accuracyPercent ?? 0,
+        target: 95,
+        category: "precision",
+        tier: "Platinum",
+        order: 3,
+      },
+      {
+        id: "perfect-1",
+        title: "Perfect Start",
+        description: "Record your first perfect lesson.",
+        icon: Sparkles,
+        current: perfectCount,
+        target: 1,
+        category: "precision",
+        tier: "Bronze",
+        order: 4,
       },
       {
         id: "perfect-5",
@@ -542,28 +817,162 @@ export default function AchievementsPage(): JSX.Element {
         icon: Medal,
         current: perfectCount,
         target: 5,
+        category: "precision",
+        tier: "Silver",
+        order: 5,
       },
+      {
+        id: "perfect-12",
+        title: "Faultless Dozen",
+        description: "Celebrate 12 perfect lessons.",
+        icon: Crown,
+        current: perfectCount,
+        target: 12,
+        category: "precision",
+        tier: "Mythic",
+        order: 6,
+      },
+      // Explorer Kudos
       {
         id: "subjects-3",
         title: "Subject Explorer",
         description: "Study 3 different subjects.",
-        icon: TrendingUp,
+        icon: Compass,
         current: uniqueSubjects,
         target: 3,
+        category: "explorer",
+        tier: "Bronze",
+        order: 1,
+      },
+      {
+        id: "subjects-5",
+        title: "Curious Voyager",
+        description: "Learn across 5 different subjects.",
+        icon: TrendingUp,
+        current: uniqueSubjects,
+        target: 5,
+        category: "explorer",
+        tier: "Silver",
+        order: 2,
+      },
+      {
+        id: "subjects-8",
+        title: "Interdisciplinary Ace",
+        description: "Explore 8 unique subject areas.",
+        icon: Rocket,
+        current: uniqueSubjects,
+        target: 8,
+        category: "explorer",
+        tier: "Gold",
+        order: 3,
+      },
+      {
+        id: "mastered-1",
+        title: "Subject Specialist",
+        description: "Master 1 subject with high accuracy.",
+        icon: Award,
+        current: masteredCount,
+        target: 1,
+        category: "explorer",
+        tier: "Gold",
+        order: 4,
+      },
+      {
+        id: "mastered-3",
+        title: "Focused Maestro",
+        description: "Master 3 subjects with consistent accuracy.",
+        icon: Crown,
+        current: masteredCount,
+        target: 3,
+        category: "explorer",
+        tier: "Mythic",
+        order: 5,
+      },
+      // Weekly Rhythm
+      {
+        id: "weekly-3",
+        title: "Weekend Kickoff",
+        description: "Complete 3 lessons this week.",
+        icon: BookOpen,
+        current: weeklyTotal,
+        target: 3,
+        category: "weekly",
+        tier: "Bronze",
+        order: 1,
+      },
+      {
+        id: "weekly-5",
+        title: "Rhythm Rider",
+        description: "Finish 5 lessons within the week.",
+        icon: Timer,
+        current: weeklyTotal,
+        target: 5,
+        category: "weekly",
+        tier: "Silver",
+        order: 2,
+      },
+      {
+        id: "weekly-7",
+        title: "Seven-Day Sweep",
+        description: "Complete 7 lessons in the same week.",
+        icon: Flame,
+        current: weeklyTotal,
+        target: 7,
+        category: "weekly",
+        tier: "Gold",
+        order: 3,
       },
     ];
-    return list.map((item) => ({
+
+    const computed = definitions.map((item) => ({
       ...item,
       unlocked: item.current >= item.target && item.target > 0,
-      progress: item.target > 0 ? Math.min(1, item.current / item.target) : 1,
+      progress:
+        item.target > 0 ? Math.min(1, item.current / item.target) : 1,
     }));
+
+    const byCategory = new Map<BadgeCategoryKey, BadgeGroup>();
+    computed.forEach((badge) => {
+      const meta = BADGE_CATEGORY_META[badge.category as BadgeCategoryKey];
+      if (!meta) return;
+      const existing = byCategory.get(badge.category as BadgeCategoryKey);
+      if (existing) {
+        existing.badges.push(badge);
+        return;
+      }
+
+      byCategory.set(badge.category as BadgeCategoryKey, {
+        id: badge.category,
+        title: meta.title,
+        description: meta.description,
+        order: meta.order,
+        accentClass: meta.accentClass,
+        headerAccentClass: meta.headerAccentClass,
+        badges: [badge],
+      });
+    });
+
+    return Array.from(byCategory.values())
+      .map((group) => ({
+        ...group,
+        badges: [...group.badges].sort((a, b) => {
+          if (a.unlocked !== b.unlocked) {
+            return Number(b.unlocked) - Number(a.unlocked);
+          }
+          return a.order - b.order;
+        }),
+      }))
+      .sort((a, b) => a.order - b.order);
   }, [
     points,
-    streak,
     lessonsCompleted,
+    streak,
+    activeDays,
     accuracyPercent,
     perfectCount,
     uniqueSubjects,
+    masteredCount,
+    weeklyTotal,
   ]);
 
   const timelineEvents = useMemo<TimelineEvent[]>(() => {
@@ -629,7 +1038,7 @@ export default function AchievementsPage(): JSX.Element {
   if (!user && !statsLoading) {
     return (
       <main className="min-h-[calc(100vh-56px)] mx-auto flex w-full max-w-3xl items-center justify-center px-4 py-16 text-neutral-900 dark:text-white">
-        <div className="w-full max-w-xl rounded-3xl border border-white/70 bg-gradient-to-br from-white via-sky-50 to-white p-10 text-center shadow-xl ring-1 ring-black/5 backdrop-blur-sm dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0">
+        <div className="w-full max-w-xl rounded-3xl border border-white/50 bg-white/70 p-10 text-center shadow-xl ring-1 ring-black/5 backdrop-blur-sm dark:border-slate-800 dark:bg-[#0b1424]/85 dark:ring-0">
           <Sparkles className="mx-auto h-10 w-10 text-lernex-blue" />
           <h1 className="mt-4 text-3xl font-semibold">Achievements</h1>
           <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
@@ -676,7 +1085,7 @@ export default function AchievementsPage(): JSX.Element {
         </div>
       )}
 
-      <section className="relative overflow-hidden rounded-3xl border border-white/70 bg-gradient-to-br from-white via-sky-50 to-indigo-50 p-6 shadow-lg ring-1 ring-black/5 backdrop-blur-sm transition-colors dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#080d18] dark:ring-0">
+      <section className="relative overflow-hidden rounded-3xl border border-white/50 bg-white/70 p-6 shadow-lg ring-1 ring-black/5 backdrop-blur-sm transition-colors dark:border-slate-800 dark:bg-[#0b1424]/85 dark:ring-0">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute -left-32 -top-28 h-72 w-72 rounded-full bg-lernex-blue/20 blur-3xl opacity-80 dark:bg-lernex-blue/40 -z-10"
@@ -818,7 +1227,7 @@ export default function AchievementsPage(): JSX.Element {
           return (
             <div
               key={stat.id}
-              className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:shadow-lg dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0"
+              className="rounded-2xl border border-white/40 bg-white/70 p-5 shadow-sm ring-1 ring-black/5 backdrop-blur-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-slate-800 dark:bg-[#0b1424]/85 dark:ring-0"
             >
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -850,7 +1259,7 @@ export default function AchievementsPage(): JSX.Element {
       </section>
 
       <section className="mt-8 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0">
+        <div className="rounded-2xl border border-white/40 bg-white/70 p-5 shadow-sm ring-1 ring-black/5 backdrop-blur-sm dark:border-slate-800 dark:bg-[#0b1424]/85 dark:ring-0">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">Weekly rhythm</h2>
@@ -912,7 +1321,7 @@ export default function AchievementsPage(): JSX.Element {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0">
+        <div className="rounded-2xl border border-white/40 bg-white/70 p-5 shadow-sm ring-1 ring-black/5 backdrop-blur-sm dark:border-slate-800 dark:bg-[#0b1424]/85 dark:ring-0">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">Subject focus</h2>
@@ -963,7 +1372,7 @@ export default function AchievementsPage(): JSX.Element {
               ))
             )}
           </ul>
-          <div className="mt-6 rounded-xl border border-white/70 bg-gradient-to-r from-white via-sky-50 to-slate-50 p-4 text-xs text-neutral-600 ring-1 ring-black/5 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:ring-0">
+          <div className="mt-6 rounded-xl border border-white/40 bg-white/70 p-4 text-xs text-neutral-600 ring-1 ring-black/5 backdrop-blur-sm dark:border-slate-800 dark:bg-[#0b1424]/85 dark:text-neutral-300 dark:ring-0">
             {needsAttention ? (
               <>
                 <div className="font-semibold text-neutral-800 dark:text-neutral-100">
@@ -1003,67 +1412,94 @@ export default function AchievementsPage(): JSX.Element {
             </p>
           </div>
         </div>
-        <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {badges.map((badge) => {
-            const Icon = badge.icon;
-            const progressPercent = Math.round(badge.progress * 100);
-            return (
-              <li
-                key={badge.id}
-                className={`relative overflow-hidden rounded-2xl border p-5 transition ${
-                  badge.unlocked
-                    ? "border-lernex-blue/30 bg-lernex-blue/10 text-lernex-blue-950 shadow ring-1 ring-lernex-blue/30 dark:border-lernex-blue/40 dark:bg-lernex-blue/20 dark:text-white dark:ring-lernex-blue/20"
-                    : "border-white/70 bg-gradient-to-br from-white via-slate-50 to-white text-neutral-900 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-white dark:ring-0"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold">
-                      <Icon className="h-4 w-4" />
-                      {badge.title}
-                    </div>
-                    <p className="mt-2 text-xs text-neutral-600 dark:text-neutral-400">
-                      {badge.description}
-                    </p>
-                  </div>
-                  <span
-                    className={`inline-flex items-center justify-center rounded-full px-2 py-1 text-[10px] font-semibold ${
-                      badge.unlocked
-                        ? "bg-white/70 text-lernex-blue dark:bg-lernex-blue/25 dark:text-white"
-                        : "bg-white/80 text-neutral-700 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-0"
-                    }`}
-                  >
-                    {badge.unlocked ? "Unlocked" : "Locked"}
-                  </span>
-                </div>
-                <div className="mt-4 h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-800">
-                  <div
-                    className={`h-full rounded-full ${
-                      badge.unlocked
-                        ? "bg-lernex-blue"
-                        : "bg-lernex-blue/60"
-                    }`}
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-                <div className="mt-2 flex items-center justify-between text-[11px] text-neutral-600 dark:text-neutral-400">
-                  <span>
-                    {Math.min(badge.current, badge.target).toLocaleString()} / {badge.target.toLocaleString()}
-                  </span>
-                  {!badge.unlocked && (
-                    <span>
-                      {Math.max(0, badge.target - badge.current)} to go
-                    </span>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="space-y-6">
+          {badgeGroups.map((group) => (
+            <div
+              key={group.id}
+              className={`rounded-3xl border border-white/50 p-6 shadow-sm ring-1 ring-black/5 backdrop-blur-sm ${group.accentClass} dark:border-slate-800/80 dark:ring-0`}
+            >
+              <div>
+                <span
+                  className={`inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wide ${group.headerAccentClass}`}
+                >
+                  {group.title}
+                </span>
+                <p className="mt-3 text-xs text-neutral-600 dark:text-neutral-300">
+                  {group.description}
+                </p>
+              </div>
+              <ul className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {group.badges.map((badge) => {
+                  const Icon = badge.icon;
+                  const progressPercent = Math.round(badge.progress * 100);
+                  const theme = TIER_THEMES[badge.tier] ?? TIER_THEMES.Bronze;
+                  return (
+                    <li
+                      key={badge.id}
+                      className={`relative overflow-hidden rounded-2xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                        badge.unlocked
+                          ? "border-transparent bg-gradient-to-br from-lernex-blue/15 via-lernex-blue/10 to-sky-500/10 text-neutral-900 ring-1 ring-lernex-blue/25 dark:from-lernex-blue/25 dark:via-indigo-500/20 dark:to-sky-500/15 dark:text-white dark:ring-lernex-blue/20"
+                          : "border-white/60 bg-white/70 text-neutral-900 dark:border-slate-800 dark:bg-[#101a27]/85 dark:text-neutral-100"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-1 items-start gap-3">
+                          <span
+                            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${theme.icon}`}
+                          >
+                            <Icon className="h-5 w-5" />
+                          </span>
+                          <div>
+                            <p className="text-sm font-semibold">{badge.title}</p>
+                            <p className="mt-2 text-xs text-neutral-600 dark:text-neutral-300">
+                              {badge.description}
+                            </p>
+                          </div>
+                        </div>
+                        <span
+                          className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wide ${theme.chip}`}
+                        >
+                          {badge.tier}
+                        </span>
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        <div className="flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
+                          <span>
+                            {Math.min(badge.current, badge.target).toLocaleString()} /{" "}
+                            {badge.target.toLocaleString()}
+                          </span>
+                          <span
+                            className={
+                              badge.unlocked
+                                ? "font-medium text-emerald-500"
+                                : "text-neutral-500 dark:text-neutral-400"
+                            }
+                          >
+                            {badge.unlocked
+                              ? "Unlocked"
+                              : `${Math.max(0, badge.target - badge.current).toLocaleString()} to go`}
+                          </span>
+                        </div>
+                        <div className="h-2 w-full rounded-full bg-neutral-200/80 dark:bg-slate-800">
+                          <div
+                            className={`h-full rounded-full ${
+                              badge.unlocked ? "bg-emerald-500" : "bg-lernex-blue/70"
+                            }`}
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="mt-8 grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0 lg:col-span-2">
+        <div className="rounded-2xl border border-white/40 bg-white/70 p-5 shadow-sm ring-1 ring-black/5 backdrop-blur-sm dark:border-slate-800 dark:bg-[#0b1424]/85 dark:ring-0 lg:col-span-2">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">Recent highlights</h2>
@@ -1074,7 +1510,7 @@ export default function AchievementsPage(): JSX.Element {
           </div>
           <ol className="mt-5 space-y-4 border-l border-neutral-200 pl-5 dark:border-neutral-800">
             {timelineEvents.length === 0 ? (
-              <li className="border border-dashed border-neutral-300 bg-neutral-50 px-4 py-6 text-xs text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400">
+              <li className="border border-dashed border-neutral-300 bg-neutral-50 px-4 py-6 text-xs text-neutral-500 dark:border-slate-700 dark:bg-[#0b1424]/85 dark:text-neutral-400">
                 Highlights will appear once you complete your first lesson.
               </li>
             ) : (
@@ -1082,14 +1518,14 @@ export default function AchievementsPage(): JSX.Element {
                 const Icon = event.icon;
                 return (
                   <li key={event.id} className="relative">
-                    <span className="absolute -left-[30px] flex h-8 w-8 items-center justify-center rounded-full border border-white/60 bg-white/95 text-lernex-blue shadow-sm ring-1 ring-black/5 dark:border-neutral-700 dark:bg-neutral-900 dark:ring-0">
+                    <span className="absolute -left-[30px] flex h-8 w-8 items-center justify-center rounded-full border border-white/50 bg-white/80 text-lernex-blue shadow-sm ring-1 ring-black/5 dark:border-slate-700 dark:bg-[#0f1728] dark:ring-0">
                       <Icon className="h-4 w-4" />
                     </span>
                     <div
                       className={`rounded-2xl border px-4 py-3 text-sm ${
                         event.highlight
-                          ? "border-lernex-blue/40 bg-lernex-blue/10 text-lernex-blue-950 ring-1 ring-lernex-blue/30 shadow-sm dark:border-lernex-blue/40 dark:bg-lernex-blue/15 dark:text-white dark:ring-lernex-blue/20"
-                          : "border-white/60 bg-gradient-to-br from-white via-slate-50 to-white ring-1 ring-black/5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/70 dark:ring-0"
+                          ? "border-lernex-blue/40 bg-lernex-blue/15 text-lernex-blue-950 ring-1 ring-lernex-blue/30 shadow-sm dark:border-lernex-blue/40 dark:bg-lernex-blue/20 dark:text-white dark:ring-lernex-blue/20"
+                          : "border-white/50 bg-white/70 ring-1 ring-black/5 shadow-sm backdrop-blur-sm dark:border-slate-800 dark:bg-[#0e172a]/90 dark:ring-0"
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -1110,7 +1546,7 @@ export default function AchievementsPage(): JSX.Element {
         </div>
 
         <div className="flex h-full flex-col gap-4">
-          <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0">
+          <div className="rounded-2xl border border-white/40 bg-white/70 p-5 shadow-sm ring-1 ring-black/5 backdrop-blur-sm dark:border-slate-800 dark:bg-[#0b1424]/85 dark:ring-0">
             <h2 className="text-lg font-semibold">Next best action</h2>
             {primarySubject ? (
               <div className="mt-3 text-sm">
@@ -1182,7 +1618,7 @@ export default function AchievementsPage(): JSX.Element {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/70 bg-gradient-to-br from-white via-slate-50 to-white p-5 text-sm shadow-sm ring-1 ring-black/5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:ring-0">
+          <div className="rounded-2xl border border-white/40 bg-white/70 p-5 text-sm shadow-sm ring-1 ring-black/5 backdrop-blur-sm dark:border-slate-800 dark:bg-[#0b1424]/85 dark:ring-0">
             <h2 className="text-lg font-semibold">More ways to celebrate</h2>
             <ul className="mt-3 space-y-3 text-xs text-neutral-600 dark:text-neutral-300">
               <li>

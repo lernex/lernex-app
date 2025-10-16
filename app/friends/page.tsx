@@ -535,12 +535,21 @@ export default function FriendsPage() {
   return (
     <main
       className={cn(
-        "relative mx-auto w-full max-w-5xl overflow-hidden px-4 py-8 text-neutral-900 transition-colors duration-300 dark:text-white",
-        "min-h-[calc(100vh-56px)] bg-gradient-to-br from-white via-slate-50 to-sky-50/40 shadow-[0_35px_65px_-35px_rgba(47,128,237,0.32)] dark:bg-transparent dark:shadow-none",
-        "before:absolute before:-top-32 before:left-[-15%] before:h-64 before:w-64 before:rounded-full before:bg-lernex-blue/20 before:blur-[120px] before:content-[''] before:opacity-80 dark:before:hidden",
-        "after:absolute after:-bottom-40 after:right-[-10%] after:h-72 after:w-72 after:rounded-full after:bg-rose-200/30 after:blur-[140px] after:content-[''] dark:after:hidden"
+        "relative min-h-[calc(100vh-56px)] mx-auto w-full max-w-5xl overflow-hidden px-4 py-8 text-neutral-900 transition-colors duration-300 dark:text-white"
       )}
     >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-[-40vw] -top-40 h-80 rounded-full bg-gradient-to-br from-sky-100 via-white to-transparent opacity-80 blur-3xl dark:hidden -z-10"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-[-25vw] top-1/2 h-[520px] -translate-y-1/2 rounded-full bg-gradient-to-br from-rose-50 via-amber-50/80 to-transparent opacity-70 blur-3xl dark:hidden -z-10"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-[-35vw] -top-48 hidden h-[520px] rounded-full bg-gradient-to-br from-lernex-blue/30 via-neutral-900/60 to-transparent opacity-70 blur-3xl dark:block -z-10"
+      />
       <div className="relative z-10">
         {toast && (
           <div
@@ -548,7 +557,7 @@ export default function FriendsPage() {
               "mb-4 flex items-center gap-2 rounded-2xl border border-neutral-200/70 bg-gradient-to-r from-white via-slate-50/70 to-white px-4 py-2 text-sm text-neutral-700 shadow-[0_24px_60px_-40px_rgba(47,128,237,0.35)] backdrop-blur-sm transition-colors dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-200 dark:shadow-none",
               toast.tone === "success" && "border-emerald-200 bg-emerald-50/80 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200",
               toast.tone === "error" && "border-rose-200 bg-rose-50/80 text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200",
-              toast.tone === "neutral" && "border-neutral-200/70 from-white via-slate-50/60 to-white"
+              toast.tone === "neutral" && "border-neutral-200/70 from-white via-slate-50/60 to-white dark:border-neutral-700 dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c]"
             )}
           >
             <BellRing className="h-4 w-4" />

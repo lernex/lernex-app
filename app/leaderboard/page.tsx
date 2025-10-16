@@ -160,6 +160,8 @@ export default function Leaderboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const showStreakLeaderboard = range === "all";
+
   useEffect(() => {
     let cancelled = false;
 
@@ -298,20 +300,22 @@ export default function Leaderboard() {
         setTopPoints(pointsRows);
 
         let streakRows: ProfileRow[] = [];
-        if (scope === "friends" && scopedIds && scopedIds.length === 0) {
-          streakRows = [];
-        } else {
-          let streakQuery = supabase
-            .from("profiles")
-            .select("id, username, points, streak")
-            .order("streak", { ascending: false })
-            .limit(20);
-          if (scope === "friends" && scopedIds && scopedIds.length) {
-            streakQuery = streakQuery.in("id", scopedIds);
+        if (range === "all") {
+          if (scope === "friends" && scopedIds && scopedIds.length === 0) {
+            streakRows = [];
+          } else {
+            let streakQuery = supabase
+              .from("profiles")
+              .select("id, username, points, streak")
+              .order("streak", { ascending: false })
+              .limit(20);
+            if (scope === "friends" && scopedIds && scopedIds.length) {
+              streakQuery = streakQuery.in("id", scopedIds);
+            }
+            const { data: streakData, error: streakError } = await streakQuery;
+            if (streakError) throw streakError;
+            streakRows = normalizeProfiles(streakData ?? []);
           }
-          const { data: streakData, error: streakError } = await streakQuery;
-          if (streakError) throw streakError;
-          streakRows = normalizeProfiles(streakData ?? []);
         }
 
         if (cancelled) return;
@@ -352,17 +356,21 @@ export default function Leaderboard() {
           setRankPoints(null);
         }
 
-        const myStreak = stats?.streak ?? 0;
-        let streakRankQuery = supabase
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .gt("streak", myStreak);
-        if (scope === "friends" && scopedIds && scopedIds.length) {
-          streakRankQuery = streakRankQuery.in("id", scopedIds);
+        if (range === "all") {
+          const myStreak = stats?.streak ?? 0;
+          let streakRankQuery = supabase
+            .from("profiles")
+            .select("id", { count: "exact", head: true })
+            .gt("streak", myStreak);
+          if (scope === "friends" && scopedIds && scopedIds.length) {
+            streakRankQuery = streakRankQuery.in("id", scopedIds);
+          }
+          const { count: higherStreak, error: streakRankError } = await streakRankQuery;
+          if (streakRankError) throw streakRankError;
+          setRankStreak(((higherStreak as number | null) ?? 0) + 1);
+        } else {
+          setRankStreak(null);
         }
-        const { count: higherStreak, error: streakRankError } = await streakRankQuery;
-        if (streakRankError) throw streakRankError;
-        setRankStreak(((higherStreak as number | null) ?? 0) + 1);
       } catch (err) {
         console.error("[leaderboard] load error", err);
         if (cancelled) return;
@@ -439,7 +447,11 @@ export default function Leaderboard() {
         </div>
       </section>
 
-      <section className="mt-6 grid gap-4 sm:grid-cols-2">
+      <section
+        className={`mt-6 grid w-full gap-4 ${
+          showStreakLeaderboard ? "sm:grid-cols-2" : "sm:mx-auto sm:max-w-md"
+        }`}
+      >
         <div className="rounded-xl border border-neutral-200 bg-white/90 p-4 shadow-sm transition-colors dark:border-neutral-800 dark:bg-neutral-900/60">
           <div className="mb-2 text-sm font-semibold">Top Points</div>
           {error ? (
@@ -482,48 +494,50 @@ export default function Leaderboard() {
             </ol>
           )}
         </div>
-        <div className="rounded-xl border border-neutral-200 bg-white/90 p-4 shadow-sm transition-colors dark:border-neutral-800 dark:bg-neutral-900/60">
-          <div className="mb-2 text-sm font-semibold">Top Streaks</div>
-          {error ? (
-            <div className="text-sm text-rose-500 dark:text-rose-400">{error}</div>
-          ) : (
-            <ol className="space-y-2">
-              {loading ? (
-                <div className="text-sm text-neutral-500 dark:text-neutral-400">Loading...</div>
-              ) : (
-                <>
-                  {topStreak.map((row, index) => (
-                    <li
-                      key={row.id}
-                      aria-current={row.id === userId ? "true" : undefined}
-                      className={`flex items-center justify-between rounded-lg border border-transparent px-3 py-2 ring-offset-2 ring-offset-white transition dark:ring-offset-lernex-charcoal ${
-                        row.id === userId
-                          ? "bg-lernex-blue/15 ring-2 ring-lernex-blue/40 dark:bg-lernex-blue/25 dark:ring-lernex-blue/50"
-                          : "bg-white/90 hover:bg-white dark:bg-neutral-900/70 dark:hover:bg-neutral-900/60"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="w-6 text-right text-sm text-neutral-500 dark:text-neutral-400">
-                          {index + 1}
+        {showStreakLeaderboard ? (
+          <div className="rounded-xl border border-neutral-200 bg-white/90 p-4 shadow-sm transition-colors dark:border-neutral-800 dark:bg-neutral-900/60">
+            <div className="mb-2 text-sm font-semibold">Top Streaks</div>
+            {error ? (
+              <div className="text-sm text-rose-500 dark:text-rose-400">{error}</div>
+            ) : (
+              <ol className="space-y-2">
+                {loading ? (
+                  <div className="text-sm text-neutral-500 dark:text-neutral-400">Loading...</div>
+                ) : (
+                  <>
+                    {topStreak.map((row, index) => (
+                      <li
+                        key={row.id}
+                        aria-current={row.id === userId ? "true" : undefined}
+                        className={`flex items-center justify-between rounded-lg border border-transparent px-3 py-2 ring-offset-2 ring-offset-white transition dark:ring-offset-lernex-charcoal ${
+                          row.id === userId
+                            ? "bg-lernex-blue/15 ring-2 ring-lernex-blue/40 dark:bg-lernex-blue/25 dark:ring-lernex-blue/50"
+                            : "bg-white/90 hover:bg-white dark:bg-neutral-900/70 dark:hover:bg-neutral-900/60"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="w-6 text-right text-sm text-neutral-500 dark:text-neutral-400">
+                            {index + 1}
+                          </span>
+                          <span className="text-sm">
+                            {row.username ?? `Learner #${row.id.slice(0, 6)}`}
+                          </span>
+                        </div>
+                        <span className="flex items-center gap-1 text-sm font-medium">
+                          {index === 0 ? "🏆" : null}
+                          {row.streak ?? 0} days
                         </span>
-                        <span className="text-sm">
-                          {row.username ?? `Learner #${row.id.slice(0, 6)}`}
-                        </span>
-                      </div>
-                      <span className="flex items-center gap-1 text-sm font-medium">
-                        {index === 0 ? "🏆" : null}
-                        {row.streak ?? 0} days
-                      </span>
-                    </li>
-                  ))}
-                  {topStreak.length === 0 && (
-                    <div className="text-sm text-neutral-500 dark:text-neutral-400">No data yet.</div>
-                  )}
-                </>
-              )}
-            </ol>
-          )}
-        </div>
+                      </li>
+                    ))}
+                    {topStreak.length === 0 && (
+                      <div className="text-sm text-neutral-500 dark:text-neutral-400">No data yet.</div>
+                    )}
+                  </>
+                )}
+              </ol>
+            )}
+          </div>
+        ) : null}
       </section>
 
       <div className="mt-6 rounded-xl border border-neutral-200 bg-white/90 p-4 text-sm transition-colors dark:border-neutral-800 dark:bg-neutral-900/60">
