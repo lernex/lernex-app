@@ -374,15 +374,13 @@ export default function NavBar() {
                         >
                           Settings
                         </Link>
-                        <a
-                          href="https://lernex-1.gitbook.io/lernex"
+                        <Link
+                          href="/privacy"
                           className="block px-4 py-2 text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
-                          target="_blank"
-                          rel="noreferrer"
                           onClick={() => setOpen(false)}
                         >
                           Privacy
-                        </a>
+                        </Link>
                         <button
                           onClick={async () => {
                             await supabase.auth.signOut();
@@ -469,15 +467,13 @@ export default function NavBar() {
                     >
                       Settings
                     </Link>
-                    <a
-                      href="https://lernex-1.gitbook.io/lernex"
+                    <Link
+                      href="/privacy"
                       className="block px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
-                      target="_blank"
-                      rel="noreferrer"
                       onClick={() => setOpen(false)}
                     >
                       Privacy
-                    </a>
+                    </Link>
                     <button
                       onClick={async () => {
                         await supabase.auth.signOut();
