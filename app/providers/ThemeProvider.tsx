@@ -1,6 +1,6 @@
 "use client";
 import { ThemeProvider as NextThemes, useTheme } from "next-themes";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const STORAGE_KEY = "lernex-theme";
 const LEGACY_STORAGE_KEY = "theme";
@@ -64,25 +64,22 @@ function SyncThemeFromProfile({ initialTheme }: { initialTheme?: ThemeMode | nul
       persistTheme(next);
     };
 
-    let stored = getStoredTheme();
-
-    if (!stored && initialTheme) {
+    // Always apply initialTheme immediately if provided (from server-side user profile)
+    if (initialTheme) {
       applyTheme(initialTheme);
-      stored = initialTheme;
+      return () => {
+        cancelled = true;
+      };
     }
 
-    (async () => {
-      try {
-        const res = await fetch("/api/profile/me", { cache: "no-store" });
-        if (!res.ok) return;
-        const me = await res.json();
-        const pref = sanitizeTheme(me?.theme_pref ?? null);
-        if (!pref || pref === stored || cancelled) return;
-        applyTheme(pref);
-      } catch {
-        /* ignore */
-      }
-    })();
+    // If no initialTheme (user not logged in), check localStorage
+    const stored = getStoredTheme();
+    if (stored) {
+      applyTheme(stored);
+    } else {
+      // No stored preference and no user preference - default to dark
+      applyTheme("dark");
+    }
 
     return () => {
       cancelled = true;
@@ -100,13 +97,20 @@ export default function ThemeProvider({
   initialTheme?: ThemeMode | null;
 }) {
   const sanitizedInitial = initialTheme ? sanitizeTheme(initialTheme) : null;
+  // Determine the theme to use on mount (avoids browser preference override)
+  const [mountTheme] = useState<ThemeMode>(() => {
+    if (typeof window === "undefined") return sanitizedInitial ?? "dark";
+    const stored = getStoredTheme();
+    return sanitizedInitial ?? stored ?? "dark";
+  });
 
   return (
     <NextThemes
       attribute="class"
-      defaultTheme={sanitizedInitial ?? "dark"}
+      defaultTheme={mountTheme}
       enableSystem={false}
       storageKey={STORAGE_KEY}
+      disableTransitionOnChange
     >
       <SyncThemeFromProfile initialTheme={sanitizedInitial} />
       {children}

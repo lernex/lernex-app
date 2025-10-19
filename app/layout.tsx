@@ -43,8 +43,31 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     initialTheme = null;
   }
 
+  // Generate inline script to set theme BEFORE first paint
+  const themeScript = `
+    (function() {
+      try {
+        var STORAGE_KEY = 'lernex-theme';
+        var serverTheme = ${JSON.stringify(initialTheme)};
+        var stored = localStorage.getItem(STORAGE_KEY);
+        var theme = serverTheme || stored || 'dark';
+
+        if (theme === 'light' || theme === 'dark') {
+          document.documentElement.classList.add(theme);
+        } else {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  `;
+
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body
         id="top"
         className={`${inter.className} bg-white text-neutral-900 dark:bg-lernex-charcoal dark:text-white`}
