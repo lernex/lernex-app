@@ -35,11 +35,15 @@ type LessonOptions = {
     prerequisites?: string[];
     reminders?: string[];
   };
+  personalization?: {
+    style?: { prefer?: string[]; avoid?: string[] };
+    lessons?: { leanInto?: string[]; avoid?: string[]; saved?: string[] };
+  };
 };
 
 const MAX_GUARDRAIL_ITEMS = 6;
-const MAX_CONTEXT_CHARS = 600;
-const MAX_MAP_SUMMARY_CHARS = 600;
+const MAX_CONTEXT_CHARS = 360;
+const MAX_MAP_SUMMARY_CHARS = 360;
 
 const LESSON_RESPONSE_SCHEMA = {
   name: "lesson_payload",
@@ -497,12 +501,12 @@ function sanitizeStructuredContext(context: Record<string, unknown>) {
   return sanitized as Record<string, unknown>;
 }
 
-function buildStructuredContextMessage(context: Record<string, unknown>) {
+function buildStructuredContextPayload(context: Record<string, unknown>) {
   try {
     const sanitized = sanitizeStructuredContext(context);
-    return JSON.stringify({ type: "structured_context", data: sanitized });
+    return { type: "structured_context", data: sanitized };
   } catch {
-    return JSON.stringify({ type: "structured_context", data: {} });
+    return { type: "structured_context", data: {} };
   }
 }
 
@@ -551,78 +555,170 @@ function buildSourceText(
   difficulty: Difficulty,
   opts: LessonOptions = {}
 ) {
-  const sections: string[] = [];
   const subjectLine = subject.trim() || "General studies";
   const topicLine = topic.trim() || "Current concept";
-  sections.push(`Subject: ${subjectLine} | Focus: ${topicLine}`);
 
-  const knowledgeEntries = collectKnowledgeEntries(opts.knowledge);
-  if (knowledgeEntries.length) {
-    sections.push(["Knowledge:", ...knowledgeEntries.map((line) => `- ${line}`)].join("\n"));
+  const clampList = (values: string[] | undefined, limit: number) => {
+    if (!Array.isArray(values) || !values.length) return [];
+    return dedupeStrings(
+      values
+        .map((entry) => (typeof entry === "string" ? entry.trim() : String(entry ?? "").trim()))
+        .filter((entry) => entry.length > 0),
+      limit
+    );
+  };
+
+  const knowledgePayload: Record<string, unknown> = {};
+  if (opts.knowledge) {
+    const { definition, applications, prerequisites, reminders } = opts.knowledge;
+    if (typeof definition === "string" && definition.trim()) {
+      knowledgePayload.definition = truncateText(definition.trim(), 220);
+    }
+    const apps = clampList(applications, 3).map((entry) => truncateText(entry, 110));
+    if (apps.length) knowledgePayload.applications = apps;
+    const prereqs = clampList(prerequisites, 4).map((entry) => truncateText(entry, 100));
+    if (prereqs.length) knowledgePayload.prerequisites = prereqs;
+    const rems = clampList(reminders, 3).map((entry) => truncateText(entry, 100));
+    if (rems.length) knowledgePayload.reminders = rems;
   }
 
-  const profileChunks: string[] = [];
-  profileChunks.push(`pace=${pace}`);
+  const profile: Record<string, unknown> = {
+    pace,
+    target_difficulty: difficulty,
+  };
   if (typeof opts.accuracyBand === "string" && opts.accuracyBand.trim()) {
-    profileChunks.push(`accuracy=${opts.accuracyBand.trim()}`);
+    profile.accuracy_band = opts.accuracyBand.trim();
   } else if (accuracy != null) {
-    profileChunks.push(`accuracy=${accuracy}%`);
+    profile.accuracy_pct = accuracy;
   }
-  profileChunks.push(`difficulty=${difficulty}`);
   if (opts.difficultyPref && opts.difficultyPref !== difficulty) {
-    profileChunks.push(`preferred_difficulty=${opts.difficultyPref}`);
+    profile.requested_difficulty = opts.difficultyPref;
   }
-  if (typeof opts.learnerProfile === "string" && opts.learnerProfile.trim().length) {
-    profileChunks.push(`learner_note=${truncateText(opts.learnerProfile.trim(), 180)}`);
+  if (typeof opts.learnerProfile === "string" && opts.learnerProfile.trim()) {
+    profile.note = truncateText(opts.learnerProfile.trim(), MAX_CONTEXT_CHARS);
   }
   if (opts.nextTopicHint && opts.nextTopicHint.trim()) {
-    profileChunks.push(`next_hint=${truncateText(opts.nextTopicHint, 160)}`);
+    profile.next_topic_hint = truncateText(opts.nextTopicHint.trim(), 160);
+  }
+
+  const recents: Record<string, unknown> = {};
+  if (opts.previousLessonSummary && opts.previousLessonSummary.trim()) {
+    recents.previous_lesson = truncateText(opts.previousLessonSummary.trim(), MAX_CONTEXT_CHARS);
   }
   if (opts.recentMissSummary && opts.recentMissSummary.trim()) {
-    profileChunks.push(`recent_miss=${truncateText(opts.recentMissSummary, 140)}`);
+    recents.recent_miss = truncateText(opts.recentMissSummary.trim(), 140);
   }
 
-  const likedDescriptors = opts.likedLessonDescriptors ? dedupeStrings(opts.likedLessonDescriptors, 4) : [];
-  const savedDescriptors = opts.savedLessonDescriptors ? dedupeStrings(opts.savedLessonDescriptors, 3) : [];
+  const preferences: Record<string, unknown> = {};
   const toneHints = opts.toneTags ? dedupeStrings(opts.toneTags, 4) : [];
-  const preferenceChunks: string[] = [];
-  if (likedDescriptors.length) preferenceChunks.push(`likes=${likedDescriptors.join(" | ")}`);
-  if (savedDescriptors.length) preferenceChunks.push(`saved=${savedDescriptors.join(" | ")}`);
-  if (toneHints.length) preferenceChunks.push(`tone=${toneHints.join(" | ")}`);
+  if (toneHints.length) preferences.tone_hints = toneHints;
 
-  const plannerLines: string[] = [];
-  if (profileChunks.length) plannerLines.push(`Profile: ${profileChunks.join(" | ")}`);
-  if (preferenceChunks.length) plannerLines.push(`Preferences: ${preferenceChunks.join(" | ")}`);
-  if (opts.previousLessonSummary && opts.previousLessonSummary.trim()) {
-    plannerLines.push(`Previous: ${truncateText(opts.previousLessonSummary, 180)}`);
+  const stylePrefs: Record<string, unknown> = {};
+  const lessonPrefs: Record<string, unknown> = {};
+  const personalization = opts.personalization ?? {};
+  if (personalization.style) {
+    const prefer = clampList(personalization.style.prefer, 6);
+    const avoid = clampList(personalization.style.avoid, 6);
+    if (prefer.length) stylePrefs.prefer = prefer;
+    if (avoid.length) stylePrefs.avoid = avoid;
+  }
+  const leanInto = personalization.lessons?.leanInto
+    ? clampList(personalization.lessons.leanInto, 6)
+    : clampList(opts.likedLessonDescriptors, 4);
+  if (leanInto.length) lessonPrefs.lean_into = leanInto;
+  const avoidLessons = personalization.lessons?.avoid
+    ? clampList(personalization.lessons.avoid, 6)
+    : [];
+  if (avoidLessons.length) lessonPrefs.avoid = avoidLessons;
+  const savedLessons = personalization.lessons?.saved
+    ? clampList(personalization.lessons.saved, 4)
+    : clampList(opts.savedLessonDescriptors, 3);
+  if (savedLessons.length) lessonPrefs.saved = savedLessons;
+  if (Object.keys(stylePrefs).length) preferences.style = stylePrefs;
+  if (Object.keys(lessonPrefs).length) preferences.lessons = lessonPrefs;
+
+  const guardrails: Record<string, unknown> = {};
+  if (opts.avoidTitles?.length) {
+    const titles = clampList(opts.avoidTitles, MAX_GUARDRAIL_ITEMS);
+    if (titles.length) guardrails.avoid_titles = titles;
+  }
+  if (opts.avoidIds?.length) {
+    const ids = clampList(opts.avoidIds, MAX_GUARDRAIL_ITEMS);
+    if (ids.length) guardrails.avoid_ids = ids;
+  }
+
+  const facts: Record<string, unknown> = {
+    subject: subjectLine,
+    focus: topicLine,
+  };
+  const progress: Record<string, unknown> = {
+    pace,
+  };
+  if (opts.accuracyBand) {
+    progress.accuracy_band = opts.accuracyBand;
+  } else if (accuracy != null) {
+    progress.accuracy_pct = accuracy;
   }
   if (opts.mapSummary) {
     const summary = truncateText(opts.mapSummary, MAX_MAP_SUMMARY_CHARS);
-    if (summary) plannerLines.push(`Progress: ${summary}`);
+    if (summary) progress.map = summary;
   }
-  if (plannerLines.length) {
-    sections.push(plannerLines.join("\n"));
-  }
+  if (Object.keys(progress).length) facts.progress = progress;
+  if (Object.keys(knowledgePayload).length) facts.knowledge = knowledgePayload;
 
-  sections.push(
-    "Goals: explain the core idea plainly; show a concise example; highlight one misconception + fix; finish with a concrete next step."
-  );
+  const payload: Record<string, unknown> = {
+    facts,
+    learner: {
+      profile,
+      ...(Object.keys(recents).length ? { recents } : {}),
+    },
+    goals: {
+      definition: "Explain the core idea plainly in one sentence.",
+      example: "Give one concrete example or walkthrough.",
+      pitfall: "Highlight a common misconception and how to fix it.",
+      next_step: "End with one actionable next step for the learner.",
+    },
+  };
+  if (Object.keys(preferences).length) payload.preferences = preferences;
+  if (Object.keys(guardrails).length) payload.guardrails = guardrails;
 
-  const guardrails: string[] = [];
-  if (opts.avoidTitles?.length) {
-    const titles = dedupeStrings(opts.avoidTitles, MAX_GUARDRAIL_ITEMS);
-    if (titles.length) guardrails.push(`Avoid reusing lesson titles: ${titles.join("; ")}`);
-  }
-  if (opts.avoidIds?.length) {
-    const ids = dedupeStrings(opts.avoidIds, MAX_GUARDRAIL_ITEMS);
-    if (ids.length) guardrails.push(`Avoid lesson ids: ${ids.join(", ")}`);
-  }
+  const prune = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+      const pruned = value.map((item) => prune(item)).filter((item) => {
+        if (item == null) return false;
+        if (typeof item === "string") return item.trim().length > 0;
+        if (Array.isArray(item)) return item.length > 0;
+        if (typeof item === "object") return Object.keys(item as Record<string, unknown>).length > 0;
+        return true;
+      });
+      return pruned;
+    }
+    if (value && typeof value === "object") {
+      const result: Record<string, unknown> = {};
+      for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+        const pruned = prune(raw);
+        const isEmptyObject = pruned && typeof pruned === "object" && !Array.isArray(pruned) && Object.keys(pruned as Record<string, unknown>).length === 0;
+        const isEmptyArray = Array.isArray(pruned) && pruned.length === 0;
+        if (
+          pruned == null ||
+          (typeof pruned === "string" && !pruned.trim()) ||
+          isEmptyObject ||
+          isEmptyArray
+        ) {
+          continue;
+        }
+        result[key] = pruned;
+      }
+      return result;
+    }
+    if (typeof value === "string") {
+      return value.trim();
+    }
+    return value;
+  };
 
-  if (guardrails.length) {
-    sections.push(`Guardrails:\n- ${guardrails.join("\n- ")}`);
-  }
-
-  return sections.join("\n\n").trim();
+  const cleaned = prune(payload) as Record<string, unknown>;
+  return JSON.stringify(cleaned);
 }
 
 export async function generateLessonForTopic(
@@ -637,7 +733,7 @@ export async function generateLessonForTopic(
   const model = DEFAULT_MODEL;
   const completionMaxTokens = Math.min(
     3200,
-    Math.max(900, Number(process.env.GROQ_LESSON_MAX_TOKENS ?? "2200") || 2200),
+    Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS ?? "2200") || 2200),
   );
 
   if (uid) {
@@ -664,14 +760,23 @@ export async function generateLessonForTopic(
     nextTopicHint: opts.nextTopicHint,
   });
 
-  const messages: { role: "system" | "user"; content: string; name?: string }[] = [
+  type ChatContentPart =
+    | { type: "input_text"; text: string }
+    | { type: "input_json"; json: unknown };
+  type ChatMessage = {
+    role: "system" | "user";
+    content: string | ChatContentPart[];
+    name?: string;
+  };
+
+  const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
   ];
   if (opts.structuredContext) {
     messages.push({
       role: "user",
       name: "structured_context",
-      content: buildStructuredContextMessage(opts.structuredContext),
+      content: [{ type: "input_json", json: buildStructuredContextPayload(opts.structuredContext) }],
     });
   }
   messages.push({ role: "user", content: userPrompt });
@@ -703,6 +808,9 @@ export async function generateLessonForTopic(
     const structuredKeys = opts.structuredContext
       ? Object.keys(opts.structuredContext).slice(0, 6)
       : null;
+    const structuredDigest = opts.structuredContext
+      ? createHash("sha1").update(JSON.stringify(opts.structuredContext)).digest("hex").slice(0, 12)
+      : null;
     const metadata: Record<string, unknown> = {
       feature: "fyp-lesson",
       route: "fyp",
@@ -723,6 +831,7 @@ export async function generateLessonForTopic(
       nextTopicHintProvided: Boolean(opts.nextTopicHint && opts.nextTopicHint.trim().length > 0),
       mapSummary: opts.mapSummary ?? undefined,
       structuredContextKeys: structuredKeys ?? undefined,
+      structuredContextDigest: structuredDigest ?? undefined,
       accuracyBand: opts.accuracyBand ?? undefined,
       learnerProfile: opts.learnerProfile ?? undefined,
       likedDescriptors: Array.isArray(opts.likedLessonDescriptors) && opts.likedLessonDescriptors.length
@@ -730,6 +839,12 @@ export async function generateLessonForTopic(
         : undefined,
       savedDescriptors: Array.isArray(opts.savedLessonDescriptors) && opts.savedLessonDescriptors.length
         ? dedupeStrings(opts.savedLessonDescriptors, 3)
+        : undefined,
+      personalizationStylePrefer: Array.isArray(opts.personalization?.style?.prefer) && opts.personalization.style?.prefer.length
+        ? dedupeStrings(opts.personalization.style.prefer, 4)
+        : undefined,
+      personalizationStyleAvoid: Array.isArray(opts.personalization?.style?.avoid) && opts.personalization.style?.avoid.length
+        ? dedupeStrings(opts.personalization.style.avoid, 4)
         : undefined,
       previousLessonSummary: typeof opts.previousLessonSummary === "string" && opts.previousLessonSummary.trim()
         ? truncateText(opts.previousLessonSummary, 200)

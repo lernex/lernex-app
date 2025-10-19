@@ -191,10 +191,10 @@ export async function POST(req: NextRequest) {
     const cerebrasBaseUrl = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
     const model = process.env.CEREBRAS_LESSON_MODEL ?? "gpt-oss-120b";
     const temperature = 1;
-    const completionMaxTokens = Math.min(
-      3200,
-      Math.max(900, Number(process.env.GROQ_LESSON_MAX_TOKENS ?? "2200") || 2200),
-    );
+  const completionMaxTokens = Math.min(
+    3200,
+    Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS ?? "2200") || 2200),
+  );
 
     const { system, user: userPrompt } = buildLessonPrompts({
       subject,

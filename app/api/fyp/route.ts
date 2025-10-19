@@ -160,6 +160,42 @@ export async function GET(req: NextRequest) {
   const toPace = (value: unknown): "slow" | "normal" | "fast" =>
     value === "fast" ? "fast" : value === "normal" ? "normal" : "slow";
 
+  type PerformanceRollup = ReturnType<typeof computePerformanceRollup>;
+  type AttemptSummary = {
+    rows: AttemptRow[];
+    mastery: { correct: number; total: number };
+    performance: PerformanceRollup;
+    latestBySubject: AttemptRow | null;
+    latestOverall: AttemptRow | null;
+  };
+  let attemptSummaryCache: AttemptSummary | null = null;
+  const loadAttemptSummary = async (): Promise<AttemptSummary> => {
+    if (attemptSummaryCache) return attemptSummaryCache;
+    const rows = await loadAttempts();
+    const mastery = computeSubjectMastery(rows, subject);
+    const performance = computePerformanceRollup(rows, subject);
+    const normalizedSubject = subject.toLowerCase();
+    let latestBySubject: AttemptRow | null = null;
+    let latestOverall: AttemptRow | null = null;
+    for (const row of rows) {
+      if (!latestOverall) latestOverall = row;
+      if (!latestBySubject && typeof row.subject === "string") {
+        if (row.subject.toLowerCase() === normalizedSubject) {
+          latestBySubject = row;
+          break;
+        }
+      }
+    }
+    attemptSummaryCache = {
+      rows,
+      mastery,
+      performance,
+      latestBySubject,
+      latestOverall,
+    };
+    return attemptSummaryCache;
+  };
+
   const [
     stateResponse,
     progressRowResponse,
@@ -214,24 +250,47 @@ export async function GET(req: NextRequest) {
   const missingOrInvalid = !path || !Array.isArray(path.topics) || path.topics.length === 0;
   if (missingOrInvalid) {
     try { console.debug(`[fyp][${reqId}] path missing/invalid, attempting ensureLearningPath`); } catch {}
-    const { data: prof } = await sb
-      .from("profiles")
-      .select("level_map")
-      .eq("id", user.id)
-      .maybeSingle();
-    const levelMap = (prof?.level_map || {}) as Record<string, string>;
-    const findCourse = (subj: string | null): string | undefined => {
-      if (!subj) return undefined;
-      const direct = levelMap[subj];
-      if (direct) return direct;
-      const key = Object.keys(levelMap).find((k) => k.toLowerCase() === subj.toLowerCase());
-      if (key) return levelMap[key]!;
-      const firstKey = Object.keys(levelMap)[0];
-      return firstKey ? levelMap[firstKey] : undefined;
-    };
-    const course = state?.course || findCourse(subject);
+    let course = typeof state?.course === "string" && state.course.trim().length ? state.course.trim() : null;
+    let levelMapKeys: string[] = [];
     if (!course) {
-      try { console.warn(`[fyp][${reqId}] no-course-mapping`, { subject, levelMapKeys: Object.keys(levelMap) }); } catch {}
+      const { data: prof } = await sb
+        .from("profiles")
+        .select("level_map")
+        .eq("id", user.id)
+        .maybeSingle();
+      const levelMap = (prof?.level_map || {}) as Record<string, string>;
+      levelMapKeys = Object.keys(levelMap);
+      const findCourse = (subj: string | null): string | undefined => {
+        if (!subj) return undefined;
+        const direct = levelMap[subj];
+        if (direct) return direct;
+        const key = Object.keys(levelMap).find((k) => k.toLowerCase() === subj.toLowerCase());
+        if (key) return levelMap[key]!;
+        const firstKey = Object.keys(levelMap)[0];
+        return firstKey ? levelMap[firstKey] : undefined;
+      };
+      const lookedUp = findCourse(subject) ?? null;
+      if (lookedUp) {
+        course = lookedUp.trim();
+        if (!state?.course || state.course !== course) {
+          try {
+            await sb
+              .from("user_subject_state")
+              .upsert({
+                user_id: user.id,
+                subject,
+                course,
+                updated_at: new Date().toISOString(),
+              }, { onConflict: "user_id,subject" });
+            if (state) state = { ...state, course };
+          } catch (courseErr) {
+            try { console.warn(`[fyp][${reqId}] course-upsert-failed`, courseErr); } catch {}
+          }
+        }
+      }
+    }
+    if (!course) {
+      try { console.warn(`[fyp][${reqId}] no-course-mapping`, { subject, levelMapKeys }); } catch {}
       return new Response(JSON.stringify({ error: "Not ready: no course mapping for subject" }), { status: 409 });
     }
 
@@ -270,12 +329,13 @@ export async function GET(req: NextRequest) {
       let pace: "slow" | "normal" | "fast" = "normal";
       let notes = `Learner pace: ${pace}. Personalized for ${subject}.`;
       try {
-        const attemptsData = await loadAttempts();
-        const { correct, total } = computeSubjectMastery(attemptsData, subject);
+        const summary = await loadAttemptSummary();
+        const { correct, total } = summary.mastery;
         mastery = total > 0 ? Math.round((correct / total) * 100) : 50;
-        const rollup = computePerformanceRollup(attemptsData, subject);
+        const rollup = summary.performance;
         pace = rollup.pace;
-        notes = `Learner pace: ${pace}. Personalized for ${subject}.`;
+        const sampleDetail = rollup.sampleSize > 0 ? ` sample=${rollup.sampleSize}` : "";
+        notes = `Learner pace: ${pace}. Personalized for ${subject}.${sampleDetail}`;
       } catch (attemptErr) {
         try { console.warn(`[fyp][${reqId}] attempt-rollup failed`, attemptErr); } catch {}
       }
@@ -480,17 +540,12 @@ export async function GET(req: NextRequest) {
   let pace: "slow" | "normal" | "fast" = toPace(baseMetrics?.pace);
   const cachedLastAttemptAt = typeof baseMetrics?.lastAttemptAt === "string" ? baseMetrics.lastAttemptAt : null;
   let latestAttemptRow: AttemptRow | null = null;
+  let attemptSummaryForMetrics: AttemptSummary | null = null;
   try {
-    const { data: latestCandidate } = await sb
-      .from("attempts")
-      .select("subject, correct_count, total, created_at")
-      .eq("user_id", user.id)
-      .eq("subject", subject)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    latestAttemptRow = (latestCandidate ?? null) as AttemptRow | null;
+    attemptSummaryForMetrics = await loadAttemptSummary();
+    latestAttemptRow = attemptSummaryForMetrics.latestBySubject ?? attemptSummaryForMetrics.latestOverall;
   } catch (latestErr) {
+    attemptSummaryForMetrics = null;
     try { console.warn(`[fyp][${reqId}] latest-attempt lookup failed`, latestErr); } catch {}
   }
   let metricsRefreshNeeded =
@@ -506,31 +561,41 @@ export async function GET(req: NextRequest) {
     }
   }
   if (metricsRefreshNeeded) {
-    const attemptsData = await loadAttempts();
-    if (!latestAttemptRow) {
-      latestAttemptRow = attemptsData.find((row) => typeof row.subject === "string" && row.subject === subject) ?? attemptsData[0] ?? null;
+    if (!attemptSummaryForMetrics) {
+      try {
+        attemptSummaryForMetrics = await loadAttemptSummary();
+      } catch (summaryErr) {
+        try { console.warn(`[fyp][${reqId}] attempt-summary failed`, summaryErr); } catch {}
+        attemptSummaryForMetrics = null;
+      }
     }
-    const performance = computePerformanceRollup(attemptsData, subject);
-    accuracyPct = performance.accuracyPct;
-    pace = performance.pace;
-    const computedAt = new Date().toISOString();
-    const lastAttemptAt = latestAttemptRow?.created_at ?? cachedLastAttemptAt ?? null;
-    progress.metrics = {
-      accuracyPct,
-      pace,
-      computedAt,
-      sampleSize: performance.sampleSize,
-      recentSample: performance.recentSample,
-      lastAttemptAt,
-    };
-    metricsPatch = {
-      accuracyPct,
-      pace,
-      computedAt,
-      sampleSize: performance.sampleSize,
-      recentSample: performance.recentSample,
-      lastAttemptAt,
-    };
+    if (attemptSummaryForMetrics) {
+      const performance = attemptSummaryForMetrics.performance;
+      accuracyPct = performance.accuracyPct;
+      pace = performance.pace;
+      const computedAt = new Date().toISOString();
+      const freshestAttempt =
+        latestAttemptRow
+        ?? attemptSummaryForMetrics.latestBySubject
+        ?? attemptSummaryForMetrics.latestOverall;
+      const lastAttemptAt = freshestAttempt?.created_at ?? cachedLastAttemptAt ?? null;
+      progress.metrics = {
+        accuracyPct,
+        pace,
+        computedAt,
+        sampleSize: performance.sampleSize,
+        recentSample: performance.recentSample,
+        lastAttemptAt,
+      };
+      metricsPatch = {
+        accuracyPct,
+        pace,
+        computedAt,
+        sampleSize: performance.sampleSize,
+        recentSample: performance.recentSample,
+        lastAttemptAt,
+      };
+    }
   } else if (latestAttemptRow?.created_at && !cachedLastAttemptAt) {
     progress.metrics = {
       ...(progress.metrics ?? {}),
@@ -585,6 +650,7 @@ export async function GET(req: NextRequest) {
 
   const likedHighlights = describeLessonIds(likedTail, 6);
   const savedHighlights = describeLessonIds(savedTail, 6);
+  const dislikedHighlights = describeLessonIds(dislikedTail, 6);
   const preferenceFallback = recentDeliveredTitles.slice(-3).reverse();
   const likedDescriptors = likedHighlights.length ? likedHighlights : preferenceFallback;
   const savedDescriptors = savedHighlights.length ? savedHighlights : preferenceFallback;
@@ -604,97 +670,211 @@ export async function GET(req: NextRequest) {
   const nextTopicHint = nextTopicCandidate && nextTopicCandidate.label !== currentLabel
     ? `Next up: ${nextTopicCandidate.label}`
     : null;
-  const subApplications = Array.isArray((curSub as { applications?: unknown }).applications)
-    ? (curSub as { applications: unknown[] }).applications
-        .map((entry) => (typeof entry === "string" ? entry.trim() : String(entry ?? "").trim()))
-        .filter((entry) => entry.length > 0)
-        .slice(0, 4)
-    : [];
-  const subDefinition = typeof (curSub as { definition?: unknown }).definition === "string"
-    ? ((curSub as { definition: string }).definition ?? "").trim()
-    : "";
-  const subPrerequisites = Array.isArray((curSub as { prerequisites?: unknown }).prerequisites)
-    ? (curSub as { prerequisites: unknown[] }).prerequisites
-        .map((entry) => (typeof entry === "string" ? entry.trim() : String(entry ?? "").trim()))
-        .filter((entry) => entry.length > 0)
-        .slice(0, 6)
-    : [];
-  const subReminders = Array.isArray((curSub as { reminders?: unknown }).reminders)
-    ? (curSub as { reminders: unknown[] }).reminders
-        .map((entry) => (typeof entry === "string" ? entry.trim() : String(entry ?? "").trim()))
-        .filter((entry) => entry.length > 0)
-        .slice(0, 5)
-    : [];
-  const fallbackDefinition = `Key idea: ${curSub.name} keeps ${subject} progress grounded before the next mini-lesson.`;
-  const fallbackPrereqs = [
-    `Review notes from ${curTopic.name}.`,
-    `Summarize the previous lesson aloud.`,
-  ];
-  const fallbackReminders = [
-    `Apply ${curSub.name} to one quick example after reading.`,
-    `Check each step of ${curSub.name} against a worked solution.`,
-  ];
-  const knowledgeDefinition = subDefinition || fallbackDefinition;
-  const knowledgePrereqs = Array.from(new Set([...subPrerequisites, ...fallbackPrereqs]))
-    .filter((entry) => entry.length > 0)
-    .slice(0, 4);
-  const knowledgeReminders = Array.from(new Set([...subReminders, ...fallbackReminders]))
-    .filter((entry) => entry.length > 0)
-    .slice(0, 3);
-  const lessonKnowledge = {
-    definition: knowledgeDefinition,
-    ...(subApplications.length ? { applications: subApplications.slice(0, 3) } : {}),
-    ...(knowledgePrereqs.length ? { prerequisites: knowledgePrereqs } : {}),
-    ...(knowledgeReminders.length ? { reminders: knowledgeReminders } : {}),
+  type LessonPrep = {
+    lessonKnowledge: LessonKnowledge;
+    accuracyBand: string | null;
+    previousLessonContext: string | null;
+    recentMissSummary: string | null;
+    learnerProfileLine: string | null;
+    mapSummary: string;
+    structuredContext: Record<string, unknown>;
+    personalization: {
+      style: { prefer: string[]; avoid: string[] };
+      lessons: { leanInto: string[]; avoid: string[]; saved?: string[] };
+    };
   };
-  const accuracyBand = accuracyPct == null
-    ? null
-    : accuracyPct >= 85
-    ? "high"
-    : accuracyPct >= 70
-    ? "steady"
-    : accuracyPct >= 50
-    ? "developing"
-    : "early";
-  const previousLessonTitle = recentDeliveredTitles.length ? recentDeliveredTitles[recentDeliveredTitles.length - 1] : null;
-  let recentMissSummary: string | null = null;
-  if (latestAttemptRow && typeof latestAttemptRow.total === "number" && typeof latestAttemptRow.correct_count === "number") {
-    const totalQs = Math.max(0, latestAttemptRow.total ?? 0);
-    const missed = Math.max(0, totalQs - (latestAttemptRow.correct_count ?? 0));
-    if (totalQs > 0 && missed > 0) {
-      recentMissSummary = `Missed ${missed}/${totalQs} last quiz`;
-    }
-  }
-  const previousLessonContext = previousLessonTitle
-    ? `${previousLessonTitle}${recentMissSummary ? ` - ${recentMissSummary}` : ""}`
-    : recentMissSummary;
-  const mapSummaryParts = [
-    `focus=${currentLabel}`,
-    `pace=${pace}`,
-    accuracyBand ? `accuracy=${accuracyBand}` : null,
-    `mini=${completedMini}/${plannedMini}`,
-    nextTopicHint ? `next=${nextTopicHint}` : null,
-  ].filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
-  const mapSummary = mapSummaryParts.join("|");
-  const learnerProfileLine = [
-    `pace=${pace}`,
-    accuracyBand ? `accuracy=${accuracyBand}` : accuracyPct != null ? `accuracy=${Math.round(accuracyPct)}%` : null,
-    state?.difficulty ? `pref=${String(state.difficulty)}` : null,
-  ].filter((entry): entry is string => typeof entry === "string" && entry.length > 0).join("; ");
+  let lessonPrepCache: LessonPrep | null = null;
+  const ensureLessonPrep = (): LessonPrep => {
+    if (lessonPrepCache) return lessonPrepCache;
 
-  const structuredContext: Record<string, unknown> = {
-    focus: currentLabel,
-    pace,
-    completionPct: compPct,
-    miniLesson: `${completedMini}/${plannedMini}`,
+    const collectStrings = (values: unknown[], limit: number) =>
+      values
+        .map((entry) => (typeof entry === "string" ? entry.trim() : String(entry ?? "").trim()))
+        .filter((entry) => entry.length > 0)
+        .slice(0, limit);
+
+    const subApplications = Array.isArray((curSub as { applications?: unknown }).applications)
+      ? collectStrings((curSub as { applications: unknown[] }).applications, 4)
+      : [];
+    const subDefinition = typeof (curSub as { definition?: unknown }).definition === "string"
+      ? ((curSub as { definition: string }).definition ?? "").trim()
+      : "";
+    const subPrerequisites = Array.isArray((curSub as { prerequisites?: unknown }).prerequisites)
+      ? collectStrings((curSub as { prerequisites: unknown[] }).prerequisites, 6)
+      : [];
+    const subReminders = Array.isArray((curSub as { reminders?: unknown }).reminders)
+      ? collectStrings((curSub as { reminders: unknown[] }).reminders, 5)
+      : [];
+
+    const fallbackDefinition = `Key idea: ${curSub.name} keeps ${subject} progress grounded before the next mini-lesson.`;
+    const fallbackPrereqs = [
+      `Review notes from ${curTopic.name}.`,
+      `Summarize the previous lesson aloud.`,
+    ];
+    const fallbackReminders = [
+      `Apply ${curSub.name} to one quick example after reading.`,
+      `Check each step of ${curSub.name} against a worked solution.`,
+    ];
+
+    const knowledgeDefinition = subDefinition || fallbackDefinition;
+    const knowledgePrereqs = Array.from(new Set([...subPrerequisites, ...fallbackPrereqs]))
+      .filter((entry) => entry.length > 0)
+      .slice(0, 4);
+    const knowledgeReminders = Array.from(new Set([...subReminders, ...fallbackReminders]))
+      .filter((entry) => entry.length > 0)
+      .slice(0, 3);
+    const lessonKnowledge: LessonKnowledge = {
+      definition: knowledgeDefinition,
+      ...(subApplications.length ? { applications: subApplications.slice(0, 3) } : {}),
+      ...(knowledgePrereqs.length ? { prerequisites: knowledgePrereqs } : {}),
+      ...(knowledgeReminders.length ? { reminders: knowledgeReminders } : {}),
+    };
+
+    const accuracyBand = accuracyPct == null
+      ? null
+      : accuracyPct >= 85
+      ? "high"
+      : accuracyPct >= 70
+      ? "steady"
+      : accuracyPct >= 50
+      ? "developing"
+      : "early";
+
+    const previousLessonTitle = recentDeliveredTitles.length ? recentDeliveredTitles[recentDeliveredTitles.length - 1] : null;
+    let recentMissSummary: string | null = null;
+    if (latestAttemptRow && typeof latestAttemptRow.total === "number" && typeof latestAttemptRow.correct_count === "number") {
+      const totalQs = Math.max(0, latestAttemptRow.total ?? 0);
+      const missed = Math.max(0, totalQs - (latestAttemptRow.correct_count ?? 0));
+      if (totalQs > 0 && missed > 0) {
+        recentMissSummary = `Missed ${missed}/${totalQs} last quiz`;
+      }
+    }
+    const previousLessonContext = previousLessonTitle
+      ? `${previousLessonTitle}${recentMissSummary ? ` - ${recentMissSummary}` : ""}`
+      : recentMissSummary;
+
+    const mapSummaryParts = [
+      `focus=${currentLabel}`,
+      `pace=${pace}`,
+      accuracyBand ? `accuracy=${accuracyBand}` : null,
+      `mini=${completedMini}/${plannedMini}`,
+      nextTopicHint ? `next=${nextTopicHint}` : null,
+    ].filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+    const mapSummary = mapSummaryParts.join("|");
+
+    const learnerProfileLine = [
+      `pace=${pace}`,
+      accuracyBand ? `accuracy=${accuracyBand}` : accuracyPct != null ? `accuracy=${Math.round(accuracyPct)}%` : null,
+      state?.difficulty ? `pref=${String(state.difficulty)}` : null,
+    ]
+      .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+      .join("; ");
+
+    const stylePrefer = new Set<string>();
+    const styleAvoid = new Set<string>();
+    const addCue = (bucket: Set<string>, value: string | null | undefined) => {
+      if (!value) return;
+      const trimmed = value.trim();
+      if (trimmed.length) bucket.add(trimmed);
+    };
+
+    toneSample.slice(-3).forEach((tag) => addCue(stylePrefer, tag.toLowerCase()));
+    if (pace === "slow") addCue(stylePrefer, "patient pacing");
+    if (pace === "fast") {
+      addCue(stylePrefer, "brisk momentum");
+      addCue(styleAvoid, "long detours");
+    } else {
+      addCue(stylePrefer, "steady guidance");
+    }
+    if (!toneSample.length) addCue(stylePrefer, "supportive tone");
+    if (!accuracyBand || accuracyBand === "developing" || accuracyBand === "early") {
+      addCue(stylePrefer, "step-by-step explanations");
+      addCue(styleAvoid, "dense jargon");
+    }
+    if (accuracyBand === "high") addCue(stylePrefer, "stretch challenges");
+    if (dislikedHighlights.some((entry) => /proof|derivation/i.test(entry))) {
+      addCue(styleAvoid, "dense proofs");
+    }
+
+    const mergeUnique = (...groups: (string[])[]): string[] => {
+      const seen = new Set<string>();
+      const result: string[] = [];
+      for (const group of groups) {
+        for (const raw of group) {
+          const trimmed = typeof raw === "string" ? raw.trim() : "";
+          if (!trimmed || seen.has(trimmed)) continue;
+          seen.add(trimmed);
+          result.push(trimmed);
+          if (result.length >= 8) break;
+        }
+        if (result.length >= 8) break;
+      }
+      return result;
+    };
+
+    const leanInto = mergeUnique(likedDescriptors, savedDescriptors).slice(0, 6);
+    const avoidLessonDescriptors = dislikedHighlights.slice(0, 6);
+    const savedFocus = savedDescriptors.slice(0, 3);
+
+    const summaryContext: Record<string, unknown> = {
+      focus: currentLabel,
+      pace,
+      completion_pct: compPct,
+      mini_lessons: { delivered: completedMini, planned: plannedMini },
+    };
+    if (typeof accuracyPct === "number") summaryContext.accuracy_pct = accuracyPct;
+    if (accuracyBand) summaryContext.accuracy_band = accuracyBand;
+    if (nextTopicHint) summaryContext.next_topic_hint = nextTopicHint;
+
+    const structuredContext: Record<string, unknown> = {
+      summary: summaryContext,
+    };
+
+    const preferences: Record<string, unknown> = {};
+    if (stylePrefer.size || styleAvoid.size) {
+      preferences.style = {
+        ...(stylePrefer.size ? { prefer: Array.from(stylePrefer).slice(0, 6) } : {}),
+        ...(styleAvoid.size ? { avoid: Array.from(styleAvoid).slice(0, 6) } : {}),
+      };
+    }
+    if (leanInto.length || avoidLessonDescriptors.length || savedFocus.length) {
+      const lessonPrefs: Record<string, unknown> = {};
+      if (leanInto.length) lessonPrefs.lean_into = leanInto;
+      if (avoidLessonDescriptors.length) lessonPrefs.avoid = avoidLessonDescriptors;
+      if (savedFocus.length) lessonPrefs.saved = savedFocus;
+      preferences.lessons = lessonPrefs;
+    }
+    if (toneSample.length) preferences.tone_hints = toneSample.slice(-3);
+    if (Object.keys(preferences).length) structuredContext.preferences = preferences;
+
+    const recents: Record<string, unknown> = {};
+    if (previousLessonContext) recents.previous_lesson = previousLessonContext;
+    if (recentMissSummary) recents.recent_miss = recentMissSummary;
+    if (Object.keys(recents).length) structuredContext.recents = recents;
+
+    lessonPrepCache = {
+      lessonKnowledge,
+      accuracyBand,
+      previousLessonContext,
+      recentMissSummary,
+      learnerProfileLine: learnerProfileLine.length ? learnerProfileLine : null,
+      mapSummary,
+      structuredContext,
+      personalization: {
+        style: {
+          prefer: stylePrefer.size ? Array.from(stylePrefer).slice(0, 6) : [],
+          avoid: styleAvoid.size ? Array.from(styleAvoid).slice(0, 6) : [],
+        },
+        lessons: {
+          leanInto,
+          avoid: avoidLessonDescriptors,
+          ...(savedFocus.length ? { saved: savedFocus } : {}),
+        },
+      },
+    };
+
+    return lessonPrepCache;
   };
-  if (accuracyBand) structuredContext.accuracyBand = accuracyBand;
-  if (nextTopicHint) structuredContext.nextTopicHint = nextTopicHint;
-  if (previousLessonContext) structuredContext.previousLesson = previousLessonContext;
-  if (likedDescriptors.length) structuredContext.likedHighlights = likedDescriptors.slice(0, 4);
-  if (savedDescriptors.length) structuredContext.savedHighlights = savedDescriptors.slice(0, 3);
-  if (recentMissSummary) structuredContext.recentMiss = recentMissSummary;
-  if (toneSample.length) structuredContext.toneHints = toneSample.slice(-3);
 
   const { data: cacheRow } = await sb
     .from("user_topic_lesson_cache")
@@ -731,11 +911,22 @@ export async function GET(req: NextRequest) {
 
   if (cacheHit) {
     try { console.debug(`[fyp][${reqId}] lesson: cache-hit`, { subject, currentLabel, lessonId: cacheHit.id }); } catch {}
+    const prep = cacheHit.context && cacheHit.knowledge ? null : ensureLessonPrep();
+    const contextPayload =
+      cacheHit.context && typeof cacheHit.context === "object"
+        ? (cacheHit.context as Record<string, unknown>)
+        : prep
+        ? prep.structuredContext
+        : ensureLessonPrep().structuredContext;
+    const knowledgePayload =
+      cacheHit.knowledge
+        ? cacheHit.knowledge
+        : (prep ?? ensureLessonPrep()).lessonKnowledge;
     const responseLesson: CachedLesson = {
       ...cacheHit,
       nextTopicHint: cacheHit.nextTopicHint ?? nextTopicHint ?? null,
-      context: structuredContext,
-      knowledge: lessonKnowledge,
+      context: contextPayload,
+      knowledge: knowledgePayload,
     };
     return new Response(
       JSON.stringify({ topic: currentLabel, lesson: responseLesson, nextTopicHint }),
@@ -746,6 +937,16 @@ export async function GET(req: NextRequest) {
   let lesson: Lesson;
   let mergedNextTopicHint: string | null = nextTopicHint;
   try {
+    const {
+      structuredContext,
+      mapSummary,
+      learnerProfileLine,
+      lessonKnowledge,
+      accuracyBand,
+      previousLessonContext,
+      recentMissSummary,
+      personalization,
+    } = ensureLessonPrep();
     lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentLabel, {
       pace,
       accuracyPct: accuracyPct ?? undefined,
@@ -765,6 +966,7 @@ export async function GET(req: NextRequest) {
       accuracyBand: accuracyBand ?? undefined,
       recentMissSummary: recentMissSummary ?? undefined,
       knowledge: lessonKnowledge,
+      personalization,
     });
     const rawLessonHint = (lesson as { nextTopicHint?: unknown }).nextTopicHint;
     const lessonNextTopicHint = typeof rawLessonHint === "string" ? rawLessonHint : null;
@@ -841,6 +1043,3 @@ export async function GET(req: NextRequest) {
     { status: 200, headers: { "content-type": "application/json" } }
   );
 }
-
-
-
