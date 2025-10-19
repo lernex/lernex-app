@@ -45,6 +45,65 @@ const MAX_GUARDRAIL_ITEMS = 6;
 const MAX_CONTEXT_CHARS = 360;
 const MAX_MAP_SUMMARY_CHARS = 360;
 
+const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
+const RETRYABLE_ERROR_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "EPIPE",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "ECONNABORTED",
+]);
+const RETRYABLE_ERROR_PATTERN =
+  /(timeout|timed out|503|502|bad gateway|service unavailable|temporary unavailable|socket hang up|connection reset|ECONNRESET|ECONNREFUSED)/i;
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getErrorStatus(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null;
+  const status = (error as { status?: unknown }).status;
+  if (typeof status === "number") return status;
+  const statusCode = (error as { statusCode?: unknown }).statusCode;
+  if (typeof statusCode === "number") return statusCode;
+  const responseStatus = (error as { response?: { status?: unknown } }).response?.status;
+  if (typeof responseStatus === "number") return responseStatus;
+  const nestedStatus = (error as { error?: { status?: unknown } }).error?.status;
+  if (typeof nestedStatus === "number") return nestedStatus;
+  return null;
+}
+
+function getErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== "object") return null;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" ? code : null;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+function isRetryableCompletionError(error: unknown): boolean {
+  const status = getErrorStatus(error);
+  if (status != null && RETRYABLE_STATUS_CODES.has(status)) return true;
+  const code = getErrorCode(error);
+  if (code && RETRYABLE_ERROR_CODES.has(code)) return true;
+  const message = getErrorMessage(error);
+  return RETRYABLE_ERROR_PATTERN.test(message);
+}
+
 const DEFAULT_MODEL = process.env.CEREBRAS_LESSON_MODEL ?? "gpt-oss-120b";
 const DEFAULT_BASE_URL = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
 const FALLBACK_TEMPERATURE = 0.4;
@@ -725,31 +784,46 @@ export async function generateLessonForTopic(
     nextTopicHint: opts.nextTopicHint,
   });
 
-  const messages: OpenAI.ChatCompletionMessageParam[] = [
+  const structuredContextJson = opts.structuredContext
+    ? JSON.stringify(buildStructuredContextPayload(opts.structuredContext))
+    : null;
+
+  const baseMessages: OpenAI.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
   ];
-  if (opts.structuredContext) {
-    messages.push({
+  if (structuredContextJson) {
+    baseMessages.push({
       role: "user",
-      content: `Structured context JSON:\n${JSON.stringify(
-        buildStructuredContextPayload(opts.structuredContext),
-      )}`,
+      content: `Structured context JSON:\n${structuredContextJson}`,
     });
   }
-  messages.push({ role: "user", content: userPrompt });
 
-  const requestPayload = {
-    model,
-    temperature,
-    max_tokens: completionMaxTokens,
-    reasoning_effort: "medium" as const,
-    response_format: { type: "json_object" as const },
-    messages,
-  };
+  const messagesWithContext: OpenAI.ChatCompletionMessageParam[] = [
+    ...baseMessages,
+    { role: "user", content: userPrompt },
+  ];
+
+  const messagesWithoutContext: OpenAI.ChatCompletionMessageParam[] =
+    structuredContextJson != null
+      ? [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ]
+      : messagesWithContext;
+
+  const requestVariants: Array<{ usePlainResponse: boolean; dropStructured: boolean }> = [
+    { usePlainResponse: false, dropStructured: false },
+    { usePlainResponse: true, dropStructured: false },
+  ];
+  if (structuredContextJson) {
+    requestVariants.push({ usePlainResponse: true, dropStructured: true });
+  }
 
   let usageSummary: UsageSummary = null;
   let lastError: unknown = null;
   let lastVerification: { valid: boolean; reasons: string[] } | null = null;
+  let usedPlainResponseMode = false;
+  let trimmedStructuredContext = false;
 
   const logLessonUsage = async (
     attempt: "single" | "fallback",
@@ -808,6 +882,8 @@ export async function generateLessonForTopic(
         : undefined,
       recentMissSummary: opts.recentMissSummary ?? undefined,
     };
+    metadata.completionFormat = usedPlainResponseMode ? "plain" : "json_object";
+    if (trimmedStructuredContext) metadata.trimmedStructuredContext = true;
     if (lastVerification) {
       metadata.verification = {
         valid: lastVerification.valid,
@@ -862,7 +938,71 @@ export async function generateLessonForTopic(
   };
 
   try {
-    const completion = await client.chat.completions.create(requestPayload);
+    let completion: Awaited<ReturnType<typeof client.chat.completions.create>> | null = null;
+    let lastCompletionError: unknown = null;
+
+    for (let attempt = 0; attempt < requestVariants.length; attempt++) {
+      const variant = requestVariants[attempt];
+      usedPlainResponseMode = variant.usePlainResponse;
+      trimmedStructuredContext = variant.dropStructured;
+      const messages = variant.dropStructured ? messagesWithoutContext : messagesWithContext;
+      const payload = {
+        model,
+        temperature,
+        max_tokens: completionMaxTokens,
+        reasoning_effort: "medium" as const,
+        messages,
+        ...(variant.usePlainResponse ? {} : { response_format: { type: "json_object" as const } }),
+      };
+
+      try {
+        completion = await client.chat.completions.create(payload);
+        usedPlainResponseMode = variant.usePlainResponse;
+        trimmedStructuredContext = variant.dropStructured;
+        if (variant.usePlainResponse) {
+          console.warn("[fyp] completion fallback to plain response", {
+            subject,
+            topic,
+            attempt: attempt + 1,
+          });
+        }
+        if (variant.dropStructured) {
+          console.warn("[fyp] structured context trimmed for completion", {
+            subject,
+            topic,
+            attempt: attempt + 1,
+          });
+        }
+        break;
+      } catch (error) {
+        lastCompletionError = error;
+        const status = getErrorStatus(error);
+        const code = getErrorCode(error);
+        const message = getErrorMessage(error);
+        const retryable =
+          attempt < requestVariants.length - 1 && isRetryableCompletionError(error);
+        console.warn("[fyp] lesson completion attempt failed", {
+          subject,
+          topic,
+          attempt: attempt + 1,
+          usePlainResponse: variant.usePlainResponse,
+          droppedStructuredContext: variant.dropStructured,
+          status,
+          code,
+          message,
+          retryable,
+        });
+        if (retryable) {
+          await delay(200 * (attempt + 1));
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (!completion) {
+      throw lastCompletionError ?? new Error("lesson_generation_failed");
+    }
 
     const usage = completion.usage;
     if (usage) {
