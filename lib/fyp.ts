@@ -143,6 +143,91 @@ const NON_FATAL_VERIFICATION_REASONS = new Set([
   "invalid_verification_payload",
 ]);
 
+const supportsBuffer =
+  typeof Buffer !== "undefined" && typeof Buffer.byteLength === "function";
+const sharedTextEncoder =
+  typeof TextEncoder !== "undefined" ? new TextEncoder() : null;
+
+function measureBytes(value: string | null | undefined): number {
+  if (!value) return 0;
+  if (supportsBuffer) return Buffer.byteLength(value, "utf8");
+  if (sharedTextEncoder) return sharedTextEncoder.encode(value).length;
+  return value.length;
+}
+
+function previewForLog(value: string | null | undefined, max = 180): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length <= max) return trimmed;
+  const overflow = trimmed.length - max;
+  return `${trimmed.slice(0, max)}...(+${overflow} chars)`;
+}
+
+type MessageSummary = {
+  idx: number;
+  role: OpenAI.ChatCompletionMessageParam["role"];
+  type: string;
+  length?: number;
+  preview?: string | null;
+  totalParts?: number;
+  parts?: Array<{
+    partIdx: number;
+    type: string;
+    length?: number;
+    preview?: string | null;
+  }>;
+};
+
+function summarizeMessages(messages: OpenAI.ChatCompletionMessageParam[]): MessageSummary[] {
+  return messages.map((message, idx) => {
+    const content = message.content;
+    if (typeof content === "string") {
+      return {
+        idx,
+        role: message.role,
+        type: "text",
+        length: content.length,
+        preview: previewForLog(content, 160),
+      };
+    }
+    if (Array.isArray(content)) {
+      const parts = content.slice(0, 4).map((part, partIdx) => {
+        if (!part || typeof part !== "object") {
+          return { partIdx, type: typeof part };
+        }
+        const record = part as Record<string, unknown>;
+        const kind = typeof record.type === "string" ? (record.type as string) : "unknown";
+        let textValue: string | null = null;
+        if (record.text && typeof record.text === "object") {
+          const textRecord = record.text as Record<string, unknown>;
+          if (typeof textRecord.value === "string") {
+            textValue = textRecord.value;
+          }
+        }
+        return {
+          partIdx,
+          type: kind,
+          length: textValue ? textValue.length : undefined,
+          preview: textValue ? previewForLog(textValue, 80) : undefined,
+        };
+      });
+      return {
+        idx,
+        role: message.role,
+        type: "parts",
+        totalParts: content.length,
+        parts,
+      };
+    }
+    return {
+      idx,
+      role: message.role,
+      type: typeof content,
+    };
+  });
+}
+
 function deriveLessonTemperature(accuracyBand: string | undefined, accuracy: number | null) {
   const normalizedBand = typeof accuracyBand === "string" ? accuracyBand.trim().toLowerCase() : null;
   if (normalizedBand && normalizedBand in TEMPERATURE_BY_BAND) {
@@ -893,6 +978,84 @@ export async function generateLessonForTopic(
   let usedPlainResponseMode = false;
   let trimmedStructuredContext = false;
 
+  const sourceTextBytes = measureBytes(sourceText);
+  const structuredContextBytes = structuredContextJson ? measureBytes(structuredContextJson) : 0;
+  const structuredContextKeys = opts.structuredContext
+    ? Object.keys(opts.structuredContext).length
+    : 0;
+  const avoidIdsSample = hashSample(opts.avoidIds, 6);
+  const avoidTitlesSample = hashSample(opts.avoidTitles, 6);
+  const likedSample = hashSample(opts.likedIds, 6);
+  const savedSample = hashSample(opts.savedIds, 6);
+  const toneSample = Array.isArray(opts.toneTags) ? dedupeStrings(opts.toneTags, 6) : [];
+  const mapSummaryPreview = previewForLog(opts.mapSummary, 160);
+  const previousLessonPreview = previewForLog(opts.previousLessonSummary, 160);
+  const recentMissPreview = previewForLog(opts.recentMissSummary, 120);
+  const knowledgeKeys = opts.knowledge
+    ? Object.entries(opts.knowledge)
+        .filter(([, value]) => {
+          if (typeof value === "string") return Boolean(value.trim());
+          return Array.isArray(value) && value.length > 0;
+        })
+        .map(([key]) => key)
+    : [];
+  const personalizationStyle = opts.personalization?.style;
+  const personalizationLessons = opts.personalization?.lessons;
+  const personalizationSummary = opts.personalization
+    ? {
+        hasStyle: Boolean(personalizationStyle),
+        stylePreferCount: Array.isArray(personalizationStyle?.prefer)
+          ? personalizationStyle.prefer.length
+          : 0,
+        styleAvoidCount: Array.isArray(personalizationStyle?.avoid)
+          ? personalizationStyle.avoid.length
+          : 0,
+        lessonsLeanIntoCount: Array.isArray(personalizationLessons?.leanInto)
+          ? personalizationLessons.leanInto.length
+          : 0,
+        lessonsAvoidCount: Array.isArray(personalizationLessons?.avoid)
+          ? personalizationLessons.avoid.length
+          : 0,
+        lessonsSavedCount: Array.isArray(personalizationLessons?.saved)
+          ? personalizationLessons.saved.length
+          : 0,
+      }
+    : null;
+
+  try {
+    console.debug("[fyp] lesson request summary", {
+      subject,
+      topic,
+      pace,
+      difficulty,
+      accuracy,
+      accuracyBand: opts.accuracyBand ?? null,
+      sourceTextBytes,
+      sourceTextPreview: previewForLog(sourceText, 200),
+      structuredContextBytes,
+      structuredContextKeys,
+      structuredContextPreview: previewForLog(structuredContextJson, 200),
+      avoidIdsCount: Array.isArray(opts.avoidIds) ? opts.avoidIds.length : 0,
+      avoidIdsSample,
+      avoidTitlesCount: Array.isArray(opts.avoidTitles) ? opts.avoidTitles.length : 0,
+      avoidTitlesSample,
+      likedCount: Array.isArray(opts.likedIds) ? opts.likedIds.length : 0,
+      likedSample,
+      savedCount: Array.isArray(opts.savedIds) ? opts.savedIds.length : 0,
+      savedSample,
+      toneTags: toneSample,
+      nextTopicHint: previewForLog(opts.nextTopicHint, 80),
+      learnerProfilePreview: previewForLog(opts.learnerProfile, 120),
+      mapSummaryPreview,
+      previousLessonPreview,
+      recentMissPreview,
+      knowledgeKeys,
+      personalization: personalizationSummary,
+    });
+  } catch (summaryErr) {
+    console.warn("[fyp] lesson request summary log failed", summaryErr);
+  }
+
   const logLessonUsage = async (
     attempt: "single" | "fallback",
     summary: UsageSummary,
@@ -971,6 +1134,18 @@ export async function generateLessonForTopic(
 
   const validateLessonCandidate = async (candidate: Lesson | null) => {
     if (!candidate) return null;
+    try {
+      console.debug("[fyp] verification begin", {
+        subject,
+        topic,
+        lessonId: candidate.id,
+        difficulty,
+        knowledgeKeys,
+        recentMissSummary: previewForLog(opts.recentMissSummary, 120),
+      });
+    } catch (verificationLogErr) {
+      console.warn("[fyp] verification begin log failed", verificationLogErr);
+    }
     const verification = await verifyLessonAlignment(client, model, candidate, {
       subject,
       topic,
@@ -1006,6 +1181,16 @@ export async function generateLessonForTopic(
       lastError = new Error(`Lesson failed verification: ${detail}`);
       return null;
     }
+    try {
+      console.debug("[fyp] verification accepted", {
+        subject,
+        topic,
+        lessonId: candidate.id,
+        reasons: verification.reasons,
+      });
+    } catch (verificationSuccessLogErr) {
+      console.warn("[fyp] verification accepted log failed", verificationSuccessLogErr);
+    }
     return candidate;
   };
 
@@ -1021,17 +1206,56 @@ export async function generateLessonForTopic(
         usedPlainResponseMode = variant.usePlainResponse;
         trimmedStructuredContext = variant.dropStructured;
         const messages = variant.dropStructured ? messagesWithoutContext : messagesWithContext;
+        const messageSummary = summarizeMessages(messages);
+        const responseFormatMode = variant.usePlainResponse ? "plain" : "json_object";
+        try {
+          console.debug("[fyp] lesson completion attempt begin", {
+            subject,
+            topic,
+            attempt: attemptOrdinal,
+            variant: variantIndex + 1,
+            variantAttempt: variantAttempt + 1,
+            usePlainResponse: variant.usePlainResponse,
+            dropStructuredContext: variant.dropStructured,
+            messageCount: messages.length,
+            responseFormatMode,
+            messageSummary,
+          });
+        } catch (attemptLogErr) {
+          console.warn("[fyp] lesson completion attempt summary failed", attemptLogErr);
+        }
         const payload = {
           model,
           temperature,
           max_tokens: completionMaxTokens,
-          reasoning_effort: "medium" as const,
           messages,
           ...(variant.usePlainResponse ? {} : { response_format: { type: "json_object" as const } }),
         };
 
         try {
           completion = await client.chat.completions.create(payload);
+          try {
+            const usageInfo = completion.usage
+              ? {
+                  promptTokens: completion.usage.prompt_tokens ?? null,
+                  completionTokens: completion.usage.completion_tokens ?? null,
+                  totalTokens: completion.usage.total_tokens ?? null,
+                }
+              : null;
+            console.debug("[fyp] lesson completion attempt success", {
+              subject,
+              topic,
+              attempt: attemptOrdinal,
+              variant: variantIndex + 1,
+              variantAttempt: variantAttempt + 1,
+              usePlainResponse: variant.usePlainResponse,
+              dropStructuredContext: variant.dropStructured,
+              finishReason: completion.choices?.[0]?.finish_reason ?? null,
+              usage: usageInfo,
+            });
+          } catch (successLogErr) {
+            console.warn("[fyp] lesson completion success log failed", successLogErr);
+          }
           usedPlainResponseMode = variant.usePlainResponse;
           trimmedStructuredContext = variant.dropStructured;
           if (variant.usePlainResponse) {
@@ -1057,7 +1281,15 @@ export async function generateLessonForTopic(
           const retryable = isRetryableCompletionError(error);
           const hasMoreVariantRetries = variantAttempt < variantRetryLimit - 1;
           const hasMoreVariants = variantIndex < requestVariants.length - 1;
-          const willRetry = retryable && (hasMoreVariantRetries || hasMoreVariants);
+          const allowVariantFallback =
+            (status === 400 || status === 415 || status === 422) && hasMoreVariants;
+          const allowPlainFallback = allowVariantFallback && !variant.usePlainResponse;
+          const allowDropStructured =
+            allowVariantFallback && Boolean(structuredContextJson) && !variant.dropStructured;
+          const willRetryVariant = retryable && hasMoreVariantRetries;
+          const willSwitchVariant =
+            (retryable || allowVariantFallback) && hasMoreVariants && !willRetryVariant;
+          const willRetry = willRetryVariant || willSwitchVariant;
 
           console.warn("[fyp] lesson completion attempt failed", {
             subject,
@@ -1071,19 +1303,28 @@ export async function generateLessonForTopic(
             code,
             message,
             retryable: willRetry,
+            allowPlainFallback,
+            allowDropStructured,
           });
 
-          if (retryable) {
+          if (willRetryVariant) {
             const delayMs = computeVariantRetryDelay(attemptOrdinal - 1);
             if (delayMs > 0) {
               await delay(delayMs);
             }
-            if (hasMoreVariantRetries) {
-              continue;
-            }
-            if (hasMoreVariants) {
-              break;
-            }
+            continue;
+          }
+          if (willSwitchVariant) {
+            console.warn("[fyp] lesson completion switching variant", {
+              subject,
+              topic,
+              attempt: attemptOrdinal,
+              currentVariant: variantIndex + 1,
+              nextVariant: variantIndex + 2,
+              allowPlainFallback,
+              allowDropStructured,
+            });
+            break;
           }
           throw error;
         }
@@ -1114,6 +1355,18 @@ export async function generateLessonForTopic(
         topic,
         rawPreview: raw ? raw.slice(0, 200) : null,
       });
+    }
+    try {
+      console.debug("[fyp] lesson completion candidate parsed", {
+        subject,
+        topic,
+        attempt: attemptOrdinal,
+        candidateId: lessonCandidate?.id ?? null,
+        candidateTitle: lessonCandidate?.title ?? null,
+        candidateDifficulty: lessonCandidate?.difficulty ?? null,
+      });
+    } catch (candidateLogErr) {
+      console.warn("[fyp] lesson candidate log failed", candidateLogErr);
     }
     const verifiedLesson = await validateLessonCandidate(lessonCandidate);
 
