@@ -181,6 +181,53 @@ function previewForLog(value: string | null | undefined, max = 180): string | nu
   return `${trimmed.slice(0, max)}...(+${overflow} chars)`;
 }
 
+const STACK_TRIM_PATTERN = /\bat\s+/;
+
+function safeErrorForLog(error: unknown) {
+  if (!error) return { message: null, name: null, stack: null, type: typeof error };
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      name: error.name,
+      stack: typeof error.stack === "string"
+        ? error.stack.split("\n").slice(0, 6).map((line) => line.trim()).filter((line) => STACK_TRIM_PATTERN.test(line)).join(" | ")
+        : null,
+      type: "Error",
+    };
+  }
+  if (typeof error === "object") {
+    try {
+      return { message: JSON.stringify(error), name: null, stack: null, type: "object" };
+    } catch {
+      return { message: "[unserializable object]", name: null, stack: null, type: "object" };
+    }
+  }
+  return { message: String(error), name: null, stack: null, type: typeof error };
+}
+
+function summarizeLessonForLog(lesson: Lesson | null | undefined) {
+  if (!lesson) return null;
+  const words = typeof lesson.content === "string"
+    ? lesson.content.trim().split(/\s+/).filter(Boolean).length
+    : null;
+  const questionSummaries = Array.isArray(lesson.questions)
+    ? lesson.questions.slice(0, 3).map((q, idx) => ({
+        idx,
+        promptPreview: previewForLog(typeof q.prompt === "string" ? q.prompt : null, 80),
+        correctIndex: typeof q.correctIndex === "number" ? q.correctIndex : null,
+        explanationPreview: previewForLog(typeof q.explanation === "string" ? q.explanation : null, 80),
+      }))
+    : null;
+  return {
+    id: typeof lesson.id === "string" ? lesson.id : null,
+    title: typeof lesson.title === "string" ? lesson.title : null,
+    difficulty: lesson.difficulty ?? null,
+    contentWords: words,
+    contentPreview: previewForLog(typeof lesson.content === "string" ? lesson.content : null, 160),
+    questionSummaries,
+  };
+}
+
 type MessageSummary = {
   idx: number;
   role: OpenAI.ChatCompletionMessageParam["role"];
@@ -1012,6 +1059,8 @@ export async function generateLessonForTopic(
   let lastVerification: { valid: boolean; reasons: string[] } | null = null;
   let usedPlainResponseMode = false;
   let trimmedStructuredContext = false;
+  const variantHistory: Array<Record<string, unknown>> = [];
+  const verificationDiagnostics: Array<Record<string, unknown>> = [];
 
   const sourceTextBytes = measureBytes(sourceText);
   const structuredContextBytes = structuredContextJson ? measureBytes(structuredContextJson) : 0;
@@ -1188,23 +1237,33 @@ export async function generateLessonForTopic(
       knowledge: opts.knowledge,
       recentMissSummary: opts.recentMissSummary ?? null,
     });
-      lastVerification = verification;
-    if (!verification.valid) {
-      const normalizedReasons = verification.reasons.map((reason) =>
-        typeof reason === "string" ? reason.trim() : ""
-      );
-      const fatalReasons = normalizedReasons.filter(
-        (reason) => reason.length > 0 && !NON_FATAL_VERIFICATION_REASONS.has(reason),
-      );
-      if (!fatalReasons.length) {
-        console.warn("[fyp] verification inconclusive - accepting lesson", {
-          subject,
-          topic,
-          lessonId: candidate.id,
-          reasons: verification.reasons,
-        });
-        return candidate;
-      }
+    lastVerification = verification;
+    const normalizedReasons = verification.reasons.map((reason) =>
+      typeof reason === "string" ? reason.trim() : ""
+    );
+    const fatalReasons = normalizedReasons.filter(
+      (reason) => reason.length > 0 && !NON_FATAL_VERIFICATION_REASONS.has(reason),
+    );
+    const accepted = verification.valid || !fatalReasons.length;
+    verificationDiagnostics.push({
+      lessonId: candidate.id ?? null,
+      valid: verification.valid,
+      reasons: verification.reasons,
+      normalizedReasons,
+      fatalReasons,
+      accepted,
+      timestamp: new Date().toISOString(),
+    });
+    if (!verification.valid && !fatalReasons.length) {
+      console.warn("[fyp] verification inconclusive - accepting lesson", {
+        subject,
+        topic,
+        lessonId: candidate.id,
+        reasons: verification.reasons,
+      });
+      return candidate;
+    }
+    if (!accepted) {
       const detail = fatalReasons.join("; ") || "unspecified issue";
       console.warn("[fyp] lesson rejected by verification", {
         subject,
@@ -1243,6 +1302,17 @@ export async function generateLessonForTopic(
         const messages = variant.dropStructured ? messagesWithoutContext : messagesWithContext;
         const messageSummary = summarizeMessages(messages);
         const responseFormatMode = variant.usePlainResponse ? "plain" : "json_object";
+        const attemptInfoBase = {
+          subject,
+          topic,
+          attempt: attemptOrdinal,
+          variant: variantIndex + 1,
+          variantAttempt: variantAttempt + 1,
+          usePlainResponse: variant.usePlainResponse,
+          dropStructuredContext: variant.dropStructured,
+          responseFormatMode,
+          messageCount: messages.length,
+        };
         try {
           console.debug("[fyp] lesson completion attempt begin", {
             subject,
@@ -1277,6 +1347,7 @@ export async function generateLessonForTopic(
                   totalTokens: completion.usage.total_tokens ?? null,
                 }
               : null;
+            const finishReason = completion.choices?.[0]?.finish_reason ?? null;
             console.debug("[fyp] lesson completion attempt success", {
               subject,
               topic,
@@ -1285,8 +1356,15 @@ export async function generateLessonForTopic(
               variantAttempt: variantAttempt + 1,
               usePlainResponse: variant.usePlainResponse,
               dropStructuredContext: variant.dropStructured,
-              finishReason: completion.choices?.[0]?.finish_reason ?? null,
+              finishReason,
               usage: usageInfo,
+            });
+            variantHistory.push({
+              ...attemptInfoBase,
+              outcome: "success",
+              finishReason,
+              usage: usageInfo,
+              messageSummary,
             });
           } catch (successLogErr) {
             console.warn("[fyp] lesson completion success log failed", successLogErr);
@@ -1348,12 +1426,24 @@ export async function generateLessonForTopic(
             variantAttempt: variantAttempt + 1,
             usePlainResponse: variant.usePlainResponse,
             droppedStructuredContext: variant.dropStructured,
+              status,
+              code,
+              message,
+              retryable: willRetry,
+              allowPlainFallback: allowPlainFallback || undefined,
+              allowDropStructured: allowDropStructured || undefined,
+            });
+          variantHistory.push({
+            ...attemptInfoBase,
+            outcome: "error",
             status,
             code,
             message,
             retryable: willRetry,
             allowPlainFallback: allowPlainFallback || undefined,
             allowDropStructured: allowDropStructured || undefined,
+            error: safeErrorForLog(error),
+            messageSummary,
           });
 
           if (willRetryVariant) {
@@ -1397,12 +1487,16 @@ export async function generateLessonForTopic(
     const raw = typeof messageContent === "string" && messageContent.trim().length > 0
       ? messageContent.trim()
       : extractAssistantJson(choice);
+    const rawLength = typeof raw === "string" ? raw.length : null;
     const lessonCandidate = resolveLessonCandidate(raw);
+    const candidateSummary = summarizeLessonForLog(lessonCandidate);
     if (!lessonCandidate) {
       console.warn("[fyp] lesson candidate parse failed", {
         subject,
         topic,
-        rawPreview: raw ? raw.slice(0, 200) : null,
+        rawPreview: previewForLog(typeof raw === "string" ? raw : null, 200),
+        rawLength,
+        rawType: typeof raw,
       });
     }
     try {
@@ -1410,9 +1504,8 @@ export async function generateLessonForTopic(
         subject,
         topic,
         attempt: attemptOrdinal,
-        candidateId: lessonCandidate?.id ?? null,
-        candidateTitle: lessonCandidate?.title ?? null,
-        candidateDifficulty: lessonCandidate?.difficulty ?? null,
+        candidate: candidateSummary,
+        rawLength,
       });
     } catch (candidateLogErr) {
       console.warn("[fyp] lesson candidate log failed", candidateLogErr);
@@ -1420,8 +1513,38 @@ export async function generateLessonForTopic(
     const verifiedLesson = await validateLessonCandidate(lessonCandidate);
 
     if (verifiedLesson) {
+      try {
+        const lessonSummary = summarizeLessonForLog(verifiedLesson);
+        console.debug("[fyp] lesson generation success summary", {
+          subject,
+          topic,
+          lesson: lessonSummary,
+          pace,
+          difficulty,
+          accuracy,
+          usage: usageSummary,
+          usedPlainResponseMode,
+          trimmedStructuredContext,
+          variantHistory,
+          verificationDiagnostics,
+        });
+      } catch (successSummaryErr) {
+        console.warn("[fyp] lesson success summary log failed", successSummaryErr);
+      }
       await logLessonUsage("single", usageSummary);
       return verifiedLesson;
+    }
+
+    try {
+      console.warn("[fyp] lesson candidate rejected after verification", {
+        subject,
+        topic,
+        lastVerification,
+        variantHistory,
+        candidate: candidateSummary,
+      });
+    } catch (rejectionLogErr) {
+      console.warn("[fyp] lesson rejection summary log failed", rejectionLogErr);
     }
 
     if (!lastError) lastError = new Error("Invalid lesson format from AI");
@@ -1429,15 +1552,41 @@ export async function generateLessonForTopic(
     const fallbackGenerated = (error as { error?: { failed_generation?: string } })?.error?.failed_generation;
     if (typeof fallbackGenerated === "string" && fallbackGenerated.trim().length > 0) {
       const lessonCandidate = resolveLessonCandidate(fallbackGenerated.trim());
+      const fallbackCandidateSummary = summarizeLessonForLog(lessonCandidate);
       if (!lessonCandidate) {
         console.warn("[fyp] fallback generation parse failed", {
           subject,
           topic,
-          rawPreview: fallbackGenerated.slice(0, 200),
+          rawPreview: previewForLog(fallbackGenerated, 200),
+          rawLength: fallbackGenerated.length,
+        });
+      } else {
+        console.debug("[fyp] fallback generation candidate parsed", {
+          subject,
+          topic,
+          candidate: fallbackCandidateSummary,
         });
       }
       const verifiedLesson = await validateLessonCandidate(lessonCandidate);
       if (verifiedLesson) {
+        try {
+          const lessonSummary = summarizeLessonForLog(verifiedLesson);
+          console.debug("[fyp] fallback generation success summary", {
+            subject,
+            topic,
+            lesson: lessonSummary,
+            pace,
+            difficulty,
+            accuracy,
+            usage: usageSummary,
+            usedPlainResponseMode,
+            trimmedStructuredContext,
+            variantHistory,
+            verificationDiagnostics,
+          });
+        } catch (fallbackSuccessErr) {
+          console.warn("[fyp] fallback success summary log failed", fallbackSuccessErr);
+        }
         await logLessonUsage("single", usageSummary);
         return verifiedLesson;
       }
@@ -1447,15 +1596,27 @@ export async function generateLessonForTopic(
     }
   }
 
-  console.warn("[fyp] returning fallback lesson", {
-    subject,
-    topic,
-    error: lastError instanceof Error ? lastError.message : lastError,
-  });
+  const fallbackLesson = buildFallbackLesson(subject, topic, pace, accuracy, difficulty);
+  try {
+    console.warn("[fyp] returning fallback lesson", {
+      subject,
+      topic,
+      pace,
+      difficulty,
+      accuracy,
+      error: safeErrorForLog(lastError),
+      variantHistory,
+      verificationDiagnostics,
+      usage: usageSummary,
+      fallbackLesson: summarizeLessonForLog(fallbackLesson),
+    });
+  } catch (fallbackLogErr) {
+    console.warn("[fyp] fallback summary log failed", fallbackLogErr);
+  }
 
   await logLessonUsage("fallback", usageSummary, lastError);
 
-  return buildFallbackLesson(subject, topic, pace, accuracy, difficulty);
+  return fallbackLesson;
 }
 
 

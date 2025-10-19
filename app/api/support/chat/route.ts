@@ -11,10 +11,28 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const SUPPORT_MODEL = process.env.CEREBRAS_SUPPORT_MODEL ?? 'gpt-oss-120b';
-const SUPPORT_TEMPERATURE = Number(process.env.CEREBRAS_SUPPORT_TEMPERATURE ?? '0.6');
+const SUPPORT_TEMPERATURE = Number(process.env.CEREBRAS_SUPPORT_TEMPERATURE ?? '0.35');
 const SUPPORT_MAX_TOKENS = Number(process.env.CEREBRAS_SUPPORT_MAX_TOKENS ?? '768');
 const CEREBRAS_BASE_URL = process.env.CEREBRAS_BASE_URL ?? 'https://api.cerebras.ai/v1';
 const SUPPORT_EMAIL = 'support@lernex.net';
+const WEBSITE_CONTEXT = [
+  'Lernex overview:',
+  '- Lernex combines adaptive lessons, analytics, achievements, playlists, leaderboards, and social learning in one workspace.',
+  '',
+  'Navigation highlights:',
+  '- /fyp - For You feed with daily micro-lessons, reaction controls (Like, Skip, Save), streak target tiles, and next-topic hints.',
+  '- /generate - Convert up to two short paragraphs into one 80-105 word lesson plus three MCQs powered by Cerebras GPT-OSS-120B; choose subject and difficulty and optionally add a next-topic hint.',
+  '- /analytics - Dashboards for total attempts, weekly activity, streak momentum, accuracy trends, AI token usage, and subject insights (mastery, difficulty, next topic).',
+  '- /achievements - Badge groups (Progress, Momentum, Precision, Explorer, Weekly, Lifetime, Legendary) with Bronze->Mythic tiers and roadmap cards.',
+  '- /playlists - Create private/public lesson sets, reorder lessons, invite collaborators as viewers/moderators, and share links.',
+  '- /friends and /leaderboard - Manage friend requests, view shared activity, and compare streaks and points.',
+  '- /pricing - Manage billing, plan tiers, and invoices.',
+  '',
+  'Support surfaces:',
+  '- /support - Quick actions to /docs, /analytics, and the onboarding clinic at /welcome. Live chat replies in 1-2 minutes (Mon-Fri 8a-6p MT), email support@lernex.net replies within ~4 hours daily, walkthrough bookings offer 25-minute cohort calls, and +1 (866) 555-LEARN handles urgent access issues.',
+  '- /docs - Help centre with weekly refreshed guides and tutorials.',
+  '- /welcome - Thursday 25 minute onboarding clinic sign-up.',
+].join('\n');
 
 type ChatRole = 'user' | 'assistant';
 
@@ -395,10 +413,17 @@ function renderLearnerSummary(context: LearnerContext | null): string | null {
 function renderKnowledgeDigest(entries: SupportKnowledgeEntry[]): string | null {
   if (!entries.length) return null;
   return entries
-    .map(
-      (entry) =>
-        `- ${entry.title}: ${entry.summary} Key notes: ${entry.details}`,
-    )
+    .map((entry) => {
+      const parts = [
+        `- ${entry.title} - ${entry.summary}`,
+        `  Key notes: ${entry.details}`,
+      ];
+      const tagPreview = entry.tags.slice(0, 4);
+      if (tagPreview.length > 0) {
+        parts.push(`  Tags: ${tagPreview.join(', ')}`);
+      }
+      return parts.join('\n');
+    })
     .join('\n');
 }
 
@@ -406,26 +431,35 @@ type SystemPromptOptions = {
   knowledgeDigest?: string | null;
   learnerSummary?: string | null;
   clientContext?: string | null;
+  websiteContext?: string | null;
 };
 
 function buildSystemPrompt({
   knowledgeDigest,
   learnerSummary,
   clientContext,
+  websiteContext,
 }: SystemPromptOptions): string {
   const base = [
-    'You are Lernex support assistant. Provide concise, friendly answers grounded in the product.',
-    'Surface actionable steps and point to actual Lernex surfaces like For You, Generate, Analytics, Achievements, Playlists, and Friends when it helps.',
-    `Always mention that learners can email ${SUPPORT_EMAIL} for a human follow-up if needed.`,
-    'If a user asks for account-specific actions you cannot perform, outline the self-service steps or offer to escalate to the human team.',
-    'Encourage healthy study habits, streak maintenance, and pointing to analytics when learners want data.',
-    'Do not invent product capabilities. If unsure, ask clarifying questions or route to email support@lernex.net.',
+    'You are the Lernex support assistant embedded on lernex.net. Provide accurate, actionable support grounded in current product behaviour.',
+    'Never guess or invent product features, pricing, timelines, or policies. If information is missing, say so clearly and invite the learner to email support@lernex.net for a human follow-up.',
+    'When sharing guidance, cite the exact Lernex path (for example: /analytics, /playlists) and outline the steps in order. Keep the tone friendly, concise, and oriented around next steps.',
+    'Encourage healthy study habits, streak consistency, and using analytics to review progress whenever it fits the question.',
+    'If the learner asks for account actions you cannot complete, explain the self-serve alternative or direct them to support@lernex.net or live chat for escalation.',
   ].join('\n');
 
   const segments = [base];
 
+  const siteReference =
+    websiteContext && websiteContext.trim().length > 0 ? websiteContext.trim() : WEBSITE_CONTEXT;
+  segments.push(`Lernex site reference:\n${siteReference}`);
+
   if (knowledgeDigest && knowledgeDigest.trim().length > 0) {
-    segments.push(`Reference knowledge:\n${knowledgeDigest.trim()}`);
+    segments.push(`Relevant knowledge articles:\n${knowledgeDigest.trim()}`);
+  } else {
+    segments.push(
+      'Relevant knowledge articles:\n- No specific article matched this query. Ask for clarification if needed and escalate to support@lernex.net when uncertainty remains.',
+    );
   }
 
   if (learnerSummary && learnerSummary.trim().length > 0) {
@@ -437,7 +471,7 @@ function buildSystemPrompt({
   }
 
   segments.push(
-    'If information is missing or conflicting, ask a clarifying question or suggest contacting support@lernex.net. Offer live chat, docs (/docs), or walkthrough options when a learner needs more help.',
+    'If information is missing or conflicting, acknowledge the gap, avoid speculation, and share support@lernex.net plus live chat hours (Mon-Fri 8am-6pm MT) as the escalation path.',
   );
 
   return segments.join('\n\n');
@@ -519,6 +553,7 @@ export async function POST(req: NextRequest) {
     knowledgeDigest,
     learnerSummary,
     clientContext: context,
+    websiteContext: WEBSITE_CONTEXT,
   });
 
   const client = new OpenAI({

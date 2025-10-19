@@ -45,6 +45,14 @@ export async function GET(req: NextRequest) {
   const reqId = Math.random().toString(36).slice(2, 8);
   try { console.debug(`[fyp][${reqId}] begin`, { uid: uid.slice(0,8), ip }); } catch {}
 
+  const preview = (value: unknown, max = 160) => {
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim();
+    if (trimmed.length <= max) return trimmed;
+    const overflow = trimmed.length - max;
+    return `${trimmed.slice(0, max)}...(+${overflow} chars)`;
+  };
+
   const subjectParam = req.nextUrl.searchParams.get("subject");
 
   let subject = subjectParam || null;
@@ -947,7 +955,7 @@ export async function GET(req: NextRequest) {
       recentMissSummary,
       personalization,
     } = ensureLessonPrep();
-    lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentLabel, {
+    const generatorOptions: Parameters<typeof generateLessonForTopic>[5] = {
       pace,
       accuracyPct: accuracyPct ?? undefined,
       difficultyPref: (state?.difficulty as Difficulty | undefined) ?? undefined,
@@ -967,7 +975,47 @@ export async function GET(req: NextRequest) {
       recentMissSummary: recentMissSummary ?? undefined,
       knowledge: lessonKnowledge,
       personalization,
-    });
+    };
+    try {
+      console.debug(`[fyp][${reqId}] generator options`, {
+        subject,
+        topic: currentLabel,
+        pace,
+        accuracyPct,
+        difficultyPref: generatorOptions.difficultyPref ?? null,
+        avoidIdsCount: generatorOptions.avoidIds?.length ?? 0,
+        avoidIdsSample: (generatorOptions.avoidIds ?? []).slice(0, 6),
+        avoidTitlesCount: generatorOptions.avoidTitles?.length ?? 0,
+        avoidTitlesSample: (generatorOptions.avoidTitles ?? []).slice(0, 6),
+        likedIdsCount: generatorOptions.likedIds?.length ?? 0,
+        savedIdsCount: generatorOptions.savedIds?.length ?? 0,
+        toneTags: generatorOptions.toneTags ?? [],
+        nextTopicHint: preview(generatorOptions.nextTopicHint ?? null, 120),
+        learnerProfile: preview(generatorOptions.learnerProfile ?? null, 160),
+        previousLessonSummary: preview(generatorOptions.previousLessonSummary ?? null, 160),
+        recentMissSummary: preview(generatorOptions.recentMissSummary ?? null, 160),
+        mapSummary: preview(generatorOptions.mapSummary ?? null, 160),
+        accuracyBand: generatorOptions.accuracyBand ?? null,
+        knowledgeKeys: lessonKnowledge ? Object.keys(lessonKnowledge) : [],
+        personalization: generatorOptions.personalization
+          ? {
+              style: {
+                preferCount: generatorOptions.personalization.style?.prefer?.length ?? 0,
+                avoidCount: generatorOptions.personalization.style?.avoid?.length ?? 0,
+              },
+              lessons: {
+                leanIntoCount: generatorOptions.personalization.lessons?.leanInto?.length ?? 0,
+                avoidCount: generatorOptions.personalization.lessons?.avoid?.length ?? 0,
+                savedCount: generatorOptions.personalization.lessons?.saved?.length ?? 0,
+              },
+            }
+          : null,
+        structuredContextKeys: structuredContext ? Object.keys(structuredContext).length : 0,
+      });
+    } catch (optionsLogErr) {
+      console.warn(`[fyp][${reqId}] generator options log failed`, optionsLogErr);
+    }
+    lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentLabel, generatorOptions);
     const rawLessonHint = (lesson as { nextTopicHint?: unknown }).nextTopicHint;
     const lessonNextTopicHint = typeof rawLessonHint === "string" ? rawLessonHint : null;
     mergedNextTopicHint = nextTopicHint ?? lessonNextTopicHint ?? null;
@@ -1038,6 +1086,25 @@ export async function GET(req: NextRequest) {
     .eq("subject", subject);
 
   try { console.debug(`[fyp][${reqId}] success`, { topic: currentLabel, lessonId: lesson.id }); } catch {}
+  try {
+    console.debug(`[fyp][${reqId}] response summary`, {
+      topic: currentLabel,
+      lessonId: lesson.id,
+      lessonTitle: lesson.title,
+      difficulty: lesson.difficulty,
+      contentPreview: preview(typeof lesson.content === "string" ? lesson.content : "", 200),
+      questionCount: Array.isArray(lesson.questions) ? lesson.questions.length : null,
+      nextTopicHint: mergedNextTopicHint ? preview(mergedNextTopicHint, 160) : null,
+      cachedCandidatesCount: cachedCandidates.length,
+      deliveredIdsTotal: Object.values(progress.deliveredIdsByTopic ?? {}).reduce(
+        (sum, ids) => sum + (Array.isArray(ids) ? ids.length : 0),
+        0
+      ),
+      metricsPatched: Boolean(metricsPatch),
+    });
+  } catch (responseSummaryErr) {
+    console.warn(`[fyp][${reqId}] response summary log failed`, responseSummaryErr);
+  }
   return new Response(
     JSON.stringify({ topic: currentLabel, lesson, nextTopicHint }),
     { status: 200, headers: { "content-type": "application/json" } }
