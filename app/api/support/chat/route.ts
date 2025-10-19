@@ -1,16 +1,18 @@
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 import { cookies } from 'next/headers';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { take } from '@/lib/rate';
 import { checkUsageLimit, logUsage } from '@/lib/usage';
+import type { Database } from '@/lib/types_db';
+import { rankSupportKnowledge, type SupportKnowledgeEntry } from '@/lib/support-knowledge';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const SUPPORT_MODEL = process.env.CEREBRAS_SUPPORT_MODEL ?? 'gpt-oss-120b';
 const SUPPORT_TEMPERATURE = Number(process.env.CEREBRAS_SUPPORT_TEMPERATURE ?? '0.6');
-const SUPPORT_MAX_TOKENS = Number(process.env.CEREBRAS_SUPPORT_MAX_TOKENS ?? '512');
+const SUPPORT_MAX_TOKENS = Number(process.env.CEREBRAS_SUPPORT_MAX_TOKENS ?? '768');
 const CEREBRAS_BASE_URL = process.env.CEREBRAS_BASE_URL ?? 'https://api.cerebras.ai/v1';
 const SUPPORT_EMAIL = 'support@lernex.net';
 
@@ -37,21 +39,408 @@ function sanitizeMessages(input: unknown): ChatPayloadMessage[] {
   return result.slice(-12);
 }
 
-function buildSystemPrompt(context: string | null): string {
-  const template = [
+const integerFormatter = new Intl.NumberFormat('en-US');
+const percentFormatter = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 });
+const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+type AttemptRow = {
+  subject: string;
+  correctCount: number;
+  total: number;
+  createdAt: string | null;
+};
+
+type LearnerAnalytics = {
+  totalAttempts: number;
+  weeklyAttempts: number;
+  activeDays: number;
+  avgAccuracy: number | null;
+  topSubject: string | null;
+  lastAttemptAt: string | null;
+  streak: number;
+  points: number;
+  lastStudyDate: string | null;
+};
+
+type SubjectState = {
+  subject: string | null;
+  course: string | null;
+  mastery: number | null;
+  difficulty: string | null;
+  nextTopic: string | null;
+  updatedAt: string | null;
+};
+
+type LearnerContext = {
+  profile: {
+    fullName: string | null;
+    username: string | null;
+    isPremium: boolean | null;
+    interests: string[] | null;
+    streak: number | null;
+    points: number | null;
+    lastStudyDate: string | null;
+    createdAt: string | null;
+  } | null;
+  analytics: LearnerAnalytics | null;
+  subjects: SubjectState[];
+};
+
+function safeString(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  return null;
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function clamp01(value: number | null): number | null {
+  if (value == null || Number.isNaN(value)) return null;
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+}
+
+function formatNumber(value: number | null): string | null {
+  if (value == null || Number.isNaN(value)) return null;
+  return integerFormatter.format(Math.round(value));
+}
+
+function formatPercent(value: number | null): string | null {
+  if (value == null || Number.isNaN(value)) return null;
+  return percentFormatter.format(value);
+}
+
+function parseDate(value: string | null): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function formatAbsoluteDate(value: string | null): string | null {
+  const parsed = parseDate(value);
+  return parsed ? dateFormatter.format(parsed) : null;
+}
+
+function formatRelativeDays(value: string | null): string | null {
+  const parsed = parseDate(value);
+  if (!parsed) return null;
+  const now = Date.now();
+  const diff = now - parsed.getTime();
+  const dayMs = 86_400_000;
+  const days = Math.floor(diff / dayMs);
+  if (Number.isNaN(days)) return null;
+  if (days <= 0) return 'today';
+  if (days === 1) return '1 day ago';
+  if (days < 7) return `${days} days ago`;
+  return dateFormatter.format(parsed);
+}
+
+function normalizeAttempt(row: Record<string, unknown>): AttemptRow {
+  const subject = safeString(row['subject']) ?? 'General';
+  const correctRaw = toNumber(row['correct_count'] ?? row['correctCount']) ?? 0;
+  const totalRaw = toNumber(row['total']) ?? 0;
+  const createdAt = safeString(row['created_at'] ?? row['createdAt']);
+  return {
+    subject,
+    correctCount: Math.max(0, Math.round(correctRaw)),
+    total: Math.max(0, Math.round(totalRaw)),
+    createdAt,
+  };
+}
+
+function computeAnalytics(
+  attempts: AttemptRow[],
+  streak: number | null,
+  points: number | null,
+  lastStudyDate: string | null,
+): LearnerAnalytics {
+  const now = Date.now();
+  const weekThreshold = now - 7 * 86_400_000;
+  const dayKeys = new Set<string>();
+  const subjectCounts = new Map<string, { attempts: number; correct: number; total: number }>();
+  let weeklyAttempts = 0;
+  let totalCorrect = 0;
+  let totalQuestions = 0;
+  let latestTimestamp = 0;
+  let latestIso: string | null = null;
+
+  for (const attempt of attempts) {
+    totalCorrect += attempt.correctCount;
+    totalQuestions += attempt.total;
+
+    const createdAt = parseDate(attempt.createdAt);
+    if (createdAt) {
+      const ts = createdAt.getTime();
+      const dayKey = createdAt.toISOString().slice(0, 10);
+      dayKeys.add(dayKey);
+      if (ts >= weekThreshold) {
+        weeklyAttempts += 1;
+      }
+      if (ts > latestTimestamp) {
+        latestTimestamp = ts;
+        latestIso = attempt.createdAt;
+      }
+    }
+
+    const subjectKey = attempt.subject || 'General';
+    const aggregate = subjectCounts.get(subjectKey) ?? { attempts: 0, correct: 0, total: 0 };
+    aggregate.attempts += 1;
+    aggregate.correct += attempt.correctCount;
+    aggregate.total += attempt.total;
+    subjectCounts.set(subjectKey, aggregate);
+  }
+
+  let topSubject: string | null = null;
+  let maxAttempts = 0;
+  for (const [subject, aggregate] of subjectCounts.entries()) {
+    if (aggregate.attempts > maxAttempts) {
+      maxAttempts = aggregate.attempts;
+      topSubject = subject;
+    }
+  }
+
+  const avgAccuracy = totalQuestions > 0 ? totalCorrect / Math.max(totalQuestions, 1) : null;
+
+  return {
+    totalAttempts: attempts.length,
+    weeklyAttempts,
+    activeDays: dayKeys.size,
+    avgAccuracy,
+    topSubject,
+    lastAttemptAt: latestIso ?? lastStudyDate ?? null,
+    streak: streak ?? 0,
+    points: points ?? 0,
+    lastStudyDate: lastStudyDate ?? null,
+  };
+}
+
+function normalizeSubjectState(row: Record<string, unknown>): SubjectState {
+  return {
+    subject: safeString(row['subject']),
+    course: safeString(row['course']),
+    mastery: toNumber(row['mastery']),
+    difficulty: safeString(row['difficulty']),
+    nextTopic: safeString(row['next_topic'] ?? row['nextTopic']),
+    updatedAt: safeString(row['updated_at'] ?? row['updatedAt']),
+  };
+}
+
+async function gatherLearnerContext(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<LearnerContext> {
+  try {
+    const [profileRes, attemptsRes, subjectsRes] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('full_name, username, is_premium, interests, streak, points, last_study_date, created_at')
+        .eq('id', userId)
+        .maybeSingle(),
+      supabase
+        .from('attempts')
+        .select('subject, correct_count, total, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(200),
+      supabase
+        .from('user_subject_state')
+        .select('subject, course, mastery, difficulty, next_topic, updated_at')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(10),
+    ]);
+
+    if (profileRes.error) {
+      console.warn('[support-chat] profile load failed', profileRes.error);
+    }
+    if (attemptsRes.error) {
+      console.warn('[support-chat] attempts load failed', attemptsRes.error);
+    }
+    if (subjectsRes.error) {
+      console.warn('[support-chat] subject state load failed', subjectsRes.error);
+    }
+
+    const profileRow = profileRes.data ?? null;
+    const attemptsData = Array.isArray(attemptsRes.data) ? attemptsRes.data : [];
+    const subjectData = Array.isArray(subjectsRes.data) ? subjectsRes.data : [];
+
+    const profile = profileRow
+      ? {
+          fullName: safeString(profileRow.full_name),
+          username: safeString(profileRow.username),
+          isPremium: typeof profileRow.is_premium === 'boolean' ? profileRow.is_premium : null,
+          interests: Array.isArray(profileRow.interests)
+            ? (profileRow.interests.filter((entry: unknown): entry is string => typeof entry === 'string') as string[])
+            : null,
+          streak: toNumber(profileRow.streak),
+          points: toNumber(profileRow.points),
+          lastStudyDate: safeString(profileRow.last_study_date),
+          createdAt: safeString(profileRow.created_at),
+        }
+      : null;
+
+    const attempts = attemptsData.map((row) => normalizeAttempt(row as Record<string, unknown>));
+    const analytics = computeAnalytics(
+      attempts,
+      profile?.streak ?? null,
+      profile?.points ?? null,
+      profile?.lastStudyDate ?? null,
+    );
+
+    const subjects = subjectData
+      .map((row) => normalizeSubjectState(row as Record<string, unknown>))
+      .filter((row) => row.subject || row.course);
+
+    return { profile, analytics, subjects };
+  } catch (error) {
+    console.warn('[support-chat] gatherLearnerContext failed', error);
+    return { profile: null, analytics: null, subjects: [] };
+  }
+}
+
+function renderLearnerSummary(context: LearnerContext | null): string | null {
+  if (!context) return null;
+  const lines: string[] = [];
+
+  if (context.profile) {
+    const { fullName, username, isPremium, interests, streak, points, lastStudyDate, createdAt } = context.profile;
+    const identityParts = [fullName, username ? `@${username}` : null].filter(Boolean);
+    const identityLabel = identityParts.length > 0 ? identityParts.join(' ') : null;
+    const planLabel =
+      typeof isPremium === 'boolean' ? (isPremium ? 'Premium plan' : 'Standard plan') : null;
+    const streakLabel = streak != null && streak > 0 ? `${formatNumber(streak)} day streak` : null;
+    const pointsLabel = points != null && points > 0 ? `${formatNumber(points)} points` : null;
+    const lastStudyLabel = formatRelativeDays(lastStudyDate) ?? formatAbsoluteDate(lastStudyDate);
+    const memberSinceLabel = formatAbsoluteDate(createdAt);
+
+    const profileBits = [
+      identityLabel,
+      planLabel,
+      streakLabel,
+      pointsLabel,
+      lastStudyLabel ? `last study ${lastStudyLabel}` : null,
+      memberSinceLabel ? `member since ${memberSinceLabel}` : null,
+    ].filter(Boolean);
+
+    if (interests && interests.length > 0) {
+      profileBits.push(`interests: ${interests.slice(0, 5).join(', ')}`);
+    }
+
+    if (profileBits.length > 0) {
+      lines.push(`- Profile: ${profileBits.join(' | ')}`);
+    }
+  }
+
+  if (context.analytics) {
+    const { totalAttempts, weeklyAttempts, activeDays, avgAccuracy, topSubject, lastAttemptAt } =
+      context.analytics;
+    const bits: string[] = [];
+
+    bits.push(`${formatNumber(totalAttempts) ?? String(totalAttempts)} total attempts`);
+    bits.push(`${formatNumber(weeklyAttempts) ?? String(weeklyAttempts)} this week`);
+    bits.push(`${formatNumber(activeDays) ?? String(activeDays)} active days in last 7`);
+
+    const accuracyLabel = formatPercent(avgAccuracy);
+    if (accuracyLabel) {
+      bits.push(`avg accuracy ${accuracyLabel}`);
+    } else {
+      bits.push('avg accuracy pending more quiz data');
+    }
+
+    if (topSubject) {
+      bits.push(`top subject ${topSubject}`);
+    }
+
+    const lastActivityLabel = formatRelativeDays(lastAttemptAt) ?? formatAbsoluteDate(lastAttemptAt);
+    if (lastActivityLabel) {
+      bits.push(`last activity ${lastActivityLabel}`);
+    }
+
+    lines.push(`- Attempts: ${bits.join(' | ')}`);
+  }
+
+  if (context.subjects && context.subjects.length > 0) {
+    const subjectSummaries = context.subjects.slice(0, 3).map((subject) => {
+      const descriptors: string[] = [];
+      const name = subject.subject ?? subject.course ?? 'Subject';
+      descriptors.push(name);
+      if (subject.difficulty) {
+        descriptors.push(`difficulty ${subject.difficulty}`);
+      }
+      const masteryLabel = formatPercent(clamp01(subject.mastery));
+      if (masteryLabel) {
+        descriptors.push(`mastery ${masteryLabel}`);
+      }
+      if (subject.nextTopic) {
+        descriptors.push(`next ${subject.nextTopic}`);
+      }
+      return descriptors.join(' | ');
+    });
+    lines.push(`- Subject focus: ${subjectSummaries.join('; ')}`);
+  }
+
+  return lines.length > 0 ? lines.join('\n') : null;
+}
+
+function renderKnowledgeDigest(entries: SupportKnowledgeEntry[]): string | null {
+  if (!entries.length) return null;
+  return entries
+    .map(
+      (entry) =>
+        `- ${entry.title}: ${entry.summary} Key notes: ${entry.details}`,
+    )
+    .join('\n');
+}
+
+type SystemPromptOptions = {
+  knowledgeDigest?: string | null;
+  learnerSummary?: string | null;
+  clientContext?: string | null;
+};
+
+function buildSystemPrompt({
+  knowledgeDigest,
+  learnerSummary,
+  clientContext,
+}: SystemPromptOptions): string {
+  const base = [
     'You are Lernex support assistant. Provide concise, friendly answers grounded in the product.',
-    'Reference core Lernex features when useful: For You personalised lessons, collaborative playlists, achievements and badges, analytics dashboards, Cerebras-powered lesson generation, and friends leaderboards.',
+    'Surface actionable steps and point to actual Lernex surfaces like For You, Generate, Analytics, Achievements, Playlists, and Friends when it helps.',
     `Always mention that learners can email ${SUPPORT_EMAIL} for a human follow-up if needed.`,
-    'If a user asks for account-specific actions you cannot perform, outline the steps or offer to escalate to the human team.',
+    'If a user asks for account-specific actions you cannot perform, outline the self-service steps or offer to escalate to the human team.',
     'Encourage healthy study habits, streak maintenance, and pointing to analytics when learners want data.',
     'Do not invent product capabilities. If unsure, ask clarifying questions or route to email support@lernex.net.',
   ].join('\n');
 
-  if (!context || context.trim().length === 0) {
-    return template;
+  const segments = [base];
+
+  if (knowledgeDigest && knowledgeDigest.trim().length > 0) {
+    segments.push(`Reference knowledge:\n${knowledgeDigest.trim()}`);
   }
 
-  return `${template}\n\nLearner context summary:\n${context.trim().slice(0, 600)}`;
+  if (learnerSummary && learnerSummary.trim().length > 0) {
+    segments.push(`Learner analytics snapshot:\n${learnerSummary.trim()}`);
+  }
+
+  if (clientContext && clientContext.trim().length > 0) {
+    segments.push(`Client-provided context:\n${clientContext.trim().slice(0, 600)}`);
+  }
+
+  segments.push(
+    'If information is missing or conflicting, ask a clarifying question or suggest contacting support@lernex.net. Offer live chat, docs (/docs), or walkthrough options when a learner needs more help.',
+  );
+
+  return segments.join('\n\n');
 }
 
 export async function POST(req: NextRequest) {
@@ -76,7 +465,7 @@ export async function POST(req: NextRequest) {
 
   const authHeaders: Record<string, string> = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 
-  const supabase = createClient(supabaseUrl, supabaseKey, {
+  const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
     global: {
       headers: authHeaders,
     },
@@ -112,6 +501,26 @@ export async function POST(req: NextRequest) {
   const context =
     typeof payload.context === 'string' && payload.context.trim().length > 0 ? payload.context.trim() : null;
 
+  let learnerContext: LearnerContext | null = null;
+  if (userId) {
+    learnerContext = await gatherLearnerContext(supabase, userId);
+  }
+
+  const userQueryText = chatMessages
+    .filter((message) => message.role === 'user')
+    .slice(-3)
+    .map((message) => message.content)
+    .join(' ');
+
+  const knowledgeEntries = rankSupportKnowledge(userQueryText, 5);
+  const knowledgeDigest = renderKnowledgeDigest(knowledgeEntries);
+  const learnerSummary = renderLearnerSummary(learnerContext);
+  const systemPrompt = buildSystemPrompt({
+    knowledgeDigest,
+    learnerSummary,
+    clientContext: context,
+  });
+
   const client = new OpenAI({
     apiKey,
     baseURL: CEREBRAS_BASE_URL,
@@ -124,7 +533,7 @@ export async function POST(req: NextRequest) {
       max_tokens: SUPPORT_MAX_TOKENS,
       reasoning_effort: 'low',
       messages: [
-        { role: 'system' as const, content: buildSystemPrompt(context) },
+        { role: 'system' as const, content: systemPrompt },
         ...chatMessages.map(({ role, content }) => ({ role, content })),
       ],
     });
@@ -151,6 +560,9 @@ export async function POST(req: NextRequest) {
               feature: 'support-chat',
               messageCount: chatMessages.length,
               hasContext: Boolean(context),
+              knowledgeIds: knowledgeEntries.map((entry) => entry.id),
+              knowledgeCount: knowledgeEntries.length,
+              hasLearnerSummary: Boolean(learnerSummary),
             },
           },
         );
@@ -175,6 +587,11 @@ export async function POST(req: NextRequest) {
             metadata: {
               feature: 'support-chat',
               error: message,
+              messageCount: chatMessages.length,
+              hasContext: Boolean(context),
+              knowledgeIds: knowledgeEntries.map((entry) => entry.id),
+              knowledgeCount: knowledgeEntries.length,
+              hasLearnerSummary: Boolean(learnerSummary),
             },
           },
         );
