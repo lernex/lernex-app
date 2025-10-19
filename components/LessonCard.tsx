@@ -116,7 +116,8 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
     if (!node) return;
     const { scrollTop, scrollHeight, clientHeight } = node;
     const overflow = scrollHeight - clientHeight;
-    if (overflow <= 4) {
+    const shouldFade = overflow > 4;
+    if (!shouldFade) {
       setShowFade(false);
       return;
     }
@@ -282,12 +283,20 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
         <div className="relative mt-3 flex min-h-0 flex-1 flex-col pb-2 sm:pb-3">
           <div
             ref={scrollRef}
-            className="lesson-scroll scrollbar-thin flex-1 overflow-y-auto pr-2 pb-8 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300"
+            className="lesson-scroll scrollbar-thin flex-1 overflow-y-auto pr-3 pb-8 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 md:pr-4"
           >
             <FormattedText text={lesson.content} />
           </div>
           {showFade && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white via-white/75 to-transparent dark:from-neutral-900 dark:via-neutral-900/70" />
+            <>
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white via-white/75 to-transparent dark:from-neutral-900 dark:via-neutral-900/70" />
+              <div className="pointer-events-none absolute bottom-3 right-4 flex items-center gap-2 rounded-full bg-neutral-900/75 px-3 py-1 text-[11px] font-medium text-white shadow-lg backdrop-blur-sm dark:bg-neutral-800/85">
+                <span>Scroll to read</span>
+                <span aria-hidden="true" className="text-base leading-none">
+                  ↓
+                </span>
+              </div>
+            </>
           )}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">

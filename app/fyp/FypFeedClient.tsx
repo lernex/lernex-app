@@ -20,9 +20,9 @@ export default function FypFeedClient({ initialProfile }: FypFeedClientProps) {
       <WelcomeTourOverlay />
       <main
         data-fyp-feed-root="true"
-        className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-surface-page text-foreground transition-colors duration-200"
+        className="relative mx-auto w-full max-w-5xl min-h-[calc(100vh-56px)] px-4 pb-16 pt-12 text-foreground transition-colors duration-200 sm:px-6"
       >
-        <div className="relative mx-auto flex w-full max-w-[520px] flex-col gap-6 px-4 pb-16 pt-8">
+        <div className="relative mx-auto flex w-full max-w-[520px] flex-col gap-6">
           <header className="flex items-start justify-between gap-4">
             <div className="flex flex-col gap-1">
               <span className="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-white/60">

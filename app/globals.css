@@ -90,6 +90,23 @@ html {
   .scrollbar-thin:hover::-webkit-scrollbar-thumb {
     @apply bg-lernex-blue/70;
   }
+  .lesson-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(59, 130, 246, 0.45) transparent;
+  }
+  .lesson-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .lesson-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .lesson-scroll::-webkit-scrollbar-thumb {
+    background: linear-gradient(to bottom, rgba(59, 130, 246, 0.55), rgba(168, 85, 247, 0.55));
+    border-radius: 9999px;
+  }
+  .lesson-scroll::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(to bottom, rgba(59, 130, 246, 0.75), rgba(168, 85, 247, 0.75));
+  }
   .gradient-logo {
     background-size: 220% 220%;
     background-position: 0% 50%;

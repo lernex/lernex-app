@@ -122,6 +122,7 @@ export async function POST(req: NextRequest) {
       model: SUPPORT_MODEL,
       temperature: SUPPORT_TEMPERATURE,
       max_tokens: SUPPORT_MAX_TOKENS,
+      reasoning_effort: 'low',
       messages: [
         { role: 'system' as const, content: buildSystemPrompt(context) },
         ...chatMessages.map(({ role, content }) => ({ role, content })),
@@ -133,17 +134,18 @@ export async function POST(req: NextRequest) {
       completion.choices?.[0]?.message?.content?.trim() ??
       'I am here to help. Could you rephrase that question for me?';
 
-    if ((userId || ip) && usage) {
+    if (userId || ip) {
+      const usageSummary = {
+        input_tokens: typeof usage?.prompt_tokens === 'number' ? usage.prompt_tokens : null,
+        output_tokens: typeof usage?.completion_tokens === 'number' ? usage.completion_tokens : null,
+      };
       try {
         await logUsage(
           supabase,
           userId,
           ip,
           SUPPORT_MODEL,
-          {
-            input_tokens: usage.prompt_tokens ?? null,
-            output_tokens: usage.completion_tokens ?? null,
-          },
+          usageSummary,
           {
             metadata: {
               feature: 'support-chat',
@@ -161,6 +163,25 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[support-chat] error', error);
     const message = error instanceof Error ? error.message : 'Support chat failed';
+    if (userId || ip) {
+      try {
+        await logUsage(
+          supabase,
+          userId,
+          ip,
+          SUPPORT_MODEL,
+          { input_tokens: null, output_tokens: null },
+          {
+            metadata: {
+              feature: 'support-chat',
+              error: message,
+            },
+          },
+        );
+      } catch (logErr) {
+        console.warn('[support-chat] error-log failed', logErr);
+      }
+    }
     return new Response(JSON.stringify({ error: message }), { status: 500 });
   }
 }

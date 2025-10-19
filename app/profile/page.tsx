@@ -490,6 +490,10 @@ export default function SettingsPage() {
           : trimmedFirst
         : null;
 
+    // Apply theme IMMEDIATELY for instant visual feedback
+    setTheme(themePreference);
+    setSavedThemePreference(themePreference);
+
     setPreferencesSaving(true);
     setPreferencesFeedback({ message: "Saving settings...", tone: "info" });
     try {
@@ -522,8 +526,6 @@ export default function SettingsPage() {
 
       setFirstName(trimmedFirst);
       setLastName(trimmedLast);
-      setTheme(themePreference);
-      setSavedThemePreference(themePreference);
       setPreferencesFeedback({ message: "Settings saved.", tone: "success" });
     } catch (error) {
       const message =
