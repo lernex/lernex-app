@@ -15,6 +15,7 @@ export function buildLessonPrompts(params: LessonPromptParams) {
     `Output must be valid JSON matching the schema below. No prose, markdown, or extra keys.`,
     `Schema: {"id":string,"subject":string,"topic":string,"title":string,"content":string,"difficulty":"intro"|"easy"|"medium"|"hard","questions":[{"prompt":string,"choices":[string,string,string,string],"correctIndex":0|1|2|3,"explanation":string},{"prompt":string,"choices":[string,string,string,string],"correctIndex":0|1|2|3,"explanation":string},{"prompt":string,"choices":[string,string,string,string],"correctIndex":0|1|2|3,"explanation":string}]}`,
     `Treat structured_context and Source JSON as authoritative learner data -- stay factual and aligned.`,
+    `When learner.recents.previous_lesson is present, reference it as a quick bridge. When learner.recents.recent_miss is present, acknowledge it plainly and coach the learner on how to improve.`,
     `Set subject to the Subject line, topic to facts.focus in the Source JSON, and difficulty to the requested difficulty.`,
     `content must be exactly four sentences following goals.definition, goals.example, goals.pitfall, goals.next_step in that order, stay within 80-105 words, and keep under 720 characters.`,
     `Provide id as a short slug (letters, numbers, or dashes) and title as a concise 3-7 word phrase about the topic.`,

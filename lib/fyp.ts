@@ -137,6 +137,12 @@ const TEMPERATURE_BY_BAND: Record<string, number> = {
   high: clampTemperature(0.45),
 };
 
+const NON_FATAL_VERIFICATION_REASONS = new Set([
+  "verification_call_failed",
+  "no_verification_response",
+  "invalid_verification_payload",
+]);
+
 function deriveLessonTemperature(accuracyBand: string | undefined, accuracy: number | null) {
   const normalizedBand = typeof accuracyBand === "string" ? accuracyBand.trim().toLowerCase() : null;
   if (normalizedBand && normalizedBand in TEMPERATURE_BY_BAND) {
@@ -972,25 +978,29 @@ export async function generateLessonForTopic(
       knowledge: opts.knowledge,
       recentMissSummary: opts.recentMissSummary ?? null,
     });
-    lastVerification = verification;
+      lastVerification = verification;
     if (!verification.valid) {
-      const fatalReasons = verification.reasons.filter(
-        (reason) => reason !== "verification_call_failed" && reason.trim().length > 0,
+      const normalizedReasons = verification.reasons.map((reason) =>
+        typeof reason === "string" ? reason.trim() : ""
       );
-      if (!fatalReasons.length && verification.reasons.includes("verification_call_failed")) {
-        console.warn("[fyp] verification transport issue - accepting lesson", {
+      const fatalReasons = normalizedReasons.filter(
+        (reason) => reason.length > 0 && !NON_FATAL_VERIFICATION_REASONS.has(reason),
+      );
+      if (!fatalReasons.length) {
+        console.warn("[fyp] verification inconclusive - accepting lesson", {
           subject,
           topic,
           lessonId: candidate.id,
+          reasons: verification.reasons,
         });
         return candidate;
       }
-      const detail = fatalReasons.length ? fatalReasons.join("; ") : "unspecified issue";
+      const detail = fatalReasons.join("; ") || "unspecified issue";
       console.warn("[fyp] lesson rejected by verification", {
         subject,
         topic,
         lessonId: candidate.id,
-        reasons: fatalReasons.length ? fatalReasons : verification.reasons,
+        reasons: fatalReasons,
         difficulty,
       });
       lastError = new Error(`Lesson failed verification: ${detail}`);
