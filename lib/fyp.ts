@@ -45,59 +45,6 @@ const MAX_GUARDRAIL_ITEMS = 6;
 const MAX_CONTEXT_CHARS = 360;
 const MAX_MAP_SUMMARY_CHARS = 360;
 
-const LESSON_RESPONSE_SCHEMA = {
-  name: "lesson_payload",
-  schema: {
-    type: "object",
-    additionalProperties: true,
-    properties: {
-      id: { type: "string" },
-      subject: { type: "string" },
-      topic: { type: "string" },
-      title: { type: "string" },
-      content: { type: "string" },
-      difficulty: { type: "string", enum: ["intro", "easy", "medium", "hard"] },
-      questions: {
-        type: "array",
-        items: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            prompt: { type: "string" },
-            choices: {
-              type: "array",
-              items: { type: "string" },
-              minItems: 2,
-            },
-            correctIndex: { type: "integer", minimum: 0 },
-            explanation: { type: "string" },
-          },
-          required: ["prompt", "choices", "correctIndex", "explanation"],
-        },
-      },
-    },
-    required: ["id", "subject", "topic", "title", "content", "difficulty", "questions"],
-  },
-} as const;
-
-const LESSON_VERIFICATION_SCHEMA = {
-  name: "lesson_verification",
-  schema: {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      valid: { type: "boolean" },
-      reasons: {
-        type: "array",
-        items: { type: "string" },
-        minItems: 0,
-        maxItems: 6,
-      },
-    },
-    required: ["valid"],
-  },
-} as const;
-
 const DEFAULT_MODEL = process.env.CEREBRAS_LESSON_MODEL ?? "gpt-oss-120b";
 const DEFAULT_BASE_URL = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
 const FALLBACK_TEMPERATURE = 0.4;
@@ -316,16 +263,29 @@ async function verifyLessonAlignment(
       model,
       temperature: clampTemperature(0.1),
       max_tokens: 260,
-      response_format: { type: "json_schema", json_schema: LESSON_VERIFICATION_SCHEMA },
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userLines },
       ],
     });
     const raw = completion.choices?.[0]?.message?.content;
-    if (!raw) return { valid: false, reasons: ["no_verification_response"] };
+    if (!raw) {
+      console.warn("[fyp] verification returned empty content", {
+        subject: target.subject,
+        topic: target.topic,
+        difficulty: target.difficulty,
+      });
+      return { valid: false, reasons: ["no_verification_response"] };
+    }
     const parsed = tryParseJson(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      console.warn("[fyp] verification returned non-JSON payload", {
+        subject: target.subject,
+        topic: target.topic,
+        difficulty: target.difficulty,
+        rawPreview: typeof raw === "string" ? raw.slice(0, 160) : null,
+      });
       return { valid: false, reasons: ["invalid_verification_payload"] };
     }
     const result = parsed as { valid?: unknown; reasons?: unknown };
@@ -338,7 +298,12 @@ async function verifyLessonAlignment(
       : [];
     return { valid, reasons };
   } catch (error) {
-    console.warn("[fyp] verification failed", error);
+    console.warn("[fyp] verification transport error", {
+      subject: target.subject,
+      topic: target.topic,
+      difficulty: target.difficulty,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return { valid: false, reasons: ["verification_call_failed"] };
   }
 }
@@ -786,7 +751,7 @@ export async function generateLessonForTopic(
     temperature,
     max_tokens: completionMaxTokens,
     reasoning_effort: "medium" as const,
-    response_format: { type: "json_schema" as const, json_schema: LESSON_RESPONSE_SCHEMA },
+    response_format: { type: "json_object" as const },
     messages,
   };
 
@@ -879,7 +844,25 @@ export async function generateLessonForTopic(
     });
     lastVerification = verification;
     if (!verification.valid) {
-      const detail = verification.reasons.length ? verification.reasons.join("; ") : "unspecified issue";
+      const fatalReasons = verification.reasons.filter(
+        (reason) => reason !== "verification_call_failed" && reason.trim().length > 0,
+      );
+      if (!fatalReasons.length && verification.reasons.includes("verification_call_failed")) {
+        console.warn("[fyp] verification transport issue - accepting lesson", {
+          subject,
+          topic,
+          lessonId: candidate.id,
+        });
+        return candidate;
+      }
+      const detail = fatalReasons.length ? fatalReasons.join("; ") : "unspecified issue";
+      console.warn("[fyp] lesson rejected by verification", {
+        subject,
+        topic,
+        lessonId: candidate.id,
+        reasons: fatalReasons.length ? fatalReasons : verification.reasons,
+        difficulty,
+      });
       lastError = new Error(`Lesson failed verification: ${detail}`);
       return null;
     }
@@ -903,6 +886,13 @@ export async function generateLessonForTopic(
       ? messageContent.trim()
       : extractAssistantJson(choice);
     const lessonCandidate = resolveLessonCandidate(raw);
+    if (!lessonCandidate) {
+      console.warn("[fyp] lesson candidate parse failed", {
+        subject,
+        topic,
+        rawPreview: raw ? raw.slice(0, 200) : null,
+      });
+    }
     const verifiedLesson = await validateLessonCandidate(lessonCandidate);
 
     if (verifiedLesson) {
@@ -915,6 +905,13 @@ export async function generateLessonForTopic(
     const fallbackGenerated = (error as { error?: { failed_generation?: string } })?.error?.failed_generation;
     if (typeof fallbackGenerated === "string" && fallbackGenerated.trim().length > 0) {
       const lessonCandidate = resolveLessonCandidate(fallbackGenerated.trim());
+      if (!lessonCandidate) {
+        console.warn("[fyp] fallback generation parse failed", {
+          subject,
+          topic,
+          rawPreview: fallbackGenerated.slice(0, 200),
+        });
+      }
       const verifiedLesson = await validateLessonCandidate(lessonCandidate);
       if (verifiedLesson) {
         await logLessonUsage("single", usageSummary);
