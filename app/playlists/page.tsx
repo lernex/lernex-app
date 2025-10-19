@@ -5,7 +5,10 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
+  ArrowDown,
   ArrowUpRight,
+  ArrowUp,
+  BookOpen,
   Check,
   Copy,
   Eye,
@@ -13,6 +16,7 @@ import {
   Globe,
   Loader2,
   Lock,
+  ListChecks,
   Plus,
   Search,
   Share2,
@@ -61,6 +65,18 @@ type CollaboratorRow = {
   profile: ProfileLite | null;
 };
 
+type LessonLite = {
+  id: string;
+  title: string;
+  subject: string | null;
+};
+
+type PlaylistLessonItem = {
+  id: string;
+  position: number | null;
+  lesson: LessonLite | null;
+};
+
 type SharePanelProps = {
   isOpen: boolean;
   playlist: PlaylistCardMeta | null;
@@ -72,10 +88,21 @@ type SharePanelProps = {
   onToggleVisibility: (playlist: PlaylistCardMeta) => Promise<void>;
 };
 
+type PlaylistEditorPanelProps = {
+  isOpen: boolean;
+  playlist: PlaylistCardMeta | null;
+  onClose: () => void;
+  supabase: ReturnType<typeof supabaseBrowser>;
+  onRefresh: () => Promise<void>;
+  pushFeedback: (feedback: FeedbackState) => void;
+  currentUserId: string | null;
+};
+
 type PlaylistCardProps = {
   playlist: PlaylistCardMeta;
   busy: boolean;
   deleting: boolean;
+  onOpenEditor: (playlist: PlaylistCardMeta) => void;
   onToggleVisibility: (playlist: PlaylistCardMeta) => Promise<void>;
   onOpenShare: (playlist: PlaylistCardMeta) => void;
   onDelete: (playlist: PlaylistCardMeta) => Promise<void>;
@@ -103,6 +130,8 @@ export default function Playlists() {
   const [busyMap, setBusyMap] = useState<Record<string, boolean>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -256,6 +285,20 @@ export default function Playlists() {
     }
   }, [shareOpen, selectedId]);
 
+  useEffect(() => {
+    if (editorOpen && !editingId) {
+      setEditorOpen(false);
+    }
+  }, [editorOpen, editingId]);
+
+  useEffect(() => {
+    if (!editingId) return;
+    if (!playlists.some((item) => item.id === editingId)) {
+      setEditorOpen(false);
+      setEditingId(null);
+    }
+  }, [editingId, playlists]);
+
   const filterCounts = useMemo<Record<FilterKey, number>>(() => {
     const mine = playlists.filter((item) => item.userRole === "owner").length;
     const shared = playlists.filter(
@@ -303,6 +346,11 @@ export default function Playlists() {
   const selectedPlaylist = useMemo(
     () => playlists.find((playlist) => playlist.id === selectedId) ?? null,
     [playlists, selectedId]
+  );
+
+  const editingPlaylist = useMemo(
+    () => playlists.find((playlist) => playlist.id === editingId) ?? null,
+    [playlists, editingId]
   );
 
   const deleteCandidate = useMemo(
@@ -411,6 +459,16 @@ export default function Playlists() {
   const handleOpenShare = (playlist: PlaylistCardMeta) => {
     setSelectedId(playlist.id);
     setShareOpen(true);
+  };
+
+  const handleOpenEditor = (playlist: PlaylistCardMeta) => {
+    setEditingId(playlist.id);
+    setEditorOpen(true);
+  };
+
+  const handleCloseEditor = () => {
+    setEditorOpen(false);
+    setEditingId(null);
   };
 
   const handleDeleteRequest = async (playlist: PlaylistCardMeta) => {
@@ -597,6 +655,7 @@ export default function Playlists() {
                     playlist={playlist}
                     busy={Boolean(busyMap[playlist.id])}
                     deleting={deletingId === playlist.id}
+                    onOpenEditor={handleOpenEditor}
                     onToggleVisibility={handleToggleVisibility}
                     onOpenShare={handleOpenShare}
                     onDelete={handleDeleteRequest}
@@ -627,6 +686,16 @@ export default function Playlists() {
           </section>
         </div>
       </div>
+
+      <PlaylistEditorPanel
+        isOpen={editorOpen && Boolean(editingPlaylist)}
+        playlist={editingPlaylist}
+        onClose={handleCloseEditor}
+        supabase={supabase}
+        onRefresh={refresh}
+        pushFeedback={setFeedback}
+        currentUserId={userId}
+      />
 
       <SharePanel
         isOpen={shareOpen && Boolean(selectedPlaylist)}
@@ -730,6 +799,7 @@ function PlaylistCard({
   playlist,
   busy,
   deleting,
+  onOpenEditor,
   onToggleVisibility,
   onOpenShare,
   onDelete,
@@ -835,6 +905,16 @@ function PlaylistCard({
         </Link>
         {(isOwner || isModerator) && (
           <button
+            onClick={() => onOpenEditor(playlist)}
+            disabled={deleting}
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Curate playlist
+          </button>
+        )}
+        {(isOwner || isModerator) && (
+          <button
             onClick={() => onOpenShare(playlist)}
             disabled={deleting}
             className="inline-flex items-center gap-2 rounded-full bg-lernex-blue px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-lernex-blue/90 disabled:cursor-not-allowed disabled:opacity-60"
@@ -879,6 +959,646 @@ function PlaylistCard({
         ) : null}
       </div>
     </motion.div>
+  );
+}
+
+function PlaylistEditorPanel({
+  isOpen,
+  playlist,
+  onClose,
+  supabase,
+  onRefresh,
+  pushFeedback,
+  currentUserId,
+}: PlaylistEditorPanelProps) {
+  const [items, setItems] = useState<PlaylistLessonItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [itemsError, setItemsError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<LessonLite[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [reordering, setReordering] = useState(false);
+
+  const playlistId = playlist?.id ?? null;
+  const canCurate =
+    playlist?.userRole === "owner" || playlist?.userRole === "moderator";
+
+  const loadItems = useCallback(async () => {
+    if (!playlistId) return;
+    setLoadingItems(true);
+    setItemsError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from("playlist_items")
+        .select("id, position, lessons(id, title, subject)")
+        .eq("playlist_id", playlistId)
+        .order("position", { ascending: true });
+
+      if (error) {
+        if (isMissingTableError(error)) {
+          setItems([]);
+          setItemsError(
+            "Playlist lessons aren't available yet. Run the playlist_items migration."
+          );
+          return;
+        }
+        throw error;
+      }
+
+      const rawRows = Array.isArray(data) ? data : [];
+      const mapped = rawRows
+        .map((row) => normalizePlaylistLessonItem(row))
+        .filter(
+          (row): row is PlaylistLessonItem => row !== null
+        )
+        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+
+      setItems(mapped);
+    } catch (err) {
+      console.error("[playlist-editor] load items failed", err);
+      setItems([]);
+      setItemsError(
+        "We couldn't load lessons for this playlist. Please try again."
+      );
+    } finally {
+      setLoadingItems(false);
+    }
+  }, [playlistId, supabase]);
+
+  useEffect(() => {
+    if (!isOpen || !playlistId) return;
+    void loadItems();
+  }, [isOpen, playlistId, loadItems]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setItems([]);
+      setItemsError(null);
+      setQuery("");
+      setResults([]);
+      setSearching(false);
+      setAddingId(null);
+      setRemovingId(null);
+      setReordering(false);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    const sanitized = trimmed.replace(/,/g, "\\,");
+    let active = true;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from("lessons")
+          .select("id, title, subject")
+          .or(`title.ilike.%${sanitized}%,subject.ilike.%${sanitized}%`)
+          .order("title", { ascending: true })
+          .limit(10);
+
+        if (error) throw error;
+        if (!active) return;
+
+        setResults((data ?? []) as LessonLite[]);
+      } catch (err) {
+        if (!active) return;
+        console.error("[playlist-editor] lesson search failed", err);
+        setResults([]);
+        pushFeedback({
+          type: "error",
+          message: "Search failed. Please try again.",
+        });
+      } finally {
+        if (active) setSearching(false);
+      }
+    }, 240);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [query, isOpen, supabase, pushFeedback]);
+
+  const stats = useMemo(() => {
+    const lessonCount = items.length;
+    const uniqueSubjects = Array.from(
+      new Set(
+        items
+          .map((item) => item.lesson?.subject)
+          .filter((subject): subject is string => Boolean(subject))
+      )
+    );
+    return { lessonCount, uniqueSubjects };
+  }, [items]);
+
+  const existingLessonIds = useMemo(
+    () =>
+      new Set(
+        items
+          .map((item) => item.lesson?.id)
+          .filter((value): value is string => Boolean(value))
+      ),
+    [items]
+  );
+
+  const searchHasQuery = query.trim().length > 0;
+  const resultEmptyState =
+    searchHasQuery && !searching && results.length > 0
+      ? results.every((lesson) => existingLessonIds.has(lesson.id))
+      : searchHasQuery && !searching && results.length === 0;
+
+  const handleAddLesson = async (lesson: LessonLite) => {
+    if (!playlist || !playlistId) return;
+    if (!currentUserId) {
+      pushFeedback({
+        type: "error",
+        message: "Sign in to curate playlists.",
+      });
+      return;
+    }
+    if (!canCurate) {
+      pushFeedback({
+        type: "error",
+        message: "You need edit access to change this playlist.",
+      });
+      return;
+    }
+    if (existingLessonIds.has(lesson.id)) {
+      pushFeedback({
+        type: "error",
+        message: "That lesson is already in this playlist.",
+      });
+      return;
+    }
+
+    setAddingId(lesson.id);
+    try {
+      const nextPosition = computeNextPosition(items);
+      const { data, error } = await supabase
+        .from("playlist_items")
+        .insert({
+          playlist_id: playlistId,
+          lesson_id: lesson.id,
+          position: nextPosition,
+        })
+        .select("id, position, lessons(id, title, subject)")
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const normalized = data ? normalizePlaylistLessonItem(data) : null;
+      setItems((prev) =>
+        [
+          ...prev,
+          normalized ?? {
+            id: `${lesson.id}-${nextPosition}`,
+            position: nextPosition,
+            lesson,
+          },
+        ].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+      );
+      pushFeedback({
+        type: "success",
+        message: `Added "${lesson.title}" to ${playlist.name}.`,
+      });
+      setQuery("");
+      setResults([]);
+      await onRefresh();
+    } catch (err) {
+      console.error("[playlist-editor] add lesson failed", err);
+      if (isPostgrestError(err) && err.code === "42501") {
+        pushFeedback({
+          type: "error",
+          message: "You need edit access to change this playlist.",
+        });
+      } else {
+        pushFeedback({
+          type: "error",
+          message: "Could not add that lesson right now.",
+        });
+      }
+    } finally {
+      setAddingId(null);
+    }
+  };
+
+  const handleRemoveItem = async (itemId: string) => {
+    if (!playlist || !playlistId) return;
+    if (!canCurate) {
+      pushFeedback({
+        type: "error",
+        message: "You need edit access to change this playlist.",
+      });
+      return;
+    }
+
+    setRemovingId(itemId);
+    const previous = items;
+    setItems((prev) => prev.filter((item) => item.id !== itemId));
+    try {
+      const { error } = await supabase
+        .from("playlist_items")
+        .delete()
+        .eq("id", itemId);
+
+      if (error) throw error;
+      pushFeedback({
+        type: "success",
+        message: "Lesson removed from the playlist.",
+      });
+      await onRefresh();
+    } catch (err) {
+      console.error("[playlist-editor] remove lesson failed", err);
+      setItems(previous);
+      if (isPostgrestError(err) && err.code === "42501") {
+        pushFeedback({
+          type: "error",
+          message: "You need edit access to change this playlist.",
+        });
+      } else {
+        pushFeedback({
+          type: "error",
+          message: "Could not remove that lesson.",
+        });
+      }
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  const moveLesson = async (itemId: string, direction: -1 | 1) => {
+    if (!playlist || !playlistId) return;
+    if (!canCurate || reordering) return;
+
+    const currentIndex = items.findIndex((item) => item.id === itemId);
+    if (currentIndex === -1) return;
+
+    const nextIndex = currentIndex + direction;
+    if (nextIndex < 0 || nextIndex >= items.length) return;
+
+    setReordering(true);
+    const previous = items;
+    const reordered = [...items];
+    const [moved] = reordered.splice(currentIndex, 1);
+    reordered.splice(nextIndex, 0, moved);
+
+    const normalized = reordered.map((item, index) => ({
+      ...item,
+      position: index + 1,
+    }));
+    setItems(normalized);
+
+    try {
+      const updates = normalized
+        .map((item, index) => {
+          const original = previous.find((orig) => orig.id === item.id);
+          return original && original.position === index + 1
+            ? null
+            : { id: item.id, position: index + 1 };
+        })
+        .filter(
+          (payload): payload is { id: string; position: number } =>
+            payload !== null
+        );
+
+      if (updates.length > 0) {
+        await Promise.all(
+          updates.map(({ id: targetId, position }) =>
+            supabase
+              .from("playlist_items")
+              .update({ position })
+              .eq("id", targetId)
+          )
+        );
+        pushFeedback({
+          type: "success",
+          message: "Lesson order updated.",
+        });
+        await onRefresh();
+      }
+    } catch (err) {
+      console.error("[playlist-editor] reorder failed", err);
+      setItems(previous);
+      pushFeedback({
+        type: "error",
+        message: "Could not reorder lessons.",
+      });
+    } finally {
+      setReordering(false);
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && playlist ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center px-4 py-10"
+        >
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.6 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-neutral-900/70 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.98 }}
+            role="dialog"
+            aria-modal="true"
+            className="relative z-10 w-full max-w-3xl rounded-3xl border border-[var(--surface-border)] bg-gradient-to-br from-white via-[#f7f9ff] to-white p-6 shadow-2xl backdrop-blur-lg dark:bg-gradient-to-br dark:from-[#111a2c] dark:via-[#0d1524] dark:to-[#0a101d]"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-2">
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-lernex-blue shadow-sm dark:bg-white/10 dark:text-lernex-blue/80">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Playlist curator
+                </span>
+                <h2 className="text-xl font-semibold text-neutral-900 dark:text-white">
+                  Curate “{playlist.name}”
+                </h2>
+                <p className="text-sm text-neutral-500 dark:text-white/60">
+                  Add lessons, tidy the order, and keep your collaborators in sync without leaving this page.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/playlists/${playlist.id}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white px-4 py-2 text-xs font-semibold text-neutral-700 transition hover:border-lernex-blue/40 hover:text-lernex-blue dark:border-white/10 dark:bg-white/10 dark:text-white/80"
+                >
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                  Open full view
+                </Link>
+                <button
+                  onClick={onClose}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200/70 bg-white text-neutral-500 transition hover:border-lernex-blue/40 hover:text-lernex-blue dark:border-white/10 dark:bg-white/10 dark:text-white/60"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {!canCurate ? (
+              <div className="mt-4 rounded-2xl border border-amber-200/70 bg-amber-50/80 px-4 py-3 text-xs text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+                You currently have view-only access. Ask the owner to make you a moderator to add lessons from here.
+              </div>
+            ) : null}
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-white/10">
+                <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-white/60">
+                  <BookOpen className="h-4 w-4" />
+                  Lessons
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-neutral-900 dark:text-white">
+                  {stats.lessonCount}
+                </div>
+                <p className="mt-1 text-[11px] text-neutral-400 dark:text-white/50">
+                  {stats.lessonCount === 1 ? "One lesson curated" : "Total lessons curated"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-white/10">
+                <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-white/60">
+                  <ListChecks className="h-4 w-4" />
+                  Subjects
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-neutral-900 dark:text-white">
+                  {stats.uniqueSubjects.length}
+                </div>
+                <p className="mt-1 text-[11px] text-neutral-400 dark:text-white/50">
+                  {stats.uniqueSubjects.length > 0
+                    ? `Featuring ${stats.uniqueSubjects.slice(0, 2).join(", ")}`
+                    : "Add lessons to diversify topics."}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-white/10">
+                <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-white/60">
+                  {playlist.is_public ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                  Visibility
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-neutral-900 dark:text-white">
+                  {playlist.is_public ? "Public" : "Private"}
+                </div>
+                <p className="mt-1 text-[11px] text-neutral-400 dark:text-white/50">
+                  {canCurate ? "You can edit this playlist." : "View-only access"}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,280px)]">
+              <div className="rounded-3xl border border-neutral-200/70 bg-white/85 p-5 shadow-sm dark:border-white/10 dark:bg-white/10">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-neutral-800 dark:text-white">
+                    Lessons in this playlist
+                  </h3>
+                  <button
+                    onClick={() => void loadItems()}
+                    disabled={loadingItems}
+                    className="inline-flex items-center gap-1 rounded-full border border-neutral-200/70 bg-white px-3 py-1 text-[11px] font-semibold text-neutral-600 transition hover:border-lernex-blue/40 hover:text-lernex-blue disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white/70"
+                  >
+                    {loadingItems ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5" />
+                    )}
+                    Refresh
+                  </button>
+                </div>
+                <div className="mt-4 max-h-[360px] space-y-3 overflow-y-auto pr-1">
+                  {loadingItems ? (
+                    <div className="space-y-3">
+                      {Array.from({ length: 3 }).map((_, idx) => (
+                        <div
+                          key={idx}
+                          className="h-20 animate-pulse rounded-2xl bg-neutral-200/60 dark:bg-white/10"
+                        />
+                      ))}
+                    </div>
+                  ) : items.length > 0 ? (
+                    <AnimatePresence initial={false}>
+                      {items.map((item, index) => {
+                        const lesson = item.lesson;
+                        const hasLesson = Boolean(lesson);
+                        return (
+                          <motion.div
+                            key={item.id}
+                            layout
+                            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                            className="flex flex-col gap-3 rounded-2xl border border-neutral-200/70 bg-white px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-lernex-blue/50 dark:border-white/10 dark:bg-white/10"
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-lernex-blue/20 via-lernex-blue/10 to-lernex-purple/15 text-xs font-semibold text-lernex-blue dark:from-lernex-blue/20 dark:via-lernex-blue/15 dark:to-lernex-purple/20 dark:text-lernex-blue/80">
+                                {index + 1}
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-xs uppercase tracking-wide text-neutral-400 dark:text-white/50">
+                                  {lesson?.subject ?? "No subject"}
+                                </p>
+                                <p className="mt-1 text-sm font-medium text-neutral-900 dark:text-white">
+                                  {lesson?.title ?? "Lesson unavailable"}
+                                </p>
+                                {!hasLesson ? (
+                                  <p className="mt-1 text-xs text-red-500 dark:text-red-300">
+                                    This lesson is unavailable. Remove it to keep the playlist fresh.
+                                  </p>
+                                ) : null}
+                              </div>
+                            </div>
+                            {canCurate ? (
+                              <div className="flex flex-wrap items-center justify-end gap-2 text-[11px]">
+                                <button
+                                  onClick={() => void moveLesson(item.id, -1)}
+                                  disabled={reordering || index === 0}
+                                  className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200/70 bg-white px-3 py-1 font-semibold text-neutral-600 transition hover:border-lernex-blue/40 hover:text-lernex-blue disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white/70"
+                                >
+                                  <ArrowUp className="h-3.5 w-3.5" />
+                                  Up
+                                </button>
+                                <button
+                                  onClick={() => void moveLesson(item.id, 1)}
+                                  disabled={reordering || index === items.length - 1}
+                                  className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200/70 bg-white px-3 py-1 font-semibold text-neutral-600 transition hover:border-lernex-blue/40 hover:text-lernex-blue disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-white/70"
+                                >
+                                  <ArrowDown className="h-3.5 w-3.5" />
+                                  Down
+                                </button>
+                                <button
+                                  onClick={() => void handleRemoveItem(item.id)}
+                                  disabled={removingId === item.id}
+                                  className="inline-flex items-center gap-1.5 rounded-full border border-red-200/60 bg-red-50 px-3 py-1 font-semibold text-red-600 transition hover:border-red-300 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200"
+                                >
+                                  {removingId === item.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  )}
+                                  Remove
+                                </button>
+                              </div>
+                            ) : null}
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-neutral-300/80 bg-white/70 px-4 py-6 text-sm text-neutral-500 dark:border-white/10 dark:bg-white/5 dark:text-white/60">
+                      This playlist is empty. Use the search on the right to start adding lessons.
+                    </div>
+                  )}
+                </div>
+                {itemsError ? (
+                  <div className="mt-3 rounded-2xl border border-red-200/70 bg-red-50/80 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                    {itemsError}
+                  </div>
+                ) : null}
+              </div>
+              <div className="rounded-3xl border border-neutral-200/70 bg-white/85 p-5 shadow-sm dark:border-white/10 dark:bg-white/10">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-neutral-800 dark:text-white">
+                      Add lessons
+                    </h3>
+                    <p className="mt-1 text-xs text-neutral-500 dark:text-white/60">
+                      Search across all lessons to drop them straight into this playlist.
+                    </p>
+                  </div>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-300 dark:text-white/40" />
+                    <input
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder="Search by title or subject..."
+                      className="w-full rounded-full border border-neutral-200/70 bg-white/90 px-12 py-2.5 text-sm text-neutral-700 outline-none transition focus:border-lernex-blue/50 focus:ring-2 focus:ring-lernex-blue/20 dark:border-white/10 dark:bg-white/10 dark:text-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    {searching ? (
+                      <div className="space-y-2">
+                        {Array.from({ length: 3 }).map((_, idx) => (
+                          <div
+                            key={idx}
+                            className="h-12 animate-pulse rounded-full bg-neutral-200/60 dark:bg-white/10"
+                          />
+                        ))}
+                      </div>
+                    ) : results.length > 0 ? (
+                      results.map((lesson) => {
+                        const inPlaylist = existingLessonIds.has(lesson.id);
+                        const disabled =
+                          !canCurate || inPlaylist || addingId === lesson.id;
+                        return (
+                          <div
+                            key={lesson.id}
+                            className="flex items-center justify-between gap-3 rounded-full border border-neutral-200/70 bg-white px-4 py-2 text-sm dark:border-white/10 dark:bg-white/10"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-neutral-700 dark:text-white">
+                                {lesson.title}
+                              </p>
+                              <p className="truncate text-[11px] text-neutral-400 dark:text-white/50">
+                                {lesson.subject ?? "No subject"}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => void handleAddLesson(lesson)}
+                              disabled={disabled}
+                              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold transition ${
+                                disabled
+                                  ? "cursor-not-allowed border border-neutral-200/60 bg-neutral-100 text-neutral-400 dark:border-white/10 dark:bg-white/5 dark:text-white/40"
+                                  : "border border-emerald-400/70 bg-emerald-50 text-emerald-600 hover:border-emerald-500 hover:text-emerald-500 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"
+                              }`}
+                            >
+                              {addingId === lesson.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : inPlaylist ? (
+                                <Check className="h-3.5 w-3.5" />
+                              ) : (
+                                <Plus className="h-3.5 w-3.5" />
+                              )}
+                              {addingId === lesson.id
+                                ? "Adding..."
+                                : inPlaylist
+                                ? "Added"
+                                : "Add"}
+                            </button>
+                          </div>
+                        );
+                      })
+                    ) : resultEmptyState ? (
+                      <div className="rounded-2xl border border-dashed border-neutral-300/80 bg-white/70 px-4 py-5 text-sm text-neutral-500 dark:border-white/10 dark:bg-white/5 dark:text-white/60">
+                        No lessons matched your search. Try a different keyword.
+                      </div>
+                    ) : searchHasQuery ? null : (
+                      <div className="rounded-2xl border border-dashed border-neutral-300/80 bg-white/70 px-4 py-5 text-xs text-neutral-500 dark:border-white/10 dark:bg-white/5 dark:text-white/60">
+                        Start typing above to discover lessons to add.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }
 function SharePanel({
@@ -1516,6 +2236,63 @@ function toStringOrNull(value: unknown): string | null {
     return String(value);
   }
   return null;
+}
+
+function toNumberOrNull(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (value === null || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeLessonLite(value: unknown): LessonLite | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const id = toStringOrNull(record.id);
+  if (!id) return null;
+  const title = toStringOrNull(record.title) ?? "Untitled lesson";
+  const subjectSource =
+    record.subject === undefined ? null : record.subject;
+  const subject =
+    subjectSource === null ? null : toStringOrNull(subjectSource);
+  return {
+    id,
+    title,
+    subject,
+  };
+}
+
+function normalizePlaylistLessonItem(
+  value: unknown
+): PlaylistLessonItem | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const id = toStringOrNull(record.id);
+  if (!id) return null;
+  const position = toNumberOrNull(record.position);
+  const lessonSource =
+    "lessons" in record
+      ? (record as Record<string, unknown>).lessons
+      : (record as Record<string, unknown>).lesson;
+  const lesson = normalizeLessonLite(lessonSource ?? null);
+  return {
+    id,
+    position,
+    lesson,
+  };
+}
+
+function computeNextPosition(items: PlaylistLessonItem[]): number {
+  return (
+    items.reduce((max, item) => {
+      const value = item.position ?? 0;
+      return value > max ? value : max;
+    }, 0) + 1
+  );
 }
 
 function normalizeProfileLiteRecord(value: unknown): ProfileLite | null {
