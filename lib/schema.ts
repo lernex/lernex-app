@@ -1,11 +1,11 @@
 import { z } from "zod";
 
-// One MCQ with an optional short explanation
+// One MCQ with a mandatory short explanation
 export const QuestionSchema = z.object({
   prompt: z.string().min(1),
   choices: z.array(z.string().min(1)).length(4),
   correctIndex: z.number().int().min(0).max(3),
-  explanation: z.string().min(3).max(280).optional(), // NEW
+  explanation: z.string().min(3).max(280),
 });
 
 export type Question = z.infer<typeof QuestionSchema>;
@@ -22,10 +22,10 @@ export const LessonSchema = z.object({
   content: z.string().min(180).max(600),  // tuned for ~80-105 words at typical word length
   difficulty: z.enum(["intro","easy","medium","hard"]).default("easy"), // NEW
   questions: z.array(QuestionSchema).length(3),
-  // media optional; we’ll keep it off for now to control cost
+  // media optional; we'll keep it off for now to control cost
   mediaUrl: z.string().url().optional(),
   mediaType: z.enum(["image","video"]).optional(),
-}).superRefine((lesson, ctx) => {
+}).passthrough().superRefine((lesson, ctx) => {
   const contentWords = lesson.content.trim().split(/\s+/).filter(Boolean).length;
   if (contentWords < MIN_LESSON_WORDS) {
     ctx.addIssue({

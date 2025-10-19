@@ -473,11 +473,7 @@ export default function Playlists() {
     setShareOpen(false);
   };
   return (
-    <main className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-gradient-to-b from-[#f6f9ff] via-white to-[#eef1ff] text-neutral-900 transition-colors dark:from-lernex-charcoal dark:via-lernex-charcoal/98 dark:to-lernex-charcoal/90 dark:text-white">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-48 left-[8%] h-72 w-72 rounded-full bg-lernex-blue/20 blur-[140px] dark:hidden" />
-        <div className="absolute bottom-[-160px] right-[10%] h-80 w-80 rounded-full bg-lernex-purple/20 blur-[160px] dark:hidden" />
-      </div>
+    <main className="min-h-[calc(100vh-56px)] text-neutral-900 transition-colors dark:text-white">
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-20 pt-10 sm:px-6 lg:px-8">
         <div className="space-y-8">
         <section className="relative overflow-hidden rounded-3xl border border-white/70 bg-gradient-to-br from-white via-[#f6f9ff] to-white p-8 shadow-[0_32px_75px_-48px_rgba(47,128,237,0.45)] backdrop-blur-xl dark:border-white/10 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c]">

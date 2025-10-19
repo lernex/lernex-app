@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Lesson } from "@/types";
 import FormattedText from "./FormattedText";
@@ -8,7 +8,7 @@ type LessonCardProps = {
   className?: string;
 };
 
-const MATH_TRIGGER_RE = /(\$|\\\(|\\\[|\\begin|√|⟨|_\{|\\\^)/;
+const MATH_TRIGGER_RE = /(\$|\\\(|\\\[|\\begin|âˆš|âŸ¨|_\{|\\\^)/;
 
 export default function LessonCard({ lesson, className }: LessonCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
@@ -17,6 +17,81 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
   const [saved, setSaved] = useState(false);
   const [disliked, setDisliked] = useState(false);
   const [showFade, setShowFade] = useState(false);
+  const [reported, setReported] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const contextEntries = useMemo(() => {
+    const ctx = lesson.context;
+    if (!ctx || typeof ctx !== "object") return [];
+    const ctxObj = ctx as Record<string, unknown>;
+    const entries: { label: string; value: string }[] = [];
+    const pushString = (label: string, value: unknown) => {
+      if (typeof value !== "string") return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      entries.push({ label, value: trimmed });
+    };
+
+    pushString("Focus", ctxObj.focus);
+    pushString("Pace", ctxObj.pace);
+    pushString("Mini-lesson", ctxObj.miniLesson);
+    if (typeof ctxObj.completionPct === "number" && Number.isFinite(ctxObj.completionPct)) {
+      entries.push({ label: "Course progress", value: `${Math.round(ctxObj.completionPct)}% complete` });
+    }
+    pushString("Accuracy", ctxObj.accuracyBand);
+    pushString("Recent miss", ctxObj.recentMiss);
+    pushString("Last lesson", ctxObj.previousLesson);
+    const likedHighlights = Array.isArray(ctxObj.likedHighlights)
+      ? (ctxObj.likedHighlights as unknown[])
+          .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          .slice(0, 2)
+          .join(", ")
+      : "";
+    if (likedHighlights) entries.push({ label: "You liked", value: likedHighlights });
+    const savedHighlights = Array.isArray(ctxObj.savedHighlights)
+      ? (ctxObj.savedHighlights as unknown[])
+          .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          .slice(0, 2)
+          .join(", ")
+      : "";
+    if (savedHighlights) entries.push({ label: "You saved", value: savedHighlights });
+    const toneHints = Array.isArray(ctxObj.toneHints)
+      ? (ctxObj.toneHints as unknown[])
+          .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          .slice(0, 2)
+          .join(", ")
+      : "";
+    if (toneHints) entries.push({ label: "Tone match", value: toneHints });
+
+    return entries.slice(0, 5);
+  }, [lesson.context]);
+
+  const knowledgeDetails = useMemo(() => {
+    const knowledge = lesson.knowledge;
+    if (!knowledge || typeof knowledge !== "object") return null;
+    const definition =
+      typeof knowledge.definition === "string" && knowledge.definition.trim()
+        ? knowledge.definition.trim()
+        : null;
+    const applications = Array.isArray(knowledge.applications)
+      ? knowledge.applications
+          .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          .slice(0, 3)
+      : [];
+    const prerequisites = Array.isArray(knowledge.prerequisites)
+      ? knowledge.prerequisites
+          .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          .slice(0, 4)
+      : [];
+    const reminders = Array.isArray(knowledge.reminders)
+      ? knowledge.reminders
+          .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          .slice(0, 3)
+      : [];
+    if (!definition && applications.length === 0 && prerequisites.length === 0 && reminders.length === 0) {
+      return null;
+    }
+    return { definition, applications, prerequisites, reminders };
+  }, [lesson.knowledge]);
   const shouldTypesetLesson = useMemo(() => {
     const contentHasMath = typeof lesson.content === "string" && MATH_TRIGGER_RE.test(lesson.content);
     const titleHasMath = typeof lesson.title === "string" && MATH_TRIGGER_RE.test(lesson.title);
@@ -79,12 +154,21 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
     };
   }, [lesson.id, lesson.content, computeFade]);
 
-  const sendFeedback = async (action: "like" | "dislike" | "save") => {
+  const sendFeedback = async (
+    action: "like" | "dislike" | "save" | "report",
+    extras: { reason?: string } = {},
+  ) => {
     try {
+      const payload: Record<string, unknown> = {
+        subject: lesson.subject,
+        lesson_id: lesson.id,
+        action,
+      };
+      if (extras.reason) payload.reason = extras.reason;
       const res = await fetch("/api/fyp/feedback", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ subject: lesson.subject, lesson_id: lesson.id, action }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         console.warn("[lesson-card] feedback failed", { action, status: res.status });
@@ -126,15 +210,76 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
       : "border-surface bg-surface-muted text-neutral-600 hover:bg-surface-card dark:text-neutral-300",
   ].join(" ");
 
+  const reportClass = [
+    actionBase,
+    reported
+      ? "border-amber-500/70 bg-amber-400/15 text-amber-700 shadow-sm dark:text-amber-200"
+      : "border-surface bg-surface-muted text-neutral-600 hover:bg-surface-card dark:text-neutral-300",
+  ].join(" ");
+
   return (
     <div ref={cardRef} className={rootClass}>
       <div className="pointer-events-none absolute inset-0 opacity-80 dark:opacity-40 bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.2),transparent_55%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.18),transparent_48%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.08),transparent_60%)]" />
       <div className="relative flex min-h-0 flex-1 flex-col gap-4 px-5 py-6 sm:px-6 md:py-7">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">
-          {lesson.subject}
+        <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">
+          <span className="font-medium text-neutral-600 dark:text-neutral-200">{lesson.subject}</span>
+          {lesson.topic && (
+            <span className="text-neutral-400 dark:text-neutral-500">/ {lesson.topic}</span>
+          )}
+          {lesson.difficulty && (
+            <span className="ml-auto rounded-full border border-neutral-300 px-2 py-0.5 text-[10px] font-semibold capitalize text-neutral-600 dark:border-neutral-600 dark:text-neutral-200">
+              {lesson.difficulty}
+            </span>
+          )}
         </div>
-        <h2 className="text-xl font-semibold leading-snug text-neutral-900 dark:text-white">{lesson.title}</h2>
-        <div className="relative flex min-h-0 flex-1 flex-col pb-2 sm:pb-3">
+        <h2 className="mt-2 text-xl font-semibold leading-snug text-neutral-900 dark:text-white">{lesson.title}</h2>
+        {lesson.nextTopicHint && (
+          <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{lesson.nextTopicHint}</div>
+        )}
+        {contextEntries.length > 0 && (
+          <div className="mt-3 rounded-2xl border border-neutral-200 bg-white/70 px-4 py-3 text-[12px] leading-relaxed text-neutral-600 shadow-sm dark:border-neutral-700 dark:bg-white/5 dark:text-neutral-300">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
+              Why you&apos;re seeing this
+            </div>
+            <ul className="mt-2 space-y-1">
+              {contextEntries.map((entry) => (
+                <li key={`${entry.label}-${entry.value}`} className="flex gap-1">
+                  <span className="font-medium text-neutral-700 dark:text-neutral-200">{entry.label}:</span>
+                  <span>{entry.value}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {knowledgeDetails && (
+          <div className="mt-3 rounded-2xl border border-neutral-200 bg-white/80 px-4 py-3 text-sm text-neutral-700 shadow-sm dark:border-neutral-700 dark:bg-white/10 dark:text-neutral-200">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
+              Anchors
+            </div>
+            {knowledgeDetails.definition && (
+              <p className="mt-2 text-sm text-neutral-700 dark:text-neutral-200">{knowledgeDetails.definition}</p>
+            )}
+            {knowledgeDetails.applications.length > 0 && (
+              <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                <span className="font-semibold text-neutral-600 dark:text-neutral-200">Applications:</span>{" "}
+                {knowledgeDetails.applications.join(" | ")}
+              </div>
+            )}
+            {knowledgeDetails.prerequisites.length > 0 && (
+              <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                <span className="font-semibold text-neutral-600 dark:text-neutral-200">Prerequisites:</span>{" "}
+                {knowledgeDetails.prerequisites.join(" | ")}
+              </div>
+            )}
+            {knowledgeDetails.reminders.length > 0 && (
+              <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                <span className="font-semibold text-neutral-600 dark:text-neutral-200">Watch for:</span>{" "}
+                {knowledgeDetails.reminders.join(" | ")}
+              </div>
+            )}
+          </div>
+        )}
+        <div className="relative mt-3 flex min-h-0 flex-1 flex-col pb-2 sm:pb-3">
           <div
             ref={scrollRef}
             className="lesson-scroll scrollbar-thin flex-1 overflow-y-auto pr-2 pb-8 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300"
@@ -145,7 +290,7 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white via-white/75 to-transparent dark:from-neutral-900 dark:via-neutral-900/70" />
           )}
         </div>
-        <div className="pt-2 flex flex-wrap items-center gap-2 text-sm">
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <button
             onClick={() => {
               const prevLiked = liked;
@@ -196,8 +341,32 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
           >
             Not helpful
           </button>
+          <button
+            onClick={() => {
+              if (reporting || reported) return;
+              const note = window.prompt("Let us know what's inaccurate or confusing:", "");
+              if (note === null) return;
+              const trimmed = note.trim();
+              setReporting(true);
+              void sendFeedback("report", { reason: trimmed ? trimmed : undefined }).then((ok) => {
+                if (!ok) {
+                  setReporting(false);
+                  return;
+                }
+                setReported(true);
+                setReporting(false);
+              });
+            }}
+            className={reportClass}
+            aria-label="Report inaccuracy"
+            disabled={reporting || reported}
+          >
+            {reporting ? "Reporting..." : reported ? "Reported" : "Report issue"}
+          </button>
         </div>
       </div>
     </div>
   );
 }
+
+

@@ -1,4 +1,3 @@
-import { createHash } from "crypto";
 import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { generateLessonForTopic } from "@/lib/fyp";
@@ -9,12 +8,6 @@ import { acquireGenLock, releaseGenLock } from "@/lib/db-lock";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const shortHash = (value: string) => {
-  const trimmed = value.trim();
-  if (trimmed.length <= 10) return trimmed;
-  return createHash("sha1").update(trimmed).digest("base64url").slice(0, 10);
-};
 
 const dedupeTail = (values: string[] | undefined, limit: number) => {
   if (!Array.isArray(values) || limit <= 0) return [];
@@ -27,6 +20,20 @@ const dedupeTail = (values: string[] | undefined, limit: number) => {
     result.push(raw);
   }
   return result.reverse();
+};
+
+type LessonKnowledge = {
+  definition?: string;
+  applications?: string[];
+  prerequisites?: string[];
+  reminders?: string[];
+};
+
+type CachedLesson = Lesson & {
+  cachedAt?: string;
+  nextTopicHint?: string | null;
+  context?: Record<string, unknown> | null;
+  knowledge?: LessonKnowledge | null;
 };
 
 export async function GET(req: NextRequest) {
@@ -84,7 +91,7 @@ export async function GET(req: NextRequest) {
     );
 
   const MAX_CACHE_AGE_MS = 7 * 24 * 3600_000;
-  const METRICS_REFRESH_MS = 10 * 60 * 1000;
+  const METRICS_REFRESH_MS = 2 * 60 * 60 * 1000;
   type AttemptRow = {
     subject?: string | null;
     correct_count?: number | null;
@@ -153,28 +160,35 @@ export async function GET(req: NextRequest) {
   const toPace = (value: unknown): "slow" | "normal" | "fast" =>
     value === "fast" ? "fast" : value === "normal" ? "normal" : "slow";
 
-  let { data: state } = await sb
-    .from("user_subject_state")
-    .select("path, next_topic, difficulty, course")
-    .eq("user_id", user.id)
-    .eq("subject", subject)
-    .maybeSingle();
+  const [
+    stateResponse,
+    progressResponse,
+    preferenceResponse,
+  ] = await Promise.all([
+    sb
+      .from("user_subject_state")
+      .select("path, next_topic, difficulty, course")
+      .eq("user_id", user.id)
+      .eq("subject", subject)
+      .maybeSingle(),
+    sb
+      .from("user_subject_progress")
+      .select("topic_idx, subtopic_idx, delivered_mini, delivered_by_topic, delivered_ids_by_topic, delivered_titles_by_topic, completion_map, metrics")
+      .eq("user_id", user.id)
+      .eq("subject", subject)
+      .maybeSingle(),
+    sb
+      .from("user_subject_preferences")
+      .select("liked_ids, disliked_ids, saved_ids, tone_tags")
+      .eq("user_id", user.id)
+      .eq("subject", subject)
+      .maybeSingle(),
+  ]);
 
-  const { data: progressRow } = await sb
-    .from("user_subject_progress")
-    .select("topic_idx, subtopic_idx, delivered_mini, delivered_by_topic, delivered_ids_by_topic, delivered_titles_by_topic, completion_map, metrics")
-    .eq("user_id", user.id)
-    .eq("subject", subject)
-    .maybeSingle();
+  let state = stateResponse.data ?? null;
+  const progressRow = progressResponse.data ?? null;
+  const preferenceRow = preferenceResponse.data ?? null;
 
-  const { data: preferenceRow } = await sb
-    .from("user_subject_preferences")
-    .select("liked_ids, disliked_ids, saved_ids, tone_tags")
-    .eq("user_id", user.id)
-    .eq("subject", subject)
-    .maybeSingle();
-
-  type CachedLesson = Lesson & { cachedAt?: string };
   type PathProgress = {
     deliveredByTopic?: Record<string, number>;
     deliveredIdsByTopic?: Record<string, string[]>;
@@ -191,6 +205,7 @@ export async function GET(req: NextRequest) {
       computedAt?: string;
       sampleSize?: number;
       recentSample?: number;
+      lastAttemptAt?: string | null;
     };
   };
   type PathWithProgress = LevelMap & { progress?: PathProgress };
@@ -220,14 +235,6 @@ export async function GET(req: NextRequest) {
       return new Response(JSON.stringify({ error: "Not ready: no course mapping for subject" }), { status: 409 });
     }
 
-    // Estimate mastery from recent attempts (subject-specific if available)
-    const attemptsData = await loadAttempts();
-    const { correct, total } = computeSubjectMastery(attemptsData, subject);
-    const mastery = total > 0 ? Math.round((correct / total) * 100) : 50;
-
-    const rollup = computePerformanceRollup(attemptsData, subject);
-    const pace = rollup.pace;
-    const notes = `Learner pace: ${pace}. Personalized for ${subject}.`;
     const { ensureLearningPath, isLearningPathGenerating, LearningPathPendingError } = await import("@/lib/learning-path");
 
     try {
@@ -257,6 +264,20 @@ export async function GET(req: NextRequest) {
           try { console.debug(`[fyp][${reqId}] in-process-lock -> 202`); } catch {}
           return progressResponse("3", "Finalizing your learning path", "A previous request is still wrapping up.");
         }
+      }
+
+      let mastery = 50;
+      let pace: "slow" | "normal" | "fast" = "normal";
+      let notes = `Learner pace: ${pace}. Personalized for ${subject}.`;
+      try {
+        const attemptsData = await loadAttempts();
+        const { correct, total } = computeSubjectMastery(attemptsData, subject);
+        mastery = total > 0 ? Math.round((correct / total) * 100) : 50;
+        const rollup = computePerformanceRollup(attemptsData, subject);
+        pace = rollup.pace;
+        notes = `Learner pace: ${pace}. Personalized for ${subject}.`;
+      } catch (attemptErr) {
+        try { console.warn(`[fyp][${reqId}] attempt-rollup failed`, attemptErr); } catch {}
       }
 
       const p = await ensureLearningPath(sb, user.id, ip, subject, course, mastery, notes);
@@ -453,26 +474,54 @@ export async function GET(req: NextRequest) {
 
   let metricsPatch: Record<string, unknown> | null = null;
   const baseMetrics = progress.metrics ?? null;
-  const metricsAgeMs = baseMetrics?.computedAt ? Date.now() - +new Date(baseMetrics.computedAt) : Number.POSITIVE_INFINITY;
-  const metricsFresh = Number.isFinite(metricsAgeMs) && metricsAgeMs < METRICS_REFRESH_MS;
+  const cachedComputedAt = typeof baseMetrics?.computedAt === "string" ? baseMetrics.computedAt : null;
+  const cachedComputedMs = cachedComputedAt ? Date.parse(cachedComputedAt) : Number.NaN;
   let accuracyPct: number | null = typeof baseMetrics?.accuracyPct === "number" ? Math.round(baseMetrics.accuracyPct) : null;
   let pace: "slow" | "normal" | "fast" = toPace(baseMetrics?.pace);
-  let performanceSampleSize: number | null = baseMetrics?.sampleSize ?? null;
-  let performanceRecentSample: number | null = baseMetrics?.recentSample ?? null;
-  if (!metricsFresh) {
+  const cachedLastAttemptAt = typeof baseMetrics?.lastAttemptAt === "string" ? baseMetrics.lastAttemptAt : null;
+  let latestAttemptRow: AttemptRow | null = null;
+  try {
+    const { data: latestCandidate } = await sb
+      .from("attempts")
+      .select("subject, correct_count, total, created_at")
+      .eq("user_id", user.id)
+      .eq("subject", subject)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    latestAttemptRow = (latestCandidate ?? null) as AttemptRow | null;
+  } catch (latestErr) {
+    try { console.warn(`[fyp][${reqId}] latest-attempt lookup failed`, latestErr); } catch {}
+  }
+  let metricsRefreshNeeded =
+    !baseMetrics ||
+    accuracyPct == null ||
+    !Number.isFinite(cachedComputedMs) ||
+    Date.now() - (Number.isFinite(cachedComputedMs) ? cachedComputedMs : 0) > METRICS_REFRESH_MS;
+  if (!metricsRefreshNeeded && latestAttemptRow?.created_at) {
+    const latestAttemptMs = Date.parse(latestAttemptRow.created_at);
+    const cachedAttemptMs = cachedLastAttemptAt ? Date.parse(cachedLastAttemptAt) : Number.NaN;
+    if (Number.isFinite(latestAttemptMs) && (!Number.isFinite(cachedAttemptMs) || latestAttemptMs > cachedAttemptMs)) {
+      metricsRefreshNeeded = true;
+    }
+  }
+  if (metricsRefreshNeeded) {
     const attemptsData = await loadAttempts();
+    if (!latestAttemptRow) {
+      latestAttemptRow = attemptsData.find((row) => typeof row.subject === "string" && row.subject === subject) ?? attemptsData[0] ?? null;
+    }
     const performance = computePerformanceRollup(attemptsData, subject);
     accuracyPct = performance.accuracyPct;
     pace = performance.pace;
-    performanceSampleSize = performance.sampleSize;
-    performanceRecentSample = performance.recentSample;
     const computedAt = new Date().toISOString();
+    const lastAttemptAt = latestAttemptRow?.created_at ?? cachedLastAttemptAt ?? null;
     progress.metrics = {
       accuracyPct,
       pace,
       computedAt,
       sampleSize: performance.sampleSize,
       recentSample: performance.recentSample,
+      lastAttemptAt,
     };
     metricsPatch = {
       accuracyPct,
@@ -480,19 +529,65 @@ export async function GET(req: NextRequest) {
       computedAt,
       sampleSize: performance.sampleSize,
       recentSample: performance.recentSample,
+      lastAttemptAt,
+    };
+  } else if (latestAttemptRow?.created_at && !cachedLastAttemptAt) {
+    progress.metrics = {
+      ...(progress.metrics ?? {}),
+      lastAttemptAt: latestAttemptRow.created_at,
     };
   }
 
-  const recentDeliveredIds = dedupeTail(progress.deliveredIdsByTopic?.[currentLabel], 24);
-  const recentDeliveredTitles = dedupeTail(progress.deliveredTitlesByTopic?.[currentLabel], 24);
+  const deliveredIdsByTopic = progress.deliveredIdsByTopic ?? {};
+  const deliveredTitlesByTopic = progress.deliveredTitlesByTopic ?? {};
+  const idDescriptorMap = new Map<string, { title?: string; topic: string }>();
+  for (const [label, ids] of Object.entries(deliveredIdsByTopic)) {
+    if (!Array.isArray(ids)) continue;
+    const rawTitles = Array.isArray(deliveredTitlesByTopic[label])
+      ? (deliveredTitlesByTopic[label] as unknown[])
+      : [];
+    ids.forEach((rawId, idx) => {
+      if (typeof rawId !== "string") return;
+      const lessonId = rawId.trim();
+      if (!lessonId) return;
+      const candidateTitle = typeof rawTitles[idx] === "string" ? String(rawTitles[idx]).trim() : "";
+      idDescriptorMap.set(lessonId, {
+        title: candidateTitle || undefined,
+        topic: label,
+      });
+    });
+  }
+  const describeLessonIds = (ids: string[] | undefined, limit = 6) => {
+    if (!Array.isArray(ids) || !ids.length) return [] as string[];
+    const result: string[] = [];
+    const seen = new Set<string>();
+    for (const raw of ids) {
+      if (typeof raw !== "string") continue;
+      const lessonId = raw.trim();
+      if (!lessonId) continue;
+      const descriptor = idDescriptorMap.get(lessonId);
+      const label = descriptor?.title ?? descriptor?.topic ?? null;
+      if (!label) continue;
+      const trimmed = label.trim();
+      if (!trimmed || seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      result.push(trimmed);
+      if (result.length >= limit) break;
+    }
+    return result;
+  };
+
+  const recentDeliveredIds = dedupeTail(deliveredIdsByTopic[currentLabel], 24);
+  const recentDeliveredTitles = dedupeTail(deliveredTitlesByTopic[currentLabel], 24);
   const likedTail = dedupeTail(progress.preferences?.liked, 30);
   const savedTail = dedupeTail(progress.preferences?.saved, 30);
   const dislikedTail = dedupeTail(progress.preferences?.disliked, 30);
 
-  const recentIdSignatures = recentDeliveredIds.slice(-6).map(shortHash);
-  const dislikedSignatures = dislikedTail.slice(-8).map(shortHash);
-  const likedSignatures = likedTail.slice(-8).map(shortHash);
-  const savedSignatures = savedTail.slice(-6).map(shortHash);
+  const likedHighlights = describeLessonIds(likedTail, 6);
+  const savedHighlights = describeLessonIds(savedTail, 6);
+  const preferenceFallback = recentDeliveredTitles.slice(-3).reverse();
+  const likedDescriptors = likedHighlights.length ? likedHighlights : preferenceFallback;
+  const savedDescriptors = savedHighlights.length ? savedHighlights : preferenceFallback;
 
   const totalSubs = topics.reduce((sum, topic) => sum + ((topic?.subtopics?.length ?? 0)), 0);
   const doneSubs = topics.reduce((sum, topic) => {
@@ -504,52 +599,102 @@ export async function GET(req: NextRequest) {
   }, 0);
   const compPct = totalSubs > 0 ? Math.round((doneSubs / totalSubs) * 100) : 0;
   const plannedMini = Math.max(1, Number(curSub.mini_lessons || 1));
+  const completedMini = Math.min(deliveredMini, plannedMini);
   const nextTopicCandidate = findNextIncompleteAfterCurrent();
   const nextTopicHint = nextTopicCandidate && nextTopicCandidate.label !== currentLabel
     ? `Next up: ${nextTopicCandidate.label}`
     : null;
-  const mapSummary = [
-    `course=${state?.course ?? "n/a"}`,
-    `topic=${topicIdx + 1}/${topics.length}`,
-    `subtopic=${subtopicIdx + 1}/${curTopic?.subtopics?.length ?? 1}`,
-    `curriculum=${compPct}%`,
-    `mini=${deliveredMini}/${plannedMini}`,
-  ].join("|");
-
-  const structuredContext = {
-    subject,
-    course: state?.course ?? null,
-    topic: {
-      name: curTopic.name,
-      index: topicIdx + 1,
-      total: topics.length,
-    },
-    subtopic: {
-      name: curSub.name,
-      index: subtopicIdx + 1,
-      total: curTopic.subtopics?.length ?? 1,
-      plannedMini,
-      deliveredMini,
-      applications: Array.isArray(curSub.applications) ? curSub.applications.slice(0, 2) : undefined,
-    },
-    completion: { curriculumPercent: compPct, done: doneSubs, total: totalSubs },
-    performance: {
-      accuracyPct,
-      pace,
-      sampleSize: performanceSampleSize,
-      recentSample: performanceRecentSample,
-      computedAt: progress.metrics?.computedAt ?? baseMetrics?.computedAt ?? null,
-    },
-    recentLessonSignatures: {
-      deliveredIds: recentIdSignatures,
-      deliveredTitles: recentDeliveredTitles.slice(-6),
-      disliked: dislikedSignatures,
-      liked: likedSignatures,
-      saved: savedSignatures,
-    },
-    preferenceTones: toneSample,
-    nextUp: nextTopicCandidate?.label ?? null,
+  const subApplications = Array.isArray((curSub as { applications?: unknown }).applications)
+    ? (curSub as { applications: unknown[] }).applications
+        .map((entry) => (typeof entry === "string" ? entry.trim() : String(entry ?? "").trim()))
+        .filter((entry) => entry.length > 0)
+        .slice(0, 4)
+    : [];
+  const subDefinition = typeof (curSub as { definition?: unknown }).definition === "string"
+    ? ((curSub as { definition: string }).definition ?? "").trim()
+    : "";
+  const subPrerequisites = Array.isArray((curSub as { prerequisites?: unknown }).prerequisites)
+    ? (curSub as { prerequisites: unknown[] }).prerequisites
+        .map((entry) => (typeof entry === "string" ? entry.trim() : String(entry ?? "").trim()))
+        .filter((entry) => entry.length > 0)
+        .slice(0, 6)
+    : [];
+  const subReminders = Array.isArray((curSub as { reminders?: unknown }).reminders)
+    ? (curSub as { reminders: unknown[] }).reminders
+        .map((entry) => (typeof entry === "string" ? entry.trim() : String(entry ?? "").trim()))
+        .filter((entry) => entry.length > 0)
+        .slice(0, 5)
+    : [];
+  const fallbackDefinition = `Key idea: ${curSub.name} keeps ${subject} progress grounded before the next mini-lesson.`;
+  const fallbackPrereqs = [
+    `Review notes from ${curTopic.name}.`,
+    `Summarize the previous lesson aloud.`,
+  ];
+  const fallbackReminders = [
+    `Apply ${curSub.name} to one quick example after reading.`,
+    `Check each step of ${curSub.name} against a worked solution.`,
+  ];
+  const knowledgeDefinition = subDefinition || fallbackDefinition;
+  const knowledgePrereqs = Array.from(new Set([...subPrerequisites, ...fallbackPrereqs]))
+    .filter((entry) => entry.length > 0)
+    .slice(0, 4);
+  const knowledgeReminders = Array.from(new Set([...subReminders, ...fallbackReminders]))
+    .filter((entry) => entry.length > 0)
+    .slice(0, 3);
+  const lessonKnowledge = {
+    definition: knowledgeDefinition,
+    ...(subApplications.length ? { applications: subApplications.slice(0, 3) } : {}),
+    ...(knowledgePrereqs.length ? { prerequisites: knowledgePrereqs } : {}),
+    ...(knowledgeReminders.length ? { reminders: knowledgeReminders } : {}),
   };
+  const accuracyBand = accuracyPct == null
+    ? null
+    : accuracyPct >= 85
+    ? "high"
+    : accuracyPct >= 70
+    ? "steady"
+    : accuracyPct >= 50
+    ? "developing"
+    : "early";
+  const previousLessonTitle = recentDeliveredTitles.length ? recentDeliveredTitles[recentDeliveredTitles.length - 1] : null;
+  let recentMissSummary: string | null = null;
+  if (latestAttemptRow && typeof latestAttemptRow.total === "number" && typeof latestAttemptRow.correct_count === "number") {
+    const totalQs = Math.max(0, latestAttemptRow.total ?? 0);
+    const missed = Math.max(0, totalQs - (latestAttemptRow.correct_count ?? 0));
+    if (totalQs > 0 && missed > 0) {
+      recentMissSummary = `Missed ${missed}/${totalQs} last quiz`;
+    }
+  }
+  const previousLessonContext = previousLessonTitle
+    ? `${previousLessonTitle}${recentMissSummary ? ` - ${recentMissSummary}` : ""}`
+    : recentMissSummary;
+  const mapSummaryParts = [
+    `focus=${currentLabel}`,
+    `pace=${pace}`,
+    accuracyBand ? `accuracy=${accuracyBand}` : null,
+    `mini=${completedMini}/${plannedMini}`,
+    nextTopicHint ? `next=${nextTopicHint}` : null,
+  ].filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+  const mapSummary = mapSummaryParts.join("|");
+  const learnerProfileLine = [
+    `pace=${pace}`,
+    accuracyBand ? `accuracy=${accuracyBand}` : accuracyPct != null ? `accuracy=${Math.round(accuracyPct)}%` : null,
+    state?.difficulty ? `pref=${String(state.difficulty)}` : null,
+  ].filter((entry): entry is string => typeof entry === "string" && entry.length > 0).join("; ");
+
+  const structuredContext: Record<string, unknown> = {
+    focus: currentLabel,
+    pace,
+    completionPct: compPct,
+    miniLesson: `${completedMini}/${plannedMini}`,
+  };
+  if (accuracyBand) structuredContext.accuracyBand = accuracyBand;
+  if (nextTopicHint) structuredContext.nextTopicHint = nextTopicHint;
+  if (previousLessonContext) structuredContext.previousLesson = previousLessonContext;
+  if (likedDescriptors.length) structuredContext.likedHighlights = likedDescriptors.slice(0, 4);
+  if (savedDescriptors.length) structuredContext.savedHighlights = savedDescriptors.slice(0, 3);
+  if (recentMissSummary) structuredContext.recentMiss = recentMissSummary;
+  if (toneSample.length) structuredContext.toneHints = toneSample.slice(-3);
 
   const { data: cacheRow } = await sb
     .from("user_topic_lesson_cache")
@@ -575,7 +720,6 @@ export async function GET(req: NextRequest) {
   const avoidTitles = recentDeliveredTitles.slice(-10);
   const avoidIdSet = new Set(avoidLessonIds);
 
-  let lesson: Lesson;
   const cacheHit = cachedCandidates.find((entry) => {
     if (!entry) return false;
     const cachedId = typeof entry.id === 'string' ? entry.id : null;
@@ -585,43 +729,65 @@ export async function GET(req: NextRequest) {
     return true;
   });
 
-  let usedCache = false;
   if (cacheHit) {
-    lesson = cacheHit;
-    usedCache = true;
-  } else {
-    try {
-      lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentLabel, {
-        pace,
-        accuracyPct: accuracyPct ?? undefined,
-        difficultyPref: (state?.difficulty as Difficulty | undefined) ?? undefined,
-        avoidIds: Array.from(avoidIdSet),
-        avoidTitles,
-        mapSummary,
-        structuredContext,
-        likedIds: likedTail,
-        savedIds: savedTail,
-        toneTags: toneSample,
-        nextTopicHint: nextTopicHint ?? undefined,
-      });
-      try { console.debug(`[fyp][${reqId}] lesson: ok`, { subject, currentLabel }); } catch {}
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Server error";
-      if (msg === "Invalid lesson format from AI") {
-        try { console.warn(`[fyp][${reqId}] lesson: transient-format-error -> 202`); } catch {}
-        return progressResponse("2", "Generating lesson content", "Retrying after formatting hiccup.");
-      }
-      const status = msg === "Usage limit exceeded" ? 403 : 500;
-      try { console.error(`[fyp][${reqId}] lesson: error`, { msg, status }); } catch {}
-      return new Response(JSON.stringify({ error: msg }), { status });
+    try { console.debug(`[fyp][${reqId}] lesson: cache-hit`, { subject, currentLabel, lessonId: cacheHit.id }); } catch {}
+    const responseLesson: CachedLesson = {
+      ...cacheHit,
+      nextTopicHint: cacheHit.nextTopicHint ?? nextTopicHint ?? null,
+      context: structuredContext,
+      knowledge: lessonKnowledge,
+    };
+    return new Response(
+      JSON.stringify({ topic: currentLabel, lesson: responseLesson, nextTopicHint }),
+      { status: 200, headers: { "content-type": "application/json", "x-fyp-cache": "hit" } }
+    );
+  }
+
+  let lesson: Lesson;
+  try {
+    lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentLabel, {
+      pace,
+      accuracyPct: accuracyPct ?? undefined,
+      difficultyPref: (state?.difficulty as Difficulty | undefined) ?? undefined,
+      avoidIds: Array.from(avoidIdSet),
+      avoidTitles,
+      mapSummary,
+      structuredContext,
+      likedIds: likedTail,
+      savedIds: savedTail,
+      toneTags: toneSample,
+      nextTopicHint: nextTopicHint ?? undefined,
+      learnerProfile: learnerProfileLine || undefined,
+      likedLessonDescriptors: likedDescriptors,
+      savedLessonDescriptors: savedDescriptors,
+      previousLessonSummary: previousLessonContext ?? undefined,
+      accuracyBand: accuracyBand ?? undefined,
+      recentMissSummary: recentMissSummary ?? undefined,
+      knowledge: lessonKnowledge,
+    });
+    lesson = {
+      ...lesson,
+      nextTopicHint: nextTopicHint ?? lesson.nextTopicHint ?? null,
+      context: structuredContext,
+      knowledge: lessonKnowledge,
+    };
+    try { console.debug(`[fyp][${reqId}] lesson: ok`, { subject, currentLabel }); } catch {}
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    if (msg === "Invalid lesson format from AI") {
+      try { console.warn(`[fyp][${reqId}] lesson: transient-format-error -> 202`); } catch {}
+      return progressResponse("2", "Generating lesson content", "Retrying after formatting hiccup.");
     }
+    const status = msg === "Usage limit exceeded" ? 403 : 500;
+    try { console.error(`[fyp][${reqId}] lesson: error`, { msg, status }); } catch {}
+    return new Response(JSON.stringify({ error: msg }), { status });
   }
 
-  if (usedCache) {
-    try { console.debug(`[fyp][${reqId}] lesson: cache-hit`, { subject, currentLabel, lessonId: lesson.id }); } catch {}
-  }
-
-  const stampedLesson: CachedLesson = { ...lesson, cachedAt: new Date().toISOString() };
+  const stampedLesson: CachedLesson = {
+    ...(lesson as CachedLesson),
+    cachedAt: new Date().toISOString(),
+    nextTopicHint: lesson.nextTopicHint ?? nextTopicHint ?? null,
+  };
   const nextCache = [stampedLesson, ...cachedCandidates.filter((entry) => entry && entry.id !== stampedLesson.id)];
   while (nextCache.length > 5) nextCache.pop();
 
@@ -667,7 +833,7 @@ export async function GET(req: NextRequest) {
 
   try { console.debug(`[fyp][${reqId}] success`, { topic: currentLabel, lessonId: lesson.id }); } catch {}
   return new Response(
-    JSON.stringify({ topic: currentLabel, lesson }),
+    JSON.stringify({ topic: currentLabel, lesson, nextTopicHint }),
     { status: 200, headers: { "content-type": "application/json" } }
   );
 }

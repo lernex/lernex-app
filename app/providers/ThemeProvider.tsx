@@ -1,6 +1,6 @@
 "use client";
 import { ThemeProvider as NextThemes, useTheme } from "next-themes";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 const STORAGE_KEY = "lernex-theme";
 const LEGACY_STORAGE_KEY = "theme";
@@ -44,6 +44,11 @@ function persistTheme(value: ThemeMode) {
 
 function SyncThemeFromProfile({ initialTheme }: { initialTheme?: ThemeMode | null }) {
   const { setTheme } = useTheme();
+  const themeSetterRef = useRef(setTheme);
+
+  useEffect(() => {
+    themeSetterRef.current = setTheme;
+  }, [setTheme]);
 
   useEffect(() => {
     migrateLegacyStorage();
@@ -55,13 +60,13 @@ function SyncThemeFromProfile({ initialTheme }: { initialTheme?: ThemeMode | nul
 
     const applyTheme = (next: ThemeMode) => {
       if (cancelled) return;
-      setTheme(next);
+      themeSetterRef.current(next);
       persistTheme(next);
     };
 
     let stored = getStoredTheme();
 
-    if (initialTheme && initialTheme !== stored) {
+    if (!stored && initialTheme) {
       applyTheme(initialTheme);
       stored = initialTheme;
     }
@@ -82,7 +87,7 @@ function SyncThemeFromProfile({ initialTheme }: { initialTheme?: ThemeMode | nul
     return () => {
       cancelled = true;
     };
-  }, [initialTheme, setTheme]);
+  }, [initialTheme]);
 
   return null;
 }

@@ -60,7 +60,15 @@ export type LevelMap = {
   topics: {
     name: string;
     completed?: boolean;
-    subtopics: { name: string; mini_lessons: number; applications?: string[]; completed?: boolean }[];
+    subtopics: {
+      name: string;
+      mini_lessons: number;
+      applications?: string[];
+      definition?: string;
+      prerequisites?: string[];
+      reminders?: string[];
+      completed?: boolean;
+    }[];
   }[];
   cross_subjects?: { subject: string; course?: string; rationale?: string }[];
   persona?: { pace?: "slow" | "normal" | "fast"; difficulty?: "intro" | "easy" | "medium" | "hard"; notes?: string };
@@ -280,7 +288,26 @@ function sanitizeOutline(map: LevelMap): LevelMap {
       subtopics: (topic.subtopics ?? []).map((sub) => ({
         name: sub.name,
         mini_lessons: sub.mini_lessons,
-        applications: sub.applications ?? [],
+        applications: Array.isArray(sub.applications)
+          ? sub.applications.filter((entry) => typeof entry === "string" && entry.trim())
+          : [],
+        ...(typeof sub.definition === "string" && sub.definition.trim()
+          ? { definition: sub.definition.trim() }
+          : {}),
+        ...(Array.isArray(sub.prerequisites)
+          ? {
+              prerequisites: sub.prerequisites
+                .filter((entry) => typeof entry === "string" && entry.trim())
+                .slice(0, 6),
+            }
+          : {}),
+        ...(Array.isArray(sub.reminders)
+          ? {
+              reminders: sub.reminders
+                .filter((entry) => typeof entry === "string" && entry.trim())
+                .slice(0, 4),
+            }
+          : {}),
       })),
     })),
     cross_subjects: map.cross_subjects ?? [],
@@ -459,7 +486,7 @@ export async function generateLearningPath(
   const deltaGuidance = buildDeltaGuidance(mastery, pace, accSubj, accAll);
   const outlineSummary = hasCachedOutline && cachedOutline ? summarizeOutline(cachedOutline) : null;
 
-  const system = `You are a curriculum planner generating a compact level map.
+const system = `You are a curriculum planner generating a compact level map.
 Return ONLY a VALID JSON object (no markdown fences, no comments) with this structure and constraints:
 {
   "subject": string,
@@ -468,7 +495,14 @@ Return ONLY a VALID JSON object (no markdown fences, no comments) with this stru
     {
       "name": string,
       "subtopics": [
-        { "name": string, "mini_lessons": number, "applications": string[] }
+        {
+          "name": string,
+          "mini_lessons": number,
+          "applications": string[],
+          "definition": string,
+          "prerequisites": string[],
+          "reminders": string[]
+        }
       ]
     }
   ],
@@ -480,6 +514,9 @@ Constraints:
 - Keep topic count between 6 and 9 (no filler topics) with 2-5 subtopics each.
 - mini_lessons: integer 1-4 per subtopic, scaled to difficulty and prerequisites.
 - applications: up to 2 concise real-world hooks relevant to the learner.
+- definition: 1-2 sentences (<= 28 words) capturing the core meaning of the subtopic.
+- prerequisites: up to 3 short reminders naming prior skills or facts to review first.
+- reminders: up to 2 actionable cues that guard against common mistakes or flag checks for understanding.
 - Order topics from foundations to advanced concepts without redundancy.
 - Use naming aligned with typical "${course}" syllabi when applicable.
 - Do NOT include any HTML. Escape braces if LaTeX is used.
@@ -677,7 +714,7 @@ Constraints:
         attemptsCount += 1;
         fallbackUsed = true;
         touchProgress({ phase: "Repairing map output", pct: 0.72, attempts: attemptsCount, fallback: true });
-        const repairSys = adaptiveSystem + "\nFinal requirement: Respond with ONLY a single strict JSON object (no prose). If previous output was truncated, regenerate compactly (<= 9 topics, <= 4 subtopics each, applications <= 2).";
+        const repairSys = adaptiveSystem + "\nFinal requirement: Respond with ONLY a single strict JSON object (no prose). If previous output was truncated, regenerate compactly (<= 9 topics, <= 4 subtopics each, applications <= 2, prerequisites <= 3, reminders <= 2).";
         const repair = await client.chat.completions.create({
           model,
           temperature,
@@ -725,7 +762,15 @@ Constraints:
   if (!Array.isArray(parsed.topics)) parsed.topics = [];
 
   type RawTopic = { name?: unknown; subtopics?: unknown; completed?: unknown };
-  type RawSub = { name?: unknown; mini_lessons?: unknown; applications?: unknown; completed?: unknown };
+  type RawSub = {
+    name?: unknown;
+    mini_lessons?: unknown;
+    applications?: unknown;
+    definition?: unknown;
+    prerequisites?: unknown;
+    reminders?: unknown;
+    completed?: unknown;
+  };
 
   parsed.topics = (parsed.topics as unknown as RawTopic[])
     .map((t: RawTopic) => {
@@ -739,11 +784,23 @@ Constraints:
             ? (s.applications as unknown[]).map((x) => String(x).trim()).filter((x) => !!x)
             : [];
           const applications = appsRaw.slice(0, 2);
+          const definition = typeof s.definition === "string" ? s.definition.trim() : "";
+          const prereqRaw = Array.isArray(s.prerequisites)
+            ? (s.prerequisites as unknown[]).map((x) => String(x).trim()).filter((x) => !!x)
+            : [];
+          const remindersRaw = Array.isArray(s.reminders)
+            ? (s.reminders as unknown[]).map((x) => String(x).trim()).filter((x) => !!x)
+            : [];
+          const prerequisites = prereqRaw.slice(0, 4);
+          const reminders = remindersRaw.slice(0, 3);
           const completed = typeof s.completed === "boolean" ? s.completed : false;
           return {
             name: subName,
             mini_lessons: ml,
             applications: applications.length ? applications : undefined,
+            ...(definition ? { definition } : {}),
+            ...(prerequisites.length ? { prerequisites } : {}),
+            ...(reminders.length ? { reminders } : {}),
             completed,
           };
         })
@@ -825,7 +882,14 @@ function buildFallbackLevelMap(
 
   const blueprint: {
     name: string;
-    subs: { name: string; mini: number; apps?: (string | undefined)[] }[];
+    subs: {
+      name: string;
+      mini: number;
+      apps?: (string | undefined)[];
+      definition?: string;
+      prerequisites?: string[];
+      reminders?: string[];
+    }[];
   }[] = [
     {
       name: "Orientation & Goals",
@@ -929,17 +993,49 @@ function buildFallbackLevelMap(
 
   const topics = blueprint
     .map(({ name, subs }) => {
+      const topicLabel = name;
       const subtopics = subs
         .map((sub) => {
+          const subName = sub.name.trim();
+          if (!subName.length) return null;
           const apps = (sub.apps ?? []).filter((a): a is string => !!a && a.trim().length > 0).slice(0, 2);
+          const providedPrereqs = Array.isArray(sub.prerequisites)
+            ? sub.prerequisites.filter((entry) => typeof entry === "string" && entry.trim())
+            : [];
+          const providedReminders = Array.isArray(sub.reminders)
+            ? sub.reminders.filter((entry) => typeof entry === "string" && entry.trim())
+            : [];
+          const fallbackPrereqs = [
+            `Review earlier notes on ${topicLabel}.`,
+            `Confirm you can explain the last lesson aloud.`,
+            `Warm up with one quick example before ${subName}.`,
+          ];
+          const fallbackReminders = [
+            `Check each step of ${subName} against a worked example.`,
+            `Summarize ${subName} in your own words before moving on.`,
+          ];
+          const prerequisites = Array.from(new Set([...providedPrereqs, ...fallbackPrereqs]))
+            .map((entry) => entry.trim())
+            .filter((entry) => entry.length)
+            .slice(0, 3);
+          const reminders = Array.from(new Set([...providedReminders, ...fallbackReminders]))
+            .map((entry) => entry.trim())
+            .filter((entry) => entry.length)
+            .slice(0, 2);
+          const definition =
+            (typeof sub.definition === "string" && sub.definition.trim()) ||
+            `Understand ${subName} within ${canonicalCourse} so the next lessons feel natural.`;
           return {
-            name: sub.name,
+            name: subName,
             mini_lessons: clampMini(sub.mini),
             applications: apps.length ? apps : undefined,
+            definition,
+            ...(prerequisites.length ? { prerequisites } : {}),
+            ...(reminders.length ? { reminders } : {}),
             completed: false,
           };
         })
-        .filter((s) => s.name.trim().length > 0);
+        .filter((s): s is NonNullable<typeof s> => s !== null);
       return {
         name,
         completed: false,

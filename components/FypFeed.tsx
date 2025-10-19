@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import LessonCard from "./LessonCard";
@@ -14,7 +14,9 @@ type ApiLesson = {
   title: string;
   content: string;
   difficulty?: "intro" | "easy" | "medium" | "hard";
-  questions: { prompt: string; choices: string[]; correctIndex: number; explanation?: string }[];
+  questions: { prompt: string; choices: string[]; correctIndex: number; explanation: string }[];
+  context?: Record<string, unknown> | null;
+  knowledge?: Lesson["knowledge"];
 };
 
 
@@ -47,6 +49,13 @@ type LoadingState = {
 };
 
 const CACHE_MAX_AGE_MS = 15 * 60 * 1000;
+const SKIP_REASON_OPTIONS = [
+  { id: "not-ready", label: "Need more background" },
+  { id: "already-mastered", label: "Already mastered this" },
+  { id: "not-relevant", label: "Not relevant right now" },
+  { id: "format", label: "Prefer a different format" },
+] as const;
+
 
 function parseRetryAfterSeconds(raw: string | null): number | null {
   if (!raw) return null;
@@ -94,17 +103,28 @@ async function fetchFypOne(subject: string | null, opts: { onProgress?: (info: F
       const res = await fetch(base, { cache: "no-store", signal: opts.signal });
       try { console.debug("[fyp] fetch", { subject, attempt: attempt + 1, status: res.status }); } catch {}
       if (res.ok) {
-        const data = (await res.json()) as { topic?: string; lesson?: ApiLesson };
+        const data = (await res.json()) as { topic?: string; lesson?: ApiLesson; nextTopicHint?: string | null };
         const l = data?.lesson;
         if (!l) return null;
+        const questions = Array.isArray(l.questions)
+          ? l.questions.map((q) => ({
+              prompt: q.prompt,
+              choices: q.choices,
+              correctIndex: q.correctIndex,
+              explanation: q.explanation ?? "",
+            }))
+          : [];
         return {
           id: l.id,
           subject: l.subject,
           title: l.title,
           content: l.content,
-          questions: Array.isArray(l.questions) ? l.questions : [],
+          questions,
           difficulty: l.difficulty,
           topic: l.topic ?? data?.topic,
+          nextTopicHint: data?.nextTopicHint ?? null,
+          context: l.context ?? null,
+          knowledge: l.knowledge ?? null,
         } as Lesson;
       }
       if (res.status === 202 || res.status === 409) {
@@ -179,6 +199,8 @@ export default function FypFeed() {
   const [completedMap, setCompletedMap] = useState<Record<string, boolean>>({});
   const [showCompleteHint, setShowCompleteHint] = useState(false);
   const [autoAdvancing, setAutoAdvancing] = useState(false);
+  const [skipLoading, setSkipLoading] = useState(false);
+  const [skipReasonMenu, setSkipReasonMenu] = useState<string | null>(null);
   const subjectsKeyInitRef = useRef(false);
   const autoAdvanceRef = useRef<number | null>(null);
   const hintTimeoutRef = useRef<number | null>(null);
@@ -511,6 +533,31 @@ export default function FypFeed() {
     return advanced;
   }, [items, completedMap, triggerHint]);
 
+  const handleSkipLesson = useCallback((lesson: Lesson | null | undefined) => {
+    if (!lesson) return;
+    setSkipReasonMenu((prev) => (prev === lesson.id ? null : lesson.id));
+  }, []);
+
+  const confirmSkipLesson = useCallback(async (lesson: Lesson, reasonLabel: string) => {
+    if (skipLoading) return;
+    setSkipLoading(true);
+    setSkipReasonMenu(null);
+    try {
+      await fetch("/api/fyp/feedback", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ subject: lesson.subject, lesson_id: lesson.id, action: "skip", reason: reasonLabel }),
+      });
+    } catch (err) {
+      console.warn("[fyp] skip failed", err);
+    } finally {
+      setSkipLoading(false);
+      setError(null);
+      next(true);
+      void ensureBuffer(1);
+    }
+  }, [ensureBuffer, next, skipLoading]);
+
   const handleLessonComplete = useCallback((lesson: Lesson) => {
     setCompletedMap((prev) => (prev[lesson.id] ? prev : { ...prev, [lesson.id]: true }));
     setShowCompleteHint(false);
@@ -549,6 +596,10 @@ export default function FypFeed() {
   }, [prev, next]);
 
   const cur = items[i];
+
+  useEffect(() => {
+    setSkipReasonMenu(null);
+  }, [cur?.id]);
   const requiresQuiz = cur ? Array.isArray(cur.questions) && cur.questions.length > 0 : false;
   const currentCompleted = cur ? (!requiresQuiz || !!completedMap[cur.id]) : true;
   const acc = cur ? accuracyBySubject[cur.subject] : undefined;
@@ -561,7 +612,21 @@ export default function FypFeed() {
     return Math.min(95, 10 + indeterminateTick * 3);
   }, [loadingInfo, indeterminateTick]);
   const progressWidth = `${progressPct ?? 15}%`;
-  const progressLabel = loadingInfo?.phase ?? "Preparing your personalized feed";
+  const loadingSubject = loadingInfo?.subject ?? (selectedSubjects[0] ?? null);
+  const progressLabel = loadingInfo?.phase
+    ? loadingSubject
+      ? `${loadingInfo.phase} - ${loadingSubject}`
+      : loadingInfo.phase
+    : loadingSubject
+    ? `Preparing ${loadingSubject}`
+    : "Personalizing your feed";
+  const progressDetail =
+    loadingInfo?.detail
+    ?? (progressPct != null
+      ? `Calibrating with ${progressPct}% of your plan ready.`
+      : loadingSubject
+      ? `Stitching in your recent ${loadingSubject} activity.`
+      : "Stitching in your recent progress.");
   const waitingForCourse = Boolean(
     loadingInfo && (
       (loadingInfo.phase && loadingInfo.phase.toLowerCase().includes("course")) ||
@@ -609,12 +674,9 @@ export default function FypFeed() {
                 style={{ width: progressWidth }}
               />
             </div>
-            {(loadingInfo?.detail || loadingInfo?.subject) && (
-              <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-                {loadingInfo?.detail ?? "Optimizing your feed..."}
-                {loadingInfo?.subject ? ` (${loadingInfo.subject ?? "General"})` : null}
-              </div>
-            )}
+            <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+              {progressDetail}
+            </div>
             {shouldOfferClassPicker && (
               <div className="mt-3 flex flex-col items-center gap-2">
                 <div className="text-xs text-neutral-500 dark:text-neutral-400">
@@ -673,6 +735,44 @@ export default function FypFeed() {
                   className="w-full max-w-[560px] min-h-[260px] max-h-[60vh] sm:min-h-[280px] lg:max-h-[520px]"
                 />
               </div>
+              <div className="flex justify-end">
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => handleSkipLesson(cur)}
+                    disabled={skipLoading}
+                    className="rounded-full border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-500 transition hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:text-neutral-100"
+                  >
+                    {skipLoading ? "Skipping..." : "Skip"}
+                  </button>
+                  {skipReasonMenu === cur.id && (
+                    <div className="absolute right-0 z-20 mt-2 w-56 rounded-2xl border border-neutral-200 bg-white p-3 shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400 dark:text-neutral-500">
+                        Why skip?
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        {SKIP_REASON_OPTIONS.map((option) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => confirmSkipLesson(cur, option.label)}
+                            className="rounded-lg px-3 py-1.5 text-left text-sm text-neutral-600 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSkipReasonMenu(null)}
+                        className="mt-2 w-full rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-500 transition hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
               {requiresQuiz && (
                 <div className="flex w-full flex-col gap-3">
                   <QuizBlock
@@ -725,3 +825,14 @@ export default function FypFeed() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+

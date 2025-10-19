@@ -1,25 +1,31 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
-  AlertCircle,
+  Activity,
   ArrowUpRight,
   BookOpen,
-  Bot,
   CalendarClock,
-  CheckCircle2,
+  Flame,
   Headphones,
   HelpCircle,
   LifeBuoy,
+  Loader2,
   Mail,
   MessageCircle,
   PlayCircle,
+  Send,
   ShieldCheck,
   Sparkles,
+  Target,
   Users,
 } from 'lucide-react';
+import { supabaseBrowser } from '@/lib/supabase-browser';
+import { useProfileStats } from '@/app/providers/ProfileStatsProvider';
+
+const SUPPORT_EMAIL = 'support@lernex.net';
 
 type KnowledgeArticle = {
   title: string;
@@ -64,66 +70,98 @@ type AdditionalResource = {
   href: string;
 };
 
+type AttemptRow = {
+  subject: string;
+  correctCount: number;
+  total: number;
+  createdAt: string | null;
+};
+
+type SupportAnalytics = {
+  totalAttempts: number;
+  weeklyAttempts: number;
+  activeDays: number;
+  avgAccuracy: number | null;
+  topSubject: string | null;
+  lastAttemptAt: string | null;
+  streak: number;
+  points: number;
+};
+
+type ChatRole = 'user' | 'assistant';
+
+type ChatMessage = {
+  id: string;
+  role: ChatRole;
+  content: string;
+  createdAt: number;
+};
+
+type ChatPayloadMessage = {
+  role: ChatRole;
+  content: string;
+};
+
 const knowledgeArticles: KnowledgeArticle[] = [
   {
     title: 'Kick off with Lernex in 5 steps',
-    summary: 'Set up your profile, choose subjects, and personalize the learning feed in minutes.',
+    summary: 'Set up your profile, pick subjects, and personalise the For You feed so recommendations stay on target.',
     category: 'Getting Started',
     href: '/onboarding',
   },
   {
     title: 'Tune your For You feed',
-    summary: 'Use reactions, streak goals, and playlists to sharpen recommendations.',
-    category: 'Personalization',
+    summary: 'Use reactions, streak goals, and playlists to signal what you like and sharpen daily lesson suggestions.',
+    category: 'Personalisation',
     href: '/fyp',
   },
   {
-    title: 'Build collaborative playlists',
-    summary: 'Invite friends, curate lessons, and keep everyone on pace with shared progress.',
-    category: 'Learning Paths',
-    href: '/playlists',
+    title: 'Unlock achievements faster',
+    summary: 'Track streaks, badge progress, and perfect scores so you know exactly what to tackle next.',
+    category: 'Achievements',
+    href: '/achievements',
   },
   {
-    title: 'Manage billing & plans',
-    summary: 'Update payment methods, switch tiers, or pause your subscription at any time.',
-    category: 'Account & Billing',
-    href: '/settings',
+    title: 'Track accuracy with analytics',
+    summary: 'Use the analytics dashboard to monitor correctness, lesson pace, and AI token usage in one view.',
+    category: 'Analytics',
+    href: '/analytics',
   },
   {
-    title: 'Fix stalled quiz generation',
-    summary: 'Troubleshoot slow prompts, malformed questions, and retry tips that work.',
-    category: 'Troubleshooting',
+    title: 'Generate lessons with the AI tutor',
+    summary: 'Turn study text into lessons, quizzes, and practice plans with the Cerebras GPT-OSS-120B powered generator.',
+    category: 'AI Assistant',
     href: '/generate',
   },
   {
-    title: 'Keep your data protected',
-    summary: 'Learn how Lernex encrypts notes, exports, and what to do if something looks off.',
-    category: 'Privacy & Security',
-    href: '/profile',
+    title: 'Manage billing and plans',
+    summary: 'Update payment details, view invoices, or switch tiers when your team is ready to scale.',
+    category: 'Account & Billing',
+    href: '/pricing',
   },
 ];
 
 const quickActions: QuickAction[] = [
   {
-    title: 'Search the help center',
-    description: 'Browse setup guides, tutorials, and deep dives.',
+    title: 'Search the help centre',
+    description: 'Browse setup guides, walkthroughs, and video tutorials in one place.',
     icon: BookOpen,
     href: '/docs',
-    meta: 'Updated weekly',
+    meta: 'Fresh articles every week',
   },
   {
-    title: 'Start an AI chat',
-    description: 'Get instant walkthroughs tailored to your question.',
-    icon: Bot,
-    href: '/generate',
-    meta: 'Avg reply < 10s',
+    title: 'Review analytics',
+    description: 'Check streaks, accuracy trends, and AI usage for the last 30 days.',
+    icon: Target,
+    href: '/analytics',
+    meta: 'Updated in real time',
   },
   {
     title: 'Join onboarding clinic',
-    description: 'Live Thursday sessions to get your workspace humming.',
+    description: 'Thursday sessions where we co-create lesson plans and playlists with you.',
     icon: Users,
     href: '/welcome',
-    meta: 'Free 30-minute call',
+    meta: '25 minute group call',
   },
 ];
 
@@ -131,66 +169,42 @@ const supportChannels: SupportChannel[] = [
   {
     id: 'live-chat',
     name: 'Live chat',
-    description: 'Real teammates and the AI co-pilot answer account or product questions.',
+    description: 'Chat with a Lernex specialist and our AI co-pilot for quick workflow fixes or product questions.',
     icon: MessageCircle,
-    response: '1–3 min response',
-    availability: 'Mon–Fri · 8am–6pm MT',
-    actionLabel: 'Open chat window',
+    response: 'Replies in 1-2 minutes',
+    availability: 'Mon-Fri 8am-6pm MT',
+    actionLabel: 'Open support chat',
     href: '#live-chat',
   },
   {
     id: 'email-desk',
     name: 'Email desk',
-    description: 'Send a detailed note and we’ll follow up with steps, docs, or a quick video.',
+    description: 'Share details, screenshots, or CSVs and we will reply with steps, docs, or a short Loom video.',
     icon: Mail,
-    response: 'Under 6 hours',
-    availability: 'Every day · 7am–10pm MT',
-    actionLabel: 'Email support@lernex.app',
-    href: 'mailto:support@lernex.app',
+    response: 'Under 4 hours',
+    availability: 'Every day 7am-10pm MT',
+    actionLabel: `Email ${SUPPORT_EMAIL}`,
+    href: `mailto:${SUPPORT_EMAIL}`,
   },
   {
     id: 'book-session',
     name: 'Schedule a walkthrough',
-    description: 'Perfect for teams: get a 25-minute strategy call focused on your goals.',
+    description: 'Perfect for teams. We tailor a 25 minute call to help map analytics, playlists, and cohort pacing.',
     icon: CalendarClock,
-    response: 'Pick a time that works',
-    availability: 'Rolling availability · global time zones',
-    actionLabel: 'Book a slot',
+    response: 'Pick a slot that works',
+    availability: 'Rolling availability across time zones',
+    actionLabel: 'Book a session',
     href: '#book-session',
   },
   {
     id: 'voice-line',
     name: 'Voice line',
-    description: 'Short urgent calls for outage reports or access issues that can’t wait.',
+    description: 'Escalate urgent access or outage issues that need human attention right away.',
     icon: Headphones,
     response: 'Direct escalation',
-    availability: 'Mon–Fri · 9am–5pm MT',
+    availability: 'Mon-Fri 9am-5pm MT',
     actionLabel: 'Call +1 (866) 555-LEARN',
     href: 'tel:+18665555327',
-  },
-];
-
-const statusItems: StatusItem[] = [
-  {
-    title: 'AI lesson generator',
-    status: 'Operational',
-    detail: 'Average generation time 1.1s · last incident 12 days ago',
-    icon: Sparkles,
-    tone: 'ok',
-  },
-  {
-    title: 'Quiz engine',
-    status: 'Operational',
-    detail: 'Latency within expected range · monitoring new update',
-    icon: CheckCircle2,
-    tone: 'ok',
-  },
-  {
-    title: 'Analytics dashboard',
-    status: 'Minor delays',
-    detail: 'Exports may take up to 10 minutes · fix shipping today',
-    icon: AlertCircle,
-    tone: 'warn',
   },
 ];
 
@@ -198,46 +212,46 @@ const faqs = [
   {
     question: 'How do I migrate my existing study notes into Lernex?',
     answer:
-      'Head to the Playlists page, create a new playlist, and paste sections of your notes into lesson cards. The importer breaks long documents into micro-lessons automatically.',
+      'Navigate to the Generate page and paste up to two short paragraphs at a time. The AI tutor converts them into structured lessons and quizzes, so you can rebuild your library rapidly.',
   },
   {
-    question: 'Can I share playlists or quizzes with my class or friends?',
+    question: 'Where can I check detailed quiz analytics?',
     answer:
-      'Yes — from any playlist, select “Share” and invite collaborators via email or a private link. You can set edit-only or review-only access per person.',
+      'Head to Analytics for accuracy, streak, and token insights. Achievements highlights badge progress and perfect streaks, while Playlists shows subject-level mastery.',
   },
   {
-    question: 'What’s the difference between AI chat and live support?',
+    question: 'Can I collaborate with friends or classmates?',
     answer:
-      'The AI tutor is available instantly with contextual suggestions for study flows. Live chat puts you in touch with a teammate when you need account help or nuanced guidance.',
+      'Yes. Use the Friends page to connect, share playlists, and track leaderboard standings. Support can add cohort templates or bulk import contacts if you need it.',
   },
   {
-    question: 'Where can I see past invoices or update billing info?',
+    question: 'What models power the AI tutor?',
     answer:
-      'Open Settings → Billing. You can download invoices, switch plans, and update payment methods without contacting support.',
+      'Lernex uses Cerebras GPT-OSS-120B for lesson and chat generation. Check the Generate page for modes and token usage; the Support team can advise on optimisation.',
   },
   {
-    question: 'Do you offer support for educators or teams?',
+    question: 'Do you support educators and teams?',
     answer:
-      'Absolutely. Book a walkthrough and we’ll co-design cohort structure, reporting, and custom integrations based on your goals.',
+      'Absolutely. Email support or book a walkthrough to configure analytics exports, advanced permissions, and shared playlists for your organisation.',
   },
 ];
 
 const additionalResources: AdditionalResource[] = [
   {
-    title: 'Creator best practices',
-    description: 'Format lessons that shine on mobile and keep learners moving.',
+    title: 'Achievement roadmap',
+    description: 'See which badges are within reach and claim new rewards faster.',
     icon: PlayCircle,
-    href: '/docs',
+    href: '/achievements',
   },
   {
-    title: 'Learning path templates',
-    description: 'Kickstart with proven sequences for STEM, languages, or bootcamps.',
+    title: 'Friends and leaderboard',
+    description: 'Invite classmates, compare streaks, and celebrate wins together.',
     icon: LifeBuoy,
-    href: '/playlists',
+    href: '/friends',
   },
   {
     title: 'Release notes',
-    description: 'See what shipped last week and what’s in beta now.',
+    description: 'Catch up on the latest features, fixes, and beta experiments.',
     icon: ShieldCheck,
     href: '/analytics',
   },
@@ -254,9 +268,467 @@ const toneStyles: Record<Tone, { badge: string; iconWrap: string }> = {
   },
 };
 
+const numberFormatter = new Intl.NumberFormat('en-US');
+const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+
+function safeString(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  return null;
+}
+
+function normalizeAttempt(row: Record<string, unknown>): AttemptRow {
+  const subject = safeString(row['subject']) ?? 'General';
+  const correctRaw = Number(row['correct_count'] ?? row['correctCount'] ?? 0);
+  const totalRaw = Number(row['total'] ?? 0);
+  const createdAtRaw = safeString(row['created_at'] ?? row['createdAt']);
+  return {
+    subject,
+    correctCount: Number.isFinite(correctRaw) ? Math.max(0, Math.round(correctRaw)) : 0,
+    total: Number.isFinite(totalRaw) ? Math.max(0, Math.round(totalRaw)) : 0,
+    createdAt: createdAtRaw,
+  };
+}
+
+function formatNumber(value: number): string {
+  return numberFormatter.format(value);
+}
+
+function formatPercent(value: number | null, fractionDigits = 1): string {
+  if (value == null || Number.isNaN(value)) return '--';
+  const percent = (value * 100).toFixed(fractionDigits);
+  return `${percent.replace(/\.0+$/, '')}%`;
+}
+
+function computeDaysSince(iso: string | null): number | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return null;
+  const now = Date.now();
+  const diff = now - date.getTime();
+  const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+  return days < 0 ? 0 : days;
+}
+
+function formatRelativeDate(iso: string | null): string {
+  const days = computeDaysSince(iso);
+  if (days == null) return 'No activity yet';
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+  if (!iso) return 'No activity yet';
+  const date = new Date(iso);
+  return Number.isFinite(date.getTime()) ? dateFormatter.format(date) : 'Recently';
+}
+
+function createId(prefix: string): string {
+  const random = Math.random().toString(36).slice(2, 8);
+  return `${prefix}-${Date.now()}-${random}`;
+}
+
+function SupportChat({ context }: { context: string }) {
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [
+    {
+      id: createId('assistant'),
+      role: 'assistant',
+      content: `Hi! I am the Lernex support assistant. Ask me about lessons, analytics, or billing. You can email us any time at ${SUPPORT_EMAIL}.`,
+      createdAt: Date.now(),
+    },
+  ]);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!listRef.current) return;
+    listRef.current.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages]);
+
+  const sendMessage = useCallback(async () => {
+    const trimmed = input.trim();
+    if (!trimmed || sending) return;
+
+    const userMessage: ChatMessage = {
+      id: createId('user'),
+      role: 'user',
+      content: trimmed,
+      createdAt: Date.now(),
+    };
+
+    const nextMessages = [...messages, userMessage];
+    setMessages(nextMessages);
+    setInput('');
+    setSending(true);
+    setError(null);
+
+    try {
+      const payload: { messages: ChatPayloadMessage[]; context: string } = {
+        messages: nextMessages.map(({ role, content }) => ({ role, content })),
+        context,
+      };
+
+      const response = await fetch('/api/support/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(text || `Request failed with status ${response.status}`);
+      }
+
+      const data = (await response.json()) as { reply?: string };
+      const replyContent =
+        typeof data.reply === 'string' && data.reply.trim().length > 0
+          ? data.reply.trim()
+          : 'I am here to help. Could you try asking that another way?';
+
+      setMessages((prev) => [
+        ...prev,
+        { id: createId('assistant'), role: 'assistant', content: replyContent, createdAt: Date.now() },
+      ]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to contact the support assistant.';
+      setError(message);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: createId('assistant'),
+          role: 'assistant',
+          content: `I could not reach the chat service. Please email us at ${SUPPORT_EMAIL} and we will jump in.`,
+          createdAt: Date.now(),
+        },
+      ]);
+    } finally {
+      setSending(false);
+    }
+  }, [context, input, messages, sending]);
+
+  const handleSubmit = useCallback(
+    (event: React.FormEvent) => {
+      event.preventDefault();
+      void sendMessage();
+    },
+    [sendMessage],
+  );
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        void sendMessage();
+      }
+    },
+    [sendMessage],
+  );
+
+  return (
+    <div className="flex h-full flex-col rounded-3xl border border-neutral-200 bg-white/95 p-6 shadow-sm dark:border-white/10 dark:bg-white/5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Live support chat</h3>
+          <p className="text-sm text-neutral-600 dark:text-neutral-300">
+            Powered by Cerebras GPT-OSS-120B. We hand off to a human whenever you ask.
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-lernex-blue/15 px-3 py-1 text-xs font-semibold text-lernex-blue dark:bg-lernex-blue/25">
+          Avg reply &lt; 2 min
+        </span>
+      </div>
+
+      {context ? (
+        <div className="mt-4 rounded-2xl bg-neutral-100/70 p-3 text-xs text-neutral-600 dark:bg-white/10 dark:text-neutral-300">
+          <span className="font-semibold text-neutral-800 dark:text-white">Context for the assistant:</span>{' '}
+          {context}
+        </div>
+      ) : null}
+
+      <div ref={listRef} className="mt-4 flex-1 space-y-3 overflow-y-auto rounded-2xl bg-neutral-50/70 p-4 dark:bg-white/10">
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm leading-relaxed ${
+              message.role === 'assistant'
+                ? 'bg-white text-neutral-800 shadow-sm dark:bg-white/20 dark:text-neutral-100'
+                : 'ml-auto bg-lernex-purple text-white shadow-sm'
+            }`}
+          >
+            <span className="block whitespace-pre-wrap">{message.content}</span>
+          </div>
+        ))}
+      </div>
+
+      {error ? <p className="mt-3 text-xs text-red-500 dark:text-red-400">Error: {error}</p> : null}
+
+      <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+        <textarea
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Ask about playlists, analytics, billing, or anything else..."
+          rows={3}
+          className="w-full resize-none rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-800 shadow-sm outline-none focus:border-lernex-purple focus:ring-2 focus:ring-lernex-purple/30 dark:border-white/10 dark:bg-white/10 dark:text-white"
+        />
+        <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
+          <span>Enter to send / Shift+Enter for a new line</span>
+          <button
+            type="submit"
+            disabled={sending || input.trim().length === 0}
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {sending ? 'Sending...' : 'Send'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export default function SupportPage() {
+  const supabase = useMemo(() => supabaseBrowser(), []);
+  const { stats, user, loading: statsLoading } = useProfileStats();
+
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
+  const [attempts, setAttempts] = useState<AttemptRow[]>([]);
+  const [attemptsLoading, setAttemptsLoading] = useState(false);
+  const [attemptsError, setAttemptsError] = useState<string | null>(null);
+
+  const userId = user?.id ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!userId) {
+      setAttempts([]);
+      setAttemptsError(null);
+      setAttemptsLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    async function loadAttempts() {
+      setAttemptsLoading(true);
+      setAttemptsError(null);
+      try {
+        const { data, error } = await supabase
+          .from('attempts')
+          .select('subject, correct_count, total, created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(200);
+
+        if (cancelled) return;
+        if (error) throw error;
+
+        const normalized = (data ?? []).map((row) => normalizeAttempt(row as Record<string, unknown>));
+        setAttempts(normalized);
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : 'Unable to load analytics.';
+        setAttempts([]);
+        setAttemptsError(message);
+      } finally {
+        if (!cancelled) setAttemptsLoading(false);
+      }
+    }
+
+    loadAttempts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, userId]);
+
+  const analytics = useMemo<SupportAnalytics>(() => {
+    const lastStudy = stats?.lastStudyDate ?? null;
+
+    if (attempts.length === 0) {
+      return {
+        totalAttempts: 0,
+        weeklyAttempts: 0,
+        activeDays: 0,
+        avgAccuracy: null,
+        topSubject: null,
+        lastAttemptAt: lastStudy,
+        streak: stats?.streak ?? 0,
+        points: stats?.points ?? 0,
+      };
+    }
+
+    const now = Date.now();
+    const weekThreshold = now - 7 * 24 * 60 * 60 * 1000;
+    const dayKeys = new Set<string>();
+    const subjectCounts = new Map<string, { attempts: number; correct: number; total: number }>();
+    let weeklyAttempts = 0;
+    let totalCorrect = 0;
+    let totalQuestions = 0;
+    let latestTimestamp = 0;
+    let latestIso: string | null = null;
+
+    for (const attempt of attempts) {
+      const createdAtMs = attempt.createdAt ? Date.parse(attempt.createdAt) : NaN;
+      if (Number.isFinite(createdAtMs)) {
+        if (createdAtMs >= weekThreshold) {
+          weeklyAttempts += 1;
+          const dayKey = new Date(createdAtMs).toISOString().slice(0, 10);
+          dayKeys.add(dayKey);
+        }
+        if (createdAtMs > latestTimestamp) {
+          latestTimestamp = createdAtMs;
+          latestIso = attempt.createdAt;
+        }
+      }
+
+      const entry = subjectCounts.get(attempt.subject) ?? { attempts: 0, correct: 0, total: 0 };
+      entry.attempts += 1;
+      entry.correct += attempt.correctCount;
+      entry.total += attempt.total;
+      subjectCounts.set(attempt.subject, entry);
+
+      totalCorrect += attempt.correctCount;
+      totalQuestions += attempt.total;
+    }
+
+    let topSubject: string | null = null;
+    let bestCount = -1;
+    for (const [subject, entry] of subjectCounts.entries()) {
+      if (entry.attempts > bestCount) {
+        bestCount = entry.attempts;
+        topSubject = subject;
+      }
+    }
+
+    return {
+      totalAttempts: attempts.length,
+      weeklyAttempts,
+      activeDays: dayKeys.size,
+      avgAccuracy: totalQuestions > 0 ? totalCorrect / totalQuestions : null,
+      topSubject,
+      lastAttemptAt: latestIso ?? lastStudy,
+      streak: stats?.streak ?? 0,
+      points: stats?.points ?? 0,
+    };
+  }, [attempts, stats]);
+
+  const statusItems = useMemo<StatusItem[]>(() => {
+    const daysSince = computeDaysSince(analytics.lastAttemptAt);
+    const weeklyTone: Tone = analytics.weeklyAttempts > 0 ? 'ok' : 'warn';
+    const accuracyTone: Tone =
+      analytics.avgAccuracy != null && analytics.avgAccuracy >= 0.6 ? 'ok' : analytics.avgAccuracy == null ? 'warn' : 'warn';
+    const streakTone: Tone =
+      analytics.streak > 0 && (daysSince === null || daysSince <= 1) ? 'ok' : analytics.streak > 0 ? 'warn' : 'warn';
+
+    return [
+      {
+        title: 'Session momentum',
+        status:
+          analytics.weeklyAttempts > 0
+            ? `${formatNumber(analytics.weeklyAttempts)} lesson${analytics.weeklyAttempts === 1 ? '' : 's'} this week`
+            : 'No sessions logged this week yet',
+        detail:
+          analytics.activeDays > 0
+            ? `${formatNumber(analytics.activeDays)} active day${analytics.activeDays === 1 ? '' : 's'} in the past 7 days.`
+            : 'Launch a quick lesson from your For You feed to start a new streak.',
+        icon: Activity,
+        tone: weeklyTone,
+      },
+      {
+        title: 'Quiz accuracy',
+        status:
+          analytics.avgAccuracy != null
+            ? `${formatPercent(analytics.avgAccuracy, analytics.avgAccuracy >= 0.95 ? 0 : 1)} correct`
+            : 'Need more quiz attempts',
+        detail:
+          analytics.totalAttempts > 0
+            ? `Based on ${formatNumber(analytics.totalAttempts)} completed quiz attempts.`
+            : 'Complete a quiz to unlock accuracy tracking.',
+        icon: Target,
+        tone: accuracyTone,
+      },
+      {
+        title: 'Streak health',
+        status:
+          analytics.streak > 0
+            ? `${formatNumber(analytics.streak)} day streak`
+            : 'No active streak yet',
+        detail:
+          daysSince == null
+            ? 'We will highlight your last session once you complete one.'
+            : daysSince <= 1
+            ? 'Last activity was today or yesterday.'
+            : `Last activity ${daysSince} days ago. A short lesson will restart momentum.`,
+        icon: Flame,
+        tone: streakTone,
+      },
+    ];
+  }, [analytics]);
+
+  const metrics = useMemo(
+    () => [
+      {
+        label: 'Points earned',
+        value: statsLoading ? 'Loading...' : formatNumber(analytics.points),
+      },
+      {
+        label: 'Lessons this week',
+        value: attemptsLoading ? 'Loading...' : formatNumber(analytics.weeklyAttempts),
+      },
+      {
+        label: 'Average accuracy',
+        value: attemptsLoading ? 'Loading...' : formatPercent(analytics.avgAccuracy),
+      },
+      {
+        label: 'Focus subject',
+        value: attemptsLoading ? 'Loading...' : analytics.topSubject ?? 'Not set yet',
+      },
+    ],
+    [analytics.avgAccuracy, analytics.points, analytics.topSubject, analytics.weeklyAttempts, attemptsLoading, statsLoading],
+  );
+
+  const contextSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (analytics.topSubject) {
+      parts.push(`Top subject: ${analytics.topSubject}`);
+    }
+    if (analytics.avgAccuracy != null) {
+      parts.push(`Average accuracy ${formatPercent(analytics.avgAccuracy)}`);
+    }
+    if (analytics.weeklyAttempts > 0) {
+      parts.push(`${formatNumber(analytics.weeklyAttempts)} lessons this week`);
+    }
+    if (analytics.streak > 0) {
+      parts.push(`Streak ${formatNumber(analytics.streak)} day${analytics.streak === 1 ? '' : 's'}`);
+    }
+    if (analytics.points > 0) {
+      parts.push(`${formatNumber(analytics.points)} total points`);
+    }
+    if (analytics.lastAttemptAt) {
+      parts.push(`Last activity ${formatRelativeDate(analytics.lastAttemptAt)}`);
+    }
+    if (!parts.length && (attemptsLoading || statsLoading)) {
+      return 'Loading learner analytics...';
+    }
+    return parts.join(' | ');
+  }, [
+    analytics.avgAccuracy,
+    analytics.lastAttemptAt,
+    analytics.points,
+    analytics.streak,
+    analytics.topSubject,
+    analytics.weeklyAttempts,
+    attemptsLoading,
+    statsLoading,
+  ]);
 
   const categories = useMemo(() => ['All', ...new Set(knowledgeArticles.map((item) => item.category))], []);
 
@@ -279,15 +751,15 @@ export default function SupportPage() {
           <div className="grid gap-8 lg:grid-cols-[2fr,1fr]">
             <div>
               <span className="inline-flex items-center gap-2 rounded-full bg-lernex-purple/10 px-3 py-1 text-sm font-medium text-lernex-purple dark:bg-lernex-purple/25 dark:text-lernex-purple">
-                We’re here for you
+                We are here for you
                 <ArrowUpRight className="h-4 w-4" />
               </span>
               <h1 className="mt-6 text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
-                Support that matches your learning pace.
+                Support that keeps pace with your learning.
               </h1>
-              <p className="mt-4 max-w-xl text-lg text-neutral-600 dark:text-neutral-300">
-                Find answers instantly, connect with a human, or co-create a plan for your team. The Lernex crew and AI
-                co-pilot work together to keep you moving.
+              <p className="mt-4 max-w-2xl text-lg text-neutral-600 dark:text-neutral-300">
+                Find answers instantly, connect with a human, or co-create a plan for your team. Lernex support combines
+                rich analytics, personalised achievements, and the Cerebras-powered AI tutor so you never lose momentum.
               </p>
               <div className="mt-6 flex flex-wrap gap-4">
                 <Link
@@ -298,60 +770,59 @@ export default function SupportPage() {
                   <ArrowUpRight className="h-4 w-4" />
                 </Link>
                 <Link
-                  href="/docs"
+                  href="#live-chat"
                   className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-5 py-2.5 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-100 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-neutral-400 dark:border-white/15 dark:text-white dark:hover:bg-white/10"
                 >
-                  Browse guides
+                  Start live chat
                 </Link>
               </div>
             </div>
-            <div className="grid gap-4 rounded-2xl border border-neutral-200 bg-white/60 p-5 text-sm text-neutral-700 shadow-inner shadow-neutral-200/60 dark:border-white/10 dark:bg-white/5 dark:text-neutral-200">
+            <div className="grid gap-4 rounded-2xl border border-neutral-200 bg-white/70 p-5 text-sm text-neutral-700 shadow-inner shadow-neutral-200/60 dark:border-white/10 dark:bg-white/5 dark:text-neutral-200">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-neutral-900 dark:text-white">Today’s queue</span>
-                <span className="rounded-full bg-lernex-green/15 px-3 py-1 text-xs font-semibold text-lernex-green dark:bg-lernex-green/25 dark:text-lernex-green">
-                  All clear
-                </span>
+                <span className="font-semibold text-neutral-900 dark:text-white">Your support snapshot</span>
+                {(attemptsLoading || statsLoading) && <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />}
               </div>
-              <dl className="grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-xl bg-neutral-100 px-3 py-3 dark:bg-white/10">
-                  <dt className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                    Avg. first response
-                  </dt>
-                  <dd className="mt-1 text-lg font-semibold text-neutral-900 dark:text-white">2m 14s</dd>
-                </div>
-                <div className="rounded-xl bg-neutral-100 px-3 py-3 dark:bg-white/10">
-                  <dt className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">CSAT (24h)</dt>
-                  <dd className="mt-1 text-lg font-semibold text-neutral-900 dark:text-white">98%</dd>
-                </div>
-              </dl>
-              <div className="flex items-center gap-3 rounded-xl bg-neutral-100 px-4 py-3 dark:bg-white/10">
-                <HelpCircle className="h-12 w-12 text-lernex-purple" />
-                <div>
-                  <p className="font-semibold text-neutral-900 dark:text-white">Need priority help?</p>
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                    Flag the ticket as urgent and we’ll page the on-call specialist.
-                  </p>
-                </div>
+              {attemptsError ? (
+                <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-400/20 dark:bg-red-500/10 dark:text-red-200">
+                  We could not load analytics right now. The team has been notified.
+                </p>
+              ) : (
+                <dl className="grid grid-cols-2 gap-3 text-sm">
+                  {metrics.map((metric) => (
+                    <div
+                      key={metric.label}
+                      className="rounded-xl border border-neutral-100 bg-white/80 px-3 py-2 shadow-sm dark:border-white/10 dark:bg-white/10"
+                    >
+                      <dt className="text-xs uppercase tracking-wide text-neutral-400 dark:text-neutral-400">{metric.label}</dt>
+                      <dd className="mt-1 text-base font-semibold text-neutral-900 dark:text-white">{metric.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              <div className="rounded-xl bg-neutral-100/70 px-3 py-2 text-xs text-neutral-500 dark:bg-white/10 dark:text-neutral-300">
+                Last activity: {formatRelativeDate(analytics.lastAttemptAt)}
               </div>
             </div>
           </div>
         </section>
 
-        <section className="mt-12 grid gap-6 md:grid-cols-3">
+        <section className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {quickActions.map((item) => (
             <Link
               key={item.title}
               href={item.href}
-              className="group relative flex h-full flex-col rounded-2xl border border-neutral-200 bg-white/90 p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
+              className="group flex h-full flex-col gap-4 rounded-3xl border border-neutral-200 bg-white/95 p-6 shadow-sm transition hover:-translate-y-1 hover:border-lernex-purple hover:shadow-lg hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/5"
             >
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-lernex-purple/10 text-lernex-purple transition group-hover:bg-lernex-purple group-hover:text-white dark:bg-lernex-purple/25 dark:text-lernex-purple">
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-lernex-purple/10 text-lernex-purple transition group-hover:bg-lernex-purple group-hover:text-white dark:bg-lernex-purple/20 dark:text-lernex-purple">
                 <item.icon className="h-6 w-6" />
               </span>
-              <h2 className="mt-4 text-lg font-semibold text-neutral-900 dark:text-white">{item.title}</h2>
-              <p className="mt-2 flex-1 text-sm text-neutral-600 transition group-hover:text-neutral-700 dark:text-neutral-300 dark:group-hover:text-neutral-200">
-                {item.description}
-              </p>
-              <span className="mt-4 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-400 transition group-hover:text-lernex-purple dark:text-neutral-400">
+              <div>
+                <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">{item.title}</h2>
+                <p className="mt-2 flex-1 text-sm text-neutral-600 transition group-hover:text-neutral-700 dark:text-neutral-300 dark:group-hover:text-neutral-200">
+                  {item.description}
+                </p>
+              </div>
+              <span className="mt-auto inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-400 transition group-hover:text-lernex-purple dark:text-neutral-400">
                 {item.meta}
                 <ArrowUpRight className="h-4 w-4" />
               </span>
@@ -359,6 +830,89 @@ export default function SupportPage() {
           ))}
         </section>
 
+        <section className="mt-12 rounded-3xl border border-neutral-200 bg-white/95 p-8 shadow-sm dark:border-white/10 dark:bg-white/5">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold">Support insights</h2>
+              <p className="mt-2 max-w-2xl text-neutral-600 dark:text-neutral-300">
+                We pull real data from your recent lessons, streaks, and achievements. Use it to decide whether to reach
+                for analytics, achievements, or the live chat.
+              </p>
+            </div>
+            <Link
+              href="/analytics"
+              className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-100 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-neutral-400 dark:border-white/10 dark:text-white dark:hover:bg-white/10"
+            >
+              Open analytics
+              <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="mt-6 grid gap-4 lg:grid-cols-3">
+            {statusItems.map((item) => {
+              const tone = toneStyles[item.tone];
+              return (
+                <div
+                  key={item.title}
+                  className="flex h-full flex-col gap-4 rounded-3xl border border-neutral-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-white/10"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={`flex h-10 w-10 items-center justify-center rounded-2xl ${tone.iconWrap}`}>
+                      <item.icon className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${tone.badge}`}>
+                        {item.status}
+                      </span>
+                      <h3 className="mt-2 text-base font-semibold text-neutral-900 dark:text-white">{item.title}</h3>
+                    </div>
+                  </div>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-300">{item.detail}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+        <section id="contact" className="mt-12 grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
+          <div className="rounded-3xl border border-neutral-200 bg-white/95 p-8 shadow-sm dark:border-white/10 dark:bg-white/5">
+            <div className="flex flex-col gap-2">
+              <h2 className="text-2xl font-semibold">Connect with the support team</h2>
+              <p className="text-neutral-600 dark:text-neutral-300">
+                We aim to respond fast and bring the right context. Pick the option that matches your question and we will
+                take it from there.
+              </p>
+            </div>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              {supportChannels.map((channel) => (
+                <a
+                  key={channel.id}
+                  href={channel.href}
+                  className="group flex h-full flex-col rounded-3xl border border-neutral-200 bg-white/90 p-5 transition hover:-translate-y-1 hover:border-lernex-purple hover:shadow-lg hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-lernex-purple/10 text-lernex-purple transition group-hover:bg-lernex-purple group-hover:text-white dark:bg-lernex-purple/20 dark:text-lernex-purple">
+                      <channel.icon className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">{channel.name}</h3>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-300">{channel.availability}</p>
+                    </div>
+                  </div>
+                  <p className="mt-4 flex-1 text-sm text-neutral-600 dark:text-neutral-300">{channel.description}</p>
+                  <div className="mt-6 flex items-center justify-between text-sm">
+                    <span className="font-semibold text-neutral-900 dark:text-white">{channel.actionLabel}</span>
+                    <span className="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-neutral-400 group-hover:text-lernex-purple">
+                      {channel.response}
+                      <ArrowUpRight className="h-4 w-4" />
+                    </span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+          <div id="live-chat" className="h-full min-h-[420px]">
+            <SupportChat context={contextSummary || 'No recent analytics yet. Encourage the learner to start a lesson.'} />
+          </div>
+        </section>
         <section className="mt-14 rounded-3xl border border-neutral-200 bg-white/90 p-8 shadow-sm dark:border-white/10 dark:bg-white/5" aria-labelledby="knowledge-heading">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -366,7 +920,7 @@ export default function SupportPage() {
                 Search the knowledge base
               </h2>
               <p className="mt-2 max-w-2xl text-neutral-600 dark:text-neutral-300">
-                Filter by topic or type what you’re trying to solve. Results update instantly so you can keep learning
+                Filter by topic or type what you are trying to solve. Results update instantly so you can keep learning
                 without losing momentum.
               </p>
             </div>
@@ -410,10 +964,11 @@ export default function SupportPage() {
 
           <div className="mt-8 grid gap-6 md:grid-cols-2">
             {filteredArticles.length === 0 ? (
-              <div className="col-span-full rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8 text-center text-neutral-500 dark:border-white/10 dark:bg-white/10 dark:text-neutral-400">
-                <p className="text-lg font-semibold text-neutral-700 dark:text-neutral-200">Nothing yet.</p>
-                <p className="mt-2 text-sm">
-                  No matches for “{query}”. Try a different phrase or message us — we reply fast.
+              <div className="col-span-full flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-8 text-center text-neutral-500 dark:border-white/10 dark:bg-white/10 dark:text-neutral-400">
+                <HelpCircle className="h-6 w-6 text-neutral-300 dark:text-neutral-500" />
+                <p className="text-lg font-semibold text-neutral-700 dark:text-neutral-200">No matches yet.</p>
+                <p className="text-sm">
+                  No results for &quot;{query}&quot;. Try a different phrase or open the live chat and we will point you in the right direction.
                 </p>
               </div>
             ) : (
@@ -421,103 +976,23 @@ export default function SupportPage() {
                 <Link
                   key={article.title}
                   href={article.href}
-                  className="group flex flex-col rounded-2xl border border-neutral-200 bg-white/90 p-6 transition hover:-translate-y-1 hover:border-lernex-purple hover:shadow-lg hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
+                  className="group flex h-full flex-col gap-3 rounded-3xl border border-neutral-200 bg-white/90 p-6 transition hover:-translate-y-1 hover:border-lernex-purple hover:shadow-lg hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
                 >
-                  <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-400 group-hover:text-lernex-purple">
+                  <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-400 transition group-hover:text-lernex-purple dark:text-neutral-400">
                     {article.category}
-                    <ArrowUpRight className="h-4 w-4" />
+                    <ArrowUpRight className="h-3.5 w-3.5" />
                   </span>
-                  <h3 className="mt-3 text-lg font-semibold text-neutral-900 dark:text-white">{article.title}</h3>
-                  <p className="mt-2 flex-1 text-sm text-neutral-600 dark:text-neutral-300">{article.summary}</p>
+                  <h3 className="text-lg font-semibold text-neutral-900 transition group-hover:text-lernex-purple dark:text-white">
+                    {article.title}
+                  </h3>
+                  <p className="text-sm text-neutral-600 transition group-hover:text-neutral-700 dark:text-neutral-300 dark:group-hover:text-neutral-200">
+                    {article.summary}
+                  </p>
                 </Link>
               ))
             )}
           </div>
         </section>
-
-        <section id="system-status" className="mt-14">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold">System status</h2>
-              <p className="mt-2 text-neutral-600 dark:text-neutral-300">
-                Real-time snapshots of the services powering Lernex. Subscribe via email to receive incident updates.
-              </p>
-            </div>
-            <Link
-              href="mailto:status@lernex.app"
-              className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:border-lernex-purple hover:text-lernex-purple focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:text-neutral-200"
-            >
-              Notify me
-              <ArrowUpRight className="h-4 w-4" />
-            </Link>
-          </div>
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {statusItems.map((item) => (
-              <div
-                key={item.title}
-                className="flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white/90 p-6 shadow-sm dark:border-white/10 dark:bg-white/10"
-              >
-                <div className="flex items-center gap-3">
-                  <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${toneStyles[item.tone].iconWrap}`}>
-                    <item.icon className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">{item.title}</p>
-                    <p
-                      className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${toneStyles[item.tone].badge}`}
-                    >
-                      {item.status}
-                    </p>
-                  </div>
-                </div>
-                <p className="text-sm text-neutral-600 dark:text-neutral-300">{item.detail}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section id="contact" className="mt-14 rounded-3xl border border-neutral-200 bg-white/95 p-8 shadow-sm dark:border-white/10 dark:bg-white/5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold">Connect with the support team</h2>
-              <p className="mt-2 text-neutral-600 dark:text-neutral-300">
-                Choose the channel that fits your style. We track every message so you don’t have to repeat yourself.
-              </p>
-            </div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-lernex-blue/10 px-4 py-2 text-sm font-semibold text-lernex-blue dark:bg-lernex-blue/20 dark:text-lernex-blue">
-              24/7 coverage for premium plans
-            </span>
-          </div>
-          <div className="mt-6 grid gap-6 md:grid-cols-2">
-            {supportChannels.map((channel) => (
-              <a
-                key={channel.name}
-                id={channel.id}
-                href={channel.href}
-                className="group flex h-full flex-col justify-between rounded-2xl border border-neutral-200 bg-white/90 p-6 transition hover:-translate-y-1 hover:border-lernex-purple hover:shadow-lg hover:shadow-lernex-purple/10 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-lernex-purple dark:border-white/10 dark:bg-white/10"
-              >
-                <div className="flex items-center gap-4">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-lernex-blue/10 text-lernex-blue transition group-hover:bg-lernex-purple group-hover:text-white dark:bg-lernex-blue/20 dark:text-lernex-blue">
-                    <channel.icon className="h-6 w-6" />
-                  </span>
-                  <div>
-                    <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">{channel.name}</h3>
-                    <p className="text-sm text-neutral-500 dark:text-neutral-300">{channel.availability}</p>
-                  </div>
-                </div>
-                <p className="mt-4 flex-1 text-sm text-neutral-600 dark:text-neutral-300">{channel.description}</p>
-                <div className="mt-6 flex items-center justify-between text-sm">
-                  <span className="font-semibold text-neutral-900 dark:text-white">{channel.actionLabel}</span>
-                  <span className="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-neutral-400 group-hover:text-lernex-purple">
-                    {channel.response}
-                    <ArrowUpRight className="h-4 w-4" />
-                  </span>
-                </div>
-              </a>
-            ))}
-          </div>
-        </section>
-
         <section className="mt-14 grid gap-6 lg:grid-cols-[2fr,1fr]">
           <div className="rounded-3xl border border-neutral-200 bg-white/95 p-8 shadow-sm dark:border-white/10 dark:bg-white/5">
             <h2 className="text-2xl font-semibold">Popular questions</h2>
@@ -558,21 +1033,20 @@ export default function SupportPage() {
               </Link>
             ))}
             <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-white/10 dark:bg-white/10 dark:text-neutral-300">
-              Can’t find what you need? Drop a note to{' '}
-              <a href="mailto:community@lernex.app" className="font-semibold text-lernex-purple hover:underline">
-                community@lernex.app
+              Cannot find what you need? Drop a note to{' '}
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="font-semibold text-lernex-purple hover:underline">
+                {SUPPORT_EMAIL}
               </a>{' '}
-              and we’ll add a guide within 48 hours.
+              and we will add a guide within two days.
             </div>
           </div>
         </section>
-
         <section className="mt-14 rounded-3xl border border-neutral-200 bg-white/95 p-8 shadow-sm dark:border-white/10 dark:bg-white/5">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-2xl font-semibold">Share feedback</h2>
               <p className="mt-2 max-w-2xl text-neutral-600 dark:text-neutral-300">
-                Every idea helps shape Lernex. Send a quick note, request a feature, or report a bug — the product team
+                Every idea helps shape Lernex. Send a quick note, request a feature, or report a bug - the product team
                 reads everything.
               </p>
             </div>
@@ -590,7 +1064,7 @@ export default function SupportPage() {
               <div>
                 <p className="font-semibold text-neutral-900 dark:text-white">Report a bug</p>
                 <p className="text-sm text-neutral-600 dark:text-neutral-300">
-                  Include steps, screenshots if you can, and we’ll triage immediately.
+                  Include steps and screenshots if you can, and we will triage immediately.
                 </p>
               </div>
             </div>
@@ -599,7 +1073,7 @@ export default function SupportPage() {
               <div>
                 <p className="font-semibold text-neutral-900 dark:text-white">Request a feature</p>
                 <p className="text-sm text-neutral-600 dark:text-neutral-300">
-                  Tell us the outcome you’re chasing — we’ll reply with possible workarounds.
+                  Tell us the outcome you are chasing - we will reply with ideas or workarounds.
                 </p>
               </div>
             </div>
@@ -618,3 +1092,4 @@ export default function SupportPage() {
     </main>
   );
 }
+

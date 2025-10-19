@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { LessonSchema, type Lesson } from "@/lib/schema";
+import { logUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -138,13 +139,29 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
 
-  const { subject, lesson_id, action } = await req.json().catch(() => ({} as Record<string, unknown>));
-  if (typeof subject !== "string" || typeof lesson_id !== "string") {
+  const payload = await req.json().catch(() => ({} as Record<string, unknown>));
+  const subject = typeof (payload as { subject?: unknown }).subject === "string"
+    ? (payload as { subject: string }).subject.trim()
+    : null;
+  const lessonId = typeof (payload as { lesson_id?: unknown }).lesson_id === "string"
+    ? (payload as { lesson_id: string }).lesson_id.trim()
+    : null;
+  const rawAction = typeof (payload as { action?: unknown }).action === "string"
+    ? (payload as { action: string }).action.trim().toLowerCase()
+    : "";
+  const reason = typeof (payload as { reason?: unknown }).reason === "string"
+    ? (payload as { reason: string }).reason.trim().slice(0, 300)
+    : null;
+  if (!subject || !lessonId) {
     return new Response(JSON.stringify({ error: "Invalid payload" }), { status: 400 });
   }
-  if (!["like", "dislike", "save"].includes(String(action))) {
+  const allowedActions = new Set(["like", "dislike", "save", "skip", "report"]);
+  if (!allowedActions.has(rawAction)) {
     return new Response(JSON.stringify({ error: "Invalid action" }), { status: 400 });
   }
+
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+  const isPreferenceAction = rawAction === "like" || rawAction === "dislike" || rawAction === "save";
 
   const { data: state } = await sb
     .from("user_subject_state")
@@ -157,35 +174,40 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "No learning path" }), { status: 400 });
   }
 
-  const { data: prefRow } = await sb
-    .from("user_subject_preferences")
-    .select("liked_ids, disliked_ids, saved_ids, tone_tags")
-    .eq("user_id", user.id)
-    .eq("subject", subject)
-    .maybeSingle();
+  let liked: string[] = [];
+  let disliked: string[] = [];
+  let saved: string[] = [];
+  let toneTags: string[] = [];
 
-  let liked = normalizeIdList(prefRow?.liked_ids);
-  let disliked = normalizeIdList(prefRow?.disliked_ids);
-  let saved = normalizeIdList(prefRow?.saved_ids);
-  let toneTags = normalizeToneTags(prefRow?.tone_tags);
+  if (isPreferenceAction) {
+    const { data: prefRow } = await sb
+      .from("user_subject_preferences")
+      .select("liked_ids, disliked_ids, saved_ids, tone_tags")
+      .eq("user_id", user.id)
+      .eq("subject", subject)
+      .maybeSingle();
 
-  if (action === "like") {
-    liked = pushUnique(liked, lesson_id);
-    disliked = disliked.filter((value) => value !== lesson_id);
-  } else if (action === "dislike") {
-    disliked = pushUnique(disliked, lesson_id);
-    liked = liked.filter((value) => value !== lesson_id);
-  } else if (action === "save") {
-    saved = pushUnique(saved, lesson_id);
-  }
+    liked = normalizeIdList(prefRow?.liked_ids);
+    disliked = normalizeIdList(prefRow?.disliked_ids);
+    saved = normalizeIdList(prefRow?.saved_ids);
+    toneTags = normalizeToneTags(prefRow?.tone_tags);
 
-  if (action === "like" || action === "dislike" || action === "save") {
+    if (rawAction === "like") {
+      liked = pushUnique(liked, lessonId);
+      disliked = disliked.filter((value) => value !== lessonId);
+    } else if (rawAction === "dislike") {
+      disliked = pushUnique(disliked, lessonId);
+      liked = liked.filter((value) => value !== lessonId);
+    } else if (rawAction === "save") {
+      saved = pushUnique(saved, lessonId);
+    }
+
     try {
-      const lesson = await findLessonForTone(sb, user.id, subject, lesson_id);
+      const lesson = await findLessonForTone(sb, user.id, subject, lessonId);
       if (lesson) {
         const tags = classifyLessonTone(lesson);
         if (tags.length) {
-          if (action === "dislike") {
+          if (rawAction === "dislike") {
             toneTags = mergeToneTags(toneTags, [], tags);
           } else {
             toneTags = mergeToneTags(toneTags, tags, []);
@@ -197,17 +219,42 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  await sb
-    .from("user_subject_preferences")
-    .upsert({
-      user_id: user.id,
-      subject,
-      liked_ids: liked,
-      disliked_ids: disliked,
-      saved_ids: saved,
-      tone_tags: toneTags,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id,subject" });
+  if (rawAction === "skip" || rawAction === "report") {
+    try {
+      await logUsage(
+        sb,
+        user.id,
+        ip,
+        rawAction === "skip" ? "lesson-skip" : "lesson-report",
+        { input_tokens: null, output_tokens: null },
+        {
+          metadata: {
+            feature: "fyp-feedback",
+            subject,
+            lessonId,
+            action: rawAction,
+            ...(reason ? { reason } : {}),
+          },
+        },
+      );
+    } catch (telemetryErr) {
+      console.warn("[fyp-feedback] feedback logging failed", telemetryErr);
+    }
+  }
+
+  if (isPreferenceAction) {
+    await sb
+      .from("user_subject_preferences")
+      .upsert({
+        user_id: user.id,
+        subject,
+        liked_ids: liked,
+        disliked_ids: disliked,
+        saved_ids: saved,
+        tone_tags: toneTags,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id,subject" });
+  }
 
   await sb
     .from("user_subject_state")

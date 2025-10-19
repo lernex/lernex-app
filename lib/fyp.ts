@@ -23,15 +23,119 @@ type LessonOptions = {
   savedIds?: string[];
   toneTags?: string[];
   nextTopicHint?: string;
+  learnerProfile?: string;
+  likedLessonDescriptors?: string[];
+  savedLessonDescriptors?: string[];
+  previousLessonSummary?: string;
+  accuracyBand?: string;
+  recentMissSummary?: string;
+  knowledge?: {
+    definition?: string;
+    applications?: string[];
+    prerequisites?: string[];
+    reminders?: string[];
+  };
 };
 
 const MAX_GUARDRAIL_ITEMS = 6;
 const MAX_CONTEXT_CHARS = 600;
 const MAX_MAP_SUMMARY_CHARS = 600;
 
+const LESSON_RESPONSE_SCHEMA = {
+  name: "lesson_payload",
+  schema: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      id: { type: "string" },
+      subject: { type: "string" },
+      topic: { type: "string" },
+      title: { type: "string" },
+      content: { type: "string" },
+      difficulty: { type: "string", enum: ["intro", "easy", "medium", "hard"] },
+      questions: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            prompt: { type: "string" },
+            choices: {
+              type: "array",
+              items: { type: "string" },
+              minItems: 2,
+            },
+            correctIndex: { type: "integer", minimum: 0 },
+            explanation: { type: "string" },
+          },
+          required: ["prompt", "choices", "correctIndex", "explanation"],
+        },
+      },
+    },
+    required: ["id", "subject", "topic", "title", "content", "difficulty", "questions"],
+  },
+} as const;
+
+const LESSON_VERIFICATION_SCHEMA = {
+  name: "lesson_verification",
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      valid: { type: "boolean" },
+      reasons: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 0,
+        maxItems: 6,
+      },
+    },
+    required: ["valid"],
+  },
+} as const;
+
 const DEFAULT_MODEL = process.env.CEREBRAS_LESSON_MODEL ?? "gpt-oss-120b";
-const DEFAULT_TEMPERATURE = Number(process.env.CEREBRAS_LESSON_TEMPERATURE ?? "1");
 const DEFAULT_BASE_URL = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
+const FALLBACK_TEMPERATURE = 0.4;
+
+const resolveNumericEnv = (value: string | undefined, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const TEMPERATURE_MIN = resolveNumericEnv(process.env.CEREBRAS_LESSON_TEMPERATURE_MIN, 0.3);
+const TEMPERATURE_MAX = resolveNumericEnv(process.env.CEREBRAS_LESSON_TEMPERATURE_MAX, 0.5);
+const TEMPERATURE_FLOOR = Math.min(TEMPERATURE_MIN, TEMPERATURE_MAX);
+const TEMPERATURE_CEIL = Math.max(TEMPERATURE_MIN, TEMPERATURE_MAX);
+
+function clampTemperature(value: number) {
+  if (!Number.isFinite(value)) {
+    return Math.min(Math.max(FALLBACK_TEMPERATURE, TEMPERATURE_FLOOR), TEMPERATURE_CEIL);
+  }
+  return Math.max(TEMPERATURE_FLOOR, Math.min(TEMPERATURE_CEIL, value));
+}
+
+const DEFAULT_TEMPERATURE = clampTemperature(resolveNumericEnv(process.env.CEREBRAS_LESSON_TEMPERATURE, FALLBACK_TEMPERATURE));
+const TEMPERATURE_BY_BAND: Record<string, number> = {
+  early: clampTemperature(0.33),
+  developing: clampTemperature(0.36),
+  steady: clampTemperature(0.4),
+  high: clampTemperature(0.45),
+};
+
+function deriveLessonTemperature(accuracyBand: string | undefined, accuracy: number | null) {
+  const normalizedBand = typeof accuracyBand === "string" ? accuracyBand.trim().toLowerCase() : null;
+  if (normalizedBand && normalizedBand in TEMPERATURE_BY_BAND) {
+    return TEMPERATURE_BY_BAND[normalizedBand];
+  }
+  if (accuracy != null) {
+    if (accuracy < 50) return clampTemperature(0.33);
+    if (accuracy < 70) return clampTemperature(0.36);
+    if (accuracy < 85) return clampTemperature(0.4);
+    return clampTemperature(0.45);
+  }
+  return DEFAULT_TEMPERATURE;
+}
 
 let cachedClient: { apiKey: string; baseUrl: string; client: OpenAI } | null = null;
 
@@ -49,11 +153,6 @@ function getClient() {
   }
 
   return cachedClient.client;
-}
-
-function clampTemperature(value: number) {
-  if (!Number.isFinite(value)) return 0.6;
-  return Math.min(1, Math.max(0, value));
 }
 
 function collectStrings(value: unknown, depth = 0, seen = new Set<unknown>()): string[] {
@@ -171,6 +270,75 @@ function resolveLessonCandidate(raw: string): Lesson | null {
   return null;
 }
 
+type LessonVerificationTarget = {
+  subject: string;
+  topic: string;
+  difficulty: Difficulty;
+  knowledge?: LessonOptions["knowledge"];
+  recentMissSummary?: string | null;
+};
+
+async function verifyLessonAlignment(
+  client: OpenAI,
+  model: string,
+  lesson: Lesson,
+  target: LessonVerificationTarget,
+) {
+  const knowledgeLines = collectKnowledgeEntries(target.knowledge);
+  const knowledgeSummary = knowledgeLines.length ? knowledgeLines.join(" | ") : null;
+
+  const systemPrompt = [
+    "You are a quality gate that validates micro-lessons for alignment and fidelity.",
+    "Return strict JSON matching { \"valid\": boolean, \"reasons\": string[] }.",
+    "Reject lessons that skip the requested topic, mismatch the target difficulty, misstate facts, or ignore recent-miss cues.",
+    "Reasons should be concise phrases explaining any issue you detect.",
+  ].join("\n");
+
+  const userLines = [
+    `Subject: ${target.subject}`,
+    `Requested topic: ${target.topic}`,
+    `Target difficulty: ${target.difficulty}`,
+    target.recentMissSummary ? `Recent miss signal: ${target.recentMissSummary}` : null,
+    knowledgeSummary ? `Anchor knowledge: ${knowledgeSummary}` : null,
+    `Lesson JSON:`,
+    JSON.stringify(lesson),
+    `Respond with the verification JSON only.`,
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n");
+
+  try {
+    const completion = await client.chat.completions.create({
+      model,
+      temperature: clampTemperature(0.1),
+      max_tokens: 260,
+      response_format: { type: "json_schema", json_schema: LESSON_VERIFICATION_SCHEMA },
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userLines },
+      ],
+    });
+    const raw = completion.choices?.[0]?.message?.content;
+    if (!raw) return { valid: false, reasons: ["no_verification_response"] };
+    const parsed = tryParseJson(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { valid: false, reasons: ["invalid_verification_payload"] };
+    }
+    const result = parsed as { valid?: unknown; reasons?: unknown };
+    const valid = typeof result.valid === "boolean" ? result.valid : false;
+    const reasons = Array.isArray(result.reasons)
+      ? result.reasons
+          .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+          .filter((entry) => entry.length)
+          .slice(0, 6)
+      : [];
+    return { valid, reasons };
+  } catch (error) {
+    console.warn("[fyp] verification failed", error);
+    return { valid: false, reasons: ["verification_call_failed"] };
+  }
+}
+
 function clampFallbackContent(text: string) {
   const maxChars = 600;
   const sanitized = text.replace(/\s+/g, " ").trim();
@@ -200,12 +368,13 @@ function clampFallbackContent(text: string) {
 function buildFallbackLesson(subject: string, topic: string, _pace: Pace, _accuracy: number | null, difficulty: Difficulty): Lesson {
   const topicLabel = topic.split("> ").pop()?.trim() || topic.trim();
   const subjectLabel = subject.trim() || "your course";
+  const focusKeyword = topicLabel.split(" ").slice(0, 3).join(" ");
 
   const contentBase = [
-    `${topicLabel} is a cornerstone idea in ${subjectLabel}. Open with a clear statement of what the concept represents and why it matters.`,
-    `Walk through a bite-sized example so each step of the rule is visible, pausing to highlight the move that makes the result work.`,
-    `Call out a common snag learners face and what signal tells you to slow down and fix it before the error spreads.`,
-    `Close with a next action - solve a related mini-problem, sketch the relationship, or teach the idea aloud to reinforce the pattern.`,
+    `${topicLabel} is a cornerstone idea in ${subjectLabel}. Open with a clear statement of what ${topicLabel} represents and why learners will see it again soon.`,
+    `Walk through a bite-sized example that explicitly uses ${focusKeyword}, pausing to highlight the move that usually unlocks the result.`,
+    `Call out a common snag (for example, mixing up the sign change or forgetting to balance the ${focusKeyword} step) and describe the quick check that catches it.`,
+    `Close with a next action - solve a related mini-problem that still uses ${focusKeyword}, sketch the relationship, or teach the idea aloud to reinforce the pattern.`,
   ].join(" ");
 
   const content = clampFallbackContent(contentBase);
@@ -287,14 +456,91 @@ function hashSample(values: string[] | undefined, limit: number) {
   return dedupeStrings(values, limit).map(shortHash);
 }
 
-function stringifyStructuredContext(context: Record<string, unknown>) {
-  try {
-    const json = JSON.stringify(context);
-    if (!json) return "";
-    return truncateText(json, MAX_CONTEXT_CHARS);
-  } catch {
-    return "";
+function sanitizeStructuredContext(context: Record<string, unknown>) {
+  const prune = (value: unknown, depth: number): unknown => {
+    if (depth > 4) return undefined;
+    if (value == null) return value;
+    if (typeof value === "string") {
+      return truncateText(value, Math.min(MAX_CONTEXT_CHARS, 220));
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      const items: unknown[] = [];
+      for (const entry of value) {
+        if (items.length >= 6) break;
+        const sanitized = prune(entry, depth + 1);
+        if (sanitized === undefined) continue;
+        items.push(sanitized);
+      }
+      return items;
+    }
+    if (typeof value === "object") {
+      const result: Record<string, unknown> = {};
+      const entries = Object.entries(value as Record<string, unknown>);
+      for (let idx = 0; idx < entries.length && idx < 8; idx += 1) {
+        const [key, raw] = entries[idx];
+        const sanitized = prune(raw, depth + 1);
+        if (sanitized === undefined) continue;
+        result[key] = sanitized;
+      }
+      return result;
+    }
+    return undefined;
+  };
+
+  const sanitized = prune(context, 0);
+  if (!sanitized || typeof sanitized !== "object" || Array.isArray(sanitized)) {
+    return {};
   }
+  return sanitized as Record<string, unknown>;
+}
+
+function buildStructuredContextMessage(context: Record<string, unknown>) {
+  try {
+    const sanitized = sanitizeStructuredContext(context);
+    return JSON.stringify({ type: "structured_context", data: sanitized });
+  } catch {
+    return JSON.stringify({ type: "structured_context", data: {} });
+  }
+}
+
+function collectKnowledgeEntries(knowledge: LessonOptions["knowledge"] | undefined): string[] {
+  if (!knowledge) return [];
+  const entries: string[] = [];
+  const definition = typeof knowledge.definition === "string" ? knowledge.definition.trim() : "";
+  if (definition) {
+    entries.push(`definition: ${truncateText(definition, 240)}`);
+  }
+  if (Array.isArray(knowledge.applications)) {
+    const apps = dedupeStrings(
+      knowledge.applications.filter((entry): entry is string => typeof entry === "string"),
+      3,
+    ).map((entry) => truncateText(entry, 110));
+    if (apps.length) {
+      entries.push(`applications: ${apps.join(" | ")}`);
+    }
+  }
+  if (Array.isArray(knowledge.prerequisites)) {
+    const prereqs = dedupeStrings(
+      knowledge.prerequisites.filter((entry): entry is string => typeof entry === "string"),
+      4,
+    ).map((entry) => truncateText(entry, 100));
+    if (prereqs.length) {
+      entries.push(`prerequisites: ${prereqs.join(" | ")}`);
+    }
+  }
+  if (Array.isArray(knowledge.reminders)) {
+    const reminders = dedupeStrings(
+      knowledge.reminders.filter((entry): entry is string => typeof entry === "string"),
+      3,
+    ).map((entry) => truncateText(entry, 100));
+    if (reminders.length) {
+      entries.push(`reminders: ${reminders.join(" | ")}`);
+    }
+  }
+  return entries;
 }
 
 function buildSourceText(
@@ -308,62 +554,59 @@ function buildSourceText(
   const sections: string[] = [];
   const subjectLine = subject.trim() || "General studies";
   const topicLine = topic.trim() || "Current concept";
-  sections.push(`Subject: ${subjectLine}\nTopic Focus: ${topicLine}`);
+  sections.push(`Subject: ${subjectLine} | Focus: ${topicLine}`);
 
-  const learnerSignals: string[] = [
-    `- Pace preference: ${pace}`,
-    accuracy != null
-      ? `- Recent accuracy: ${accuracy}%`
-      : `- Recent accuracy unavailable`,
-    `- Target difficulty: ${difficulty}`,
-  ];
+  const knowledgeEntries = collectKnowledgeEntries(opts.knowledge);
+  if (knowledgeEntries.length) {
+    sections.push(["Knowledge:", ...knowledgeEntries.map((line) => `- ${line}`)].join("\n"));
+  }
+
+  const profileChunks: string[] = [];
+  profileChunks.push(`pace=${pace}`);
+  if (typeof opts.accuracyBand === "string" && opts.accuracyBand.trim()) {
+    profileChunks.push(`accuracy=${opts.accuracyBand.trim()}`);
+  } else if (accuracy != null) {
+    profileChunks.push(`accuracy=${accuracy}%`);
+  }
+  profileChunks.push(`difficulty=${difficulty}`);
   if (opts.difficultyPref && opts.difficultyPref !== difficulty) {
-    learnerSignals.push(`- Learner requested difficulty: ${opts.difficultyPref}`);
+    profileChunks.push(`preferred_difficulty=${opts.difficultyPref}`);
   }
-  sections.push(
-    [
-      "Learner Profile (calibrate tone; do not echo these stats verbatim):",
-      learnerSignals.join("\n"),
-    ].join("\n"),
-  );
-
-  const preferenceLines: string[] = [];
-  const likedHashes = opts.likedIds ? dedupeStrings(opts.likedIds, 6).map(shortHash) : [];
-  const savedHashes = opts.savedIds ? dedupeStrings(opts.savedIds, 6).map(shortHash) : [];
-  const toneTags = opts.toneTags ? dedupeStrings(opts.toneTags, 6) : [];
-
-  if (likedHashes.length) preferenceLines.push(`- Learner responded well to recent lessons: ${likedHashes.join(", ")}`);
-  if (savedHashes.length) preferenceLines.push(`- Saved lessons to revisit (hashed ids): ${savedHashes.join(", ")}`);
-  if (toneTags.length) preferenceLines.push(`- Preferred lesson tone cues: ${toneTags.join(", ")}`);
-  if (preferenceLines.length) {
-    sections.push(
-      [
-        "Preference Signals (reinforce effective patterns without repeating identical content):",
-        preferenceLines.join("\n"),
-      ].join("\n"),
-    );
+  if (typeof opts.learnerProfile === "string" && opts.learnerProfile.trim().length) {
+    profileChunks.push(`learner_note=${truncateText(opts.learnerProfile.trim(), 180)}`);
+  }
+  if (opts.nextTopicHint && opts.nextTopicHint.trim()) {
+    profileChunks.push(`next_hint=${truncateText(opts.nextTopicHint, 160)}`);
+  }
+  if (opts.recentMissSummary && opts.recentMissSummary.trim()) {
+    profileChunks.push(`recent_miss=${truncateText(opts.recentMissSummary, 140)}`);
   }
 
-  sections.push(
-    [
-      "Lesson Goals:",
-      "- Explain the core idea plainly and connect it to prior knowledge.",
-      "- Include a compact example or scenario that shows the idea in action.",
-      "- Call out one common misconception and how to avoid it.",
-      "- End with a concrete next step or prompt to keep practising.",
-      "Keep the tone encouraging but content-focused; avoid meta commentary about pace or accuracy.",
-    ].join("\n"),
-  );
+  const likedDescriptors = opts.likedLessonDescriptors ? dedupeStrings(opts.likedLessonDescriptors, 4) : [];
+  const savedDescriptors = opts.savedLessonDescriptors ? dedupeStrings(opts.savedLessonDescriptors, 3) : [];
+  const toneHints = opts.toneTags ? dedupeStrings(opts.toneTags, 4) : [];
+  const preferenceChunks: string[] = [];
+  if (likedDescriptors.length) preferenceChunks.push(`likes=${likedDescriptors.join(" | ")}`);
+  if (savedDescriptors.length) preferenceChunks.push(`saved=${savedDescriptors.join(" | ")}`);
+  if (toneHints.length) preferenceChunks.push(`tone=${toneHints.join(" | ")}`);
 
+  const plannerLines: string[] = [];
+  if (profileChunks.length) plannerLines.push(`Profile: ${profileChunks.join(" | ")}`);
+  if (preferenceChunks.length) plannerLines.push(`Preferences: ${preferenceChunks.join(" | ")}`);
+  if (opts.previousLessonSummary && opts.previousLessonSummary.trim()) {
+    plannerLines.push(`Previous: ${truncateText(opts.previousLessonSummary, 180)}`);
+  }
   if (opts.mapSummary) {
     const summary = truncateText(opts.mapSummary, MAX_MAP_SUMMARY_CHARS);
-    if (summary) sections.push(`Learning Path Summary:\n${summary}`);
+    if (summary) plannerLines.push(`Progress: ${summary}`);
+  }
+  if (plannerLines.length) {
+    sections.push(plannerLines.join("\n"));
   }
 
-  if (opts.structuredContext) {
-    const structured = stringifyStructuredContext(opts.structuredContext);
-    if (structured) sections.push(`Structured Context (JSON excerpt):\n${structured}`);
-  }
+  sections.push(
+    "Goals: explain the core idea plainly; show a concise example; highlight one misconception + fix; finish with a concrete next step."
+  );
 
   const guardrails: string[] = [];
   if (opts.avoidTitles?.length) {
@@ -392,7 +635,6 @@ export async function generateLessonForTopic(
 ): Promise<Lesson> {
   const client = getClient();
   const model = DEFAULT_MODEL;
-  const temperature = clampTemperature(DEFAULT_TEMPERATURE);
   const completionMaxTokens = Math.min(
     3200,
     Math.max(900, Number(process.env.GROQ_LESSON_MAX_TOKENS ?? "2200") || 2200),
@@ -412,6 +654,7 @@ export async function generateLessonForTopic(
       ?? (accuracy != null
         ? (accuracy < 50 ? "intro" : accuracy < 70 ? "easy" : accuracy < 85 ? "medium" : "hard")
         : "easy");
+  const temperature = deriveLessonTemperature(opts.accuracyBand, accuracy);
 
   const sourceText = buildSourceText(subject, topic, pace, accuracy, difficulty, opts);
   const { system: systemPrompt, user: userPrompt } = buildLessonPrompts({
@@ -421,20 +664,30 @@ export async function generateLessonForTopic(
     nextTopicHint: opts.nextTopicHint,
   });
 
+  const messages: { role: "system" | "user"; content: string; name?: string }[] = [
+    { role: "system", content: systemPrompt },
+  ];
+  if (opts.structuredContext) {
+    messages.push({
+      role: "user",
+      name: "structured_context",
+      content: buildStructuredContextMessage(opts.structuredContext),
+    });
+  }
+  messages.push({ role: "user", content: userPrompt });
+
   const requestPayload = {
     model,
     temperature,
     max_tokens: completionMaxTokens,
     reasoning_effort: "medium" as const,
-    response_format: { type: "json_object" as const },
-    messages: [
-      { role: "system" as const, content: systemPrompt },
-      { role: "user" as const, content: userPrompt },
-    ],
+    response_format: { type: "json_schema" as const, json_schema: LESSON_RESPONSE_SCHEMA },
+    messages,
   };
 
   let usageSummary: UsageSummary = null;
   let lastError: unknown = null;
+  let lastVerification: { valid: boolean; reasons: string[] } | null = null;
 
   const logLessonUsage = async (
     attempt: "single" | "fallback",
@@ -470,7 +723,25 @@ export async function generateLessonForTopic(
       nextTopicHintProvided: Boolean(opts.nextTopicHint && opts.nextTopicHint.trim().length > 0),
       mapSummary: opts.mapSummary ?? undefined,
       structuredContextKeys: structuredKeys ?? undefined,
+      accuracyBand: opts.accuracyBand ?? undefined,
+      learnerProfile: opts.learnerProfile ?? undefined,
+      likedDescriptors: Array.isArray(opts.likedLessonDescriptors) && opts.likedLessonDescriptors.length
+        ? dedupeStrings(opts.likedLessonDescriptors, 4)
+        : undefined,
+      savedDescriptors: Array.isArray(opts.savedLessonDescriptors) && opts.savedLessonDescriptors.length
+        ? dedupeStrings(opts.savedLessonDescriptors, 3)
+        : undefined,
+      previousLessonSummary: typeof opts.previousLessonSummary === "string" && opts.previousLessonSummary.trim()
+        ? truncateText(opts.previousLessonSummary, 200)
+        : undefined,
+      recentMissSummary: opts.recentMissSummary ?? undefined,
     };
+    if (lastVerification) {
+      metadata.verification = {
+        valid: lastVerification.valid,
+        ...(lastVerification.reasons.length ? { reasons: lastVerification.reasons } : {}),
+      };
+    }
     if (summary == null) metadata.missingUsage = true;
     if (errorDetails) {
       metadata.error = errorDetails instanceof Error ? errorDetails.message : String(errorDetails);
@@ -480,6 +751,24 @@ export async function generateLessonForTopic(
     } catch (usageErr) {
       console.warn("[fyp] usage log failed", usageErr);
     }
+  };
+
+  const validateLessonCandidate = async (candidate: Lesson | null) => {
+    if (!candidate) return null;
+    const verification = await verifyLessonAlignment(client, model, candidate, {
+      subject,
+      topic,
+      difficulty,
+      knowledge: opts.knowledge,
+      recentMissSummary: opts.recentMissSummary ?? null,
+    });
+    lastVerification = verification;
+    if (!verification.valid) {
+      const detail = verification.reasons.length ? verification.reasons.join("; ") : "unspecified issue";
+      lastError = new Error(`Lesson failed verification: ${detail}`);
+      return null;
+    }
+    return candidate;
   };
 
   try {
@@ -498,21 +787,23 @@ export async function generateLessonForTopic(
     const raw = typeof messageContent === "string" && messageContent.trim().length > 0
       ? messageContent.trim()
       : extractAssistantJson(choice);
-    const lesson = resolveLessonCandidate(raw);
+    const lessonCandidate = resolveLessonCandidate(raw);
+    const verifiedLesson = await validateLessonCandidate(lessonCandidate);
 
-    if (lesson) {
+    if (verifiedLesson) {
       await logLessonUsage("single", usageSummary);
-      return lesson;
+      return verifiedLesson;
     }
 
-    lastError = new Error("Invalid lesson format from AI");
+    if (!lastError) lastError = new Error("Invalid lesson format from AI");
   } catch (error) {
     const fallbackGenerated = (error as { error?: { failed_generation?: string } })?.error?.failed_generation;
     if (typeof fallbackGenerated === "string" && fallbackGenerated.trim().length > 0) {
-      const lesson = resolveLessonCandidate(fallbackGenerated);
-      if (lesson) {
+      const lessonCandidate = resolveLessonCandidate(fallbackGenerated.trim());
+      const verifiedLesson = await validateLessonCandidate(lessonCandidate);
+      if (verifiedLesson) {
         await logLessonUsage("single", usageSummary);
-        return lesson;
+        return verifiedLesson;
       }
       lastError = new Error("Invalid lesson format from AI");
     } else {

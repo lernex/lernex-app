@@ -2,9 +2,11 @@
 import { persist } from "zustand/middleware";
 import type { Lesson } from "@/types";
 
+type LessonStub = Pick<Lesson, "id" | "subject" | "title" | "topic" | "difficulty" | "nextTopicHint">;
+
 type FypSnapshot = {
   subjectsKey: string;
-  lessons: Lesson[];
+  lessonStubs: LessonStub[];
   index: number;
   completed: Record<string, boolean>;
   updatedAt: number;
@@ -31,12 +33,7 @@ function cloneSnapshot(snapshot: FypSnapshot | null): FypSnapshot | null {
     index: snapshot.index,
     completed: { ...snapshot.completed },
     updatedAt: snapshot.updatedAt,
-    lessons: snapshot.lessons.map((lesson) => ({
-      ...lesson,
-      questions: Array.isArray(lesson.questions)
-        ? lesson.questions.map((q) => ({ ...q }))
-        : [],
-    })),
+    lessonStubs: snapshot.lessonStubs.map((stub) => ({ ...stub })),
   };
 }
 
@@ -70,3 +67,5 @@ export const useLernexStore = create<State>()(
     { name: "lernex-store" }
   )
 );
+
+export type { LessonStub, FypSnapshot };

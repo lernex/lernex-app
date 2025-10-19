@@ -28,6 +28,7 @@ export function buildLessonPrompts(params: LessonPromptParams) {
     `}`,
     `Rules:`,
     `- Keep the lesson factual, encouraging, and 80-105 words (roughly 180-600 characters).`,
+    `- Structure the prose into four tight sentences: Definition, Worked Example, Common Pitfall, Next Step.`,
     `- Provide exactly three questions; each question must have four distinct answer choices and correctIndex 0-3.`,
     `- Include a brief rationale (10-35 words) in each explanation focusing on why the correct choice is right.`,
     `- Align strictly with the provided passage; simplify when needed for lower difficulty.`,
