@@ -818,6 +818,17 @@ export async function generateLessonForTopic(
   if (structuredContextJson) {
     requestVariants.push({ usePlainResponse: true, dropStructured: true });
   }
+  const variantRetryLimit = Math.max(
+    1,
+    Number(process.env.FYP_LESSON_VARIANT_RETRIES ?? "2") || 2,
+  );
+  const computeVariantRetryDelay = (attemptOrdinal: number) => {
+    const base = 260;
+    const growth = Math.pow(1.8, Math.max(0, attemptOrdinal));
+    const jitter = Math.random() * 120;
+    const delayMs = Math.round(base * growth + jitter);
+    return Math.min(2200, Math.max(0, delayMs));
+  };
 
   let usageSummary: UsageSummary = null;
   let lastError: unknown = null;
@@ -940,63 +951,81 @@ export async function generateLessonForTopic(
   try {
     let completion: Awaited<ReturnType<typeof client.chat.completions.create>> | null = null;
     let lastCompletionError: unknown = null;
+    let attemptOrdinal = 0;
 
-    for (let attempt = 0; attempt < requestVariants.length; attempt++) {
-      const variant = requestVariants[attempt];
-      usedPlainResponseMode = variant.usePlainResponse;
-      trimmedStructuredContext = variant.dropStructured;
-      const messages = variant.dropStructured ? messagesWithoutContext : messagesWithContext;
-      const payload = {
-        model,
-        temperature,
-        max_tokens: completionMaxTokens,
-        reasoning_effort: "medium" as const,
-        messages,
-        ...(variant.usePlainResponse ? {} : { response_format: { type: "json_object" as const } }),
-      };
-
-      try {
-        completion = await client.chat.completions.create(payload);
+    outer: for (let variantIndex = 0; variantIndex < requestVariants.length; variantIndex += 1) {
+      const variant = requestVariants[variantIndex];
+      for (let variantAttempt = 0; variantAttempt < variantRetryLimit; variantAttempt += 1) {
+        attemptOrdinal += 1;
         usedPlainResponseMode = variant.usePlainResponse;
         trimmedStructuredContext = variant.dropStructured;
-        if (variant.usePlainResponse) {
-          console.warn("[fyp] completion fallback to plain response", {
+        const messages = variant.dropStructured ? messagesWithoutContext : messagesWithContext;
+        const payload = {
+          model,
+          temperature,
+          max_tokens: completionMaxTokens,
+          reasoning_effort: "medium" as const,
+          messages,
+          ...(variant.usePlainResponse ? {} : { response_format: { type: "json_object" as const } }),
+        };
+
+        try {
+          completion = await client.chat.completions.create(payload);
+          usedPlainResponseMode = variant.usePlainResponse;
+          trimmedStructuredContext = variant.dropStructured;
+          if (variant.usePlainResponse) {
+            console.warn("[fyp] completion fallback to plain response", {
+              subject,
+              topic,
+              attempt: attemptOrdinal,
+            });
+          }
+          if (variant.dropStructured) {
+            console.warn("[fyp] structured context trimmed for completion", {
+              subject,
+              topic,
+              attempt: attemptOrdinal,
+            });
+          }
+          break outer;
+        } catch (error) {
+          lastCompletionError = error;
+          const status = getErrorStatus(error);
+          const code = getErrorCode(error);
+          const message = getErrorMessage(error);
+          const retryable = isRetryableCompletionError(error);
+          const hasMoreVariantRetries = variantAttempt < variantRetryLimit - 1;
+          const hasMoreVariants = variantIndex < requestVariants.length - 1;
+          const willRetry = retryable && (hasMoreVariantRetries || hasMoreVariants);
+
+          console.warn("[fyp] lesson completion attempt failed", {
             subject,
             topic,
-            attempt: attempt + 1,
+            attempt: attemptOrdinal,
+            variant: variantIndex + 1,
+            variantAttempt: variantAttempt + 1,
+            usePlainResponse: variant.usePlainResponse,
+            droppedStructuredContext: variant.dropStructured,
+            status,
+            code,
+            message,
+            retryable: willRetry,
           });
+
+          if (retryable) {
+            const delayMs = computeVariantRetryDelay(attemptOrdinal - 1);
+            if (delayMs > 0) {
+              await delay(delayMs);
+            }
+            if (hasMoreVariantRetries) {
+              continue;
+            }
+            if (hasMoreVariants) {
+              break;
+            }
+          }
+          throw error;
         }
-        if (variant.dropStructured) {
-          console.warn("[fyp] structured context trimmed for completion", {
-            subject,
-            topic,
-            attempt: attempt + 1,
-          });
-        }
-        break;
-      } catch (error) {
-        lastCompletionError = error;
-        const status = getErrorStatus(error);
-        const code = getErrorCode(error);
-        const message = getErrorMessage(error);
-        const retryable =
-          attempt < requestVariants.length - 1 && isRetryableCompletionError(error);
-        console.warn("[fyp] lesson completion attempt failed", {
-          subject,
-          topic,
-          attempt: attempt + 1,
-          usePlainResponse: variant.usePlainResponse,
-          droppedStructuredContext: variant.dropStructured,
-          status,
-          code,
-          message,
-          retryable,
-        });
-        if (retryable) {
-          await delay(200 * (attempt + 1));
-          continue;
-        }
-        throw error;
       }
     }
 
