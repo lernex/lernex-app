@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
 
   const [
     stateResponse,
-    progressResponse,
+    progressRowResponse,
     preferenceResponse,
   ] = await Promise.all([
     sb
@@ -186,7 +186,7 @@ export async function GET(req: NextRequest) {
   ]);
 
   let state = stateResponse.data ?? null;
-  const progressRow = progressResponse.data ?? null;
+  const progressRow = progressRowResponse.data ?? null;
   const preferenceRow = preferenceResponse.data ?? null;
 
   type PathProgress = {
