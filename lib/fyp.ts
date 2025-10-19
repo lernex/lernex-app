@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Difficulty } from "@/types/placement";
-import { LessonSchema, MIN_LESSON_WORDS, MAX_LESSON_WORDS } from "./schema";
+import { LessonSchema, MIN_LESSON_WORDS, MAX_LESSON_WORDS, MAX_LESSON_CHARS } from "./schema";
 import type { Lesson } from "./schema";
 import { checkUsageLimit, logUsage } from "./usage";
 import { buildLessonPrompts } from "./lesson-prompts";
@@ -368,7 +368,7 @@ async function verifyLessonAlignment(
 }
 
 function clampFallbackContent(text: string) {
-  const maxChars = 600;
+  const maxChars = MAX_LESSON_CHARS;
   const sanitized = text.replace(/\s+/g, " ").trim();
   const originalWords = sanitized ? sanitized.split(" ").filter(Boolean) : [];
 

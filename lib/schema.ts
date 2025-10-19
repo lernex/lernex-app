@@ -14,12 +14,14 @@ export type Question = z.infer<typeof QuestionSchema>;
 export const MIN_LESSON_WORDS = 80;
 export const MAX_LESSON_WORDS = 105;
 
+export const MAX_LESSON_CHARS = 720;
+
 export const LessonSchema = z.object({
   id: z.string().min(1),
   subject: z.string().min(1),            // e.g., "Algebra 1"
   topic: z.string().min(1),              // e.g., "Slope of a line" (NEW)
   title: z.string().min(1),
-  content: z.string().min(180).max(600),  // tuned for ~80-105 words at typical word length
+  content: z.string().min(180).max(MAX_LESSON_CHARS),  // tuned for ~80-105 words at typical word length
   difficulty: z.enum(["intro","easy","medium","hard"]).default("easy"), // NEW
   questions: z.array(QuestionSchema).length(3),
   // media optional; we'll keep it off for now to control cost

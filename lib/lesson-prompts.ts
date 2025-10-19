@@ -16,7 +16,7 @@ export function buildLessonPrompts(params: LessonPromptParams) {
     `Schema: {"id":string,"subject":string,"topic":string,"title":string,"content":string,"difficulty":"intro"|"easy"|"medium"|"hard","questions":[{"prompt":string,"choices":[string,string,string,string],"correctIndex":0|1|2|3,"explanation":string},{"prompt":string,"choices":[string,string,string,string],"correctIndex":0|1|2|3,"explanation":string},{"prompt":string,"choices":[string,string,string,string],"correctIndex":0|1|2|3,"explanation":string}]}`,
     `Treat structured_context and Source JSON as authoritative learner data -- stay factual and aligned.`,
     `Set subject to the Subject line, topic to facts.focus in the Source JSON, and difficulty to the requested difficulty.`,
-    `content must be exactly four sentences following goals.definition, goals.example, goals.pitfall, goals.next_step in that order and stay within 80-105 words.`,
+    `content must be exactly four sentences following goals.definition, goals.example, goals.pitfall, goals.next_step in that order, stay within 80-105 words, and keep under 720 characters.`,
     `Provide id as a short slug (letters, numbers, or dashes) and title as a concise 3-7 word phrase about the topic.`,
     `Each question needs four distinct choices, correctIndex 0-3, and a 10-35 word explanation focused on why the correct choice works.`,
     `Use \\( ... \\) for inline math, keep LaTeX balanced, and avoid HTML.`,
