@@ -107,6 +107,10 @@ function isRetryableCompletionError(error: unknown): boolean {
 const DEFAULT_MODEL = process.env.CEREBRAS_LESSON_MODEL ?? "gpt-oss-120b";
 const DEFAULT_BASE_URL = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
 const FALLBACK_TEMPERATURE = 0.4;
+const VERIFICATION_RETRY_LIMIT = Math.max(
+  1,
+  Number(process.env.FYP_VERIFICATION_RETRIES ?? "2") || 2,
+);
 
 const resolveNumericEnv = (value: string | undefined, fallback: number) => {
   const parsed = Number(value);
@@ -294,6 +298,13 @@ async function verifyLessonAlignment(
   lesson: Lesson,
   target: LessonVerificationTarget,
 ) {
+  const computeVerificationRetryDelay = (attempt: number) => {
+    const base = 220;
+    const growth = Math.pow(1.7, Math.max(0, attempt));
+    const jitter = Math.random() * 90;
+    const delayMs = Math.round(base * growth + jitter);
+    return Math.min(1800, Math.max(0, delayMs));
+  };
   const knowledgeLines = collectKnowledgeEntries(target.knowledge);
   const knowledgeSummary = knowledgeLines.length ? knowledgeLines.join(" | ") : null;
 
@@ -317,54 +328,71 @@ async function verifyLessonAlignment(
     .filter((line): line is string => Boolean(line))
     .join("\n");
 
-  try {
-    const completion = await client.chat.completions.create({
-      model,
-      temperature: clampTemperature(0.1),
-      max_tokens: 260,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userLines },
-      ],
-    });
-    const raw = completion.choices?.[0]?.message?.content;
-    if (!raw) {
-      console.warn("[fyp] verification returned empty content", {
+  for (let attempt = 0; attempt < VERIFICATION_RETRY_LIMIT; attempt += 1) {
+    try {
+      const completion = await client.chat.completions.create({
+        model,
+        temperature: clampTemperature(0.1),
+        max_tokens: 260,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userLines },
+        ],
+      });
+      const raw = completion.choices?.[0]?.message?.content;
+      if (!raw) {
+        console.warn("[fyp] verification returned empty content", {
+          subject: target.subject,
+          topic: target.topic,
+          difficulty: target.difficulty,
+        });
+        return { valid: false, reasons: ["no_verification_response"] };
+      }
+      const parsed = tryParseJson(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        console.warn("[fyp] verification returned non-JSON payload", {
+          subject: target.subject,
+          topic: target.topic,
+          difficulty: target.difficulty,
+          rawPreview: typeof raw === "string" ? raw.slice(0, 160) : null,
+        });
+        return { valid: false, reasons: ["invalid_verification_payload"] };
+      }
+      const result = parsed as { valid?: unknown; reasons?: unknown };
+      const valid = typeof result.valid === "boolean" ? result.valid : false;
+      const reasons = Array.isArray(result.reasons)
+        ? result.reasons
+            .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+            .filter((entry) => entry.length)
+            .slice(0, 6)
+        : [];
+      return { valid, reasons };
+    } catch (error) {
+      const status = getErrorStatus(error);
+      const code = getErrorCode(error);
+      const message = getErrorMessage(error);
+      const retryable = attempt < VERIFICATION_RETRY_LIMIT - 1 && isRetryableCompletionError(error);
+      console.warn("[fyp] verification transport error", {
         subject: target.subject,
         topic: target.topic,
         difficulty: target.difficulty,
+        attempt: attempt + 1,
+        status,
+        code,
+        message,
+        retryable,
       });
-      return { valid: false, reasons: ["no_verification_response"] };
+      if (retryable) {
+        const delayMs = computeVerificationRetryDelay(attempt);
+        if (delayMs > 0) await delay(delayMs);
+        continue;
+      }
+      return { valid: false, reasons: ["verification_call_failed"] };
     }
-    const parsed = tryParseJson(raw);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      console.warn("[fyp] verification returned non-JSON payload", {
-        subject: target.subject,
-        topic: target.topic,
-        difficulty: target.difficulty,
-        rawPreview: typeof raw === "string" ? raw.slice(0, 160) : null,
-      });
-      return { valid: false, reasons: ["invalid_verification_payload"] };
-    }
-    const result = parsed as { valid?: unknown; reasons?: unknown };
-    const valid = typeof result.valid === "boolean" ? result.valid : false;
-    const reasons = Array.isArray(result.reasons)
-      ? result.reasons
-          .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
-          .filter((entry) => entry.length)
-          .slice(0, 6)
-      : [];
-    return { valid, reasons };
-  } catch (error) {
-    console.warn("[fyp] verification transport error", {
-      subject: target.subject,
-      topic: target.topic,
-      difficulty: target.difficulty,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return { valid: false, reasons: ["verification_call_failed"] };
   }
+
+  return { valid: false, reasons: ["verification_call_failed"] };
 }
 
 function clampFallbackContent(text: string) {
