@@ -196,18 +196,23 @@ function summarizeMessages(messages: OpenAI.ChatCompletionMessageParam[]): Messa
         if (!part || typeof part !== "object") {
           return { partIdx, type: typeof part };
         }
-        const record = part as Record<string, unknown>;
-        const kind = typeof record.type === "string" ? (record.type as string) : "unknown";
+        const typeCandidate =
+          "type" in part && typeof (part as { type?: unknown }).type === "string"
+            ? ((part as { type: string }).type)
+            : "unknown";
         let textValue: string | null = null;
-        if (record.text && typeof record.text === "object") {
-          const textRecord = record.text as Record<string, unknown>;
-          if (typeof textRecord.value === "string") {
-            textValue = textRecord.value;
+        if ("text" in part) {
+          const textCandidate = (part as { text?: unknown }).text;
+          if (textCandidate && typeof textCandidate === "object") {
+            const value = (textCandidate as { value?: unknown }).value;
+            if (typeof value === "string") {
+              textValue = value;
+            }
           }
         }
         return {
           partIdx,
-          type: kind,
+          type: typeCandidate,
           length: textValue ? textValue.length : undefined,
           preview: textValue ? previewForLog(textValue, 80) : undefined,
         };

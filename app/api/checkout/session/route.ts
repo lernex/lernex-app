@@ -2,15 +2,15 @@ import { NextResponse } from 'next/server';
 
 import { getStripeClient } from '@/lib/stripe';
 
-type PaidPlan = 'premium' | 'pro';
+type PaidPlan = 'plus' | 'premium';
 
 const priceIdByPlan: Record<PaidPlan, string | undefined> = {
-  premium: process.env.STRIPE_PREMIUM_MONTHLY_PRICE_ID,
-  pro: process.env.STRIPE_PRO_MONTHLY_PRICE_ID
+  plus: process.env.STRIPE_PLUS_MONTHLY_PRICE_ID,
+  premium: process.env.STRIPE_PREMIUM_MONTHLY_PRICE_ID
 };
 
 function isPaidPlan(plan: string): plan is PaidPlan {
-  return plan === 'premium' || plan === 'pro';
+  return plan === 'plus' || plan === 'premium';
 }
 
 export async function POST(request: Request) {

@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight, CheckCircle2, Loader2, Sparkles, ShieldCheck } from 'lucide-react';
 
 type Tier = {
-  id: 'free' | 'premium' | 'pro';
+  id: 'free' | 'plus' | 'premium';
   name: string;
   tagline: string;
   price: string;
@@ -45,8 +45,8 @@ const tiers: Tier[] = [
     ]
   },
   {
-    id: 'premium',
-    name: 'Premium Momentum',
+    id: 'plus',
+    name: 'Plus Momentum',
     tagline: 'Unlock accelerated learning with tailored guidance and focused coaching.',
     price: '$5.99',
     priceSuffix: '/month',
@@ -57,7 +57,7 @@ const tiers: Tier[] = [
       'border-transparent bg-gradient-to-br from-lernex-blue/90 via-lernex-blue to-indigo-500/80 shadow-[0_55px_120px_-60px_rgba(37,99,235,0.55)] dark:from-lernex-blue dark:via-lernex-blue/90 dark:to-indigo-500 dark:shadow-[0_55px_120px_-65px_rgba(37,99,235,0.55)]',
     buttonClasses:
       'bg-white text-neutral-900 hover:bg-white/90 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-900/90',
-    cta: 'Accelerate with Premium',
+    cta: 'Accelerate with Plus',
     sellingPoint: 'Fast-track results with adaptive plans, deeper insights, and priority support.',
     features: [
       '3x higher daily AI creation limits with instant retries',
@@ -67,8 +67,8 @@ const tiers: Tier[] = [
     ]
   },
   {
-    id: 'pro',
-    name: 'Pro Creator',
+    id: 'premium',
+    name: 'Premium Creator',
     tagline: 'For teams, tutors, and ambitious learners who need limitless creation.',
     price: '$14.99',
     priceSuffix: '/month',
@@ -79,7 +79,7 @@ const tiers: Tier[] = [
       'border-neutral-200/80 bg-white/90 shadow-[0_35px_90px_-45px_rgba(15,23,42,0.2)] backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/70 dark:shadow-[0_45px_110px_-60px_rgba(0,0,0,0.7)]',
     buttonClasses:
       'bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-white/90',
-    cta: 'Go Pro and scale',
+    cta: 'Go Premium and scale',
     sellingPoint: 'Create unlimited experiences with enterprise-level insights and control.',
     features: [
       'Unlimited AI generation across collaborative workspaces',
