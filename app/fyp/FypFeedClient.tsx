@@ -56,7 +56,7 @@ export default function FypFeedClient({ initialProfile }: FypFeedClientProps) {
       <WelcomeTourOverlay />
       <main
         data-fyp-feed-root="true"
-        className="relative isolate mx-auto flex min-h-[calc(100vh-56px)] w-full max-w-6xl flex-col gap-10 px-4 pb-16 pt-12 text-foreground transition-colors duration-200 sm:px-6 lg:px-8"
+        className="relative isolate mx-auto flex min-h-[calc(100vh-56px)] w-full max-w-6xl flex-col gap-12 px-4 pb-16 pt-12 text-foreground transition-colors duration-200 sm:px-6 lg:px-8"
       >
         <div className="pointer-events-none absolute inset-0 -z-20">
           <div className="absolute inset-x-[-12%] top-[-18%] h-[420px] rounded-full bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.18),transparent_70%)] blur-3xl dark:bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.26),transparent_70%)]" />
@@ -68,7 +68,7 @@ export default function FypFeedClient({ initialProfile }: FypFeedClientProps) {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45 }}
-          className="relative rounded-[32px] border border-white/60 bg-white/80 px-6 py-8 shadow-[0_42px_120px_-46px_rgba(47,128,237,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
+          className="relative z-10 rounded-[32px] border border-white/60 bg-white/80 px-6 py-8 shadow-[0_42px_120px_-46px_rgba(47,128,237,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
         >
           <div className="pointer-events-none absolute inset-0 -z-10 rounded-[32px] bg-[linear-gradient(135deg,rgba(59,130,246,0.12),rgba(129,140,248,0.08),transparent)] dark:bg-[linear-gradient(135deg,rgba(47,128,237,0.26),rgba(129,140,248,0.12),transparent)]" />
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
@@ -106,7 +106,7 @@ export default function FypFeedClient({ initialProfile }: FypFeedClientProps) {
                 )}
               </div>
             </div>
-            <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end lg:w-auto lg:flex-col lg:items-end">
+            <div className="flex w-full flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-end lg:w-auto lg:flex-col lg:items-end">
               <div className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/70 p-4 text-left text-xs text-neutral-500 shadow-inner backdrop-blur dark:border-white/10 dark:bg-white/10 dark:text-neutral-300">
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-lernex-blue/15 text-lernex-blue dark:bg-lernex-blue/25 dark:text-lernex-blue/80">
                   <Compass className="h-5 w-5" />
@@ -116,7 +116,7 @@ export default function FypFeedClient({ initialProfile }: FypFeedClientProps) {
                   <div>Focus on one class, mix them all, or let Lernex choose what&apos;s next.</div>
                 </div>
               </div>
-              <div className="relative flex shrink-0 items-center justify-end">
+              <div className="relative z-20 flex shrink-0 items-center justify-end">
                 <ClassPicker />
               </div>
               {placementReady && (
@@ -129,12 +129,12 @@ export default function FypFeedClient({ initialProfile }: FypFeedClientProps) {
           </div>
         </motion.header>
 
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+        <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-12">
           <motion.section
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1, duration: 0.5 }}
-            className="flex-1"
+            className="flex-1 pt-2 lg:pt-4"
           >
             <div className="relative mx-auto flex max-w-full justify-center">
               <div className="pointer-events-none absolute inset-x-[-5%] top-3 -z-10 hidden max-w-[720px] rounded-[36px] border border-white/50 bg-white/65 shadow-[0_55px_140px_-70px_rgba(47,128,237,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5 lg:block" />

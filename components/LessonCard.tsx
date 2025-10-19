@@ -183,7 +183,7 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
   };
 
   const baseClass =
-    "relative flex h-full flex-col overflow-hidden rounded-[28px] border border-surface bg-surface-card shadow-xl ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-2xl backdrop-blur-xl";
+    "relative flex flex-col overflow-hidden rounded-[28px] border border-surface bg-surface-card shadow-xl ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-2xl backdrop-blur-xl";
   const rootClass = className ? baseClass + " " + className : baseClass;
 
   const actionBase =

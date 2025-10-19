@@ -62,7 +62,7 @@ export default function ClassPicker() {
   if (!pairs.length) return null;
 
   return (
-    <div className="relative">
+    <div className="relative z-30">
       <button
         onClick={() => setClassPickerOpen(!open)}
         className="group inline-flex min-w-[200px] items-center justify-between gap-3 rounded-full border border-neutral-200/70 bg-white/85 px-4 py-2 text-sm font-semibold text-neutral-700 shadow-[0_18px_38px_-24px_rgba(47,128,237,0.9)] backdrop-blur transition hover:border-lernex-blue/40 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/60 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:border-lernex-blue/60"
@@ -84,7 +84,7 @@ export default function ClassPicker() {
         />
       </button>
       {open && (
-        <div className="absolute right-0 mt-3 w-72 rounded-2xl border border-neutral-200/70 bg-white/95 p-3 text-neutral-900 shadow-[0_32px_90px_-50px_rgba(47,128,237,0.95)] backdrop-blur-xl dark:border-white/10 dark:bg-[#0b0f1a]/95 dark:text-white z-30">
+        <div className="absolute right-0 mt-3 w-72 rounded-2xl border border-neutral-200/70 bg-white/95 p-3 text-neutral-900 shadow-[0_32px_90px_-50px_rgba(47,128,237,0.95)] backdrop-blur-xl dark:border-white/10 dark:bg-[#0b0f1a]/95 dark:text-white z-50">
           <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-neutral-400 dark:text-neutral-500">
             Your classes
           </div>

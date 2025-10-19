@@ -637,7 +637,7 @@ export default function FypFeed() {
 
   return (
     <div
-      className="relative mx-auto w-full max-w-[640px] min-h-[calc(100vh-56px)] overflow-hidden px-3 transition-colors duration-200 sm:px-4 lg:max-w-5xl lg:overflow-visible lg:px-6 lg:pt-4"
+      className="relative mx-auto w-full max-w-[640px] min-h-[calc(100vh-56px)] px-3 transition-colors duration-200 sm:px-4 lg:max-w-5xl lg:px-6 lg:pt-4"
       style={{ maxWidth: "min(640px, 94vw)" }}
     >
       <div className="pointer-events-none absolute inset-0 -z-20 overflow-hidden">
@@ -726,13 +726,13 @@ export default function FypFeed() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -40, opacity: 0 }}
             transition={{ type: "spring", stiffness: 260, damping: 26 }}
-            className="absolute inset-0 flex flex-col gap-5 overflow-x-hidden overflow-y-auto px-3 py-6 pb-10 sm:px-4 lg:px-6"
+            className="relative flex flex-col gap-5 px-3 py-6 pb-12 sm:px-4 lg:px-6"
           >
-            <div className="flex flex-1 flex-col gap-5">
-              <div className="flex min-h-0 w-full justify-center">
+            <div className="flex flex-col gap-5">
+              <div className="flex w-full justify-center">
                 <LessonCard
                   lesson={cur}
-                  className="w-full max-w-[560px] min-h-[300px] max-h-[calc(100vh-220px)] sm:min-h-[320px] lg:max-h-[700px] xl:max-h-[760px]"
+                  className="w-full max-w-[560px] min-h-[320px] sm:min-h-[340px] lg:min-h-[360px]"
                 />
               </div>
               <div className="flex justify-end">
