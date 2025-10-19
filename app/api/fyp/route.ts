@@ -744,6 +744,7 @@ export async function GET(req: NextRequest) {
   }
 
   let lesson: Lesson;
+  let mergedNextTopicHint: string | null = nextTopicHint;
   try {
     lesson = await generateLessonForTopic(sb, user.id, ip, subject, currentLabel, {
       pace,
@@ -765,9 +766,12 @@ export async function GET(req: NextRequest) {
       recentMissSummary: recentMissSummary ?? undefined,
       knowledge: lessonKnowledge,
     });
+    const rawLessonHint = (lesson as { nextTopicHint?: unknown }).nextTopicHint;
+    const lessonNextTopicHint = typeof rawLessonHint === "string" ? rawLessonHint : null;
+    mergedNextTopicHint = nextTopicHint ?? lessonNextTopicHint ?? null;
     lesson = {
       ...lesson,
-      nextTopicHint: nextTopicHint ?? lesson.nextTopicHint ?? null,
+      nextTopicHint: mergedNextTopicHint,
       context: structuredContext,
       knowledge: lessonKnowledge,
     };
@@ -786,7 +790,7 @@ export async function GET(req: NextRequest) {
   const stampedLesson: CachedLesson = {
     ...(lesson as CachedLesson),
     cachedAt: new Date().toISOString(),
-    nextTopicHint: lesson.nextTopicHint ?? nextTopicHint ?? null,
+    nextTopicHint: mergedNextTopicHint,
   };
   const nextCache = [stampedLesson, ...cachedCandidates.filter((entry) => entry && entry.id !== stampedLesson.id)];
   while (nextCache.length > 5) nextCache.pop();
@@ -837,4 +841,6 @@ export async function GET(req: NextRequest) {
     { status: 200, headers: { "content-type": "application/json" } }
   );
 }
+
+
 

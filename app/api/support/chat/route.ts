@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
   }
 
   const cookieStore = await cookies();
-  const accessToken = cookieStore.get('sb-access-token')?.value ?? '';
+  const accessToken = cookieStore.get('sb-access-token')?.value;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -74,11 +74,11 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: 'Server misconfigured: missing Supabase credentials' }), { status: 500 });
   }
 
+  const authHeaders: Record<string, string> = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+
   const supabase = createClient(supabaseUrl, supabaseKey, {
     global: {
-      headers: {
-        Authorization: accessToken ? `Bearer ${accessToken}` : undefined,
-      },
+      headers: authHeaders,
     },
   });
 
