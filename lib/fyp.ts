@@ -328,19 +328,27 @@ async function verifyLessonAlignment(
     .filter((line): line is string => Boolean(line))
     .join("\n");
 
+  const messages: OpenAI.ChatCompletionMessageParam[] = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userLines },
+  ];
+
+  let useResponseFormat = true;
+  let switchedToPlain = false;
+
   for (let attempt = 0; attempt < VERIFICATION_RETRY_LIMIT; attempt += 1) {
     try {
       const completion = await client.chat.completions.create({
         model,
         temperature: clampTemperature(0.1),
         max_tokens: 260,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userLines },
-        ],
+        messages,
+        ...(useResponseFormat ? { response_format: { type: "json_object" as const } } : {}),
       });
-      const raw = completion.choices?.[0]?.message?.content;
+      const choice = completion.choices?.[0];
+      const raw = typeof choice?.message?.content === "string" && choice.message.content.trim().length
+        ? choice.message.content
+        : extractAssistantJson(choice);
       if (!raw) {
         console.warn("[fyp] verification returned empty content", {
           subject: target.subject,
@@ -372,7 +380,16 @@ async function verifyLessonAlignment(
       const status = getErrorStatus(error);
       const code = getErrorCode(error);
       const message = getErrorMessage(error);
-      const retryable = attempt < VERIFICATION_RETRY_LIMIT - 1 && isRetryableCompletionError(error);
+      const fallbackToPlain =
+        useResponseFormat &&
+        !switchedToPlain &&
+        (status === 400 ||
+          status === 415 ||
+          status === 422 ||
+          /response[_-]?format|json[_-]?schema|invalid/i.test(message));
+      const retryableTransport =
+        attempt < VERIFICATION_RETRY_LIMIT - 1 && isRetryableCompletionError(error);
+      const willRetry = fallbackToPlain || retryableTransport;
       console.warn("[fyp] verification transport error", {
         subject: target.subject,
         topic: target.topic,
@@ -381,9 +398,15 @@ async function verifyLessonAlignment(
         status,
         code,
         message,
-        retryable,
+        retryable: willRetry,
+        fallbackToPlain,
       });
-      if (retryable) {
+      if (fallbackToPlain) {
+        useResponseFormat = false;
+        switchedToPlain = true;
+        continue;
+      }
+      if (retryableTransport) {
         const delayMs = computeVerificationRetryDelay(attempt);
         if (delayMs > 0) await delay(delayMs);
         continue;
