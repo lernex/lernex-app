@@ -725,23 +725,15 @@ export async function generateLessonForTopic(
     nextTopicHint: opts.nextTopicHint,
   });
 
-  type ChatContentPart =
-    | { type: "input_text"; text: string }
-    | { type: "input_json"; json: unknown };
-  type ChatMessage = {
-    role: "system" | "user";
-    content: string | ChatContentPart[];
-    name?: string;
-  };
-
-  const messages: ChatMessage[] = [
+  const messages: OpenAI.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
   ];
   if (opts.structuredContext) {
     messages.push({
       role: "user",
-      name: "structured_context",
-      content: [{ type: "input_json", json: buildStructuredContextPayload(opts.structuredContext) }],
+      content: `Structured context JSON:\n${JSON.stringify(
+        buildStructuredContextPayload(opts.structuredContext),
+      )}`,
     });
   }
   messages.push({ role: "user", content: userPrompt });
