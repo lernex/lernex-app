@@ -143,6 +143,23 @@ const NON_FATAL_VERIFICATION_REASONS = new Set([
   "invalid_verification_payload",
 ]);
 
+const JSON_RESPONSE_DENYLIST = [/gpt-oss/i];
+
+function normalizeBooleanEnv(value: string | undefined): boolean | null {
+  if (!value) return null;
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return null;
+  if (["1", "true", "yes", "on", "enable"].includes(trimmed)) return true;
+  if (["0", "false", "no", "off", "disable"].includes(trimmed)) return false;
+  return null;
+}
+
+function modelSupportsJsonResponseFormat(model: string): boolean {
+  const override = normalizeBooleanEnv(process.env.FYP_ALLOW_JSON_RESPONSE);
+  if (override != null) return override;
+  return !JSON_RESPONSE_DENYLIST.some((pattern) => pattern.test(model));
+}
+
 const supportsBuffer =
   typeof Buffer !== "undefined" && typeof Buffer.byteLength === "function";
 const sharedTextEncoder =
@@ -429,8 +446,9 @@ async function verifyLessonAlignment(
     { role: "user", content: userLines },
   ];
 
-  let useResponseFormat = true;
-  let switchedToPlain = false;
+  const jsonResponseSupported = modelSupportsJsonResponseFormat(model);
+  let useResponseFormat = jsonResponseSupported;
+  let switchedToPlain = !jsonResponseSupported;
 
   for (let attempt = 0; attempt < VERIFICATION_RETRY_LIMIT; attempt += 1) {
     try {
@@ -445,6 +463,16 @@ async function verifyLessonAlignment(
       const raw = typeof choice?.message?.content === "string" && choice.message.content.trim().length
         ? choice.message.content
         : extractAssistantJson(choice);
+      try {
+        console.debug("[fyp] verification response preview", {
+          subject: target.subject,
+          topic: target.topic,
+          attempt: attempt + 1,
+          rawPreview: previewForLog(raw, 200),
+        });
+      } catch (previewErr) {
+        console.warn("[fyp] verification preview log failed", previewErr);
+      }
       if (!raw) {
         console.warn("[fyp] verification returned empty content", {
           subject: target.subject,
@@ -958,10 +986,12 @@ export async function generateLessonForTopic(
         ]
       : messagesWithContext;
 
-  const requestVariants: Array<{ usePlainResponse: boolean; dropStructured: boolean }> = [
-    { usePlainResponse: false, dropStructured: false },
-    { usePlainResponse: true, dropStructured: false },
-  ];
+  const jsonResponseSupported = modelSupportsJsonResponseFormat(model);
+  const requestVariants: Array<{ usePlainResponse: boolean; dropStructured: boolean }> = [];
+  if (jsonResponseSupported) {
+    requestVariants.push({ usePlainResponse: false, dropStructured: false });
+  }
+  requestVariants.push({ usePlainResponse: true, dropStructured: false });
   if (structuredContextJson) {
     requestVariants.push({ usePlainResponse: true, dropStructured: true });
   }
@@ -1264,10 +1294,12 @@ export async function generateLessonForTopic(
           usedPlainResponseMode = variant.usePlainResponse;
           trimmedStructuredContext = variant.dropStructured;
           if (variant.usePlainResponse) {
-            console.warn("[fyp] completion fallback to plain response", {
+            const logFn = jsonResponseSupported ? console.warn : console.debug;
+            logFn("[fyp] completion plain-response mode", {
               subject,
               topic,
               attempt: attemptOrdinal,
+              fallback: jsonResponseSupported,
             });
           }
           if (variant.dropStructured) {
@@ -1286,14 +1318,26 @@ export async function generateLessonForTopic(
           const retryable = isRetryableCompletionError(error);
           const hasMoreVariantRetries = variantAttempt < variantRetryLimit - 1;
           const hasMoreVariants = variantIndex < requestVariants.length - 1;
-          const allowVariantFallback =
-            (status === 400 || status === 415 || status === 422) && hasMoreVariants;
-          const allowPlainFallback = allowVariantFallback && !variant.usePlainResponse;
+          const allowPlainFallback =
+            jsonResponseSupported &&
+            !variant.usePlainResponse &&
+            (status === 400 ||
+              status === 415 ||
+              status === 422 ||
+              /response[_-]?format|json[_-]?schema|invalid/i.test(message));
           const allowDropStructured =
-            allowVariantFallback && Boolean(structuredContextJson) && !variant.dropStructured;
+            Boolean(structuredContextJson) &&
+            !variant.dropStructured &&
+            (status === 400 ||
+              status === 413 ||
+              status === 414 ||
+              retryable);
           const willRetryVariant = retryable && hasMoreVariantRetries;
-          const willSwitchVariant =
-            (retryable || allowVariantFallback) && hasMoreVariants && !willRetryVariant;
+          const shouldSwitchVariant =
+            !willRetryVariant &&
+            hasMoreVariants &&
+            (allowPlainFallback || allowDropStructured || !retryable);
+          const willSwitchVariant = shouldSwitchVariant;
           const willRetry = willRetryVariant || willSwitchVariant;
 
           console.warn("[fyp] lesson completion attempt failed", {
@@ -1308,8 +1352,8 @@ export async function generateLessonForTopic(
             code,
             message,
             retryable: willRetry,
-            allowPlainFallback,
-            allowDropStructured,
+            allowPlainFallback: allowPlainFallback || undefined,
+            allowDropStructured: allowDropStructured || undefined,
           });
 
           if (willRetryVariant) {
@@ -1326,8 +1370,8 @@ export async function generateLessonForTopic(
               attempt: attemptOrdinal,
               currentVariant: variantIndex + 1,
               nextVariant: variantIndex + 2,
-              allowPlainFallback,
-              allowDropStructured,
+              allowPlainFallback: allowPlainFallback || undefined,
+              allowDropStructured: allowDropStructured || undefined,
             });
             break;
           }
