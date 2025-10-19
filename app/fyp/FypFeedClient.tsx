@@ -113,7 +113,7 @@ export default function FypFeedClient({ initialProfile }: FypFeedClientProps) {
                 </div>
                 <div className="leading-tight">
                   <div className="text-sm font-semibold text-neutral-700 dark:text-white">Tune your feed</div>
-                  <div>Focus on one class, mix them all, or let Lernex choose what's next.</div>
+                  <div>Focus on one class, mix them all, or let Lernex choose what&apos;s next.</div>
                 </div>
               </div>
               <div className="relative flex shrink-0 items-center justify-end">
