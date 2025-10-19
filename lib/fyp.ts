@@ -373,6 +373,13 @@ function extractAssistantJson(choice: unknown): string {
   }
 
   if (!candidates.length) {
+    const functionCall = (msgRecord as { function_call?: unknown }).function_call;
+    if (functionCall) {
+      candidates.push(...collectStrings(functionCall));
+    }
+  }
+
+  if (!candidates.length) {
     const toolCalls = msgRecord.tool_calls;
     if (Array.isArray(toolCalls)) {
       for (const call of toolCalls) {
@@ -525,7 +532,18 @@ async function verifyLessonAlignment(
           subject: target.subject,
           topic: target.topic,
           difficulty: target.difficulty,
+          attempt: attempt + 1,
         });
+        if (attempt < VERIFICATION_RETRY_LIMIT - 1) {
+          if (useResponseFormat && !switchedToPlain) {
+            console.warn("[fyp] verification retrying without JSON response_format");
+            useResponseFormat = false;
+            switchedToPlain = true;
+          }
+          const delayMs = computeVerificationRetryDelay(attempt);
+          if (delayMs > 0) await delay(delayMs);
+          continue;
+        }
         return { valid: false, reasons: ["no_verification_response"] };
       }
       const parsed = tryParseJson(raw);
@@ -534,8 +552,19 @@ async function verifyLessonAlignment(
           subject: target.subject,
           topic: target.topic,
           difficulty: target.difficulty,
+          attempt: attempt + 1,
           rawPreview: typeof raw === "string" ? raw.slice(0, 160) : null,
         });
+        if (attempt < VERIFICATION_RETRY_LIMIT - 1) {
+          if (useResponseFormat && !switchedToPlain) {
+            console.warn("[fyp] verification retrying without JSON response_format");
+            useResponseFormat = false;
+            switchedToPlain = true;
+          }
+          const delayMs = computeVerificationRetryDelay(attempt);
+          if (delayMs > 0) await delay(delayMs);
+          continue;
+        }
         return { valid: false, reasons: ["invalid_verification_payload"] };
       }
       const result = parsed as { valid?: unknown; reasons?: unknown };

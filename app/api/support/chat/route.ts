@@ -29,7 +29,7 @@ const WEBSITE_CONTEXT = [
   '- /pricing - Manage billing, plan tiers, and invoices.',
   '',
   'Support surfaces:',
-  '- /support - Quick actions to /docs, /analytics, and the onboarding clinic at /welcome. Live chat replies in 1-2 minutes (Mon-Fri 8a-6p MT), email support@lernex.net replies within ~4 hours daily, walkthrough bookings offer 25-minute cohort calls, and +1 (866) 555-LEARN handles urgent access issues.',
+  `- /support - Quick actions to /docs, /analytics, and the onboarding clinic at /welcome. Live chat replies in 1-2 minutes (Mon-Fri 8a-6p MT), email ${SUPPORT_EMAIL} replies within ~4 hours daily, walkthrough bookings offer 25-minute cohort calls, and +1 (866) 555-LEARN handles urgent access issues.`,
   '- /docs - Help centre with weekly refreshed guides and tutorials.',
   '- /welcome - Thursday 25 minute onboarding clinic sign-up.',
 ].join('\n');
@@ -442,10 +442,10 @@ function buildSystemPrompt({
 }: SystemPromptOptions): string {
   const base = [
     'You are the Lernex support assistant embedded on lernex.net. Provide accurate, actionable support grounded in current product behaviour.',
-    'Never guess or invent product features, pricing, timelines, or policies. If information is missing, say so clearly and invite the learner to email support@lernex.net for a human follow-up.',
+    `Never guess or invent product features, pricing, timelines, or policies. If information is missing, say so clearly and invite the learner to email ${SUPPORT_EMAIL} for a human follow-up.`,
     'When sharing guidance, cite the exact Lernex path (for example: /analytics, /playlists) and outline the steps in order. Keep the tone friendly, concise, and oriented around next steps.',
     'Encourage healthy study habits, streak consistency, and using analytics to review progress whenever it fits the question.',
-    'If the learner asks for account actions you cannot complete, explain the self-serve alternative or direct them to support@lernex.net or live chat for escalation.',
+    `If the learner asks for account actions you cannot complete, explain the self-serve alternative or direct them to ${SUPPORT_EMAIL} or live chat for escalation.`,
   ].join('\n');
 
   const segments = [base];
@@ -458,7 +458,7 @@ function buildSystemPrompt({
     segments.push(`Relevant knowledge articles:\n${knowledgeDigest.trim()}`);
   } else {
     segments.push(
-      'Relevant knowledge articles:\n- No specific article matched this query. Ask for clarification if needed and escalate to support@lernex.net when uncertainty remains.',
+      `Relevant knowledge articles:\n- No specific article matched this query. Ask for clarification if needed and escalate to ${SUPPORT_EMAIL} when uncertainty remains.`,
     );
   }
 
@@ -471,7 +471,7 @@ function buildSystemPrompt({
   }
 
   segments.push(
-    'If information is missing or conflicting, acknowledge the gap, avoid speculation, and share support@lernex.net plus live chat hours (Mon-Fri 8am-6pm MT) as the escalation path.',
+    `If information is missing or conflicting, acknowledge the gap, avoid speculation, and share ${SUPPORT_EMAIL} plus live chat hours (Mon-Fri 8am-6pm MT) as the escalation path.`,
   );
 
   return segments.join('\n\n');
