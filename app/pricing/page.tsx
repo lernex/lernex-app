@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle2, Loader2, Sparkles, ShieldCheck } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Loader2, Sparkles, ShieldCheck, Zap, Crown, TrendingUp, Brain, Target, Users } from 'lucide-react';
 
 type Tier = {
   id: 'free' | 'plus' | 'premium';
@@ -25,85 +25,108 @@ const tiers: Tier[] = [
   {
     id: 'free',
     name: 'Free Explorer',
-    tagline: 'Kickstart your routine and test-drive Lernex without commitment.',
+    tagline: 'Start your learning journey with essential tools and unlimited potential.',
     price: '$0',
     priceSuffix: 'forever',
     originalPrice: null,
     badge: 'Getting started',
     highlight: false,
     accent:
-      'border-neutral-200/80 bg-white/90 shadow-[0_35px_90px_-45px_rgba(15,23,42,0.2)] backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/70 dark:shadow-[0_45px_110px_-60px_rgba(0,0,0,0.7)]',
+      'border-white/60 bg-white/80 shadow-[0_35px_90px_-45px_rgba(47,128,237,0.35)] backdrop-blur-lg dark:border-white/10 dark:bg-white/5 dark:shadow-[0_45px_110px_-60px_rgba(47,128,237,0.4)]',
     buttonClasses:
-      'border border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:hover:bg-neutral-800/90',
-    cta: 'Start for free',
-    sellingPoint: 'Perfect for curious learners who want to explore the platform.',
+      'border border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-50 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:hover:bg-neutral-800/90',
+    cta: 'Start learning free',
+    sellingPoint: 'Perfect for exploring what Lernex can do for your learning goals.',
     features: [
-      'Daily AI-crafted warmups and micro-lessons',
-      'Foundational quizzes, flashcards, and progress streaks',
-      'Standard generation limits and dashboard analytics',
-      'Community challenges every weekend'
+      'Daily AI-generated micro-lessons tailored to your interests',
+      'Interactive quizzes with instant feedback and explanations',
+      'Track your streaks and build consistent study habits',
+      'Access to community challenges and weekend competitions',
+      'Basic dashboard with progress analytics and insights',
+      'Standard generation limits (refreshes daily)'
     ]
   },
   {
     id: 'plus',
     name: 'Plus Momentum',
-    tagline: 'Unlock accelerated learning with tailored guidance and focused coaching.',
+    tagline: 'Accelerate your growth with intelligent tutoring and priority features.',
     price: '$5.99',
     priceSuffix: '/month',
     originalPrice: '$12.99',
     badge: 'Most popular',
     highlight: true,
     accent:
-      'border-transparent bg-gradient-to-br from-lernex-blue/90 via-lernex-blue to-indigo-500/80 shadow-[0_55px_120px_-60px_rgba(37,99,235,0.55)] dark:from-lernex-blue dark:via-lernex-blue/90 dark:to-indigo-500 dark:shadow-[0_55px_120px_-65px_rgba(37,99,235,0.55)]',
+      'border-transparent bg-gradient-to-br from-lernex-blue/90 via-lernex-blue to-indigo-500/80 shadow-[0_55px_140px_-70px_rgba(37,99,235,0.75)] dark:from-lernex-blue dark:via-lernex-blue/90 dark:to-indigo-500 dark:shadow-[0_65px_160px_-80px_rgba(37,99,235,0.85)]',
     buttonClasses:
-      'bg-white text-neutral-900 hover:bg-white/90 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-900/90',
-    cta: 'Accelerate with Plus',
-    sellingPoint: 'Fast-track results with adaptive plans, deeper insights, and priority support.',
+      'bg-white text-neutral-900 hover:bg-white/95 hover:shadow-xl hover:scale-[1.02] dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-900/95',
+    cta: 'Unlock Plus now',
+    sellingPoint: 'The sweet spot for serious learners who want faster results with less effort.',
     features: [
-      '3x higher daily AI creation limits with instant retries',
-      'Adaptive study paths tuned to the topics you skip',
-      'Exam playlists, interview drills, and printable study guides',
-      'Priority concierge support whenever you need a boost'
+      '3x higher daily AI creation limits with unlimited instant retries',
+      'Adaptive study paths that learn from every question you skip or answer',
+      'Curated exam playlists and interview prep drills for your field',
+      'Export printable study guides and flashcard PDFs to learn anywhere',
+      'Priority support from our learning concierge team (avg. <2hr response)',
+      'Advanced progress analytics with weekly personalized insights',
+      'Early access to beta features before they go public'
     ]
   },
   {
     id: 'premium',
-    name: 'Premium Creator',
-    tagline: 'For teams, tutors, and ambitious learners who need limitless creation.',
+    name: 'Premium Unlimited',
+    tagline: 'Limitless creation power for teams, tutors, and ambitious high-achievers.',
     price: '$14.99',
     priceSuffix: '/month',
     originalPrice: '$29.99',
     badge: 'Best value for power users',
     highlight: false,
     accent:
-      'border-neutral-200/80 bg-white/90 shadow-[0_35px_90px_-45px_rgba(15,23,42,0.2)] backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/70 dark:shadow-[0_45px_110px_-60px_rgba(0,0,0,0.7)]',
+      'border-white/60 bg-white/80 shadow-[0_35px_90px_-45px_rgba(47,128,237,0.35)] backdrop-blur-lg dark:border-white/10 dark:bg-white/5 dark:shadow-[0_45px_110px_-60px_rgba(47,128,237,0.4)]',
     buttonClasses:
-      'bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-white/90',
-    cta: 'Go Premium and scale',
-    sellingPoint: 'Create unlimited experiences with enterprise-level insights and control.',
+      'bg-gradient-to-r from-neutral-900 to-neutral-800 text-white hover:from-neutral-800 hover:to-neutral-700 hover:shadow-xl hover:scale-[1.02] dark:from-white dark:to-neutral-100 dark:text-neutral-900 dark:hover:from-neutral-100 dark:hover:to-white',
+    cta: 'Go Premium today',
+    sellingPoint: 'For those who refuse to settle - unlimited everything with enterprise-grade tools.',
     features: [
-      'Unlimited AI generation across collaborative workspaces',
-      'Immediate access to every beta feature the moment it ships',
-      'Deep personalization, spaced repetition, and automated coaching',
-      'Advanced analytics, exportable reports, and API integrations'
+      'Unlimited AI generation with zero daily caps or restrictions',
+      'Collaborative workspaces for study groups, teams, or classrooms',
+      'Instant access to every beta feature the moment it ships',
+      'Deep personalization engine powered by spaced repetition algorithms',
+      'Automated AI coaching that adapts to your learning patterns in real-time',
+      'Advanced analytics dashboard with exportable performance reports',
+      'API access and integrations with your favorite tools and LMS platforms',
+      'White-label options for tutors and educational institutions'
     ]
   }
 ];
 
 const guaranteePoints = [
-  'Cancel or downgrade in two clicks - no emails or phone calls',
-  '14-day results guarantee: love it or get a full refund',
-  'Secure Stripe payments with support for cards and digital wallets'
+  'Cancel or downgrade in two clicks - no emails, no phone calls, no hassle',
+  '14-day results guarantee: love your progress or get every penny back',
+  'Secure Stripe payments supporting all major cards and digital wallets'
 ];
 
 const cardVariants = {
-  hidden: { opacity: 0, y: 40 },
+  hidden: { opacity: 0, y: 50, scale: 0.95 },
   visible: (index: number) => ({
     opacity: 1,
     y: 0,
+    scale: 1,
     transition: {
-      duration: 0.5,
-      delay: index * 0.1
+      duration: 0.6,
+      delay: index * 0.15,
+      ease: [0.25, 0.46, 0.45, 0.94]
+    }
+  })
+};
+
+const featureVariants = {
+  hidden: { opacity: 0, x: -10 },
+  visible: (index: number) => ({
+    opacity: 1,
+    x: 0,
+    transition: {
+      duration: 0.4,
+      delay: index * 0.05
     }
   })
 };
@@ -172,45 +195,79 @@ export default function Pricing() {
   );
 
   return (
-    <main className="relative min-h-[calc(100vh-56px)] overflow-hidden bg-[var(--surface-page)] text-neutral-900 transition-colors dark:text-white">
-      <div className="pointer-events-none absolute inset-0 -z-20 bg-gradient-to-br from-white via-sky-50/60 to-indigo-50/40 dark:hidden" />
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute inset-x-0 top-[-20%] h-[60%] bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.28),_transparent_65%)] dark:bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.32),_transparent_60%)]" />
-        <div className="absolute bottom-[-30%] left-1/2 h-[70%] w-[85%] -translate-x-1/2 bg-[radial-gradient(circle,_rgba(129,140,248,0.18),_transparent_72%)] dark:bg-[radial-gradient(circle,_rgba(14,116,144,0.12),_transparent_70%)]" />
+    <main className="relative isolate mx-auto flex min-h-[calc(100vh-56px)] w-full flex-col overflow-hidden text-neutral-900 transition-colors dark:text-white">
+      {/* Background layer matching FYP/Leaderboard pattern */}
+      <div className="pointer-events-none absolute inset-0 -z-20">
+        <div className="absolute inset-x-[-12%] top-[-18%] h-[420px] rounded-full bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.18),transparent_70%)] blur-3xl dark:bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.26),transparent_70%)]" />
+        <div className="absolute left-[-6%] top-[32%] h-64 w-64 rounded-full bg-lernex-blue/20 blur-3xl opacity-70 dark:bg-lernex-blue/35 dark:opacity-60" />
+        <div className="absolute right-[-8%] bottom-[14%] h-72 w-72 rounded-full bg-lernex-purple/20 blur-3xl opacity-70 dark:bg-lernex-purple/35 dark:opacity-60" />
       </div>
 
-      <div className="relative mx-auto w-full max-w-6xl px-6 py-16 md:py-24">
+      <div className="relative mx-auto w-full max-w-7xl px-6 py-16 md:py-24">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
           className="mx-auto max-w-3xl text-center"
         >
-          <span className="inline-flex items-center gap-2 rounded-full border border-neutral-200/70 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-neutral-600 shadow-[0_18px_45px_-30px_rgba(59,130,246,0.6)] backdrop-blur dark:border-white/20 dark:bg-white/10 dark:text-neutral-200 dark:shadow-none">
+          <motion.span
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600 shadow-[0_18px_45px_-30px_rgba(59,130,246,0.6)] backdrop-blur-lg dark:border-white/20 dark:bg-white/10 dark:text-neutral-200 dark:shadow-none"
+          >
             <Sparkles className="h-3.5 w-3.5" />
             Invest in your future self
-          </span>
-          <h1 className="mt-6 text-4xl font-bold tracking-tight text-neutral-900 sm:text-5xl md:text-6xl dark:text-white">
-            Learning plans designed to <span className="bg-gradient-to-r from-lernex-blue via-indigo-500 to-purple-500 bg-clip-text text-transparent">unlock unfair advantages</span>
-          </h1>
-          <p className="mt-5 text-lg text-neutral-600 dark:text-neutral-300">
-            Choose the plan that matches your ambition. Every upgrade comes with smarter AI tutors, richer analytics, and a team cheering for your breakthroughs.
-          </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-sm text-neutral-500 dark:text-neutral-300">
-          <div className="flex items-center gap-2 rounded-full border border-[var(--surface-border)] bg-[var(--surface-muted)] px-4 py-2 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.25)] backdrop-blur-sm dark:shadow-none">
-              <ShieldCheck className="h-4 w-4" /> 14-day love-it-or-refund guarantee
-            </div>
-          <div className="flex items-center gap-2 rounded-full border border-[var(--surface-border)] bg-[var(--surface-muted)] px-4 py-2 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.25)] backdrop-blur-sm dark:shadow-none">
-              <CheckCircle2 className="h-4 w-4" /> No hidden fees & cancel anytime
-            </div>
-          </div>
+          </motion.span>
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.3 }}
+            className="mt-6 text-4xl font-bold tracking-tight text-neutral-900 sm:text-5xl md:text-6xl dark:text-white"
+          >
+            Learning plans designed to{' '}
+            <span className="bg-gradient-to-r from-lernex-blue via-indigo-500 to-purple-500 bg-clip-text text-transparent">
+              unlock unfair advantages
+            </span>
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.5 }}
+            className="mt-6 text-lg leading-relaxed text-neutral-600 dark:text-neutral-300"
+          >
+            Choose the plan that matches your ambition. Every upgrade unlocks smarter AI tutors, deeper analytics, and a team cheering for your breakthroughs.
+          </motion.p>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.6 }}
+            className="mt-8 flex flex-wrap items-center justify-center gap-4 text-sm text-neutral-600 dark:text-neutral-300"
+          >
+            <motion.div
+              whileHover={{ scale: 1.05, y: -2 }}
+              className="flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-5 py-2.5 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.25)] backdrop-blur-lg dark:border-white/20 dark:bg-white/10 dark:shadow-none"
+            >
+              <ShieldCheck className="h-4 w-4 text-emerald-500 dark:text-emerald-400" /> 14-day love-it-or-refund guarantee
+            </motion.div>
+            <motion.div
+              whileHover={{ scale: 1.05, y: -2 }}
+              className="flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-5 py-2.5 shadow-[0_20px_45px_-30px_rgba(15,23,42,0.25)] backdrop-blur-lg dark:border-white/20 dark:bg-white/10 dark:shadow-none"
+            >
+              <CheckCircle2 className="h-4 w-4 text-lernex-blue dark:text-lernex-blue/80" /> No hidden fees & cancel anytime
+            </motion.div>
+          </motion.div>
         </motion.div>
 
         {(statusNotice || errorMessage) && (
-          <div className="mx-auto mt-8 flex w-full max-w-xl flex-col gap-3">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mx-auto mt-8 flex w-full max-w-xl flex-col gap-3"
+          >
             {statusNotice && (
               <div
-                className={`rounded-2xl border p-4 text-sm shadow-sm ${
+                className={`rounded-2xl border p-4 text-sm shadow-lg backdrop-blur-sm ${
                   statusNotice.tone === 'success'
                     ? 'border-emerald-200 bg-emerald-50/80 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200'
                     : 'border-sky-200 bg-sky-50/80 text-sky-700 dark:border-sky-400/30 dark:bg-sky-500/10 dark:text-sky-200'
@@ -220,80 +277,111 @@ export default function Pricing() {
               </div>
             )}
             {errorMessage && (
-              <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-sm text-rose-700 shadow-sm dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+              <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-sm text-rose-700 shadow-lg backdrop-blur-sm dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
                 {errorMessage}
               </div>
             )}
-          </div>
+          </motion.div>
         )}
 
         <motion.div
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.2 }}
-          className="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3"
+          className="mt-16 grid grid-cols-1 gap-8 md:grid-cols-3"
         >
           {tiers.map((tier, index) => {
             const isHighlight = tier.highlight;
             const headingClass = isHighlight ? "text-white" : "text-neutral-900 dark:text-white";
-            const taglineClass = isHighlight ? "text-white/80" : "text-neutral-600 dark:text-neutral-300";
+            const taglineClass = isHighlight ? "text-white/90" : "text-neutral-600 dark:text-neutral-300";
             const priceClass = isHighlight ? "text-white" : "text-neutral-900 dark:text-white";
             const priceSuffixClass = isHighlight ? "text-white/80" : "text-neutral-500 dark:text-neutral-400";
             const originalPriceClass = isHighlight ? "text-white/70" : "text-neutral-400 dark:text-neutral-500";
-            const sellingPointClass = isHighlight ? "text-emerald-200" : "text-emerald-500 dark:text-emerald-300";
-            const featureTextClass = isHighlight ? "text-white/80" : "text-neutral-600 dark:text-neutral-200";
+            const sellingPointClass = isHighlight ? "text-emerald-200" : "text-emerald-600 dark:text-emerald-400";
+            const featureTextClass = isHighlight ? "text-white/90" : "text-neutral-600 dark:text-neutral-200";
 
             return (
               <motion.div
                 key={tier.id}
                 custom={index}
                 variants={cardVariants}
-                whileHover={{ y: -10, rotateX: 0.2, rotateY: -0.2 }}
-                className={`relative rounded-3xl border p-8 transition-all duration-500 ${isHighlight ? 'overflow-visible' : 'overflow-hidden'} ${tier.accent}`}
+                whileHover={{
+                  y: -12,
+                  scale: 1.02,
+                  transition: { duration: 0.3, ease: "easeOut" }
+                }}
+                className={`relative rounded-3xl border p-8 transition-all duration-500 ${isHighlight ? 'overflow-visible md:scale-105' : 'overflow-hidden'} ${tier.accent}`}
               >
+                {/* Glow effect on hover */}
+                <motion.div
+                  className="pointer-events-none absolute inset-0 rounded-3xl opacity-0 transition-opacity duration-500"
+                  whileHover={{ opacity: isHighlight ? 0.4 : 0.2 }}
+                  style={{
+                    background: isHighlight
+                      ? 'radial-gradient(circle at center, rgba(59,130,246,0.6), transparent 70%)'
+                      : 'radial-gradient(circle at center, rgba(59,130,246,0.3), transparent 70%)'
+                  }}
+                />
+
                 {isHighlight && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="absolute left-1/2 top-[-18px] inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-neutral-900 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-white shadow-lg shadow-neutral-900/40 dark:bg-white dark:text-neutral-900"
+                    transition={{ delay: 0.5 }}
+                    className="absolute left-1/2 top-[-18px] inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-gradient-to-r from-neutral-900 via-neutral-800 to-neutral-900 px-5 py-1.5 text-xs font-bold uppercase tracking-wide text-white shadow-lg shadow-neutral-900/40 dark:from-white dark:via-neutral-100 dark:to-white dark:text-neutral-900"
                   >
                     <Sparkles className="h-3.5 w-3.5" /> {tier.badge}
                   </motion.div>
                 )}
 
                 {!isHighlight && (
-                  <div className="absolute right-4 top-4 text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+                  <div className="absolute right-5 top-5 text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
                     {tier.badge}
                   </div>
                 )}
 
-                <div className="space-y-4">
+                <div className="relative space-y-6">
                   <div>
-                    <h2 className={`text-2xl font-semibold ${headingClass}`}>{tier.name}</h2>
-                    <p className={`mt-2 text-sm ${taglineClass}`}>{tier.tagline}</p>
+                    <h2 className={`text-2xl font-bold ${headingClass}`}>{tier.name}</h2>
+                    <p className={`mt-3 text-sm leading-relaxed ${taglineClass}`}>{tier.tagline}</p>
                   </div>
 
                   <div>
                     <div className="flex items-baseline gap-2">
                       {tier.originalPrice && (
-                        <span className={`text-sm line-through ${originalPriceClass}`}>{tier.originalPrice}</span>
+                        <motion.span
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.7 }}
+                          className={`text-lg line-through ${originalPriceClass}`}
+                        >
+                          {tier.originalPrice}
+                        </motion.span>
                       )}
-                      <span className={`text-4xl font-bold ${priceClass}`}>{tier.price}</span>
+                      <span className={`text-5xl font-bold ${priceClass}`}>{tier.price}</span>
                       <span className={`text-sm ${priceSuffixClass}`}>{tier.priceSuffix}</span>
                     </div>
-                    <p className={`mt-2 text-xs font-semibold uppercase tracking-wide ${sellingPointClass}`}>
+                    <p className={`mt-3 text-xs font-bold uppercase tracking-wider ${sellingPointClass}`}>
                       {tier.sellingPoint}
                     </p>
                   </div>
 
                   <motion.button
                     type="button"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => handleSelect(tier)}
                     disabled={loadingTier === tier.id}
-                    className={`group mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold tracking-wide transition disabled:cursor-not-allowed disabled:opacity-60 ${tier.buttonClasses}`}
+                    className={`group relative mt-6 flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl px-6 py-3.5 text-sm font-bold tracking-wide shadow-lg transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-60 ${tier.buttonClasses}`}
                   >
+                    {/* Button shine effect */}
+                    <motion.div
+                      className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                      whileHover={{
+                        translateX: '200%',
+                        transition: { duration: 0.6, ease: "easeInOut" }
+                      }}
+                    />
                     {loadingTier === tier.id ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -302,71 +390,131 @@ export default function Pricing() {
                     ) : (
                       <>
                         {tier.cta}
-                        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+                        <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
                       </>
                     )}
                   </motion.button>
 
-                  <div className="mt-6 space-y-3">
-                    {tier.features.map(feature => (
-                      <div key={feature} className={`flex items-start gap-3 text-sm ${featureTextClass}`}>
-                        <CheckCircle2 className={`h-4 w-4 flex-shrink-0 ${isHighlight ? 'text-white' : 'text-lernex-blue dark:text-lernex-blue'}`} />
+                  <motion.div
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true }}
+                    className="mt-8 space-y-3"
+                  >
+                    {tier.features.map((feature, fIndex) => (
+                      <motion.div
+                        key={feature}
+                        custom={fIndex}
+                        variants={featureVariants}
+                        className={`flex items-start gap-3 text-sm leading-relaxed ${featureTextClass}`}
+                      >
+                        <CheckCircle2 className={`mt-0.5 h-4 w-4 flex-shrink-0 ${isHighlight ? 'text-white' : 'text-lernex-blue dark:text-lernex-blue/80'}`} />
                         <span>{feature}</span>
-                      </div>
+                      </motion.div>
                     ))}
-                  </div>
+                  </motion.div>
                 </div>
               </motion.div>
             );
           })}
         </motion.div>
 
+        {/* Stats section */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.3 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="mt-20 grid gap-6 rounded-3xl border border-[var(--surface-border)] bg-gradient-to-br from-white via-white to-slate-100/80 p-8 shadow-[0_45px_120px_-65px_rgba(30,64,175,0.32)] backdrop-blur dark:bg-gradient-to-br dark:from-[#101829] dark:via-[#0b1220] dark:to-[#090e1a] dark:shadow-[0_60px_150px_-80px_rgba(0,0,0,0.7)] md:grid-cols-[1.3fr_1fr]"
+          transition={{ duration: 0.6 }}
+          className="mt-20 grid gap-6 sm:grid-cols-3"
+        >
+          {[
+            { icon: Brain, stat: '2.7x', label: 'Faster goal achievement for Premium users' },
+            { icon: TrendingUp, stat: '10M+', label: 'AI-generated lessons created this year' },
+            { icon: Users, stat: '50k+', label: 'Active learners across 120+ countries' }
+          ].map(({ icon: Icon, stat, label }, idx) => (
+            <motion.div
+              key={label}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: idx * 0.1 }}
+              whileHover={{ y: -4 }}
+              className="rounded-3xl border border-white/60 bg-white/80 p-6 text-center shadow-[0_32px_90px_-64px_rgba(47,128,237,0.65)] backdrop-blur-lg dark:border-white/10 dark:bg-white/5"
+            >
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-lernex-blue/15 text-lernex-blue dark:bg-lernex-blue/20">
+                <Icon className="h-6 w-6" />
+              </div>
+              <div className="text-3xl font-bold text-neutral-900 dark:text-white">{stat}</div>
+              <div className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">{label}</div>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="mt-20 grid gap-8 rounded-3xl border border-white/60 bg-white/80 p-8 shadow-[0_45px_120px_-65px_rgba(30,64,175,0.45)] backdrop-blur-lg dark:border-white/10 dark:bg-white/5 dark:shadow-[0_60px_150px_-80px_rgba(47,128,237,0.6)] md:grid-cols-[1.3fr_1fr] md:p-12"
         >
           <div>
-            <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">Still thinking it over?</h2>
-            <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">
-              Learners who upgrade reach their exam or skill goals 2.7x faster. Join a worldwide community of focused learners and upgrade only when you are ready - the guarantee has your back.
+            <h2 className="text-3xl font-bold text-neutral-900 dark:text-white">Still thinking it over?</h2>
+            <p className="mt-4 text-base leading-relaxed text-neutral-600 dark:text-neutral-300">
+              Learners who upgrade reach their exam or skill goals <strong>2.7x faster</strong>. Join a worldwide community of focused, ambitious learners and upgrade only when you&apos;re ready - the guarantee has your back.
             </p>
-            <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-neutral-600 dark:text-neutral-300">
-              {guaranteePoints.map(point => (
-                <span
+            <div className="mt-6 space-y-3">
+              {guaranteePoints.map((point, idx) => (
+                <motion.div
                   key={point}
-                  className="flex items-center gap-2 rounded-full border border-[var(--surface-border)] bg-[var(--surface-muted)] px-3 py-2 shadow-[0_18px_48px_-30px_rgba(30,64,175,0.22)] dark:shadow-none"
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.1 }}
+                  whileHover={{ x: 4 }}
+                  className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/70 px-4 py-3 text-sm text-neutral-600 shadow-[0_18px_48px_-30px_rgba(30,64,175,0.25)] backdrop-blur dark:border-white/10 dark:bg-white/10 dark:text-neutral-300 dark:shadow-none"
                 >
-                  <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                  {point}
-                </span>
+                  <ShieldCheck className="h-5 w-5 flex-shrink-0 text-emerald-500 dark:text-emerald-400" />
+                  <span>{point}</span>
+                </motion.div>
               ))}
             </div>
           </div>
-          <div className="rounded-2xl border border-[var(--surface-border)] bg-gradient-to-br from-white via-slate-50 to-blue-50/70 p-6 text-sm text-neutral-600 shadow-[0_35px_90px_-55px_rgba(30,64,175,0.35)] dark:bg-gradient-to-br dark:from-[#101829] dark:via-[#0b1220] dark:to-[#09101c] dark:text-neutral-200 dark:shadow-[0_45px_120px_-70px_rgba(0,0,0,0.7)]">
-            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">What happens after you upgrade?</h3>
-            <ul className="mt-4 space-y-3">
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 text-lernex-blue" />
-                <span>Instant unlock of advanced tutors, playlists, and personalised weekly missions.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 text-lernex-blue" />
-                <span>Live progress boosters and AI study rooms that adapt to every session.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 text-lernex-blue" />
-                <span>Priority access to new features before anyone else, including upcoming mobile apps.</span>
-              </li>
+          <div className="rounded-2xl border border-white/60 bg-white/70 p-6 shadow-[0_35px_90px_-55px_rgba(30,64,175,0.35)] backdrop-blur dark:border-white/10 dark:bg-white/5 dark:shadow-[0_45px_120px_-70px_rgba(47,128,237,0.5)] md:p-8">
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-lernex-blue/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-lernex-blue dark:bg-lernex-blue/20">
+              <Zap className="h-3 w-3" />
+              After upgrade
+            </div>
+            <h3 className="mt-4 text-xl font-bold text-neutral-900 dark:text-white">What happens next?</h3>
+            <ul className="mt-6 space-y-4">
+              {[
+                'Instant unlock of advanced AI tutors, curated playlists, and personalized weekly study missions',
+                'Live progress boosters and adaptive AI study rooms that learn from every session you complete',
+                'Priority access to new features before anyone else, including upcoming mobile apps and integrations'
+              ].map((item, idx) => (
+                <motion.li
+                  key={item}
+                  initial={{ opacity: 0, y: 10 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.1 }}
+                  className="flex items-start gap-3 text-sm leading-relaxed text-neutral-600 dark:text-neutral-200"
+                >
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-lernex-blue dark:text-lernex-blue/80" />
+                  <span>{item}</span>
+                </motion.li>
+              ))}
             </ul>
           </div>
         </motion.div>
 
-        <p className="mt-12 text-center text-xs text-neutral-500 dark:text-neutral-400">
+        <motion.p
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          className="mt-16 text-center text-xs text-neutral-500 dark:text-neutral-400"
+        >
           Prices listed in USD. Switch or cancel anytime. Taxes may apply based on your region.
-        </p>
+        </motion.p>
       </div>
     </main>
   );
