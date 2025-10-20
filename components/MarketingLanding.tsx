@@ -6,47 +6,47 @@ import { supabaseBrowser } from '@/lib/supabase-browser';
 
 const features = [
   {
-    title: 'Personalized Launchpad',
-    desc: 'Tell Lernex what you need and receive a curated path of micro-lessons, ready in seconds.',
+    title: 'AI-Powered Feed',
+    desc: 'Swipe through personalized lessons tailored to your learning goals and performance. Each card explains why you\'re seeing it.',
     icon: '🧭',
   },
   {
-    title: 'Micro-Lessons',
-    desc: 'Digestible 30–60s cards with visuals, mnemonics, and real-world context to lock in each concept.',
+    title: '30-90 Second Lessons',
+    desc: 'Bite-sized cards with definitions, applications, and prerequisites. Learn complex topics in the time it takes to scroll TikTok.',
     icon: '⚡',
   },
   {
-    title: 'Instant Quizzes',
-    desc: 'Rapid-fire checks with contextual explanations keep you honest about what you really know.',
+    title: 'Instant Feedback',
+    desc: '4 quiz questions per lesson with immediate green/red feedback and confetti celebrations. Know exactly what you\'ve mastered.',
     icon: '🎯',
   },
   {
-    title: 'Adaptive Pace',
-    desc: 'Difficulty and frequency adjust automatically based on performance across sessions.',
+    title: 'Smart Adaptation',
+    desc: 'Crushing it? Questions get harder. Struggling? Concepts break down further. The AI adjusts in real-time.',
     icon: '📈',
   },
 ];
 
 const benefits = [
   {
-    title: 'Science-backed',
-    desc: 'Spacing, recall, and interleaving built directly into every learning session.',
-    icon: '🧠',
+    title: 'Gamified Learning',
+    desc: 'Earn points, maintain streaks, unlock 35+ badges, and compete on leaderboards. Learning that actually feels rewarding.',
+    icon: '🎮',
   },
   {
-    title: 'Track Progress',
-    desc: 'Dashboards, streaks, and cohorts keep you accountable, without the noise.',
-    icon: '📊',
+    title: 'Upload Anything',
+    desc: 'Turn PDFs, slides, notes, or docs into AI-generated lessons in under 60 seconds. Your content, personalized for you.',
+    icon: '📄',
   },
   {
-    title: 'Learning Everywhere',
-    desc: 'Native experience on phone, tablet, or laptop—syncing in real time.',
+    title: 'Works Everywhere',
+    desc: 'Swipe on mobile, desktop, or tablet. Your progress syncs in real-time across all devices.',
     icon: '📱',
   },
   {
-    title: 'Enterprise Ready',
-    desc: 'Secure profiles, admin controls, and team analytics for ambitious teams.',
-    icon: '🛡️',
+    title: 'Built for Teams',
+    desc: 'Team dashboards, progress analytics, and shared playlists. Perfect for onboarding, compliance, and upskilling.',
+    icon: '👥',
   },
 ];
 
@@ -60,23 +60,23 @@ const trustedByLabels = [
 const learningFlow = [
   {
     step: '1',
-    title: 'Align on outcomes',
-    desc: 'Pick a skill, certification, or curriculum. Lernex ingests your source materials in seconds.',
+    title: 'Upload or browse',
+    desc: 'Upload your PDFs, slides, or notes—or pick from curated subjects. The AI generates personalized lessons in 30-90 seconds.',
   },
   {
     step: '2',
-    title: 'Train with micro-bursts',
-    desc: 'AI condenses the critical ideas into cinematic cards that you can swipe through anywhere.',
+    title: 'Swipe and learn',
+    desc: 'Get a personalized For You feed of 30-90 second lessons. Each card shows why you\'re seeing it based on your progress and goals.',
   },
   {
     step: '3',
-    title: 'Validate instantly',
-    desc: 'Quick quizzes surface blind spots with clear explanations you can save to revisit later.',
+    title: 'Take the quiz',
+    desc: 'Answer 4 questions after each lesson. Get instant feedback with confetti for correct answers and explanations for wrong ones.',
   },
   {
     step: '4',
-    title: 'Stay in the groove',
-    desc: 'Smart pacing, reminders, and progress reviews keep momentum—and burnout—managed.',
+    title: 'Watch yourself improve',
+    desc: 'Track accuracy by subject, maintain daily streaks, unlock badges, and see the AI adapt difficulty as you master topics.',
   },
 ];
 
@@ -101,44 +101,123 @@ const outcomes = [
 const testimonials = [
   {
     quote:
-      'Our analysts ramp in a third of the time. Lernex keeps everyone aligned on critical updates without another marathon training session.',
-    name: 'Sasha I.',
-    role: 'Head of Enablement, Series B SaaS',
+      'Honestly, I thought this was just another flashcard app, but the way it shows me WHY I\'m seeing each lesson based on my performance is crazy. It\'s like having a tutor that actually knows what I struggle with.',
+    name: 'Alex Chen',
+    role: 'Software Engineering Student',
   },
   {
     quote:
-      'I finally replaced the 200-page study guide. The AI coach adapts to me, and the daily nudges make it impossible to fall behind.',
-    name: 'Jordan M.',
-    role: 'Cybersecurity Learner',
+      'I spend maybe 10 minutes during my commute and I\'m actually retaining stuff. The quizzes force you to really think, not just mindlessly scroll. Game changer for cert prep.',
+    name: 'Marcus Thompson',
+    role: 'Cloud Security Professional',
   },
   {
     quote:
-      'It feels like a mentor walking me through complex material. The combination of micro-lessons + quizzes is unmatched.',
-    name: 'Priya K.',
-    role: 'MBA Candidate',
+      'Our new hires used to take 6 weeks to get up to speed on compliance procedures. Now they\'re productive in 2. The analytics dashboard makes it so easy to see who needs help.',
+    name: 'Sarah Patel',
+    role: 'Operations Manager',
+  },
+  {
+    quote:
+      'I love that I can just upload my lecture notes and it turns them into actual study material. No more cramming textbooks the night before.',
+    name: 'Jake Morrison',
+    role: 'Med School Pre-Clinical',
+  },
+  {
+    quote:
+      'The streak feature keeps me coming back daily. Sounds silly but seeing that 47-day streak? I\'m not about to break it now.',
+    name: 'Emily Rodriguez',
+    role: 'Data Analytics Bootcamp',
+  },
+  {
+    quote:
+      'What surprised me most was how it adjusts the difficulty. When I\'m crushing it, the questions get harder. When I\'m struggling, it breaks things down more. It actually feels intelligent.',
+    name: 'David Kim',
+    role: 'AWS Solutions Architect',
+  },
+  {
+    quote:
+      'My team was skeptical about another learning platform, but when they saw they could upload our internal docs and have lessons ready in minutes? Buy-in was instant.',
+    name: 'Rachel Foster',
+    role: 'Head of L&D, Fintech',
+  },
+  {
+    quote:
+      'I failed my first CISSP attempt studying the old way. Passed on my second try after 3 weeks with Lernex. The spaced repetition actually works.',
+    name: 'Chris Nguyen',
+    role: 'Security Analyst',
+  },
+  {
+    quote:
+      'The confetti when you get a question right is such a small thing but it makes learning feel fun instead of like a chore.',
+    name: 'Olivia Martinez',
+    role: 'UX Designer Learning Code',
+  },
+  {
+    quote:
+      'Being able to see exactly which topics I\'m weak in and having lessons automatically queue up to help? That\'s the kind of personalization I\'ve been waiting for.',
+    name: 'James Wilson',
+    role: 'Product Manager',
+  },
+  {
+    quote:
+      'I compared notes with my study group and we\'re all seeing different lessons based on what we need. It\'s wild how tailored it gets.',
+    name: 'Natalie Singh',
+    role: 'Computer Science Major',
+  },
+  {
+    quote:
+      'Finally, something that fits into my actual schedule. I can do a few lessons while waiting for meetings to start. Every minute counts.',
+    name: 'Tom Anderson',
+    role: 'Engineering Manager',
   },
 ];
 
 const faqs = [
   {
-    question: 'What kinds of topics can I learn with Lernex?',
+    question: 'How long are the lessons?',
     answer:
-      'Upload your own PDFs, slide decks, or notes—or choose from our curated tracks. Lernex works best for technical, operational, compliance, and professional upskilling content.',
+      'Micro-lessons are 30-90 seconds each—perfect for learning between meetings or during your commute. Each lesson comes with 4 quiz questions to test your understanding immediately.',
   },
   {
-    question: 'How does Lernex personalize my experience?',
+    question: 'How does the AI personalization actually work?',
     answer:
-      'Every interaction trains the difficulty, pacing, and content mix. Lernex measures confidence, accuracy, and time-on-card to deliver the right challenge at the right moment.',
+      'Lernex tracks your quiz accuracy, response times, and learning patterns to adapt difficulty and content. You\'ll see a "Why you\'re seeing this" box on each lesson explaining how it fits your learning path. Get questions right consistently? The AI levels you up. Struggling? It breaks concepts down further.',
   },
   {
-    question: 'Can teams adopt Lernex?',
+    question: 'Can I upload my own study materials?',
     answer:
-      'Yes. Create team spaces, assign tracks, view analytics, and plug into your existing LMS or Slack workflows. Role-based access keeps data secure.',
+      'Yes! Upload PDFs, PowerPoints, text files, or paste in your notes. The AI generates personalized lessons and quizzes from your content in 30-90 seconds. Great for class notes, work docs, certification guides, or team onboarding materials.',
   },
   {
-    question: 'Do I need to install anything?',
+    question: 'Is this just flashcards with extra steps?',
     answer:
-      'No installs required. Lernex runs beautifully in your browser and on mobile devices, with offline mode rolling out soon.',
+      'Not quite. Unlike flashcards, Lernex lessons include context, real-world applications, prerequisites, and "watch out for" tips. The quiz questions test understanding, not just memorization. Plus, the AI adapts to your performance in real-time.',
+  },
+  {
+    question: 'What are badges and streaks?',
+    answer:
+      'Badges reward your progress across 7 categories (like Precision Plays for high quiz accuracy or Momentum Makers for daily consistency). Streaks track consecutive days of learning. Both show up on leaderboards where you can compete with friends or your team.',
+  },
+  {
+    question: 'Can I use this for my team or company?',
+    answer:
+      'Absolutely. Teams can upload internal docs, track employee progress, view analytics dashboards, and see who needs help. It\'s being used for onboarding, compliance training, and professional development at companies from startups to enterprises.',
+  },
+  {
+    question: 'How much does it cost?',
+    answer:
+      'We offer a free tier to get started. Paid plans unlock unlimited lesson generation, advanced analytics, team features, and priority support. Check out our pricing page for details.',
+  },
+  {
+    question: 'Does it work on mobile?',
+    answer:
+      'Yes! The experience is designed mobile-first. Learn on your phone, tablet, or laptop—everything syncs in real-time. The swipe interface makes it feel like scrolling your favorite social app.',
+  },
+  {
+    question: 'What if I get a question wrong?',
+    answer:
+      'You\'ll see which answer was correct with an explanation of why. Wrong answers help the AI understand what you need to review—it\'ll adjust future lessons to reinforce those concepts. No penalties, just better learning.',
   },
 ];
 
@@ -535,7 +614,7 @@ export default function MarketingLanding() {
             transition={{ duration: 0.6 }}
             className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-5xl font-extrabold leading-tight text-transparent md:text-6xl"
           >
-            Your AI study coach for unstoppable teams.
+            Learn 10x faster with AI-generated micro-lessons.
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
@@ -543,7 +622,7 @@ export default function MarketingLanding() {
             transition={{ delay: 0.1, duration: 0.6 }}
             className="mt-6 max-w-2xl text-lg text-neutral-600 dark:text-neutral-300"
           >
-            Lernex turns dense manuals, curricula, and notes into cinematic micro-lessons with adaptive quizzes and analytics—built to help professionals and students ramp up without the burnout.
+            Bite-sized explanations, instant quizzes, and adaptive difficulty—like TikTok, but for learning.
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -606,9 +685,9 @@ export default function MarketingLanding() {
 
       <section id="how" className="mx-auto mt-28 max-w-6xl px-6">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold">How Lernex works</h2>
+          <h2 className="text-3xl font-bold">How it works</h2>
           <p className="mt-4 text-neutral-600 dark:text-neutral-300">
-            Four tight feedback loops keep you consistently moving forward—from aligning on outcomes to reinforcing what sticks.
+            Four simple steps to transform how you learn—from uploading your materials to mastering complex topics in minutes per day.
           </p>
         </div>
         <div className="relative mt-14 grid gap-6 md:grid-cols-2">
@@ -638,35 +717,49 @@ export default function MarketingLanding() {
         <div className="rounded-3xl border border-white/10 bg-white/70 p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:bg-white/5">
           <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="text-left">
-              <h2 className="text-3xl font-bold">What you get with Lernex</h2>
+              <h2 className="text-3xl font-bold">Your personal AI learning coach</h2>
               <p className="mt-4 text-neutral-600 dark:text-neutral-300">
-                Everything is orchestrated to make complex knowledge feel approachable—without sacrificing rigor. Swipe through content, test yourself instantly, and keep a crystal-clear pulse on your progress.
+                Swipe through bite-sized lessons, get instant quiz feedback with confetti celebrations, and watch the AI adapt to your learning style in real-time. Complex topics become approachable without losing depth.
               </p>
               <div className="mt-8 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-400">
-                <span className="rounded-full border border-white/10 bg-white/70 px-4 py-1 backdrop-blur dark:bg-white/10">Flash insight</span>
-                <span className="rounded-full border border-white/10 bg-white/70 px-4 py-1 backdrop-blur dark:bg-white/10">Real-time analytics</span>
-                <span className="rounded-full border border-white/10 bg-white/70 px-4 py-1 backdrop-blur dark:bg-white/10">Adaptive pacing</span>
+                <span className="rounded-full border border-white/10 bg-white/70 px-4 py-1 backdrop-blur dark:bg-white/10">Learn anywhere</span>
+                <span className="rounded-full border border-white/10 bg-white/70 px-4 py-1 backdrop-blur dark:bg-white/10">Instant feedback</span>
+                <span className="rounded-full border border-white/10 bg-white/70 px-4 py-1 backdrop-blur dark:bg-white/10">Adaptive AI</span>
               </div>
             </div>
             <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-br from-lernex-blue/20 via-lernex-purple/30 to-lernex-blue/10 p-8 text-left shadow-lg shadow-lernex-purple/30">
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.4),transparent_65%)] opacity-60" />
               <div className="relative">
-                <p className="text-sm uppercase tracking-[0.3em] text-white/80">Live preview</p>
-                <div className="mt-4 rounded-2xl bg-white/80 p-4 text-neutral-900 shadow-lg backdrop-blur">
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500">Micro-lesson</p>
-                  <p className="mt-2 text-lg font-semibold">Understand zero trust architecture in under a minute.</p>
-                  <p className="mt-3 text-sm text-neutral-600">
-                    Lernex highlights the critical frame, the analogy, and the call-to-action so you never miss the &quot;why it matters&quot; moment.
-                  </p>
+                <p className="text-sm uppercase tracking-[0.3em] text-white/80">How it looks</p>
+                <div className="mt-4 rounded-[28px] border border-white/20 bg-white/90 p-5 text-neutral-900 shadow-xl backdrop-blur ring-1 ring-black/5">
+                  <div className="flex items-center justify-between text-xs text-neutral-600">
+                    <span className="font-medium">Cybersecurity</span>
+                    <span className="rounded-full bg-lernex-blue/10 px-2 py-0.5 text-lernex-blue">Intermediate</span>
+                  </div>
+                  <p className="mt-3 text-lg font-bold text-neutral-900">Zero Trust Architecture</p>
+                  <div className="mt-3 rounded-xl bg-lernex-blue/5 p-3 text-xs">
+                    <p className="font-semibold text-lernex-blue">Why you&apos;re seeing this</p>
+                    <p className="mt-1 text-neutral-600">You&apos;ve been mastering network security fundamentals. This builds on that foundation.</p>
+                  </div>
+                  <div className="mt-4 max-h-32 overflow-hidden">
+                    <p className="text-sm leading-relaxed text-neutral-700">
+                      Instead of assuming everything inside your network is safe, zero trust treats every request as if it came from an untrusted source—verifying identity and context at each step...
+                    </p>
+                    <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white/90 to-transparent" />
+                  </div>
                 </div>
-                <div className="mt-4 rounded-2xl bg-white/60 p-4 text-neutral-900 shadow-lg backdrop-blur">
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500">Quick check</p>
-                  <p className="mt-2 text-sm">
-                    What is the primary goal of implementing zero trust?
+                <div className="mt-4 rounded-2xl bg-white/80 p-4 text-neutral-900 shadow-lg backdrop-blur">
+                  <p className="text-xs font-semibold text-neutral-500">QUESTION 1 OF 4</p>
+                  <p className="mt-2 font-medium text-sm">
+                    What is the core principle of zero trust?
                   </p>
                   <div className="mt-3 space-y-2 text-sm">
-                    <div className="rounded-xl border border-neutral-200 bg-white px-3 py-2 shadow-sm">Limit lateral movement inside your network</div>
-                    <div className="rounded-xl border border-neutral-200 bg-white px-3 py-2 shadow-sm">Eliminate all third-party access</div>
+                    <div className="cursor-pointer rounded-xl border-2 border-neutral-200 bg-white px-3 py-2.5 shadow-sm transition hover:border-lernex-blue/40">Never trust, always verify</div>
+                    <div className="cursor-pointer rounded-xl border-2 border-neutral-200 bg-white px-3 py-2.5 shadow-sm transition hover:border-lernex-blue/40">Trust internal networks only</div>
+                    <div className="cursor-pointer rounded-xl border-2 border-neutral-200 bg-white px-3 py-2.5 shadow-sm transition hover:border-lernex-blue/40">Block all external access</div>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <div className="rounded-full bg-lernex-green/20 px-3 py-1 text-xs font-medium text-lernex-green">+10 pts</div>
                   </div>
                 </div>
               </div>
@@ -693,9 +786,9 @@ export default function MarketingLanding() {
 
       <section className="mx-auto mt-28 max-w-5xl px-6">
         <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-lernex-blue/20 via-lernex-purple/25 to-lernex-blue/10 p-10 text-center shadow-2xl shadow-lernex-purple/30 backdrop-blur">
-          <h2 className="text-3xl font-bold text-white">Proof that the approach works</h2>
+          <h2 className="text-3xl font-bold text-white">Real results from real learners</h2>
           <p className="mt-4 text-base text-white/80">
-            Built and battle-tested with real operators. Lernex condenses knowledge and gives feedback loops that keep people engaged.
+            Thousands of students and professionals are learning faster with AI-powered micro-lessons and instant feedback loops.
           </p>
           <div className="mt-10 grid gap-6 text-left text-white md:grid-cols-3">
             {outcomes.map((item) => (
@@ -717,7 +810,7 @@ export default function MarketingLanding() {
       </section>
 
       <section className="mx-auto mt-28 max-w-5xl px-6">
-        <h2 className="mb-10 text-center text-3xl font-bold">Why Lernex?</h2>
+        <h2 className="mb-10 text-center text-3xl font-bold">Everything you need to learn smarter</h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {benefits.map((b) => (
             <motion.div
@@ -736,26 +829,41 @@ export default function MarketingLanding() {
         </div>
       </section>
 
-      <section className="mx-auto mt-28 max-w-5xl px-6">
+      <section className="mx-auto mt-28 max-w-7xl px-6">
         <h2 className="text-center text-3xl font-bold">What learners are saying</h2>
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
-          {testimonials.map((item) => (
-            <motion.blockquote
-              key={item.name}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4 }}
-              className="group relative overflow-hidden rounded-3xl border border-neutral-200/60 bg-white/80 p-6 text-left shadow-lg shadow-black/10 backdrop-blur transition hover:-translate-y-1 hover:shadow-2xl dark:border-white/10 dark:bg-white/10"
-            >
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-lernex-blue/0 via-lernex-purple/10 to-lernex-blue/0 opacity-0 transition group-hover:opacity-100" />
-              <p className="relative text-sm text-neutral-700 dark:text-neutral-200">&ldquo;{item.quote}&rdquo;</p>
-              <footer className="relative mt-6 text-sm font-semibold text-neutral-900 dark:text-white">
-                {item.name}
-                <div className="mt-1 text-xs font-normal text-neutral-500 dark:text-neutral-300">{item.role}</div>
-              </footer>
-            </motion.blockquote>
-          ))}
+        <p className="mt-3 text-center text-neutral-600 dark:text-neutral-300">Real feedback from students, professionals, and teams using Lernex daily</p>
+        <div className="relative mt-10 overflow-hidden">
+          <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-20 bg-gradient-to-r from-neutral-50 to-transparent dark:from-neutral-900" />
+          <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-20 bg-gradient-to-l from-neutral-50 to-transparent dark:from-neutral-900" />
+
+          <motion.div
+            className="flex gap-4"
+            animate={{
+              x: [0, -1920],
+            }}
+            transition={{
+              x: {
+                repeat: Infinity,
+                repeatType: "loop",
+                duration: 60,
+                ease: "linear",
+              },
+            }}
+          >
+            {[...testimonials, ...testimonials].map((item, index) => (
+              <div
+                key={`${item.name}-${index}`}
+                className="group relative flex-shrink-0 w-[380px] overflow-hidden rounded-3xl border border-neutral-200/60 bg-white/80 p-6 text-left shadow-lg shadow-black/10 backdrop-blur transition hover:-translate-y-1 hover:shadow-2xl dark:border-white/10 dark:bg-white/10"
+              >
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-lernex-blue/0 via-lernex-purple/10 to-lernex-blue/0 opacity-0 transition group-hover:opacity-100" />
+                <p className="relative text-sm leading-relaxed text-neutral-700 dark:text-neutral-200">&ldquo;{item.quote}&rdquo;</p>
+                <footer className="relative mt-6 text-sm font-semibold text-neutral-900 dark:text-white">
+                  {item.name}
+                  <div className="mt-1 text-xs font-normal text-neutral-500 dark:text-neutral-300">{item.role}</div>
+                </footer>
+              </div>
+            ))}
+          </motion.div>
         </div>
       </section>
 
@@ -783,9 +891,9 @@ export default function MarketingLanding() {
       <section className="mx-auto mt-28 max-w-5xl px-6 pb-32">
         <div className="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-lernex-blue via-lernex-purple to-orange-400 p-10 text-center text-white shadow-2xl shadow-lernex-purple/40">
           <div className="mx-auto max-w-2xl">
-            <h2 className="text-3xl font-bold">Ready to level up?</h2>
+            <h2 className="text-3xl font-bold">Start learning 10x faster today</h2>
             <p className="mt-4 text-base text-white/85">
-              Join thousands of learners and teams accelerating their expertise with AI-crafted micro-lessons. Launch in minutes and stay ahead for the long haul.
+              Join thousands using Lernex to master new skills with AI-generated lessons, instant quizzes, and adaptive learning. Get started in under 2 minutes.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 md:flex-row">
               <Link
