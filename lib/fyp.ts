@@ -500,14 +500,23 @@ async function verifyLessonAlignment(
     "Reasons should be concise phrases explaining any issue you detect.",
   ].join("\n");
 
+  const lessonSummary = [
+    `ID: ${lesson.id}`,
+    `Title: ${lesson.title}`,
+    `Topic: ${lesson.topic}`,
+    `Difficulty: ${lesson.difficulty}`,
+    `Content (${typeof lesson.content === "string" ? lesson.content.trim().split(/\s+/).length : 0} words): ${typeof lesson.content === "string" ? lesson.content.slice(0, 400) : ""}`,
+    `Questions: ${Array.isArray(lesson.questions) ? lesson.questions.length : 0} MCQs provided`,
+  ].join("\n");
+
   const userLines = [
     `Subject: ${target.subject}`,
     `Requested topic: ${target.topic}`,
     `Target difficulty: ${target.difficulty}`,
     target.recentMissSummary ? `Recent miss signal: ${target.recentMissSummary}` : null,
     knowledgeSummary ? `Anchor knowledge: ${knowledgeSummary}` : null,
-    `Lesson JSON:`,
-    JSON.stringify(lesson),
+    `Lesson to verify:`,
+    lessonSummary,
     `Respond with the verification JSON only.`,
   ]
     .filter((line): line is string => Boolean(line))
@@ -528,7 +537,7 @@ async function verifyLessonAlignment(
       const completion = await client.chat.completions.create({
         model,
         temperature: clampTemperature(0.1),
-        max_tokens: 400,
+        max_tokens: 800,
         messages,
         ...(useResponseFormat ? { response_format: { type: "json_object" as const } } : {}),
       });
@@ -922,8 +931,8 @@ export async function generateLessonForTopic(
   const client = getClient();
   const model = DEFAULT_MODEL;
   const completionMaxTokens = Math.min(
-    3200,
-    Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS ?? "2800") || 2800),
+    4096,
+    Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS ?? "3200") || 3200),
   );
 
   if (uid) {
@@ -1420,6 +1429,38 @@ export async function generateLessonForTopic(
               attempt: attemptOrdinal,
             });
           }
+
+          const choice = completion.choices?.[0];
+          const finishReason = choice?.finish_reason ?? null;
+          const wasTruncatedCompletion = finishReason === "length";
+
+          if (wasTruncatedCompletion) {
+            const hasMoreVariants = variantIndex < requestVariants.length - 1;
+            if (hasMoreVariants && !variant.dropStructured && structuredContextJson) {
+              console.warn("[fyp] completion truncated, will retry without structured context", {
+                subject,
+                topic,
+                attempt: attemptOrdinal,
+                variant: variantIndex + 1,
+                finishReason,
+              });
+              variantHistory.push({
+                ...attemptInfoBase,
+                outcome: "truncated",
+                finishReason,
+                usage: completion.usage
+                  ? {
+                      promptTokens: completion.usage.prompt_tokens ?? null,
+                      completionTokens: completion.usage.completion_tokens ?? null,
+                      totalTokens: completion.usage.total_tokens ?? null,
+                    }
+                  : null,
+                messageSummary,
+              });
+              break;
+            }
+          }
+
           break outer;
         } catch (error) {
           lastCompletionError = error;
@@ -1516,6 +1557,7 @@ export async function generateLessonForTopic(
       : extractAssistantJson(choice);
     const rawLength = typeof raw === "string" ? raw.length : null;
     const finishReason = choice?.finish_reason ?? null;
+    const wasTruncated = finishReason === "length";
     const lessonCandidate = resolveLessonCandidate(raw);
     const candidateSummary = summarizeLessonForLog(lessonCandidate);
     if (!lessonCandidate) {
@@ -1526,8 +1568,17 @@ export async function generateLessonForTopic(
         rawLength,
         rawType: typeof raw,
         finishReason,
-        wasTruncated: finishReason === "length",
+        wasTruncated,
       });
+
+      if (wasTruncated && !trimmedStructuredContext && structuredContextJson) {
+        lastError = new Error("Response truncated due to token limit - will retry without structured context");
+        console.warn("[fyp] truncation detected, forcing structured context removal on next attempt", {
+          subject,
+          topic,
+          attempt: attemptOrdinal,
+        });
+      }
     }
     try {
       console.debug("[fyp] lesson completion candidate parsed", {

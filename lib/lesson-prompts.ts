@@ -12,10 +12,10 @@ export function buildLessonPrompts(params: LessonPromptParams) {
 
   const system = [
     `You produce exactly one 80-105 word micro-lesson and exactly three MCQs with explanations.`,
-    `Output must be valid JSON matching the schema below. No prose, markdown, or extra keys.`,
+    `Output must be valid, complete JSON matching the schema below. No prose, markdown, or extra keys.`,
     `Schema: {"id":string,"subject":string,"topic":string,"title":string,"content":string,"difficulty":"intro"|"easy"|"medium"|"hard","questions":[{"prompt":string,"choices":[string,string,string,string],"correctIndex":0|1|2|3,"explanation":string},{"prompt":string,"choices":[string,string,string,string],"correctIndex":0|1|2|3,"explanation":string},{"prompt":string,"choices":[string,string,string,string],"correctIndex":0|1|2|3,"explanation":string}]}`,
+    `CRITICAL: Keep all text concise. Content must be 80-105 words. Each question explanation must be 10-35 words. This ensures the JSON fits within token limits.`,
     `Treat the structured_context JSON message and the focus cues text as authoritative learner data -- stay factual and aligned.`,
-    `Focus cues only summarize knowledge anchors and guardrails; rely on the structured_context payload for learner profile, preferences, and pacing.`,
     `When learner.recents.previous_lesson is present, reference it as a quick bridge. When learner.recents.recent_miss is present, acknowledge it plainly and coach the learner on how to improve.`,
     `Set subject to the Subject line, topic to structured_context.summary.focus, and difficulty to the requested difficulty.`,
     `content must be exactly four sentences following goals.definition, goals.example, goals.pitfall, goals.next_step in that order, stay within 80-105 words, and keep under 720 characters.`,
