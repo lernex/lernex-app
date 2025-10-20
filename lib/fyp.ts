@@ -457,23 +457,26 @@ function tryParseJson(text: string): unknown | null {
   }
 
   // Fix common LaTeX escaping issues: \( should be \\( in JSON
-  // The AI sometimes generates \( when it should be \\(
+  // The AI sometimes under-escapes LaTeX in JSON strings
   const fixLatexEscaping = (str: string): string => {
-    // Replace single backslash before ( or ) or [ or ] with double backslash
-    // This handles LaTeX delimiters that need escaping in JSON
     let result = str;
 
-    // Fix \( and \) - inline LaTeX delimiters
-    result = result.replace(/([^\\])\\([()])/g, '$1\\\\$2');
-    result = result.replace(/^\\([()])/g, '\\\\$1');
+    // Fix unescaped LaTeX delimiters: \( → \\(, \) → \\), \[ → \\[, \] → \\]
+    // But don't double-escape if already escaped (\\( should stay \\()
+    result = result.replace(/([^\\])\\([()[\]])/g, '$1\\\\$2');
+    result = result.replace(/^\\([()[\]])/g, '\\\\$1');
 
-    // Fix \[ and \] - display LaTeX delimiters
-    result = result.replace(/([^\\])\\([\[\]])/g, '$1\\\\$2');
-    result = result.replace(/^\\([\[\]])/g, '\\\\$1');
-
-    // Fix other common LaTeX escapes that might appear in content
-    result = result.replace(/([^\\])\\(frac|sqrt|sum|int|lim|sin|cos|tan|log|ln)/g, '$1\\\\$2');
-    result = result.replace(/^\\(frac|sqrt|sum|int|lim|sin|cos|tan|log|ln)/g, '\\\\$1');
+    // Fix common LaTeX commands that appear unescaped
+    // Pattern matches: \command but not \\command
+    const latexCommands = [
+      'frac', 'sqrt', 'sum', 'int', 'lim', 'sin', 'cos', 'tan', 'log', 'ln',
+      'prod', 'alpha', 'beta', 'gamma', 'delta', 'theta', 'pi', 'infty',
+      'leq', 'geq', 'neq', 'cdot', 'times', 'pm', 'to', 'partial', 'nabla'
+    ];
+    const commandPattern = new RegExp(`([^\\\\])\\\\(${latexCommands.join('|')})\\b`, 'g');
+    result = result.replace(commandPattern, '$1\\\\\\\\$2');
+    const startPattern = new RegExp(`^\\\\(${latexCommands.join('|')})\\b`, 'g');
+    result = result.replace(startPattern, '\\\\\\\\$1');
 
     return result;
   };
@@ -546,6 +549,30 @@ function resolveLessonCandidate(raw: string): Lesson | null {
   for (const candidate of possible) {
     const result = LessonSchema.safeParse(candidate);
     if (result.success) return result.data;
+
+    // Check if it's just a word count issue that we can fix
+    const wordCountError = result.error.errors.find(
+      (err) => err.path[0] === "content" && err.code === "custom" && err.message.includes("too long")
+    );
+
+    if (wordCountError && typeof (candidate as { content?: unknown }).content === "string") {
+      const content = (candidate as { content: string }).content;
+      const words = content.trim().split(/\s+/).filter(Boolean);
+
+      // If it's only slightly over (106-120 words), try truncating to 105 words
+      if (words.length > MAX_LESSON_WORDS && words.length <= 120) {
+        const truncated = words.slice(0, MAX_LESSON_WORDS).join(" ");
+        const fixedContent = /[.!?]$/.test(truncated) ? truncated : `${truncated}.`;
+
+        const fixedCandidate = { ...candidate, content: fixedContent };
+        const retryResult = LessonSchema.safeParse(fixedCandidate);
+
+        if (retryResult.success) {
+          console.debug("[fyp] resolveLessonCandidate: Auto-truncated content from", words.length, "to", MAX_LESSON_WORDS, "words");
+          return retryResult.data;
+        }
+      }
+    }
 
     console.warn("[fyp] resolveLessonCandidate: Schema validation failed", {
       errors: result.error.errors.slice(0, 5),
