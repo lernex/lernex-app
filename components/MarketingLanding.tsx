@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';
+import { supabaseBrowser } from '@/lib/supabase-browser';
 
 const features = [
   {
@@ -40,7 +41,7 @@ const benefits = [
 ];
 
 const confettiColors = ['#60a5fa', '#a855f7', '#facc15', '#34d399', '#f472b6', '#22d3ee'];
-const MIN_USERS = 4800;
+const FALLBACK_USER_TOTAL = 5000;
 
 declare global {
   interface Window {
@@ -137,7 +138,17 @@ function LaunchCelebration() {
   );
 }
 
-function LiveUserMeter({ count, isLaunched }: { count: number; isLaunched: boolean }) {
+function LiveUserMeter({
+  count,
+  isLaunched,
+  isLoading,
+  error,
+}: {
+  count: number | null;
+  isLaunched: boolean;
+  isLoading: boolean;
+  error: string | null;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -146,13 +157,26 @@ function LiveUserMeter({ count, isLaunched }: { count: number; isLaunched: boole
       className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/80 p-6 text-center shadow-md shadow-black/10 backdrop-blur dark:bg-white/5"
     >
       <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-r from-lernex-purple/15 via-lernex-blue/15 to-transparent" />
-      <div className="text-xs uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-300">Learners online</div>
+      <div className="text-xs uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-300">Total learners</div>
       <div className="mt-3 text-4xl font-extrabold tabular-nums text-neutral-900 dark:text-white">
-        {count.toLocaleString('en-US')}
+        {isLoading ? (
+          <span className="animate-pulse text-neutral-400 dark:text-neutral-500">—</span>
+        ) : count !== null ? (
+          count.toLocaleString('en-US')
+        ) : (
+          FALLBACK_USER_TOTAL.toLocaleString('en-US')
+        )}
       </div>
       <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
-        {isLaunched ? 'The doors are open—jump into the live experience now!' : 'Already tuning in to level up before launch.'}
+        {isLaunched
+          ? 'The doors are open—dive into lessons with the Lernex community.'
+          : 'Already building momentum with Lernex micro-lessons.'}
       </p>
+      {error ? (
+        <p className="mt-2 text-xs text-rose-500 dark:text-rose-400">
+          We&apos;ll refresh totals in a moment.
+        </p>
+      ) : null}
       <motion.div
         className="mx-auto mt-4 h-2 w-40 overflow-hidden rounded-full bg-neutral-900/10 dark:bg-white/10"
         style={{
@@ -227,7 +251,10 @@ export default function MarketingLanding() {
   const [mounted, setMounted] = useState(false);
   const [hasClockStarted, setHasClockStarted] = useState(false);
   const [isLaunched, setIsLaunched] = useState(false);
-  const [liveUsers, setLiveUsers] = useState(MIN_USERS);
+  const [userTotal, setUserTotal] = useState<number | null>(null);
+  const [userTotalError, setUserTotalError] = useState<string | null>(null);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const supabase = useMemo(() => supabaseBrowser(), []);
 
   useEffect(() => {
     setMounted(true);
@@ -255,17 +282,30 @@ export default function MarketingLanding() {
 
   useEffect(() => {
     if (!mounted) return;
-    setLiveUsers(Math.max(MIN_USERS + Math.floor(Math.random() * 180), MIN_USERS));
-    const id = setInterval(() => {
-      setLiveUsers((prev) => {
-        const swing = Math.floor(Math.random() * 14) - 2; // slight up + occasional dip
-        const growth = Math.random() > 0.45 ? Math.floor(Math.random() * 8) : 0;
-        const next = prev + swing + growth;
-        return Math.max(MIN_USERS, next);
-      });
-    }, 2500);
-    return () => clearInterval(id);
-  }, [mounted]);
+    let isActive = true;
+
+    const loadUserTotal = async () => {
+      setIsLoadingUsers(true);
+      const { count, error } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+      if (!isActive) return;
+      if (error) {
+        console.error('Unable to load total learners', error);
+        setUserTotalError(error.message);
+        setIsLoadingUsers(false);
+        return;
+      }
+      setUserTotal(count ?? null);
+      setUserTotalError(null);
+      setIsLoadingUsers(false);
+    };
+
+    loadUserTotal();
+    const id = setInterval(loadUserTotal, 60000);
+    return () => {
+      isActive = false;
+      clearInterval(id);
+    };
+  }, [mounted, supabase]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -441,7 +481,7 @@ export default function MarketingLanding() {
             <LaunchCelebration />
           )}
         </AnimatePresence>
-        <LiveUserMeter count={liveUsers} isLaunched={isLaunched} />
+        <LiveUserMeter count={userTotal} isLaunched={isLaunched} isLoading={isLoadingUsers} error={userTotalError} />
       </section>
     </main>
   );
