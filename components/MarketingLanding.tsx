@@ -6,18 +6,23 @@ import { supabaseBrowser } from '@/lib/supabase-browser';
 
 const features = [
   {
+    title: 'Personalized Launchpad',
+    desc: 'Tell Lernex what you need and receive a curated path of micro-lessons, ready in seconds.',
+    icon: '🧭',
+  },
+  {
     title: 'Micro-Lessons',
-    desc: '30–60s cards to master atomic concepts.',
+    desc: 'Digestible 30–60s cards with visuals, mnemonics, and real-world context to lock in each concept.',
     icon: '⚡',
   },
   {
     title: 'Instant Quizzes',
-    desc: '1–3 questions with feedback.',
+    desc: 'Rapid-fire checks with contextual explanations keep you honest about what you really know.',
     icon: '🎯',
   },
   {
     title: 'Adaptive Pace',
-    desc: 'Difficulty tunes to your level.',
+    desc: 'Difficulty and frequency adjust automatically based on performance across sessions.',
     icon: '📈',
   },
 ];
@@ -25,18 +30,115 @@ const features = [
 const benefits = [
   {
     title: 'Science-backed',
-    desc: 'Spaced repetition and active recall baked in.',
+    desc: 'Spacing, recall, and interleaving built directly into every learning session.',
     icon: '🧠',
   },
   {
     title: 'Track Progress',
-    desc: 'Streaks and points keep you motivated.',
+    desc: 'Dashboards, streaks, and cohorts keep you accountable, without the noise.',
     icon: '📊',
   },
   {
-    title: 'Anytime, Anywhere',
-    desc: 'Works on your phone, tablet, or laptop.',
+    title: 'Learning Everywhere',
+    desc: 'Native experience on phone, tablet, or laptop—syncing in real time.',
     icon: '📱',
+  },
+  {
+    title: 'Enterprise Ready',
+    desc: 'Secure profiles, admin controls, and team analytics for ambitious teams.',
+    icon: '🛡️',
+  },
+];
+
+const trustedByLabels = [
+  'YC founders',
+  'Top bootcamps',
+  'Intense ops teams',
+  'University study clubs',
+];
+
+const learningFlow = [
+  {
+    step: '1',
+    title: 'Align on outcomes',
+    desc: 'Pick a skill, certification, or curriculum. Lernex ingests your source materials in seconds.',
+  },
+  {
+    step: '2',
+    title: 'Train with micro-bursts',
+    desc: 'AI condenses the critical ideas into cinematic cards that you can swipe through anywhere.',
+  },
+  {
+    step: '3',
+    title: 'Validate instantly',
+    desc: 'Quick quizzes surface blind spots with clear explanations you can save to revisit later.',
+  },
+  {
+    step: '4',
+    title: 'Stay in the groove',
+    desc: 'Smart pacing, reminders, and progress reviews keep momentum—and burnout—managed.',
+  },
+];
+
+const outcomes = [
+  {
+    stat: '92%',
+    label: 'improved recall',
+    detail: 'Beta learners reported retaining new frameworks after one week.',
+  },
+  {
+    stat: '7 min',
+    label: 'daily average',
+    detail: 'Purpose-built for focused bursts that fit between meetings.',
+  },
+  {
+    stat: '3×',
+    label: 'faster ramp',
+    detail: 'Teams shipping in regulated industries cut onboarding time dramatically.',
+  },
+];
+
+const testimonials = [
+  {
+    quote:
+      'Our analysts ramp in a third of the time. Lernex keeps everyone aligned on critical updates without another marathon training session.',
+    name: 'Sasha I.',
+    role: 'Head of Enablement, Series B SaaS',
+  },
+  {
+    quote:
+      'I finally replaced the 200-page study guide. The AI coach adapts to me, and the daily nudges make it impossible to fall behind.',
+    name: 'Jordan M.',
+    role: 'Cybersecurity Learner',
+  },
+  {
+    quote:
+      'It feels like a mentor walking me through complex material. The combination of micro-lessons + quizzes is unmatched.',
+    name: 'Priya K.',
+    role: 'MBA Candidate',
+  },
+];
+
+const faqs = [
+  {
+    question: 'What kinds of topics can I learn with Lernex?',
+    answer:
+      'Upload your own PDFs, slide decks, or notes—or choose from our curated tracks. Lernex works best for technical, operational, compliance, and professional upskilling content.',
+  },
+  {
+    question: 'How does Lernex personalize my experience?',
+    answer:
+      'Every interaction trains the difficulty, pacing, and content mix. Lernex measures confidence, accuracy, and time-on-card to deliver the right challenge at the right moment.',
+  },
+  {
+    question: 'Can teams adopt Lernex?',
+    answer:
+      'Yes. Create team spaces, assign tracks, view analytics, and plug into your existing LMS or Slack workflows. Role-based access keeps data secure.',
+  },
+  {
+    question: 'Do I need to install anything?',
+    answer:
+      'No installs required. Lernex runs beautifully in your browser and on mobile devices, with offline mode rolling out soon.',
   },
 ];
 
@@ -433,7 +535,7 @@ export default function MarketingLanding() {
             transition={{ duration: 0.6 }}
             className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-5xl font-extrabold leading-tight text-transparent md:text-6xl"
           >
-            Learn 10x faster with AI-generated micro-lessons.
+            Your AI study coach for unstoppable teams.
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
@@ -441,7 +543,7 @@ export default function MarketingLanding() {
             transition={{ delay: 0.1, duration: 0.6 }}
             className="mt-6 max-w-2xl text-lg text-neutral-600 dark:text-neutral-300"
           >
-            Bite-sized explanations, instant quizzes, and adaptive difficulty—like TikTok, but for learning.
+            Lernex turns dense manuals, curricula, and notes into cinematic micro-lessons with adaptive quizzes and analytics—built to help professionals and students ramp up without the burnout.
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -462,46 +564,161 @@ export default function MarketingLanding() {
               See how it works
             </Link>
           </motion.div>
-          <div className="mt-10 grid w-full max-w-3xl grid-cols-3 gap-3 text-left text-sm text-neutral-600 dark:text-neutral-300">
-            <div className="rounded-2xl border border-white/10 bg-white/70 p-4 backdrop-blur dark:bg-white/5">
-              <div className="text-2xl font-bold text-neutral-900 dark:text-white">30–60s</div>
-              <div>Micro‑lessons per card</div>
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.6 }}
+            className="mt-10 inline-flex flex-wrap items-center justify-center gap-4 rounded-full border border-white/10 bg-white/60 px-6 py-2 text-xs uppercase tracking-[0.4em] backdrop-blur dark:bg-white/10"
+          >
+            Loved by curious operators everywhere
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35, duration: 0.6 }}
+            className="mt-6 flex w-full flex-wrap justify-center gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-400"
+          >
+            {trustedByLabels.map((label) => (
+              <span
+                key={label}
+                className="rounded-full border border-white/20 bg-white/50 px-4 py-1 backdrop-blur transition dark:bg-white/10"
+              >
+                {label}
+              </span>
+            ))}
+          </motion.div>
+          <div className="mt-10 grid w-full max-w-4xl grid-cols-1 gap-3 text-left text-sm text-neutral-600 dark:text-neutral-300 md:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-white/70 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
+              <div className="text-2xl font-bold text-neutral-900 dark:text-white">2 min</div>
+              <div>From upload to your first curated Lernex path.</div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/70 p-4 backdrop-blur dark:bg-white/5">
-              <div className="text-2xl font-bold text-neutral-900 dark:text-white">1–3</div>
-              <div>Instant quiz questions</div>
+            <div className="rounded-2xl border border-white/10 bg-white/70 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
+              <div className="text-2xl font-bold text-neutral-900 dark:text-white">7 min</div>
+              <div>The average daily session to stay on track.</div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/70 p-4 backdrop-blur dark:bg-white/5">
-              <div className="text-2xl font-bold text-neutral-900 dark:text-white">Adaptive</div>
-              <div>Difficulty tunes to you</div>
+            <div className="rounded-2xl border border-white/10 bg-white/70 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
+              <div className="text-2xl font-bold text-neutral-900 dark:text-white">92%</div>
+              <div>Report remembering critical details a week later.</div>
             </div>
           </div>
         </div>
       </section>
 
-      <section id="how" className="mx-auto mt-32 max-w-5xl px-6">
-        <h2 className="mb-10 text-center text-3xl font-bold">How it works</h2>
-        <div className="grid gap-6 md:grid-cols-3">
-          {features.map((f) => (
+      <section id="how" className="mx-auto mt-28 max-w-6xl px-6">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-3xl font-bold">How Lernex works</h2>
+          <p className="mt-4 text-neutral-600 dark:text-neutral-300">
+            Four tight feedback loops keep you consistently moving forward—from aligning on outcomes to reinforcing what sticks.
+          </p>
+        </div>
+        <div className="relative mt-14 grid gap-6 md:grid-cols-2">
+          <div className="pointer-events-none absolute left-1/2 top-0 hidden h-full w-px -translate-x-1/2 bg-gradient-to-b from-lernex-purple/0 via-lernex-purple/40 to-lernex-blue/0 md:block" />
+          {learningFlow.map((item, idx) => (
             <motion.div
-              key={f.title}
+              key={item.title}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
-              className="group rounded-2xl border border-neutral-200 bg-white p-6 text-center shadow-md shadow-black/20 backdrop-blur transition-transform hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-white/5"
+              className="group relative overflow-hidden rounded-3xl border border-neutral-200/60 bg-white/80 p-8 shadow-lg shadow-black/10 backdrop-blur transition hover:-translate-y-1 hover:shadow-2xl dark:border-white/5 dark:bg-white/10"
+              style={{ zIndex: learningFlow.length - idx }}
             >
-              <div className="text-4xl transition-transform group-hover:scale-110">{f.icon}</div>
-              <div className="mt-4 text-xl font-semibold">{f.title}</div>
-              <div className="mt-2 text-neutral-600 dark:text-neutral-300">{f.desc}</div>
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-lernex-blue/0 via-lernex-purple/5 to-lernex-blue/0 opacity-0 transition group-hover:opacity-100" />
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/40 bg-white/70 text-sm font-semibold text-lernex-purple shadow dark:bg-white/10">
+                {item.step}
+              </span>
+              <div className="mt-6 text-xl font-semibold text-neutral-900 dark:text-white">{item.title}</div>
+              <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">{item.desc}</p>
             </motion.div>
           ))}
         </div>
       </section>
 
-      <section className="mx-auto mt-32 max-w-5xl px-6">
+      <section className="mx-auto mt-28 max-w-6xl px-6">
+        <div className="rounded-3xl border border-white/10 bg-white/70 p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:bg-white/5">
+          <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="text-left">
+              <h2 className="text-3xl font-bold">What you get with Lernex</h2>
+              <p className="mt-4 text-neutral-600 dark:text-neutral-300">
+                Everything is orchestrated to make complex knowledge feel approachable—without sacrificing rigor. Swipe through content, test yourself instantly, and keep a crystal-clear pulse on your progress.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-400">
+                <span className="rounded-full border border-white/10 bg-white/70 px-4 py-1 backdrop-blur dark:bg-white/10">Flash insight</span>
+                <span className="rounded-full border border-white/10 bg-white/70 px-4 py-1 backdrop-blur dark:bg-white/10">Real-time analytics</span>
+                <span className="rounded-full border border-white/10 bg-white/70 px-4 py-1 backdrop-blur dark:bg-white/10">Adaptive pacing</span>
+              </div>
+            </div>
+            <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-br from-lernex-blue/20 via-lernex-purple/30 to-lernex-blue/10 p-8 text-left shadow-lg shadow-lernex-purple/30">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.4),transparent_65%)] opacity-60" />
+              <div className="relative">
+                <p className="text-sm uppercase tracking-[0.3em] text-white/80">Live preview</p>
+                <div className="mt-4 rounded-2xl bg-white/80 p-4 text-neutral-900 shadow-lg backdrop-blur">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500">Micro-lesson</p>
+                  <p className="mt-2 text-lg font-semibold">Understand zero trust architecture in under a minute.</p>
+                  <p className="mt-3 text-sm text-neutral-600">
+                    Lernex highlights the critical frame, the analogy, and the call-to-action so you never miss the &quot;why it matters&quot; moment.
+                  </p>
+                </div>
+                <div className="mt-4 rounded-2xl bg-white/60 p-4 text-neutral-900 shadow-lg backdrop-blur">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500">Quick check</p>
+                  <p className="mt-2 text-sm">
+                    What is the primary goal of implementing zero trust?
+                  </p>
+                  <div className="mt-3 space-y-2 text-sm">
+                    <div className="rounded-xl border border-neutral-200 bg-white px-3 py-2 shadow-sm">Limit lateral movement inside your network</div>
+                    <div className="rounded-xl border border-neutral-200 bg-white px-3 py-2 shadow-sm">Eliminate all third-party access</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {features.map((feature) => (
+              <motion.div
+                key={feature.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4 }}
+                className="group relative overflow-hidden rounded-2xl border border-neutral-200/60 bg-white/80 p-6 text-left shadow-md shadow-black/10 backdrop-blur transition hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-white/10"
+              >
+                <div className="text-4xl transition-transform group-hover:scale-110">{feature.icon}</div>
+                <div className="mt-4 text-lg font-semibold">{feature.title}</div>
+                <div className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">{feature.desc}</div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto mt-28 max-w-5xl px-6">
+        <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-lernex-blue/20 via-lernex-purple/25 to-lernex-blue/10 p-10 text-center shadow-2xl shadow-lernex-purple/30 backdrop-blur">
+          <h2 className="text-3xl font-bold text-white">Proof that the approach works</h2>
+          <p className="mt-4 text-base text-white/80">
+            Built and battle-tested with real operators. Lernex condenses knowledge and gives feedback loops that keep people engaged.
+          </p>
+          <div className="mt-10 grid gap-6 text-left text-white md:grid-cols-3">
+            {outcomes.map((item) => (
+              <motion.div
+                key={item.label}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4 }}
+                className="rounded-2xl border border-white/20 bg-white/10 p-6 shadow-lg shadow-black/10 backdrop-blur"
+              >
+                <div className="text-4xl font-black">{item.stat}</div>
+                <div className="mt-2 text-sm uppercase tracking-[0.3em] text-white/70">{item.label}</div>
+                <p className="mt-4 text-sm text-white/80">{item.detail}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto mt-28 max-w-5xl px-6">
         <h2 className="mb-10 text-center text-3xl font-bold">Why Lernex?</h2>
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {benefits.map((b) => (
             <motion.div
               key={b.title}
@@ -519,15 +736,73 @@ export default function MarketingLanding() {
         </div>
       </section>
 
-      <section className="mx-auto mt-32 max-w-5xl px-6 pb-32 text-center">
-        <h2 className="text-3xl font-bold">Ready to level up?</h2>
-        <p className="mt-4 text-neutral-600 dark:text-neutral-300">Join thousands of learners accelerating their skills with AI.</p>
-        <Link
-          href="/login"
-          className="mt-8 inline-block rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-8 py-3 font-medium text-white shadow-lg shadow-lernex-blue/40 transition hover:opacity-90"
-        >
-          Start for free
-        </Link>
+      <section className="mx-auto mt-28 max-w-5xl px-6">
+        <h2 className="text-center text-3xl font-bold">What learners are saying</h2>
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+          {testimonials.map((item) => (
+            <motion.blockquote
+              key={item.name}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4 }}
+              className="group relative overflow-hidden rounded-3xl border border-neutral-200/60 bg-white/80 p-6 text-left shadow-lg shadow-black/10 backdrop-blur transition hover:-translate-y-1 hover:shadow-2xl dark:border-white/10 dark:bg-white/10"
+            >
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-lernex-blue/0 via-lernex-purple/10 to-lernex-blue/0 opacity-0 transition group-hover:opacity-100" />
+              <p className="relative text-sm text-neutral-700 dark:text-neutral-200">&ldquo;{item.quote}&rdquo;</p>
+              <footer className="relative mt-6 text-sm font-semibold text-neutral-900 dark:text-white">
+                {item.name}
+                <div className="mt-1 text-xs font-normal text-neutral-500 dark:text-neutral-300">{item.role}</div>
+              </footer>
+            </motion.blockquote>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto mt-28 max-w-5xl px-6">
+        <div className="rounded-3xl border border-white/10 bg-white/70 p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:bg-white/5">
+          <h2 className="text-center text-3xl font-bold">FAQs</h2>
+          <div className="mt-8 space-y-4">
+            {faqs.map((item) => (
+              <motion.div
+                key={item.question}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4 }}
+                className="rounded-2xl border border-neutral-200/70 bg-white/80 px-6 py-5 shadow-md shadow-black/10 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-white/10"
+              >
+                <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">{item.question}</h3>
+                <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">{item.answer}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto mt-28 max-w-5xl px-6 pb-32">
+        <div className="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-lernex-blue via-lernex-purple to-orange-400 p-10 text-center text-white shadow-2xl shadow-lernex-purple/40">
+          <div className="mx-auto max-w-2xl">
+            <h2 className="text-3xl font-bold">Ready to level up?</h2>
+            <p className="mt-4 text-base text-white/85">
+              Join thousands of learners and teams accelerating their expertise with AI-crafted micro-lessons. Launch in minutes and stay ahead for the long haul.
+            </p>
+            <div className="mt-8 flex flex-col items-center justify-center gap-4 md:flex-row">
+              <Link
+                href="/login"
+                className="inline-flex items-center justify-center rounded-full bg-white px-8 py-3 font-semibold text-lernex-purple shadow-lg shadow-black/20 transition transform hover:-translate-y-0.5"
+              >
+                Start for free
+              </Link>
+              <Link
+                href="#how"
+                className="inline-flex items-center justify-center rounded-full border border-white/60 px-8 py-3 font-semibold text-white transition hover:bg-white/10"
+              >
+                Explore the flow
+              </Link>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* Countdown Section */}
