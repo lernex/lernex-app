@@ -498,7 +498,7 @@ export default function FypFeed() {
         fetching.current = false;
       }
     }
-  }, [appendLesson, i, items.length, rotation]);
+  }, [appendLesson, i, items.length, rotation, setClassPickerOpen]);
 
   const triggerHint = useCallback(() => {
     setShowCompleteHint(true);
