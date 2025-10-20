@@ -528,7 +528,7 @@ async function verifyLessonAlignment(
       const completion = await client.chat.completions.create({
         model,
         temperature: clampTemperature(0.1),
-        max_tokens: 260,
+        max_tokens: 400,
         messages,
         ...(useResponseFormat ? { response_format: { type: "json_object" as const } } : {}),
       });
@@ -560,6 +560,9 @@ async function verifyLessonAlignment(
           topic: target.topic,
           difficulty: target.difficulty,
           attempt: attempt + 1,
+          finishReason: completion.choices?.[0]?.finish_reason ?? null,
+          usedResponseFormat: useResponseFormat,
+          model,
         });
         if (attempt < VERIFICATION_RETRY_LIMIT - 1) {
           if (useResponseFormat && !switchedToPlain) {
@@ -920,7 +923,7 @@ export async function generateLessonForTopic(
   const model = DEFAULT_MODEL;
   const completionMaxTokens = Math.min(
     3200,
-    Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS ?? "2200") || 2200),
+    Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS ?? "2800") || 2800),
   );
 
   if (uid) {
@@ -1512,6 +1515,7 @@ export async function generateLessonForTopic(
       ? messageContent.trim()
       : extractAssistantJson(choice);
     const rawLength = typeof raw === "string" ? raw.length : null;
+    const finishReason = choice?.finish_reason ?? null;
     const lessonCandidate = resolveLessonCandidate(raw);
     const candidateSummary = summarizeLessonForLog(lessonCandidate);
     if (!lessonCandidate) {
@@ -1521,6 +1525,8 @@ export async function generateLessonForTopic(
         rawPreview: previewForLog(typeof raw === "string" ? raw : null, 200),
         rawLength,
         rawType: typeof raw,
+        finishReason,
+        wasTruncated: finishReason === "length",
       });
     }
     try {
