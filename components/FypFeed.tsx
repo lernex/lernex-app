@@ -353,6 +353,7 @@ export default function FypFeed() {
       }
       itemsRef.current = trimmed;
       return trimmed;
+    });
   }, [MAX_BUFFER_SIZE, MAX_LOOKBACK, setCompletedMap, setI]);
 
   const ensureBuffer = useCallback(async (minAhead = 1) => {
