@@ -46,18 +46,24 @@ const SUPPORTED_TEXT_EXTENSIONS = new Set(["txt", "md", "markdown", "json", "csv
 
 let pdfModulePromise: Promise<typeof import("pdfjs-dist/legacy/build/pdf.mjs")> | null = null;
 
+type PdfJsModule = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
+type PdfDocumentOptions = Parameters<PdfJsModule["getDocument"]>[0] & {
+  disableWorker?: boolean;
+};
+
 async function extractPdfText(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   if (!pdfModulePromise) {
     pdfModulePromise = import("pdfjs-dist/legacy/build/pdf.mjs");
   }
   const pdfjs = await pdfModulePromise;
-  const loadingTask = pdfjs.getDocument({
+  const documentParams: PdfDocumentOptions = {
     data: arrayBuffer,
     useWorkerFetch: false,
     isEvalSupported: false,
     disableWorker: true,
-  });
+  };
+  const loadingTask = pdfjs.getDocument(documentParams);
   const pdf = await loadingTask.promise;
   let full = "";
   for (let pageIndex = 1; pageIndex <= pdf.numPages; pageIndex += 1) {
@@ -860,7 +866,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                   <LessonCard lesson={lesson} />
                   {lesson.questions?.length ? (
                     <div className="rounded-2xl border border-white/60 bg-white/70 p-4 text-sm shadow-sm dark:border-white/10 dark:bg-white/10">
-                      <QuizBlock lesson={lesson} compact />
+                      <QuizBlock lesson={lesson} onDone={() => {}} showSummary={false} />
                     </div>
                   ) : null}
                 </motion.article>

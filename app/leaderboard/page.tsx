@@ -13,6 +13,8 @@ import { Crown, Sparkles, Flame, Target, Trophy } from "lucide-react";
 
 const POINTS_PER_CORRECT = 10;
 
+type AppSupabaseClient = SupabaseClient<Database>;
+
 type Scope = "global" | "friends";
 type Range = "all" | "monthly" | "weekly" | "daily";
 
@@ -81,6 +83,68 @@ function normalizeProfiles(rows: unknown[] | null | undefined): ProfileRow[] {
     plus: toBool(row.plus),
     premium: toBool(row.premium),
   }));
+}
+
+function uniqueIds(ids: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  ids.forEach((id) => {
+    if (typeof id === "string" && id.length > 0) {
+      seen.add(id);
+    }
+  });
+  return Array.from(seen);
+}
+
+function calcRangeStart(range: Range): Date {
+  const now = new Date();
+  switch (range) {
+    case "daily":
+      return new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    case "weekly":
+      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    case "monthly": {
+      const start = new Date(now);
+      start.setMonth(start.getMonth() - 1);
+      return start;
+    }
+    default:
+      return new Date(0);
+  }
+}
+
+type AttemptRow = Database["public"]["Tables"]["attempts"]["Row"];
+
+async function fetchAttemptTotals(
+  supabase: AppSupabaseClient,
+  rangeStart: Date,
+  scopedIds: string[] | null
+): Promise<Map<string, number>> {
+  let query = supabase
+    .from("attempts")
+    .select("user_id, correct_count, created_at")
+    .gte("created_at", rangeStart.toISOString());
+
+  if (scopedIds && scopedIds.length > 0) {
+    query = query.in("user_id", scopedIds);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const totals = new Map<string, number>();
+  (data as AttemptRow[] | null | undefined)?.forEach((row) => {
+    const userId = typeof row.user_id === "string" ? row.user_id : null;
+    if (!userId) {
+      return;
+    }
+    const correct =
+      typeof row.correct_count === "number"
+        ? row.correct_count
+        : Number(row.correct_count ?? 0);
+    totals.set(userId, (totals.get(userId) ?? 0) + (Number.isFinite(correct) ? correct : 0));
+  });
+
+  return totals;
 }
 
 type Tier = "premium" | "plus" | null;

@@ -2,8 +2,8 @@
 
 import { useCallback, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle2, Loader2, Sparkles, ShieldCheck, Zap, Crown, TrendingUp, Brain, Target, Users } from 'lucide-react';
+import { motion, easeOut } from 'framer-motion';
+import { ArrowRight, CheckCircle2, Loader2, Sparkles, ShieldCheck, Zap, TrendingUp, Brain, Users } from 'lucide-react';
 
 type Tier = {
   id: 'free' | 'plus' | 'premium';
@@ -114,7 +114,7 @@ const cardVariants = {
     transition: {
       duration: 0.6,
       delay: index * 0.15,
-      ease: [0.25, 0.46, 0.45, 0.94]
+      ease: easeOut
     }
   })
 };
