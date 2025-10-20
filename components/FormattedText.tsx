@@ -278,7 +278,7 @@ function scanMathState(text: string, startIndex: number, state: MathBoundaryStat
       continue;
     }
     if (text.startsWith("\\[", i) && !isEscaped(text, i)) {
-      state.inlineDepth += 1;
+      state.displayDepth += 1;  // Fixed: was incorrectly incrementing inlineDepth
       i += 2;
       continue;
     }
@@ -291,8 +291,8 @@ function scanMathState(text: string, startIndex: number, state: MathBoundaryStat
       continue;
     }
     if (text.startsWith("\\]", i) && !isEscaped(text, i)) {
-      if (state.inlineDepth > 0) {
-        state.inlineDepth -= 1;
+      if (state.displayDepth > 0) {  // Fixed: check displayDepth, not inlineDepth
+        state.displayDepth -= 1;  // Fixed: decrement displayDepth, not inlineDepth
         if (state.inlineDepth === 0 && state.displayDepth === 0 && !state.singleOpen) markOutsideClose();
       }
       i += 2;
