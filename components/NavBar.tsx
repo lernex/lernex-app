@@ -21,6 +21,7 @@ import {
   LifeBuoy,
   Flame,
   Star,
+  Crown,
 } from "lucide-react";
 
 export default function NavBar() {
@@ -30,6 +31,7 @@ export default function NavBar() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [open, setOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [membership, setMembership] = useState<"premium" | "plus" | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -53,6 +55,17 @@ export default function NavBar() {
     pathname !== "/" &&
     !marketingRoutes.some((p) => pathname.startsWith(p));
 
+  const avatarBackground =
+    membership === "premium" || membership === "plus"
+      ? "bg-white/95 dark:bg-neutral-900/70"
+      : "bg-neutral-100 dark:bg-white/5";
+  const avatarRing =
+    membership === "premium"
+      ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-white dark:ring-amber-300 dark:ring-offset-lernex-charcoal"
+      : membership === "plus"
+        ? "ring-2 ring-indigo-400 ring-offset-2 ring-offset-white dark:ring-indigo-300 dark:ring-offset-lernex-charcoal"
+        : "border border-neutral-200 dark:border-white/10";
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -62,6 +75,41 @@ export default function NavBar() {
     });
     return () => listener.subscription.unsubscribe();
   }, [supabase.auth]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadMembership = async () => {
+      if (!user?.id) {
+        setMembership(null);
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("plus, premium")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (cancelled) return;
+        if (error) {
+          console.warn("[navbar] membership fetch error", error);
+          setMembership(null);
+          return;
+        }
+        const premium = data?.premium === true;
+        const plus = data?.plus === true;
+        setMembership(premium ? "premium" : plus ? "plus" : null);
+      } catch (err) {
+        if (!cancelled) {
+          console.warn("[navbar] membership fetch error", err);
+          setMembership(null);
+        }
+      }
+    };
+    loadMembership().catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, user?.id]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -443,7 +491,7 @@ export default function NavBar() {
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setOpen((o) => !o)}
-                className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 shadow-sm transition-transform hover:scale-105 dark:border-white/10 dark:bg-white/5"
+                className={`relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full shadow-sm transition-transform hover:scale-105 ${avatarBackground} ${avatarRing}`}
               >
                 {user.user_metadata?.avatar_url ? (
                   <Image src={user.user_metadata.avatar_url} alt="avatar" width={36} height={36} />
@@ -452,6 +500,21 @@ export default function NavBar() {
                     {user.email?.[0]?.toUpperCase()}
                   </span>
                 )}
+                {membership ? (
+                  <span
+                    className={`absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-white shadow-sm ${
+                      membership === "premium"
+                        ? "bg-gradient-to-br from-amber-400 to-rose-500"
+                        : "bg-gradient-to-br from-indigo-500 to-purple-500"
+                    }`}
+                  >
+                    {membership === "premium" ? (
+                      <Crown className="h-2.5 w-2.5" strokeWidth={2.4} />
+                    ) : (
+                      <Sparkles className="h-2.5 w-2.5" strokeWidth={2.4} />
+                    )}
+                  </span>
+                ) : null}
               </button>
               <AnimatePresence>
                 {open && (
