@@ -11,6 +11,25 @@ type Pace = "slow" | "normal" | "fast";
 
 type UsageSummary = { input_tokens: number | null; output_tokens: number | null } | null;
 
+type UsageEvent = {
+  source: "lesson" | "verification";
+  attempt: number;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+  variant?: number;
+  variantAttempt?: number;
+  responseFormat?: "json_object" | "plain";
+};
+
+type VerificationUsageEvent = {
+  attempt: number;
+  responseFormat: "json_object" | "plain";
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+};
+
 type LessonOptions = {
   pace?: Pace;
   accuracyPct?: number;
@@ -464,6 +483,7 @@ async function verifyLessonAlignment(
   model: string,
   lesson: Lesson,
   target: LessonVerificationTarget,
+  captureUsage?: (event: VerificationUsageEvent) => void,
 ) {
   const computeVerificationRetryDelay = (attempt: number) => {
     const base = 220;
@@ -506,12 +526,21 @@ async function verifyLessonAlignment(
 
   for (let attempt = 0; attempt < VERIFICATION_RETRY_LIMIT; attempt += 1) {
     try {
+      const attemptFormat: "json_object" | "plain" = useResponseFormat ? "json_object" : "plain";
       const completion = await client.chat.completions.create({
         model,
         temperature: clampTemperature(0.1),
         max_tokens: 260,
         messages,
         ...(useResponseFormat ? { response_format: { type: "json_object" as const } } : {}),
+      });
+      const usage = completion.usage;
+      captureUsage?.({
+        attempt: attempt + 1,
+        responseFormat: attemptFormat,
+        promptTokens: typeof usage?.prompt_tokens === "number" ? usage.prompt_tokens : null,
+        completionTokens: typeof usage?.completion_tokens === "number" ? usage.completion_tokens : null,
+        totalTokens: typeof usage?.total_tokens === "number" ? usage.total_tokens : null,
       });
       const choice = completion.choices?.[0];
       const raw = typeof choice?.message?.content === "string" && choice.message.content.trim().length
@@ -1135,6 +1164,34 @@ export async function generateLessonForTopic(
       }
     : null;
 
+  const usageEvents: UsageEvent[] = [];
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
+  let missingPromptTokens = false;
+  let missingCompletionTokens = false;
+
+  const recordUsageEvent = (event: UsageEvent) => {
+    usageEvents.push(event);
+    if (typeof event.promptTokens === "number") {
+      totalPromptTokens += event.promptTokens;
+    } else {
+      missingPromptTokens = true;
+    }
+    if (typeof event.completionTokens === "number") {
+      totalCompletionTokens += event.completionTokens;
+    } else {
+      missingCompletionTokens = true;
+    }
+  };
+
+  const computeUsageSummary = (): UsageSummary => {
+    if (!usageEvents.length) return null;
+    return {
+      input_tokens: totalPromptTokens,
+      output_tokens: totalCompletionTokens,
+    };
+  };
+
   try {
     console.debug("[fyp] lesson request summary", {
       subject,
@@ -1226,6 +1283,31 @@ export async function generateLessonForTopic(
         : undefined,
       recentMissSummary: opts.recentMissSummary ?? undefined,
     };
+    if (usageEvents.length) {
+      metadata.usageBreakdown = usageEvents.map((event) => {
+        const base: Record<string, unknown> = {
+          source: event.source,
+          attempt: event.attempt,
+          responseFormat: event.responseFormat ?? null,
+          promptTokens: event.promptTokens,
+          completionTokens: event.completionTokens,
+          totalTokens: event.totalTokens,
+        };
+        if (typeof event.variant === "number") base.variant = event.variant;
+        if (typeof event.variantAttempt === "number") base.variantAttempt = event.variantAttempt;
+        return base;
+      });
+      metadata.usageTotals = {
+        promptTokens: totalPromptTokens,
+        completionTokens: totalCompletionTokens,
+      };
+      if (missingPromptTokens || missingCompletionTokens) {
+        metadata.usageIncomplete = {
+          missingPromptTokens,
+          missingCompletionTokens,
+        };
+      }
+    }
     metadata.completionFormat = usedPlainResponseMode ? "plain" : "json_object";
     if (trimmedStructuredContext) metadata.trimmedStructuredContext = true;
     if (lastVerification) {
@@ -1234,7 +1316,9 @@ export async function generateLessonForTopic(
         ...(lastVerification.reasons.length ? { reasons: lastVerification.reasons } : {}),
       };
     }
-    if (summary == null) metadata.missingUsage = true;
+    if (summary == null || missingPromptTokens || missingCompletionTokens) {
+      metadata.missingUsage = true;
+    }
     if (errorDetails) {
       metadata.error = errorDetails instanceof Error ? errorDetails.message : String(errorDetails);
     }
@@ -1259,14 +1343,30 @@ export async function generateLessonForTopic(
     } catch (verificationLogErr) {
       console.warn("[fyp] verification begin log failed", verificationLogErr);
     }
-    const verification = await verifyLessonAlignment(client, model, candidate, {
-      subject,
-      topic,
-      difficulty,
-      knowledge: opts.knowledge,
-      recentMissSummary: opts.recentMissSummary ?? null,
-    });
+    const verification = await verifyLessonAlignment(
+      client,
+      model,
+      candidate,
+      {
+        subject,
+        topic,
+        difficulty,
+        knowledge: opts.knowledge,
+        recentMissSummary: opts.recentMissSummary ?? null,
+      },
+      (event) => {
+        recordUsageEvent({
+          source: "verification",
+          attempt: event.attempt,
+          responseFormat: event.responseFormat,
+          promptTokens: event.promptTokens,
+          completionTokens: event.completionTokens,
+          totalTokens: event.totalTokens,
+        });
+      },
+    );
     lastVerification = verification;
+    usageSummary = computeUsageSummary();
     const normalizedReasons = verification.reasons.map((reason) =>
       typeof reason === "string" ? reason.trim() : ""
     );
@@ -1368,6 +1468,24 @@ export async function generateLessonForTopic(
 
         try {
           completion = await client.chat.completions.create(payload);
+          const completionUsage = completion.usage;
+          recordUsageEvent({
+            source: "lesson",
+            attempt: attemptOrdinal,
+            variant: variantIndex + 1,
+            variantAttempt: variantAttempt + 1,
+            responseFormat: variant.usePlainResponse ? "plain" : "json_object",
+            promptTokens: typeof completionUsage?.prompt_tokens === "number"
+              ? completionUsage.prompt_tokens
+              : null,
+            completionTokens: typeof completionUsage?.completion_tokens === "number"
+              ? completionUsage.completion_tokens
+              : null,
+            totalTokens: typeof completionUsage?.total_tokens === "number"
+              ? completionUsage.total_tokens
+              : null,
+          });
+          usageSummary = computeUsageSummary();
           try {
             const usageInfo = completion.usage
               ? {
@@ -1503,13 +1621,7 @@ export async function generateLessonForTopic(
       throw lastCompletionError ?? new Error("lesson_generation_failed");
     }
 
-    const usage = completion.usage;
-    if (usage) {
-      usageSummary = {
-        input_tokens: typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : null,
-        output_tokens: typeof usage.completion_tokens === "number" ? usage.completion_tokens : null,
-      };
-    }
+    usageSummary = computeUsageSummary();
 
     const choice = completion.choices?.[0];
     const messageContent = choice?.message?.content;
@@ -1540,6 +1652,7 @@ export async function generateLessonForTopic(
       console.warn("[fyp] lesson candidate log failed", candidateLogErr);
     }
     const verifiedLesson = await validateLessonCandidate(lessonCandidate);
+    usageSummary = computeUsageSummary();
 
     if (verifiedLesson) {
       try {
@@ -1597,6 +1710,7 @@ export async function generateLessonForTopic(
         });
       }
       const verifiedLesson = await validateLessonCandidate(lessonCandidate);
+      usageSummary = computeUsageSummary();
       if (verifiedLesson) {
         try {
           const lessonSummary = summarizeLessonForLog(verifiedLesson);
@@ -1626,6 +1740,7 @@ export async function generateLessonForTopic(
   }
 
   const fallbackLesson = buildFallbackLesson(subject, topic, pace, accuracy, difficulty);
+  usageSummary = computeUsageSummary();
   try {
     console.warn("[fyp] returning fallback lesson", {
       subject,
