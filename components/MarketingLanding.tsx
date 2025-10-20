@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 
 const features = [
@@ -138,6 +138,52 @@ function LaunchCelebration() {
   );
 }
 
+function AnimatedTotal({
+  count,
+  isLoading,
+}: {
+  count: number | null;
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <span className="inline-flex h-12 items-center justify-center text-4xl font-extrabold text-neutral-400 transition dark:text-neutral-500">
+        <span className="animate-pulse">—</span>
+      </span>
+    );
+  }
+
+  const value = count ?? FALLBACK_USER_TOTAL;
+  const formatted = new Intl.NumberFormat('en-US').format(value);
+
+  return (
+    <span className="relative inline-flex h-12 items-center justify-center gap-0.5 text-4xl font-black tracking-tight text-neutral-900 transition dark:text-white md:text-[2.75rem]">
+      {formatted.split('').map((char, index) => {
+        const isSeparator = char === ',';
+        return (
+          <span
+            key={`${index}-${char}`}
+            className={`relative inline-flex justify-center ${isSeparator ? 'w-3 text-3xl text-neutral-400 dark:text-neutral-500' : 'w-[0.75em] tabular-nums'}`}
+          >
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span
+                key={`${index}-${char}-${value}`}
+                initial={{ y: 16, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -16, opacity: 0 }}
+                transition={{ duration: 0.28, ease: 'easeOut' }}
+                className="absolute left-1/2 top-1/2 inline-block -translate-x-1/2 -translate-y-1/2"
+              >
+                {char}
+              </motion.span>
+            </AnimatePresence>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 function LiveUserMeter({
   count,
   isLaunched,
@@ -149,23 +195,54 @@ function LiveUserMeter({
   isLoading: boolean;
   error: string | null;
 }) {
+  const [pulse, setPulse] = useState(false);
+  const firstRender = useRef(true);
+
+  useEffect(() => {
+    if (isLoading || count === null) {
+      return;
+    }
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    setPulse(true);
+    const timeout = setTimeout(() => setPulse(false), 900);
+    return () => clearTimeout(timeout);
+  }, [count, isLoading]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
+      animate={{
+        opacity: 1,
+        y: 0,
+        scale: pulse ? 1.018 : 1,
+        boxShadow: pulse
+          ? '0 20px 45px rgba(96,165,250,0.28)'
+          : '0 20px 40px rgba(15,23,42,0.14)',
+      }}
       transition={{ duration: 0.5, ease: 'easeOut' }}
-      className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/80 p-6 text-center shadow-md shadow-black/10 backdrop-blur dark:bg-white/5"
+      className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/80 p-7 text-center shadow-lg backdrop-blur dark:border-white/5 dark:bg-white/10"
     >
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-r from-lernex-purple/15 via-lernex-blue/15 to-transparent" />
+      <motion.div
+        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-r from-lernex-purple/10 via-lernex-blue/20 to-transparent"
+        animate={{ backgroundPositionX: pulse ? '100%' : '0%' }}
+        transition={{ duration: 0.9, ease: 'easeOut' }}
+        style={{ backgroundSize: '200% 100%' }}
+      />
+      <motion.div
+        className="pointer-events-none absolute inset-0 -z-10"
+        animate={{ opacity: pulse ? 0.25 : 0 }}
+        transition={{ duration: 0.4 }}
+        style={{
+          background:
+            'radial-gradient(circle at 50% 20%, rgba(96,165,250,0.35), transparent 55%)',
+        }}
+      />
       <div className="text-xs uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-300">Total learners</div>
-      <div className="mt-3 text-4xl font-extrabold tabular-nums text-neutral-900 dark:text-white">
-        {isLoading ? (
-          <span className="animate-pulse text-neutral-400 dark:text-neutral-500">—</span>
-        ) : count !== null ? (
-          count.toLocaleString('en-US')
-        ) : (
-          FALLBACK_USER_TOTAL.toLocaleString('en-US')
-        )}
+      <div className="mt-3 flex justify-center">
+        <AnimatedTotal count={count} isLoading={isLoading} />
       </div>
       <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
         {isLaunched
@@ -178,13 +255,13 @@ function LiveUserMeter({
         </p>
       ) : null}
       <motion.div
-        className="mx-auto mt-4 h-2 w-40 overflow-hidden rounded-full bg-neutral-900/10 dark:bg-white/10"
+        className="mx-auto mt-5 h-2 w-44 overflow-hidden rounded-full bg-neutral-900/10 dark:bg-white/10"
         style={{
           backgroundImage: 'linear-gradient(90deg, rgba(59,130,246,0.35), rgba(139,92,246,0.85), rgba(59,130,246,0.35))',
           backgroundSize: '220% 100%',
         }}
         animate={{ backgroundPosition: ['0% 50%', '100% 50%'] }}
-        transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
+        transition={{ duration: 2.2, repeat: Infinity, ease: 'linear' }}
       />
     </motion.div>
   );
@@ -254,6 +331,7 @@ export default function MarketingLanding() {
   const [userTotal, setUserTotal] = useState<number | null>(null);
   const [userTotalError, setUserTotalError] = useState<string | null>(null);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const initialUserLoad = useRef(true);
   const supabase = useMemo(() => supabaseBrowser(), []);
 
   useEffect(() => {
@@ -285,22 +363,26 @@ export default function MarketingLanding() {
     let isActive = true;
 
     const loadUserTotal = async () => {
-      setIsLoadingUsers(true);
+      if (initialUserLoad.current) {
+        setIsLoadingUsers(true);
+      }
       const { count, error } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
       if (!isActive) return;
       if (error) {
         console.error('Unable to load total learners', error);
         setUserTotalError(error.message);
         setIsLoadingUsers(false);
+        initialUserLoad.current = false;
         return;
       }
       setUserTotal(count ?? null);
       setUserTotalError(null);
       setIsLoadingUsers(false);
+      initialUserLoad.current = false;
     };
 
     loadUserTotal();
-    const id = setInterval(loadUserTotal, 60000);
+    const id = setInterval(loadUserTotal, 5000);
     return () => {
       isActive = false;
       clearInterval(id);
