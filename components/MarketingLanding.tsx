@@ -46,6 +46,7 @@ const FALLBACK_USER_TOTAL = 5000;
 declare global {
   interface Window {
     __lernexLaunchNow?: () => void;
+    __lernexSetTotal?: (count: number) => void;
   }
 }
 
@@ -396,9 +397,17 @@ export default function MarketingLanding() {
       setRemaining(0);
       setIsLaunched(true);
     };
+    window.__lernexSetTotal = (count: number) => {
+      setIsLoadingUsers(false);
+      setUserTotal(count);
+      setUserTotalError(null);
+    };
     return () => {
       if (window.__lernexLaunchNow) {
         delete window.__lernexLaunchNow;
+      }
+      if (window.__lernexSetTotal) {
+        delete window.__lernexSetTotal;
       }
     };
   }, []);
