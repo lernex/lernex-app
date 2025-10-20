@@ -169,3 +169,21 @@ html {
     background-position: 0% 50%;
   }
 }
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0px rgba(47, 128, 237, 0);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(47, 128, 237, 0.6);
+  }
+}

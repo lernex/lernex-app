@@ -21,6 +21,7 @@ import {
   Trophy,
   TrendingUp,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import {
   fetchUserSubjectStates,
@@ -215,6 +216,123 @@ type TimelineEvent = {
   highlight?: boolean;
 };
 
+// Animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20, scale: 0.95 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      type: "spring" as const,
+      stiffness: 100,
+      damping: 15,
+    },
+  },
+};
+
+const badgeUnlockedVariants = {
+  initial: { scale: 1 },
+  animate: {
+    scale: [1, 1.05, 1],
+    boxShadow: [
+      "0 0 0px rgba(47, 128, 237, 0)",
+      "0 0 20px rgba(47, 128, 237, 0.6)",
+      "0 0 0px rgba(47, 128, 237, 0)",
+    ],
+    transition: {
+      duration: 2,
+      repeat: Infinity,
+      repeatDelay: 3,
+    },
+  },
+};
+
+const progressBarVariants = {
+  initial: { width: 0 },
+  animate: (progress: number) => ({
+    width: `${progress}%`,
+    transition: {
+      duration: 1.5,
+      ease: "easeOut",
+      delay: 0.2,
+    },
+  }),
+};
+
+const shimmerVariants = {
+  initial: { backgroundPosition: "-200% 0" },
+  animate: {
+    backgroundPosition: "200% 0",
+    transition: {
+      duration: 2,
+      repeat: Infinity,
+      ease: "linear",
+    },
+  },
+};
+
+// Confetti particle component
+function ConfettiParticle({ delay }: { delay: number }) {
+  const colors = [
+    "#2F80ED",
+    "#9B51E0",
+    "#27AE60",
+    "#F2C94C",
+    "#EB5757",
+    "#F2994A",
+  ];
+  const randomColor = colors[Math.floor(Math.random() * colors.length)];
+  const randomX = Math.random() * 100 - 50;
+  const randomRotate = Math.random() * 360;
+
+  return (
+    <motion.div
+      className="absolute w-2 h-2 rounded-full"
+      style={{ backgroundColor: randomColor, top: "50%", left: "50%" }}
+      initial={{ opacity: 1, scale: 0, x: 0, y: 0, rotate: 0 }}
+      animate={{
+        opacity: [1, 1, 0],
+        scale: [0, 1, 0.5],
+        x: randomX,
+        y: [-80, -150],
+        rotate: randomRotate,
+      }}
+      transition={{
+        duration: 1.2,
+        delay,
+        ease: "easeOut",
+      }}
+    />
+  );
+}
+
+// Confetti burst component
+function ConfettiBurst({ show }: { show: boolean }) {
+  return (
+    <AnimatePresence>
+      {show && (
+        <div className="absolute inset-0 pointer-events-none">
+          {Array.from({ length: 20 }).map((_, i) => (
+            <ConfettiParticle key={i} delay={i * 0.02} />
+          ))}
+        </div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 function toNumber(value: unknown, fallback = 0): number {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   const parsed = Number(value);
@@ -308,6 +426,10 @@ export default function AchievementsPage(): JSX.Element {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [newlyUnlockedBadges, setNewlyUnlockedBadges] = useState<Set<string>>(
+    new Set()
+  );
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const userId = user?.id ?? null;
   const userEmail = typeof user?.email === "string" ? user.email : null;
@@ -1656,6 +1778,29 @@ export default function AchievementsPage(): JSX.Element {
     perfectDaysThisWeek,
   ]);
 
+  // Detect newly unlocked badges and trigger confetti
+  useEffect(() => {
+    const unlockedIds = badgeGroups
+      .flatMap((group) => group.badges)
+      .filter((badge) => badge.unlocked)
+      .map((badge) => badge.id);
+
+    const currentUnlocked = new Set(unlockedIds);
+    const previousCount = newlyUnlockedBadges.size;
+    const currentCount = currentUnlocked.size;
+
+    // If we have more unlocked badges than before, show confetti
+    if (currentCount > previousCount && previousCount > 0) {
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 1500);
+    }
+
+    // Update the newly unlocked badges set
+    if (currentCount > 0 && previousCount === 0) {
+      setNewlyUnlockedBadges(currentUnlocked);
+    }
+  }, [badgeGroups, newlyUnlockedBadges.size]);
+
   const timelineEvents = useMemo<TimelineEvent[]>(() => {
     const items: TimelineEvent[] = [];
     if (lastActiveIso) {
@@ -1741,6 +1886,7 @@ export default function AchievementsPage(): JSX.Element {
 
   return (
     <main className="relative min-h-[calc(100vh-56px)] mx-auto w-full max-w-5xl overflow-hidden px-4 py-10 text-neutral-900 dark:text-white">
+      <ConfettiBurst show={showConfetti} />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-[-40vw] -top-40 h-80 rounded-full bg-gradient-to-br from-sky-100 via-white to-transparent opacity-80 blur-3xl dark:hidden -z-10"
@@ -1766,7 +1912,12 @@ export default function AchievementsPage(): JSX.Element {
         </div>
       )}
 
-      <section className="relative overflow-hidden rounded-3xl border border-white/50 bg-white/70 p-6 shadow-lg ring-1 ring-black/5 backdrop-blur-sm transition-colors dark:border-slate-800 dark:bg-[#0b1424]/85 dark:ring-0">
+      <motion.section
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className="relative overflow-hidden rounded-3xl border border-white/50 bg-white/70 p-6 shadow-lg ring-1 ring-black/5 backdrop-blur-sm transition-colors dark:border-slate-800 dark:bg-[#0b1424]/85 dark:ring-0"
+      >
         <div
           aria-hidden="true"
           className="pointer-events-none absolute -left-32 -top-28 h-72 w-72 rounded-full bg-lernex-blue/20 blur-3xl opacity-80 dark:bg-lernex-blue/40 -z-10"
@@ -1854,9 +2005,14 @@ export default function AchievementsPage(): JSX.Element {
             </div>
           </div>
         </div>
-      </section>
+      </motion.section>
 
-      <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <motion.section
+        initial="hidden"
+        animate="visible"
+        variants={containerVariants}
+        className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+      >
         {[
           {
             id: "points",
@@ -1906,9 +2062,11 @@ export default function AchievementsPage(): JSX.Element {
         ].map((stat) => {
           const Icon = stat.icon;
           return (
-            <div
+            <motion.div
               key={stat.id}
-              className="rounded-2xl border border-white/40 bg-white/70 p-5 shadow-sm ring-1 ring-black/5 backdrop-blur-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-slate-800 dark:bg-[#0b1424]/85 dark:ring-0"
+              variants={itemVariants}
+              whileHover={{ y: -5, transition: { duration: 0.2 } }}
+              className="rounded-2xl border border-white/40 bg-white/70 p-5 shadow-sm ring-1 ring-black/5 backdrop-blur-sm transition hover:shadow-lg dark:border-slate-800 dark:bg-[#0b1424]/85 dark:ring-0"
             >
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -1923,21 +2081,21 @@ export default function AchievementsPage(): JSX.Element {
                   <Icon className="h-5 w-5" />
                 </span>
               </div>
-              <div className="mt-4 h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-800">
-                <div
-                  className="h-full rounded-full bg-lernex-blue transition-[width]"
-                  style={{
-                    width: `${Math.round(stat.progress * 100)}%`,
-                  }}
+              <div className="mt-4 h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
+                <motion.div
+                  className="h-full rounded-full bg-lernex-blue"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.round(stat.progress * 100)}%` }}
+                  transition={{ duration: 1.5, ease: "easeOut", delay: 0.3 }}
                 />
               </div>
               <div className="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
                 {stat.description}
               </div>
-            </div>
+            </motion.div>
           );
         })}
-      </section>
+      </motion.section>
 
       <section className="mt-8 grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-white/40 bg-white/70 p-5 shadow-sm ring-1 ring-black/5 backdrop-blur-sm dark:border-slate-800 dark:bg-[#0b1424]/85 dark:ring-0">
@@ -1961,25 +2119,35 @@ export default function AchievementsPage(): JSX.Element {
             </button>
           </div>
           <div className="mt-6 flex items-end gap-3">
-            {activityByDay.map((day) => {
+            {activityByDay.map((day, index) => {
               const heightBase =
                 maxDailyCount > 0 ? Math.max(10, (day.count / maxDailyCount) * 100) : 10;
               return (
-                <div
+                <motion.div
                   key={day.key}
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  transition={{ delay: index * 0.1, duration: 0.5 }}
                   className="flex w-full flex-col items-center gap-2 text-xs"
                 >
                   <div className="relative flex h-32 w-full items-end overflow-hidden rounded-full bg-white/80 ring-1 ring-black/5 dark:bg-neutral-800 dark:ring-0">
-                    <div
-                      className={`w-full rounded-full bg-gradient-to-t from-lernex-blue/70 to-lernex-blue/40 transition-[height] ${
+                    <motion.div
+                      className={`w-full rounded-full bg-gradient-to-t from-lernex-blue/70 to-lernex-blue/40 ${
                         day.isToday ? "ring-2 ring-lernex-blue/60" : ""
                       }`}
-                      style={{ height: `${heightBase}%` }}
+                      initial={{ height: 0 }}
+                      animate={{ height: `${heightBase}%` }}
+                      transition={{ delay: index * 0.1 + 0.3, duration: 0.8, ease: "easeOut" }}
                     />
                     {day.perfect > 0 && (
-                      <span className="absolute inset-x-0 top-2 mx-auto flex h-6 w-6 items-center justify-center rounded-full border border-white/60 bg-white/95 text-[10px] font-semibold text-lernex-blue shadow-sm ring-1 ring-black/5 dark:border-neutral-700 dark:bg-neutral-900 dark:ring-0">
+                      <motion.span
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ delay: index * 0.1 + 0.8, type: "spring", stiffness: 200 }}
+                        className="absolute inset-x-0 top-2 mx-auto flex h-6 w-6 items-center justify-center rounded-full border border-white/60 bg-white/95 text-[10px] font-semibold text-lernex-blue shadow-sm ring-1 ring-black/5 dark:border-neutral-700 dark:bg-neutral-900 dark:ring-0"
+                      >
                         {day.perfect}
-                      </span>
+                      </motion.span>
                     )}
                   </div>
                   <span className="font-medium text-neutral-600 dark:text-neutral-300">
@@ -1988,7 +2156,7 @@ export default function AchievementsPage(): JSX.Element {
                   <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                     {day.count} lesson{day.count === 1 ? "" : "s"}
                   </span>
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -2093,10 +2261,16 @@ export default function AchievementsPage(): JSX.Element {
             </p>
           </div>
         </div>
-        <div className="space-y-6">
-          {badgeGroups.map((group) => (
-            <div
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={containerVariants}
+          className="space-y-6"
+        >
+          {badgeGroups.map((group, groupIndex) => (
+            <motion.div
               key={group.id}
+              variants={itemVariants}
               className={`rounded-3xl border border-white/50 p-6 shadow-sm ring-1 ring-black/5 backdrop-blur-sm ${group.accentClass} dark:border-slate-800/80 dark:ring-0`}
             >
               <div>
@@ -2109,27 +2283,64 @@ export default function AchievementsPage(): JSX.Element {
                   {group.description}
                 </p>
               </div>
-              <ul className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {group.badges.map((badge) => {
+              <motion.ul
+                initial="hidden"
+                animate="visible"
+                variants={containerVariants}
+                className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+              >
+                {group.badges.map((badge, badgeIndex) => {
                   const Icon = badge.icon;
                   const progressPercent = Math.round(badge.progress * 100);
                   const theme = TIER_THEMES[badge.tier] ?? TIER_THEMES.Bronze;
+                  const isNearlyComplete = !badge.unlocked && progressPercent >= 75;
+
                   return (
-                    <li
+                    <motion.li
                       key={badge.id}
-                      className={`relative overflow-hidden rounded-2xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                      variants={itemVariants}
+                      whileHover={{
+                        y: -8,
+                        scale: 1.02,
+                        transition: { duration: 0.2 }
+                      }}
+                      whileTap={{ scale: 0.98 }}
+                      animate={badge.unlocked ? "animate" : "initial"}
+                      className={`relative overflow-hidden rounded-2xl border p-5 shadow-sm transition cursor-pointer ${
                         badge.unlocked
                           ? "border-transparent bg-gradient-to-br from-lernex-blue/15 via-lernex-blue/10 to-sky-500/10 text-neutral-900 ring-1 ring-lernex-blue/25 dark:from-lernex-blue/25 dark:via-indigo-500/20 dark:to-sky-500/15 dark:text-white dark:ring-lernex-blue/20"
                           : "border-white/60 bg-white/70 text-neutral-900 dark:border-slate-800 dark:bg-[#101a27]/85 dark:text-neutral-100"
-                      }`}
+                      } ${isNearlyComplete ? "shimmer-background" : ""}`}
+                      style={
+                        isNearlyComplete
+                          ? {
+                              backgroundImage:
+                                "linear-gradient(90deg, transparent, rgba(47, 128, 237, 0.1), transparent)",
+                              backgroundSize: "200% 100%",
+                              animation: "shimmer 2s infinite",
+                            }
+                          : {}
+                      }
                     >
+                      {badge.unlocked && (
+                        <motion.div
+                          className="absolute -top-1 -right-1 w-6 h-6 bg-lernex-blue rounded-full flex items-center justify-center"
+                          initial={{ scale: 0, rotate: -180 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
+                        >
+                          <Sparkles className="w-3 h-3 text-white" />
+                        </motion.div>
+                      )}
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex flex-1 items-start gap-3">
-                          <span
+                          <motion.span
                             className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${theme.icon}`}
+                            animate={badge.unlocked ? { rotate: [0, -10, 10, -10, 0] } : {}}
+                            transition={badge.unlocked ? { duration: 0.5, delay: 0.3 } : {}}
                           >
                             <Icon className="h-5 w-5" />
-                          </span>
+                          </motion.span>
                           <div>
                             <p className="text-sm font-semibold">{badge.title}</p>
                             <p className="mt-2 text-xs text-neutral-600 dark:text-neutral-300">
@@ -2149,34 +2360,42 @@ export default function AchievementsPage(): JSX.Element {
                             {Math.min(badge.current, badge.target).toLocaleString()} /{" "}
                             {badge.target.toLocaleString()}
                           </span>
-                          <span
+                          <motion.span
                             className={
                               badge.unlocked
                                 ? "font-medium text-emerald-500"
                                 : "text-neutral-500 dark:text-neutral-400"
                             }
+                            animate={badge.unlocked ? { scale: [1, 1.2, 1] } : {}}
+                            transition={badge.unlocked ? { duration: 0.5, delay: 0.5 } : {}}
                           >
                             {badge.unlocked
                               ? "Unlocked"
                               : `${Math.max(0, badge.target - badge.current).toLocaleString()} to go`}
-                          </span>
+                          </motion.span>
                         </div>
-                        <div className="h-2 w-full rounded-full bg-neutral-200/80 dark:bg-slate-800">
-                          <div
+                        <div className="h-2 w-full rounded-full bg-neutral-200/80 dark:bg-slate-800 overflow-hidden">
+                          <motion.div
                             className={`h-full rounded-full ${
                               badge.unlocked ? "bg-emerald-500" : "bg-lernex-blue/70"
                             }`}
-                            style={{ width: `${progressPercent}%` }}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progressPercent}%` }}
+                            transition={{
+                              duration: 1,
+                              ease: "easeOut",
+                              delay: badgeIndex * 0.05,
+                            }}
                           />
                         </div>
                       </div>
-                    </li>
+                    </motion.li>
                   );
                 })}
-              </ul>
-            </div>
+              </motion.ul>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       <section className="mt-8 grid gap-4 lg:grid-cols-3">
