@@ -21,7 +21,8 @@ export function buildLessonPrompts(params: LessonPromptParams) {
     `content must be exactly four sentences following goals.definition, goals.example, goals.pitfall, goals.next_step in that order, stay within 80-105 words, and keep under 900 characters.`,
     `Provide id as a short slug (letters, numbers, or dashes) and title as a concise 3-7 word phrase about the topic.`,
     `Each question needs four distinct choices, correctIndex 0-3, and a 10-35 word explanation focused on why the correct choice works.`,
-    `Use \\( ... \\) for inline math, keep LaTeX balanced, and avoid HTML.`,
+    `IMPORTANT: For LaTeX math, use \\\\( ... \\\\) for inline or \\\\[ ... \\\\] for display. Always use DOUBLE backslashes in JSON strings (e.g., "\\\\frac{1}{2}" not "\\frac{1}{2}").`,
+    `Avoid HTML tags. Keep LaTeX balanced and properly escaped with double backslashes.`,
   ].join("\n");
 
   const cleanSource = sourceText.trim();

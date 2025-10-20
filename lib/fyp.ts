@@ -167,6 +167,14 @@ const NON_FATAL_VERIFICATION_REASONS = new Set([
   "too basic for",
   "too advanced for",
   "not advanced enough",
+  "too superficial",
+  "too concise",
+  "too brief",
+  "missing depth",
+  "missing advanced topics",
+  "content too superficial",
+  "not appropriate for hard difficulty",
+  "not appropriate for medium difficulty",
 ]);
 
 const JSON_RESPONSE_DENYLIST = [/gpt-oss/i];
@@ -451,18 +459,23 @@ function tryParseJson(text: string): unknown | null {
   // Fix common LaTeX escaping issues: \( should be \\( in JSON
   // The AI sometimes generates \( when it should be \\(
   const fixLatexEscaping = (str: string): string => {
-    // Replace single backslash before ( or ) with double backslash
-    // But don't double-escape already escaped sequences
-    return str.replace(/\\([()])/g, (match, char) => {
-      // Count preceding backslashes
-      const beforeMatch = str.slice(0, str.indexOf(match));
-      const precedingBackslashes = (beforeMatch.match(/\\+$/)?.[0] || '').length;
-      // If odd number of backslashes (not already escaped), add one more
-      if (precedingBackslashes % 2 === 0) {
-        return `\\\\${char}`;
-      }
-      return match;
-    });
+    // Replace single backslash before ( or ) or [ or ] with double backslash
+    // This handles LaTeX delimiters that need escaping in JSON
+    let result = str;
+
+    // Fix \( and \) - inline LaTeX delimiters
+    result = result.replace(/([^\\])\\([()])/g, '$1\\\\$2');
+    result = result.replace(/^\\([()])/g, '\\\\$1');
+
+    // Fix \[ and \] - display LaTeX delimiters
+    result = result.replace(/([^\\])\\([\[\]])/g, '$1\\\\$2');
+    result = result.replace(/^\\([\[\]])/g, '\\\\$1');
+
+    // Fix other common LaTeX escapes that might appear in content
+    result = result.replace(/([^\\])\\(frac|sqrt|sum|int|lim|sin|cos|tan|log|ln)/g, '$1\\\\$2');
+    result = result.replace(/^\\(frac|sqrt|sum|int|lim|sin|cos|tan|log|ln)/g, '\\\\$1');
+
+    return result;
   };
 
   const fixedCleaned = fixLatexEscaping(cleaned);
@@ -487,10 +500,20 @@ function tryParseJson(text: string): unknown | null {
       // Log parse errors for debugging
       if (segments.indexOf(candidate) === 0) {
         try {
+          const errorMsg = err instanceof Error ? err.message : String(err);
           console.debug("[fyp] tryParseJson: first attempt failed", {
-            error: err instanceof Error ? err.message : String(err),
+            error: errorMsg,
             candidatePreview: candidate.slice(0, 200),
           });
+          // If it's a LaTeX escaping issue, log more details
+          if (errorMsg.includes("Bad escaped character") || errorMsg.includes("escape")) {
+            const escapeMatches = candidate.match(/\\[^\\"\\/bfnrtu]/g);
+            if (escapeMatches) {
+              console.debug("[fyp] tryParseJson: detected unescaped LaTeX sequences", {
+                sequences: escapeMatches.slice(0, 10),
+              });
+            }
+          }
         } catch {}
       }
       continue;
@@ -572,13 +595,16 @@ async function verifyLessonAlignment(
     "Return strict JSON matching { \"valid\": boolean, \"reasons\": string[] }.",
     "The lesson is already structurally valid (correct word count, 3 questions). Focus ONLY on:",
     "1. Does the topic match what was requested?",
-    "2. Is the difficulty level appropriate?",
-    "3. Are there obvious factual errors?",
-    "Set valid=true if the lesson covers the topic correctly at the right difficulty with no major errors.",
-    "Do NOT reject for being too concise - 80-105 words is the requirement.",
-    "Do NOT complain about missing advanced topics - micro-lessons are intentionally focused.",
-    "Do NOT reject for not mentioning recent-miss - that is optional and nice-to-have.",
-    "Reasons should be concise phrases explaining any issue you detect.",
+    "2. Are there obvious factual errors or contradictions?",
+    "3. Is the content coherent and educational?",
+    "Set valid=true if the lesson covers the topic correctly with no major errors.",
+    "IMPORTANT: These are 80-105 word MICRO-LESSONS by design.",
+    "- Do NOT reject for being 'too concise', 'too brief', or 'too superficial'.",
+    "- Do NOT reject for 'missing depth' or 'missing advanced topics' - brevity is the goal.",
+    "- Do NOT reject for difficulty level unless it's completely wrong (e.g., calculus for intro level).",
+    "- Do NOT reject for not mentioning recent-miss - that is optional and nice-to-have.",
+    "Reject ONLY for: wrong topic, major factual errors, or completely incoherent content.",
+    "Reasons should be concise phrases explaining any critical issue you detect.",
   ].join("\n");
 
   const contentWords = typeof lesson.content === "string" ? lesson.content.trim().split(/\s+/).filter(Boolean).length : 0;
