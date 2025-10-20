@@ -44,12 +44,12 @@ const MIN_CHARS_REQUIRED = 220;
 
 const SUPPORTED_TEXT_EXTENSIONS = new Set(["txt", "md", "markdown", "json", "csv", "html", "htm", "rtf"]);
 
-let pdfModulePromise: Promise<typeof import("pdfjs-dist/legacy/build/pdf.js")> | null = null;
+let pdfModulePromise: Promise<typeof import("pdfjs-dist/legacy/build/pdf.mjs")> | null = null;
 
 async function extractPdfText(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   if (!pdfModulePromise) {
-    pdfModulePromise = import("pdfjs-dist/legacy/build/pdf.js");
+    pdfModulePromise = import("pdfjs-dist/legacy/build/pdf.mjs");
   }
   const pdfjs = await pdfModulePromise;
   const loadingTask = pdfjs.getDocument({
