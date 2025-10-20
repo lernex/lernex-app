@@ -158,6 +158,10 @@ const NON_FATAL_VERIFICATION_REASONS = new Set([
   "verification_call_failed",
   "no_verification_response",
   "invalid_verification_payload",
+  "does not acknowledge recent missed quiz",
+  "does not acknowledge recent-miss",
+  "missing recent-miss acknowledgment",
+  "no recent miss acknowledgment",
 ]);
 
 const JSON_RESPONSE_DENYLIST = [/gpt-oss/i];
@@ -541,9 +545,10 @@ async function verifyLessonAlignment(
     "1. Does the topic match what was requested?",
     "2. Is the difficulty level appropriate?",
     "3. Are there obvious factual errors?",
-    "4. If a recent-miss is mentioned, does the lesson acknowledge it?",
+    "Set valid=true if the lesson covers the topic correctly at the right difficulty with no major errors.",
     "Do NOT reject for being too concise - 80-105 words is the requirement.",
     "Do NOT complain about missing advanced topics - micro-lessons are intentionally focused.",
+    "Do NOT reject for not mentioning recent-miss - that is optional and nice-to-have.",
     "Reasons should be concise phrases explaining any issue you detect.",
   ].join("\n");
 
@@ -1316,7 +1321,14 @@ export async function generateLessonForTopic(
       typeof reason === "string" ? reason.trim() : ""
     );
     const fatalReasons = normalizedReasons.filter(
-      (reason) => reason.length > 0 && !NON_FATAL_VERIFICATION_REASONS.has(reason),
+      (reason) => {
+        if (!reason.length) return false;
+        const lowerReason = reason.toLowerCase();
+        for (const nonFatal of NON_FATAL_VERIFICATION_REASONS) {
+          if (lowerReason.includes(nonFatal.toLowerCase())) return false;
+        }
+        return true;
+      }
     );
     const accepted = verification.valid || !fatalReasons.length;
     verificationDiagnostics.push({
