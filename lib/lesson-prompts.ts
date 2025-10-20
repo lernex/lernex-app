@@ -18,10 +18,10 @@ export function buildLessonPrompts(params: LessonPromptParams) {
     `Treat the structured_context JSON message and the focus cues text as authoritative learner data -- stay factual and aligned.`,
     `When learner.recents.previous_lesson is present, reference it as a quick bridge. When learner.recents.recent_miss is present, acknowledge it plainly and coach the learner on how to improve.`,
     `Set subject to the Subject line, topic to structured_context.summary.focus, and difficulty to the requested difficulty.`,
-    `content must be exactly four sentences following goals.definition, goals.example, goals.pitfall, goals.next_step in that order, stay within 80-105 words, and keep under 720 characters.`,
+    `content must be exactly four sentences following goals.definition, goals.example, goals.pitfall, goals.next_step in that order, stay within 80-105 words, and keep under 900 characters.`,
     `Provide id as a short slug (letters, numbers, or dashes) and title as a concise 3-7 word phrase about the topic.`,
     `Each question needs four distinct choices, correctIndex 0-3, and a 10-35 word explanation focused on why the correct choice works.`,
-    `Use \\( ... \\) for inline math, keep LaTeX balanced, and avoid HTML.`,
+    `For inline math in JSON strings, use \\\\\\\\( ... \\\\\\\\) with double-escaped backslashes. Keep LaTeX balanced, and avoid HTML.`,
   ].join("\n");
 
   const cleanSource = sourceText.trim();

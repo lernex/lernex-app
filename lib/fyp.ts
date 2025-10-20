@@ -162,6 +162,11 @@ const NON_FATAL_VERIFICATION_REASONS = new Set([
   "does not acknowledge recent-miss",
   "missing recent-miss acknowledgment",
   "no recent miss acknowledgment",
+  "difficulty level too basic",
+  "difficulty level too advanced",
+  "too basic for",
+  "too advanced for",
+  "not advanced enough",
 ]);
 
 const JSON_RESPONSE_DENYLIST = [/gpt-oss/i];
@@ -441,6 +446,30 @@ function tryParseJson(text: string): unknown | null {
   const jsonStartIndex = cleaned.indexOf('{');
   if (jsonStartIndex > 0) {
     segments.push(cleaned.slice(jsonStartIndex));
+  }
+
+  // Fix common LaTeX escaping issues: \( should be \\( in JSON
+  // The AI sometimes generates \( when it should be \\(
+  const fixLatexEscaping = (str: string): string => {
+    // Replace single backslash before ( or ) with double backslash
+    // But don't double-escape already escaped sequences
+    return str.replace(/\\([()])/g, (match, char) => {
+      // Count preceding backslashes
+      const beforeMatch = str.slice(0, str.indexOf(match));
+      const precedingBackslashes = (beforeMatch.match(/\\+$/)?.[0] || '').length;
+      // If odd number of backslashes (not already escaped), add one more
+      if (precedingBackslashes % 2 === 0) {
+        return `\\\\${char}`;
+      }
+      return match;
+    });
+  };
+
+  const fixedCleaned = fixLatexEscaping(cleaned);
+  if (fixedCleaned !== cleaned) {
+    segments.push(fixedCleaned);
+    const fixedObjectMatch = fixedCleaned.match(/\{[\s\S]*\}/);
+    if (fixedObjectMatch) segments.push(fixedObjectMatch[0]);
   }
 
   for (const candidate of segments) {

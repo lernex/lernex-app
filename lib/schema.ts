@@ -14,7 +14,7 @@ export type Question = z.infer<typeof QuestionSchema>;
 export const MIN_LESSON_WORDS = 80;
 export const MAX_LESSON_WORDS = 105;
 
-export const MAX_LESSON_CHARS = 720;
+export const MAX_LESSON_CHARS = 900;
 
 export const LessonSchema = z.object({
   id: z.string().min(1),
