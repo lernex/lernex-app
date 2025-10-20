@@ -60,7 +60,7 @@ type LessonOptions = {
   };
 };
 
-const MAX_CONTEXT_CHARS = 360;
+const MAX_CONTEXT_CHARS = 280; // Reduced from 360 to prevent prompt bloat
 
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 const RETRYABLE_ERROR_CODES = new Set([
@@ -916,15 +916,19 @@ function sanitizeStructuredContext(context: Record<string, unknown>) {
     if (depth > 4) return undefined;
     if (value == null) return value;
     if (typeof value === "string") {
-      return truncateText(value, Math.min(MAX_CONTEXT_CHARS, 220));
+      // More aggressive truncation at deeper levels
+      const maxLen = depth === 0 ? MAX_CONTEXT_CHARS : depth === 1 ? 180 : 120;
+      return truncateText(value, maxLen);
     }
     if (typeof value === "number" || typeof value === "boolean") {
       return value;
     }
     if (Array.isArray(value)) {
       const items: unknown[] = [];
+      // Limit array length based on depth (fewer items in nested arrays)
+      const maxItems = depth === 0 ? 6 : depth === 1 ? 4 : 3;
       for (const entry of value) {
-        if (items.length >= 6) break;
+        if (items.length >= maxItems) break;
         const sanitized = prune(entry, depth + 1);
         if (sanitized === undefined) continue;
         items.push(sanitized);
@@ -934,7 +938,9 @@ function sanitizeStructuredContext(context: Record<string, unknown>) {
     if (typeof value === "object") {
       const result: Record<string, unknown> = {};
       const entries = Object.entries(value as Record<string, unknown>);
-      for (let idx = 0; idx < entries.length && idx < 8; idx += 1) {
+      // Limit object keys based on depth
+      const maxKeys = depth === 0 ? 8 : depth === 1 ? 6 : 4;
+      for (let idx = 0; idx < entries.length && idx < maxKeys; idx += 1) {
         const [key, raw] = entries[idx];
         const sanitized = prune(raw, depth + 1);
         if (sanitized === undefined) continue;
@@ -1069,7 +1075,7 @@ export async function generateLessonForTopic(
   const model = DEFAULT_MODEL;
   const completionMaxTokens = Math.min(
     4096,
-    Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS ?? "3200") || 3200),
+    Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS ?? "3800") || 3800),
   );
 
   if (uid) {
