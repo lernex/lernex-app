@@ -20,6 +20,7 @@ import {
   CircleCheck,
   Clock,
   Flame,
+  Gauge,
   LineChart,
   RefreshCw,
   Sparkles,
@@ -66,6 +67,8 @@ type ProfileSnapshot = {
   interests: string[];
   lastStudyDate: string | null;
   placementReady: boolean;
+  plus: boolean;
+  premium: boolean;
 };
 
 type DailyPoint = {
@@ -158,6 +161,8 @@ function normalizeProfile(row: Record<string, unknown> | null | undefined): Prof
     interests,
     lastStudyDate: toStringOrNull(row?.["last_study_date"]),
     placementReady: row?.["placement_ready"] === true,
+    plus: row?.["plus"] === true,
+    premium: row?.["premium"] === true,
   };
 }
 
@@ -453,7 +458,7 @@ export default function AnalyticsPage() {
           }),
           supabase
             .from("profiles")
-            .select("points, streak, total_cost, last_study_date, interests, placement_ready")
+            .select("points, streak, total_cost, last_study_date, interests, placement_ready, plus, premium")
             .eq("id", userId)
             .maybeSingle(),
           supabase
@@ -647,6 +652,30 @@ export default function AnalyticsPage() {
       byModel: Array.from(totals.byModel.values()).sort((a, b) => b.cost - a.cost),
     };
   }, [usage]);
+
+  const planLabel = profile?.premium ? "Premium" : profile?.plus ? "Plus" : "Free";
+  const usageAllowance = profile?.premium ? 4.5 : profile?.plus ? 2.25 : 0.5;
+  const usageSpent = profile?.totalCost ?? usageSummary.totalCost;
+  const usageFill = usageAllowance > 0 ? clamp01(usageSpent / usageAllowance) : 0;
+  const usagePercentUsed = Math.round(usageFill * 100);
+  const usagePercentRemaining =
+    usageAllowance > 0 ? Math.round(clamp01((usageAllowance - usageSpent) / usageAllowance) * 100) : 0;
+  const usageBarWidth = usageFill > 0 ? Math.min(100, Math.max(8, usageFill * 100)) : 0;
+  const usageStatusMessage = useMemo(() => {
+    if (usageAllowance <= 0) {
+      return "Usage limits are unavailable right now.";
+    }
+    if (usagePercentRemaining <= 0) {
+      return "You've reached your included usage. Additional activity may exceed your plan.";
+    }
+    if (usagePercentRemaining < 25) {
+      return "You're close to the end of your included usage—consider upgrading for more room.";
+    }
+    if (usagePercentRemaining < 60) {
+      return "You're past the halfway mark. Keep an eye on AI usage as you explore lessons.";
+    }
+    return "Plenty of usage remaining—enjoy exploring new lessons.";
+  }, [usageAllowance, usagePercentRemaining]);
 
   const recommendations = useMemo<Recommendation[]>(() => {
     const recs: Recommendation[] = [];
@@ -1132,52 +1161,90 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        <div className={cardBase}>
-          <h2 className="text-lg font-semibold">AI usage insights</h2>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
-            Track model usage and keep an eye on token spend as you explore new content.
-          </p>
-          <div className="mt-4 space-y-4 text-xs text-neutral-600 dark:text-neutral-300">
-            <div className="flex items-center justify-between">
-              <span>Total tokens</span>
-              <span>{formatTokens(usageSummary.totalTokens)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Input vs output</span>
-              <span>
-                {formatTokens(usageSummary.totalInput)}
-                <span className="text-neutral-400"> → </span>
-                {formatTokens(usageSummary.totalOutput)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Estimated cost</span>
-              <span>${usageSummary.totalCost.toFixed(2)}</span>
-            </div>
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                Top models
+        <div className="flex flex-col gap-6">
+          <div className={cardBase}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Usage remaining</h2>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+                  <span className={chipBase.replace("px-3", "px-2")}>{planLabel} plan</span>
+                  <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+                    {Math.max(0, usagePercentRemaining)}% left
+                  </span>
+                </div>
               </div>
-              <div className="mt-2 space-y-2">
-                {usageSummary.byModel.slice(0, 4).map((entry) => (
-                  <div
-                    key={entry.model}
-                    className="flex items-center justify-between rounded-xl border border-slate-100/70 bg-gradient-to-br from-slate-100/75 via-white/88 to-white/95 px-3 py-2 shadow-sm dark:border-slate-800/70 dark:bg-[linear-gradient(145deg,rgba(30,41,59,0.55),rgba(15,23,42,0.72))]"
-                  >
-                    <div>
-                      <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">{entry.model}</div>
-                      <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                        {formatTokens(entry.input + entry.output)}
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/25">
+                <Gauge className="h-6 w-6" />
+              </div>
+            </div>
+            <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-400/10 via-lernex-blue/10 to-purple-500/15 p-4 shadow-sm dark:border-emerald-400/25 dark:from-emerald-400/20 dark:via-lernex-blue/15 dark:to-purple-500/25">
+              <div className="flex items-baseline justify-between text-sm font-semibold text-neutral-700 dark:text-neutral-200">
+                <span>{usagePercentRemaining > 0 ? `${usagePercentRemaining}% remaining` : "0% remaining"}</span>
+                <span className="text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                  {usagePercentUsed}% used
+                </span>
+              </div>
+              <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-white/60 dark:bg-slate-900/60">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-lernex-blue to-purple-500 transition-all duration-500"
+                  style={{ width: `${usageBarWidth}%` }}
+                />
+              </div>
+              <div className="mt-3 flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-300">
+                <span>Used ${usageSpent.toFixed(2)} so far</span>
+                <span>{usagePercentRemaining <= 0 ? "Top up to keep creating" : "Included usage"}</span>
+              </div>
+            </div>
+            <p className="mt-4 text-xs text-neutral-500 dark:text-neutral-300">{usageStatusMessage}</p>
+          </div>
+
+          <div className={cardBase}>
+            <h2 className="text-lg font-semibold">AI usage insights</h2>
+            <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
+              Track model usage and keep an eye on token spend as you explore new content.
+            </p>
+            <div className="mt-4 space-y-4 text-xs text-neutral-600 dark:text-neutral-300">
+              <div className="flex items-center justify-between">
+                <span>Total tokens</span>
+                <span>{formatTokens(usageSummary.totalTokens)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Input vs output</span>
+                <span>
+                  {formatTokens(usageSummary.totalInput)}
+                  <span className="text-neutral-400"> → </span>
+                  {formatTokens(usageSummary.totalOutput)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Estimated cost</span>
+                <span>${usageSummary.totalCost.toFixed(2)}</span>
+              </div>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                  Top models
+                </div>
+                <div className="mt-2 space-y-2">
+                  {usageSummary.byModel.slice(0, 4).map((entry) => (
+                    <div
+                      key={entry.model}
+                      className="flex items-center justify-between rounded-xl border border-slate-100/70 bg-gradient-to-br from-slate-100/75 via-white/88 to-white/95 px-3 py-2 shadow-sm dark:border-slate-800/70 dark:bg-[linear-gradient(145deg,rgba(30,41,59,0.55),rgba(15,23,42,0.72))]"
+                    >
+                      <div>
+                        <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">{entry.model}</div>
+                        <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                          {formatTokens(entry.input + entry.output)}
+                        </div>
                       </div>
+                      <div className="text-sm font-semibold">${entry.cost.toFixed(2)}</div>
                     </div>
-                    <div className="text-sm font-semibold">${entry.cost.toFixed(2)}</div>
-                  </div>
-                ))}
-                {usageSummary.byModel.length === 0 ? (
-                  <div className="rounded-xl border border-slate-100/70 bg-gradient-to-r from-slate-100/70 via-white/85 to-white/95 px-3 py-2 text-[11px] text-neutral-500 shadow-sm dark:border-slate-800/70 dark:bg-[linear-gradient(145deg,rgba(30,41,59,0.55),rgba(15,23,42,0.72))] dark:text-neutral-300">
-                    Usage insights appear once you start generating lessons.
-                  </div>
-                ) : null}
+                  ))}
+                  {usageSummary.byModel.length === 0 ? (
+                    <div className="rounded-xl border border-slate-100/70 bg-gradient-to-r from-slate-100/70 via-white/85 to-white/95 px-3 py-2 text-[11px] text-neutral-500 shadow-sm dark:border-slate-800/70 dark:bg-[linear-gradient(145deg,rgba(30,41,59,0.55),rgba(15,23,42,0.72))] dark:text-neutral-300">
+                      Usage insights appear once you start generating lessons.
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
