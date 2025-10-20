@@ -22,12 +22,12 @@ export function buildLessonPrompts(params: LessonPromptParams) {
     `Provide id as a short slug (letters, numbers, or dashes) and title as a concise 3-7 word phrase about the topic.`,
     `Each question needs four distinct choices, correctIndex 0-3, and a 10-30 word explanation focused on why the correct choice works.`,
     `MATH FORMATTING (CRITICAL - READ CAREFULLY):`,
-    `- Inline math delimiters: \\( and \\) — Example in JSON: "content": "The formula \\\\(x^2 + y^2 = r^2\\\\) represents..."`,
-    `- Display math delimiters: \\[ and \\] — Example in JSON: "content": "The integral \\\\[\\\\int_0^1 x\\\\,dx = \\\\frac{1}{2}\\\\]"`,
-    `- Math commands: \\frac, \\sqrt, \\sin, \\cos, \\tan, \\log, \\ln, \\int, \\sum, \\prod, \\lim, \\alpha, \\beta, \\theta, etc.`,
-    `- In JSON strings, use DOUBLE backslash for LaTeX: \\\\( not \\(, \\\\frac not \\frac, \\\\alpha not \\alpha`,
-    `- Every \\\\( must have a matching \\\\), every \\\\[ must have a matching \\\\]`,
-    `- Alternative inline: single $ works too: "area is $\\\\pi r^2$" but \\\\( \\\\) is preferred`,
+    `- Inline math: use \\( and \\) delimiters — Example: "content": "The formula \\\\(x^2 + y^2 = r^2\\\\) represents..."`,
+    `- Display math: use \\[ and \\] delimiters — Example: "content": "Integral: \\\\[\\\\int_0^1 x\\\\,dx = \\\\frac{1}{2}\\\\]"`,
+    `- Commands: \\frac, \\sqrt, \\sin, \\cos, \\tan, \\log, \\ln, \\int, \\sum, \\prod, \\lim, \\alpha, \\beta, \\theta, etc.`,
+    `- In JSON, backslashes must be escaped: Write \\\\( not \\(, write \\\\frac not \\frac, write \\\\alpha not \\alpha`,
+    `- Balance delimiters: Every \\\\( needs \\\\), every \\\\[ needs \\\\]`,
+    `- Can also use $...$ for inline: "The area is $\\\\pi r^2$" but \\\\(...\\\\) is preferred`,
     `- Avoid HTML. Use LaTeX for all math notation.`,
   ].join("\n");
 
