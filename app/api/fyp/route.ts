@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { generateLessonForTopic } from "@/lib/fyp";
@@ -34,6 +35,7 @@ type CachedLesson = Lesson & {
   nextTopicHint?: string | null;
   context?: Record<string, unknown> | null;
   knowledge?: LessonKnowledge | null;
+  personaHash?: string | null;
 };
 
 export async function GET(req: NextRequest) {
@@ -84,6 +86,14 @@ export async function GET(req: NextRequest) {
     return new Response(JSON.stringify({ error: "No subject" }), { status: 400 });
   }
   try { console.debug(`[fyp][${reqId}] subject`, { subject }); } catch {}
+
+  const prefetchParam = req.nextUrl.searchParams.get("prefetch");
+  const requestedPrefetchCount = (() => {
+    if (prefetchParam == null) return 1;
+    const parsed = Number(prefetchParam);
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.max(0, Math.min(3, Math.floor(parsed)));
+  })();
 
   const buildProgressPayload = (phase?: string, detail?: string) => {
     const progress = getLearningPathProgress(user.id, subject);
@@ -630,6 +640,15 @@ export async function GET(req: NextRequest) {
       });
     });
   }
+  const deriveLabelFromId = (rawId: string) => {
+    const sanitized = rawId.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, "");
+    if (!sanitized) return null;
+    const segments = sanitized.split(/[-_]+/).filter((segment) => segment.length > 0);
+    if (!segments.length) return null;
+    const slice = segments.slice(-3);
+    const words = slice.map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1));
+    return words.join(" ");
+  };
   const describeLessonIds = (ids: string[] | undefined, limit = 6) => {
     if (!Array.isArray(ids) || !ids.length) return [] as string[];
     const result: string[] = [];
@@ -639,7 +658,7 @@ export async function GET(req: NextRequest) {
       const lessonId = raw.trim();
       if (!lessonId) continue;
       const descriptor = idDescriptorMap.get(lessonId);
-      const label = descriptor?.title ?? descriptor?.topic ?? null;
+      const label = descriptor?.title ?? descriptor?.topic ?? deriveLabelFromId(lessonId) ?? null;
       if (!label) continue;
       const trimmed = label.trim();
       if (!trimmed || seen.has(trimmed)) continue;
@@ -655,6 +674,83 @@ export async function GET(req: NextRequest) {
   const likedTail = dedupeTail(progress.preferences?.liked, 30);
   const savedTail = dedupeTail(progress.preferences?.saved, 30);
   const dislikedTail = dedupeTail(progress.preferences?.disliked, 30);
+
+  const preferenceIdsNeedingLabels = new Set<string>();
+  for (const group of [likedTail, savedTail, dislikedTail]) {
+    for (const raw of group) {
+      if (typeof raw !== "string") continue;
+      const lessonId = raw.trim();
+      if (!lessonId || idDescriptorMap.has(lessonId)) continue;
+      preferenceIdsNeedingLabels.add(lessonId);
+    }
+  }
+
+  if (preferenceIdsNeedingLabels.size) {
+    const { data: descriptorRows, error: descriptorError } = await sb
+      .from("user_topic_lesson_cache")
+      .select("topic_label, lessons")
+      .eq("user_id", user.id)
+      .eq("subject", subject);
+    if (descriptorError) {
+      try {
+        console.warn(`[fyp][${reqId}] descriptor cache fetch failed`, descriptorError);
+      } catch {}
+    }
+    if (Array.isArray(descriptorRows)) {
+      for (const row of descriptorRows as { topic_label?: unknown; lessons?: unknown }[]) {
+        if (!preferenceIdsNeedingLabels.size) break;
+        const topicLabel = typeof row.topic_label === "string" ? row.topic_label.trim() : "";
+        const lessonsArray = Array.isArray(row.lessons) ? (row.lessons as unknown[]) : [];
+        for (const rawLesson of lessonsArray) {
+          if (!preferenceIdsNeedingLabels.size) break;
+          if (!rawLesson || typeof rawLesson !== "object") continue;
+          const entry = rawLesson as { id?: unknown; title?: unknown; topic?: unknown };
+          const lessonId = typeof entry.id === "string" ? entry.id.trim() : "";
+          if (!lessonId || !preferenceIdsNeedingLabels.has(lessonId) || idDescriptorMap.has(lessonId)) continue;
+          const title = typeof entry.title === "string" ? entry.title.trim() : "";
+          const topicName = typeof entry.topic === "string" ? entry.topic.trim() : topicLabel;
+          if (!title && !topicName) continue;
+          idDescriptorMap.set(lessonId, {
+            title: title || undefined,
+            topic: topicName || title || lessonId,
+          });
+          preferenceIdsNeedingLabels.delete(lessonId);
+        }
+      }
+    }
+  }
+
+  if (preferenceIdsNeedingLabels.size) {
+    const idsToFetch = Array.from(preferenceIdsNeedingLabels).slice(0, 60);
+    if (idsToFetch.length) {
+      const { data: catalogRows, error: catalogError } = await sb
+        .from("lessons")
+        .select("id, title, subject")
+        .in("id", idsToFetch);
+      if (catalogError) {
+        try {
+          console.warn(`[fyp][${reqId}] preference catalog fetch failed`, catalogError);
+        } catch {}
+      } else if (Array.isArray(catalogRows)) {
+        for (const row of catalogRows as Record<string, unknown>[]) {
+          const lessonId = typeof row.id === "string" ? row.id.trim() : "";
+          if (!lessonId || !preferenceIdsNeedingLabels.has(lessonId) || idDescriptorMap.has(lessonId)) continue;
+          const title = typeof row.title === "string" ? row.title.trim() : "";
+          const record = row as Record<string, unknown>;
+          const topicRaw = typeof record.topic === "string" ? record.topic.trim() : "";
+          const topicLabelRaw = typeof record.topic_label === "string" ? record.topic_label.trim() : "";
+          const subjectLabel = typeof record.subject === "string" ? record.subject.trim() : "";
+          const topicName = topicRaw || topicLabelRaw || subjectLabel || title || deriveLabelFromId(lessonId) || lessonId;
+          idDescriptorMap.set(lessonId, {
+            title: title || undefined,
+            topic: topicName,
+          });
+          preferenceIdsNeedingLabels.delete(lessonId);
+          if (!preferenceIdsNeedingLabels.size) break;
+        }
+      }
+    }
+  }
 
   const likedHighlights = describeLessonIds(likedTail, 6);
   const savedHighlights = describeLessonIds(savedTail, 6);
@@ -690,6 +786,8 @@ export async function GET(req: NextRequest) {
       style: { prefer: string[]; avoid: string[] };
       lessons: { leanInto: string[]; avoid: string[]; saved?: string[] };
     };
+    personaHash: string;
+    guardrails: { avoidIds: string[]; avoidTitles: string[] };
   };
   let lessonPrepCache: LessonPrep | null = null;
   const ensureLessonPrep = (): LessonPrep => {
@@ -833,10 +931,13 @@ export async function GET(req: NextRequest) {
     if (typeof accuracyPct === "number") summaryContext.accuracy_pct = accuracyPct;
     if (accuracyBand) summaryContext.accuracy_band = accuracyBand;
     if (nextTopicHint) summaryContext.next_topic_hint = nextTopicHint;
+    if (mapSummary) summaryContext.map_summary = mapSummary;
+    if (learnerProfileLine) summaryContext.learner_profile = learnerProfileLine;
 
     const structuredContext: Record<string, unknown> = {
       summary: summaryContext,
     };
+    structuredContext.knowledge = lessonKnowledge;
 
     const preferences: Record<string, unknown> = {};
     if (stylePrefer.size || styleAvoid.size) {
@@ -860,6 +961,46 @@ export async function GET(req: NextRequest) {
     if (recentMissSummary) recents.recent_miss = recentMissSummary;
     if (Object.keys(recents).length) structuredContext.recents = recents;
 
+    const avoidLessonIds = [...recentDeliveredIds, ...dislikedTail]
+      .map((id) => (typeof id === "string" ? id.trim() : ""))
+      .filter((id): id is string => Boolean(id));
+    const normalizedAvoidIds = Array.from(new Set(avoidLessonIds)).slice(0, 12);
+    const avoidTitlesRaw = recentDeliveredTitles
+      .slice(-10)
+      .map((title) => (typeof title === "string" ? title.trim() : ""))
+      .filter((title): title is string => Boolean(title));
+    const normalizedAvoidTitles = Array.from(new Set(avoidTitlesRaw)).slice(0, 10);
+    const guardrailContext: Record<string, unknown> = {};
+    if (normalizedAvoidIds.length) guardrailContext.avoid_ids = normalizedAvoidIds.slice(0, 6);
+    if (normalizedAvoidTitles.length) guardrailContext.avoid_titles = normalizedAvoidTitles.slice(0, 6);
+    if (Object.keys(guardrailContext).length) structuredContext.guardrails = guardrailContext;
+
+    const toSortedLower = (values: Iterable<string>) => {
+      const normalized: string[] = [];
+      for (const value of values) {
+        const trimmed = typeof value === "string" ? value.trim().toLowerCase() : "";
+        if (!trimmed) continue;
+        normalized.push(trimmed);
+      }
+      return Array.from(new Set(normalized)).sort();
+    };
+
+    const personaSignature = {
+      pace,
+      accuracy: accuracyBand ?? (typeof accuracyPct === "number" ? Math.round(accuracyPct) : null),
+      difficultyPref: typeof state?.difficulty === "string" ? state.difficulty.trim().toLowerCase() : null,
+      tone: toSortedLower(toneSample.slice(0, 6)),
+      stylePrefer: toSortedLower(stylePrefer),
+      styleAvoid: toSortedLower(styleAvoid),
+      leanInto: toSortedLower(leanInto),
+      avoidLessons: toSortedLower(avoidLessonDescriptors),
+      saved: toSortedLower(savedFocus),
+    };
+    const personaHash = createHash("sha1")
+      .update(JSON.stringify(personaSignature))
+      .digest("base64url")
+      .slice(0, 10);
+
     lessonPrepCache = {
       lessonKnowledge,
       accuracyBand,
@@ -878,6 +1019,11 @@ export async function GET(req: NextRequest) {
           avoid: avoidLessonDescriptors,
           ...(savedFocus.length ? { saved: savedFocus } : {}),
         },
+      },
+      personaHash,
+      guardrails: {
+        avoidIds: normalizedAvoidIds,
+        avoidTitles: normalizedAvoidTitles,
       },
     };
 
@@ -904,11 +1050,29 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const avoidLessonIds = [...recentDeliveredIds, ...dislikedTail].filter((id): id is string => typeof id === "string" && id.length > 0);
-  const avoidTitles = recentDeliveredTitles.slice(-10);
+  const lessonPrep = ensureLessonPrep();
+  const personaHash = lessonPrep.personaHash;
+  const eligibleCachedCandidates = cachedCandidates.filter((entry) => {
+    if (!entry) return false;
+    const entryHash = typeof entry.personaHash === "string" ? entry.personaHash : null;
+    return entryHash === personaHash;
+  });
+
+  const avoidLessonIds = Array.isArray(lessonPrep.guardrails?.avoidIds)
+    ? lessonPrep.guardrails.avoidIds
+    : [];
+  const avoidTitles = Array.isArray(lessonPrep.guardrails?.avoidTitles)
+    ? lessonPrep.guardrails.avoidTitles
+    : [];
   const avoidIdSet = new Set(avoidLessonIds);
 
-  const cacheHit = cachedCandidates.find((entry) => {
+  const staleCachedCandidates = cachedCandidates.filter((entry) => {
+    if (!entry) return false;
+    const entryHash = typeof entry.personaHash === "string" ? entry.personaHash : null;
+    return entryHash !== personaHash;
+  });
+
+  const cacheHit = eligibleCachedCandidates.find((entry) => {
     if (!entry) return false;
     const cachedId = typeof entry.id === 'string' ? entry.id : null;
     if (cachedId && avoidIdSet.has(cachedId)) return false;
@@ -919,25 +1083,52 @@ export async function GET(req: NextRequest) {
 
   if (cacheHit) {
     try { console.debug(`[fyp][${reqId}] lesson: cache-hit`, { subject, currentLabel, lessonId: cacheHit.id }); } catch {}
-    const prep = cacheHit.context && cacheHit.knowledge ? null : ensureLessonPrep();
     const contextPayload =
       cacheHit.context && typeof cacheHit.context === "object"
         ? (cacheHit.context as Record<string, unknown>)
-        : prep
-        ? prep.structuredContext
-        : ensureLessonPrep().structuredContext;
+        : lessonPrep.structuredContext;
     const knowledgePayload =
       cacheHit.knowledge
         ? cacheHit.knowledge
-        : (prep ?? ensureLessonPrep()).lessonKnowledge;
+        : lessonPrep.lessonKnowledge;
     const responseLesson: CachedLesson = {
       ...cacheHit,
       nextTopicHint: cacheHit.nextTopicHint ?? nextTopicHint ?? null,
       context: contextPayload,
       knowledge: knowledgePayload,
+      personaHash,
     };
+    const prefetchLessons = eligibleCachedCandidates
+      .filter((entry) => entry && entry.id !== responseLesson.id)
+      .slice(0, requestedPrefetchCount)
+      .map((entry) => ({
+        ...entry,
+        nextTopicHint: entry.nextTopicHint ?? nextTopicHint ?? null,
+      }));
+    const responseBody: Record<string, unknown> = {
+      topic: currentLabel,
+      lesson: responseLesson,
+      nextTopicHint,
+    };
+    if (prefetchLessons.length) responseBody.prefetch = prefetchLessons;
+    if (staleCachedCandidates.length || (eligibleCachedCandidates[0]?.id !== responseLesson.id)) {
+      const rewrittenCache = [responseLesson, ...eligibleCachedCandidates.filter((entry) => entry && entry.id !== responseLesson.id)].slice(0, 5);
+      try {
+        await sb
+          .from("user_topic_lesson_cache")
+          .upsert({
+            user_id: user.id,
+            subject,
+            topic_label: currentLabel,
+            lessons: rewrittenCache,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "user_id,subject,topic_label" });
+      } catch (refreshErr) {
+        try { console.error(`[fyp][${reqId}] cache refresh failed`, refreshErr); } catch {}
+      }
+    }
     return new Response(
-      JSON.stringify({ topic: currentLabel, lesson: responseLesson, nextTopicHint }),
+      JSON.stringify(responseBody),
       { status: 200, headers: { "content-type": "application/json", "x-fyp-cache": "hit" } }
     );
   }
@@ -954,7 +1145,7 @@ export async function GET(req: NextRequest) {
       previousLessonContext,
       recentMissSummary,
       personalization,
-    } = ensureLessonPrep();
+    } = lessonPrep;
     const generatorOptions: Parameters<typeof generateLessonForTopic>[5] = {
       pace,
       accuracyPct: accuracyPct ?? undefined,
@@ -1024,6 +1215,7 @@ export async function GET(req: NextRequest) {
       nextTopicHint: mergedNextTopicHint,
       context: structuredContext,
       knowledge: lessonKnowledge,
+      personaHash,
     };
     try { console.debug(`[fyp][${reqId}] lesson: ok`, { subject, currentLabel }); } catch {}
   } catch (e) {
@@ -1041,8 +1233,12 @@ export async function GET(req: NextRequest) {
     ...(lesson as CachedLesson),
     cachedAt: new Date().toISOString(),
     nextTopicHint: mergedNextTopicHint,
+    personaHash,
   };
-  const nextCache = [stampedLesson, ...cachedCandidates.filter((entry) => entry && entry.id !== stampedLesson.id)];
+  const nextCache = [stampedLesson, ...eligibleCachedCandidates.filter((entry) => entry && entry.id !== stampedLesson.id)];
+  const responsePrefetch = requestedPrefetchCount > 0
+    ? nextCache.slice(1, 1 + requestedPrefetchCount)
+    : [];
   while (nextCache.length > 5) nextCache.pop();
 
   try {
@@ -1095,7 +1291,7 @@ export async function GET(req: NextRequest) {
       contentPreview: preview(typeof lesson.content === "string" ? lesson.content : "", 200),
       questionCount: Array.isArray(lesson.questions) ? lesson.questions.length : null,
       nextTopicHint: mergedNextTopicHint ? preview(mergedNextTopicHint, 160) : null,
-      cachedCandidatesCount: cachedCandidates.length,
+      cachedCandidatesCount: eligibleCachedCandidates.length,
       deliveredIdsTotal: Object.values(progress.deliveredIdsByTopic ?? {}).reduce(
         (sum, ids) => sum + (Array.isArray(ids) ? ids.length : 0),
         0
@@ -1105,8 +1301,11 @@ export async function GET(req: NextRequest) {
   } catch (responseSummaryErr) {
     console.warn(`[fyp][${reqId}] response summary log failed`, responseSummaryErr);
   }
-  return new Response(
-    JSON.stringify({ topic: currentLabel, lesson, nextTopicHint }),
-    { status: 200, headers: { "content-type": "application/json" } }
-  );
+  const responseBody: Record<string, unknown> = {
+    topic: currentLabel,
+    lesson,
+    nextTopicHint,
+  };
+  if (responsePrefetch.length) responseBody.prefetch = responsePrefetch;
+  return new Response(JSON.stringify(responseBody), { status: 200, headers: { "content-type": "application/json" } });
 }

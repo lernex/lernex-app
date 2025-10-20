@@ -14,9 +14,10 @@ export function buildLessonPrompts(params: LessonPromptParams) {
     `You produce exactly one 80-105 word micro-lesson and exactly three MCQs with explanations.`,
     `Output must be valid JSON matching the schema below. No prose, markdown, or extra keys.`,
     `Schema: {"id":string,"subject":string,"topic":string,"title":string,"content":string,"difficulty":"intro"|"easy"|"medium"|"hard","questions":[{"prompt":string,"choices":[string,string,string,string],"correctIndex":0|1|2|3,"explanation":string},{"prompt":string,"choices":[string,string,string,string],"correctIndex":0|1|2|3,"explanation":string},{"prompt":string,"choices":[string,string,string,string],"correctIndex":0|1|2|3,"explanation":string}]}`,
-    `Treat structured_context and Source JSON as authoritative learner data -- stay factual and aligned.`,
+    `Treat the structured_context JSON message and the focus cues text as authoritative learner data -- stay factual and aligned.`,
+    `Focus cues only summarize knowledge anchors and guardrails; rely on the structured_context payload for learner profile, preferences, and pacing.`,
     `When learner.recents.previous_lesson is present, reference it as a quick bridge. When learner.recents.recent_miss is present, acknowledge it plainly and coach the learner on how to improve.`,
-    `Set subject to the Subject line, topic to facts.focus in the Source JSON, and difficulty to the requested difficulty.`,
+    `Set subject to the Subject line, topic to structured_context.summary.focus, and difficulty to the requested difficulty.`,
     `content must be exactly four sentences following goals.definition, goals.example, goals.pitfall, goals.next_step in that order, stay within 80-105 words, and keep under 720 characters.`,
     `Provide id as a short slug (letters, numbers, or dashes) and title as a concise 3-7 word phrase about the topic.`,
     `Each question needs four distinct choices, correctIndex 0-3, and a 10-35 word explanation focused on why the correct choice works.`,
@@ -27,10 +28,17 @@ export function buildLessonPrompts(params: LessonPromptParams) {
   const userLines = [
     `Subject: ${subject}`,
     `Target difficulty: ${difficulty}`,
-    `Source JSON:`,
-    cleanSource,
-    `Return only the lesson JSON object.`,
   ];
+  if (cleanSource) {
+    userLines.push(`Focus cues:`);
+    userLines.push(cleanSource);
+  } else {
+    userLines.push(`Focus cues: None beyond structured context.`);
+  }
+  userLines.push(
+    `Use the Structured context JSON message for learner profile, preferences, and pacing details.`,
+    `Return only the lesson JSON object.`
+  );
   const user = userLines.join("\n");
 
   return { system, user };

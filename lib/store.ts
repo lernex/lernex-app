@@ -1,10 +1,16 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Lesson } from "@/types";
+type LessonRef = {
+  id: string;
+  subject: string;
+  topic?: string | null;
+  nextTopicHint?: string | null;
+  personaHash?: string | null;
+};
 
 type FypSnapshot = {
   subjectsKey: string;
-  lessons: Lesson[];
+  lessonRefs: LessonRef[];
   index: number;
   completed: Record<string, boolean>;
   updatedAt: number;
@@ -31,7 +37,7 @@ function cloneSnapshot(snapshot: FypSnapshot | null): FypSnapshot | null {
     index: snapshot.index,
     completed: { ...snapshot.completed },
     updatedAt: snapshot.updatedAt,
-    lessons: snapshot.lessons.map((lesson) => ({ ...lesson })),
+    lessonRefs: snapshot.lessonRefs.map((lesson) => ({ ...lesson })),
   };
 }
 
@@ -66,4 +72,4 @@ export const useLernexStore = create<State>()(
   )
 );
 
-export type { FypSnapshot };
+export type { FypSnapshot, LessonRef };

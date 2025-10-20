@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import LessonCard from "./LessonCard";
 import QuizBlock from "./QuizBlock";
 import { Lesson } from "@/types";
-import { useLernexStore } from "@/lib/store";
+import { useLernexStore, type LessonRef } from "@/lib/store";
 import { useProfileBasics } from "@/app/providers/ProfileBasicsProvider";
 
 type ApiLesson = {
@@ -17,8 +17,46 @@ type ApiLesson = {
   questions: { prompt: string; choices: string[]; correctIndex: number; explanation: string }[];
   context?: Record<string, unknown> | null;
   knowledge?: Lesson["knowledge"];
+  personaHash?: string | null;
+  nextTopicHint?: string | null;
 };
 
+
+function mapApiLessonToLesson(
+  raw: ApiLesson | null | undefined,
+  fallbackTopic: string | null,
+  fallbackHint: string | null,
+): Lesson | null {
+  if (!raw) return null;
+  const questions = Array.isArray(raw.questions)
+    ? raw.questions.map((q) => ({
+        prompt: q.prompt,
+        choices: q.choices,
+        correctIndex: q.correctIndex,
+        explanation: q.explanation ?? "",
+      }))
+    : [];
+  const topic = raw.topic ?? fallbackTopic ?? undefined;
+  const nextHint =
+    typeof raw.nextTopicHint === "string"
+      ? raw.nextTopicHint
+      : typeof fallbackHint === "string"
+      ? fallbackHint
+      : null;
+  return {
+    id: raw.id,
+    subject: raw.subject,
+    title: raw.title,
+    content: raw.content,
+    questions,
+    difficulty: raw.difficulty,
+    topic,
+    nextTopicHint: nextHint,
+    context: raw.context ?? null,
+    knowledge: raw.knowledge ?? null,
+    personaHash: raw.personaHash ?? null,
+  };
+}
 
 type ApiProgress = {
   phase?: string;
@@ -94,38 +132,43 @@ function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === "AbortError";
 }
 
-async function fetchFypOne(subject: string | null, opts: { onProgress?: (info: FetchProgressInfo) => void; signal?: AbortSignal } = {}): Promise<Lesson | null> {
-  const base = subject ? `/api/fyp?subject=${encodeURIComponent(subject)}` : `/api/fyp`;
+async function fetchFypBundle(
+  subject: string | null,
+  opts: { onProgress?: (info: FetchProgressInfo) => void; signal?: AbortSignal } = {},
+): Promise<Lesson[]> {
+  const params = new URLSearchParams();
+  if (subject) params.set("subject", subject);
+  params.set("prefetch", "1");
+  const base = params.size ? `/api/fyp?${params.toString()}` : `/api/fyp`;
   const maxAttempts = 5;
   let delay = 600;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       const res = await fetch(base, { cache: "no-store", signal: opts.signal });
       try { console.debug("[fyp] fetch", { subject, attempt: attempt + 1, status: res.status }); } catch {}
       if (res.ok) {
-        const data = (await res.json()) as { topic?: string; lesson?: ApiLesson; nextTopicHint?: string | null };
-        const l = data?.lesson;
-        if (!l) return null;
-        const questions = Array.isArray(l.questions)
-          ? l.questions.map((q) => ({
-              prompt: q.prompt,
-              choices: q.choices,
-              correctIndex: q.correctIndex,
-              explanation: q.explanation ?? "",
-            }))
-          : [];
-        return {
-          id: l.id,
-          subject: l.subject,
-          title: l.title,
-          content: l.content,
-          questions,
-          difficulty: l.difficulty,
-          topic: l.topic ?? data?.topic,
-          nextTopicHint: data?.nextTopicHint ?? null,
-          context: l.context ?? null,
-          knowledge: l.knowledge ?? null,
-        } as Lesson;
+        const data = (await res.json()) as {
+          topic?: string | null;
+          lesson?: ApiLesson | null;
+          nextTopicHint?: string | null;
+          prefetch?: ApiLesson[] | null;
+        };
+        const lessons: Lesson[] = [];
+        const topic = data?.topic ?? null;
+        const primary = mapApiLessonToLesson(data?.lesson ?? null, topic, data?.nextTopicHint ?? null);
+        if (primary) lessons.push(primary);
+        if (Array.isArray(data?.prefetch)) {
+          const seen = new Set(lessons.map((lesson) => lesson.id));
+          for (const raw of data.prefetch) {
+            const converted = mapApiLessonToLesson(raw, topic, null);
+            if (converted && !seen.has(converted.id)) {
+              lessons.push(converted);
+              seen.add(converted.id);
+            }
+            if (lessons.length >= 2) break;
+          }
+        }
+        return lessons;
       }
       if (res.status === 202 || res.status === 409) {
         let payload: Record<string, unknown> = {};
@@ -133,7 +176,7 @@ async function fetchFypOne(subject: string | null, opts: { onProgress?: (info: F
           payload = await res.json().catch(() => ({} as Record<string, unknown>));
           console.debug("[fyp] backoff", { subject, status: res.status, payload });
         } catch {}
-        const progress = payload && typeof payload === "object" && 'progress' in payload && typeof (payload as { progress?: unknown }).progress === "object"
+        const progress = payload && typeof payload === "object" && "progress" in payload && typeof (payload as { progress?: unknown }).progress === "object"
           ? (payload as { progress?: ApiProgress | null }).progress ?? null
           : null;
         const retryAfterSeconds = parseRetryAfterSeconds(res.headers.get("retry-after"));
@@ -160,7 +203,7 @@ async function fetchFypOne(subject: string | null, opts: { onProgress?: (info: F
           const j: Record<string, unknown> = await res.json().catch(() => ({} as Record<string, unknown>));
           console.warn("[fyp] hard-fail", { subject, status: res.status, j });
         } catch {}
-        return null;
+        return [];
       }
     } catch (err) {
       if (isAbortError(err)) throw err;
@@ -171,7 +214,47 @@ async function fetchFypOne(subject: string | null, opts: { onProgress?: (info: F
       delay = Math.min(8000, Math.floor(delay * 1.8));
     }
   }
-  return null;
+  return [];
+}
+
+
+
+async function hydrateSnapshotRefs(refs: LessonRef[], signal?: AbortSignal): Promise<Lesson[]> {
+  if (!Array.isArray(refs) || refs.length === 0) return [];
+  const lessons: Lesson[] = [];
+  const seen = new Set<string>();
+  for (const ref of refs) {
+    if (signal?.aborted) break;
+    if (!ref || !ref.subject || !ref.topic) continue;
+    const params = new URLSearchParams({ subject: ref.subject, topic: ref.topic });
+    if (ref.id) params.append("lessonId", ref.id);
+    try {
+      const res = await fetch(`/api/fyp/cache?${params.toString()}`, { cache: "no-store", signal });
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403 || res.status === 404 || res.status === 410) {
+          continue;
+        }
+        continue;
+      }
+      const data = (await res.json()) as {
+        lesson?: ApiLesson | null;
+        topic?: string | null;
+        nextTopicHint?: string | null;
+      };
+      const fallbackTopic = typeof data?.topic === "string" && data.topic.trim().length ? data.topic : ref.topic;
+      const fallbackHint = data?.nextTopicHint ?? ref.nextTopicHint ?? null;
+      const hydrated = mapApiLessonToLesson(data?.lesson ?? null, fallbackTopic ?? null, fallbackHint ?? null);
+      if (!hydrated) continue;
+      if (ref.personaHash && hydrated.personaHash && ref.personaHash !== hydrated.personaHash) continue;
+      if (seen.has(hydrated.id)) continue;
+      lessons.push(hydrated);
+      seen.add(hydrated.id);
+    } catch (err) {
+      if (isAbortError(err)) break;
+      try { console.warn("[fyp] snapshot hydrate failed", err); } catch {}
+    }
+  }
+  return lessons;
 }
 
 export default function FypFeed() {
@@ -207,12 +290,18 @@ export default function FypFeed() {
   const activeAbortRef = useRef<AbortController | null>(null);
   const requestSeqRef = useRef(0);
   const indexRef = useRef(0);
+  const itemsRef = useRef<Lesson[]>([]);
+  const autoOpenedPickerRef = useRef(false);
   const MAX_LOOKBACK = 3;
   const MAX_BUFFER_SIZE = 8;
+  const MAX_SNAPSHOT_LESSONS = 6;
 
   useEffect(() => {
     indexRef.current = i;
   }, [i]);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   useEffect(() => {
     if (!loadingInfo || typeof loadingInfo.pct === "number") {
@@ -262,8 +351,8 @@ export default function FypFeed() {
           return changed ? nextMap : prevMap;
         });
       }
+      itemsRef.current = trimmed;
       return trimmed;
-    });
   }, [MAX_BUFFER_SIZE, MAX_LOOKBACK, setCompletedMap, setI]);
 
   const ensureBuffer = useCallback(async (minAhead = 1) => {
@@ -309,7 +398,7 @@ export default function FypFeed() {
         }
         consecutiveCooldownSkips = 0;
         lastRetryAfterSeconds = null;
-        const lesson = await fetchFypOne(subject, {
+        const lessons = await fetchFypBundle(subject, {
           signal: controller.signal,
           onProgress: (info) => {
             sawProgress = true;
@@ -349,24 +438,35 @@ export default function FypFeed() {
               updatedAt: progress?.updatedAt ? Number(progress.updatedAt) : Date.now(),
             });
             setError(null);
+            if (info.status === 409 && !autoOpenedPickerRef.current) {
+              setClassPickerOpen(true);
+              autoOpenedPickerRef.current = true;
+            }
           },
         });
         attemptedFetch = true;
         if (requestSeqRef.current !== requestToken) break;
-        if (lesson) {
+        if (lessons.length) {
           cooldownRef.current.delete(subject);
-          appendLesson(lesson);
-          fetchedAny = true;
-          if (!hasCurrent) {
-            hasCurrent = true;
-          } else {
-            lessonsAhead += 1;
+          const existingIds = new Set(itemsRef.current.map((item) => item.id));
+          for (const bundleLesson of lessons) {
+            if (requestSeqRef.current !== requestToken) break;
+            const alreadyHad = existingIds.has(bundleLesson.id);
+            appendLesson(bundleLesson);
+            fetchedAny = true;
+            existingIds.add(bundleLesson.id);
+            if (!hasCurrent) {
+              hasCurrent = true;
+            } else if (!alreadyHad) {
+              lessonsAhead += 1;
+            }
+            neededCurrent = hasCurrent ? 0 : 1;
+            neededAhead = Math.max(0, minAhead - lessonsAhead);
+            needed = neededCurrent + neededAhead;
           }
-          neededCurrent = hasCurrent ? 0 : 1;
-          neededAhead = Math.max(0, minAhead - lessonsAhead);
-          needed = neededCurrent + neededAhead;
           consecutiveCooldownSkips = 0;
           setLoadingInfo(null);
+          autoOpenedPickerRef.current = false;
         } else {
           const prevBackoff = cooldown?.backoffMs ?? 1500;
           const fallbackBackoff = Math.min(8000, Math.max(1200, Math.round(prevBackoff * 1.6)));
@@ -408,23 +508,46 @@ export default function FypFeed() {
   }, []);
 
   useEffect(() => {
-    if (initialized || items.length > 0) return;
+    if (initialized) return;
     if (!fypSnapshot) return;
     if (fypSnapshot.subjectsKey !== subjectsKey) return;
     const isFresh = Date.now() - fypSnapshot.updatedAt < CACHE_MAX_AGE_MS;
-    if (!isFresh || fypSnapshot.lessons.length === 0) {
+    if (!isFresh || fypSnapshot.lessonRefs.length === 0) {
       setFypSnapshot(null);
       return;
     }
-    setItems(fypSnapshot.lessons);
-    setI(Math.min(fypSnapshot.index, Math.max(0, fypSnapshot.lessons.length - 1)));
-    setCompletedMap(fypSnapshot.completed ?? {});
-    setInitialized(true);
-    setShowCompleteHint(false);
-    setAutoAdvancing(false);
-    setLoadingInfo(null);
-    setError(null);
-  }, [initialized, items.length, fypSnapshot, subjectsKey, setFypSnapshot]);
+    let cancelled = false;
+    const controller = new AbortController();
+    const hydrate = async () => {
+      try {
+        const restored = await hydrateSnapshotRefs(fypSnapshot.lessonRefs, controller.signal);
+        if (cancelled) return;
+        if (restored.length === 0) {
+          setFypSnapshot(null);
+          return;
+        }
+        setItems(restored);
+        itemsRef.current = restored;
+        setI(Math.min(fypSnapshot.index, Math.max(0, restored.length - 1)));
+        setCompletedMap(fypSnapshot.completed ?? {});
+        setInitialized(true);
+        setShowCompleteHint(false);
+        setAutoAdvancing(false);
+        setLoadingInfo(null);
+        setError(null);
+        autoOpenedPickerRef.current = false;
+      } catch (err) {
+        if (!isAbortError(err)) {
+          try { console.warn("[fyp] snapshot hydrate failed", err); } catch {}
+        }
+      }
+    };
+    void hydrate();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [initialized, fypSnapshot, subjectsKey, setFypSnapshot]);
 
   // Bootstrap
   useEffect(() => {
@@ -440,14 +563,31 @@ export default function FypFeed() {
       return;
     }
     const clampedIndex = Math.min(i, Math.max(0, items.length - 1));
+    const allLessonRefs = items.map((lesson) => ({
+      id: lesson.id,
+      subject: lesson.subject,
+      topic: lesson.topic ?? null,
+      nextTopicHint: lesson.nextTopicHint ?? null,
+      personaHash: lesson.personaHash ?? null,
+    }));
+    const offset = Math.max(0, allLessonRefs.length - MAX_SNAPSHOT_LESSONS);
+    const lessonRefs = allLessonRefs.slice(offset);
+    const persistedIndex = lessonRefs.length
+      ? Math.max(0, Math.min(clampedIndex - offset, lessonRefs.length - 1))
+      : 0;
+    const allowableIds = new Set(lessonRefs.map((ref) => ref.id));
+    const trimmedCompleted: Record<string, boolean> = {};
+    for (const [key, value] of Object.entries(completedMap)) {
+      if (allowableIds.has(key)) trimmedCompleted[key] = value;
+    }
     setFypSnapshot({
       subjectsKey,
-      lessons: items,
-      index: clampedIndex,
-      completed: completedMap,
+      lessonRefs,
+      index: persistedIndex,
+      completed: trimmedCompleted,
       updatedAt: Date.now(),
     });
-  }, [initialized, items, i, completedMap, subjectsKey, setFypSnapshot]);
+  }, [initialized, items, i, completedMap, subjectsKey, setFypSnapshot, MAX_SNAPSHOT_LESSONS]);
 
   // Reset buffer when class selection changes significantly
   useEffect(() => {
@@ -458,6 +598,7 @@ export default function FypFeed() {
     // Reset feed when user changes selected subjects (class switch/merge)
     setFypSnapshot(null);
     setItems([]);
+    itemsRef.current = [];
     setI(0);
     setError(null);
     setInitialized(false);
@@ -465,6 +606,7 @@ export default function FypFeed() {
     setCompletedMap({});
     setShowCompleteHint(false);
     setAutoAdvancing(false);
+    autoOpenedPickerRef.current = false;
     requestSeqRef.current += 1;
     if (activeAbortRef.current) {
       activeAbortRef.current.abort();

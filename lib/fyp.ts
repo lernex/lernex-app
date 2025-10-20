@@ -60,9 +60,7 @@ type LessonOptions = {
   };
 };
 
-const MAX_GUARDRAIL_ITEMS = 6;
 const MAX_CONTEXT_CHARS = 360;
-const MAX_MAP_SUMMARY_CHARS = 360;
 
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 const RETRYABLE_ERROR_CODES = new Set([
@@ -862,167 +860,52 @@ function buildSourceText(
   const subjectLine = subject.trim() || "General studies";
   const topicLine = topic.trim() || "Current concept";
 
-  const clampList = (values: string[] | undefined, limit: number) => {
-    if (!Array.isArray(values) || !values.length) return [];
-    return dedupeStrings(
-      values
-        .map((entry) => (typeof entry === "string" ? entry.trim() : String(entry ?? "").trim()))
-        .filter((entry) => entry.length > 0),
-      limit
-    );
-  };
+  const lines: string[] = [
+    `Subject: ${subjectLine}`,
+    `Topic focus: ${topicLine}`,
+    `Target difficulty: ${difficulty}; pace: ${pace}`,
+  ];
+  if (accuracy != null) {
+    lines.push(`Recent accuracy: ${accuracy}%`);
+  }
 
-  const knowledgePayload: Record<string, unknown> = {};
-  if (opts.knowledge) {
-    const { definition, applications, prerequisites, reminders } = opts.knowledge;
-    if (typeof definition === "string" && definition.trim()) {
-      knowledgePayload.definition = truncateText(definition.trim(), 220);
+  const knowledgeEntries = collectKnowledgeEntries(opts.knowledge);
+  if (knowledgeEntries.length) {
+    lines.push("Anchor knowledge:");
+    for (const entry of knowledgeEntries.slice(0, 4)) {
+      lines.push(`- ${entry}`);
     }
-    const apps = clampList(applications, 3).map((entry) => truncateText(entry, 110));
-    if (apps.length) knowledgePayload.applications = apps;
-    const prereqs = clampList(prerequisites, 4).map((entry) => truncateText(entry, 100));
-    if (prereqs.length) knowledgePayload.prerequisites = prereqs;
-    const rems = clampList(reminders, 3).map((entry) => truncateText(entry, 100));
-    if (rems.length) knowledgePayload.reminders = rems;
   }
 
-  const profile: Record<string, unknown> = {
-    pace,
-    target_difficulty: difficulty,
-  };
-  if (typeof opts.accuracyBand === "string" && opts.accuracyBand.trim()) {
-    profile.accuracy_band = opts.accuracyBand.trim();
-  } else if (accuracy != null) {
-    profile.accuracy_pct = accuracy;
-  }
-  if (opts.difficultyPref && opts.difficultyPref !== difficulty) {
-    profile.requested_difficulty = opts.difficultyPref;
-  }
-  if (typeof opts.learnerProfile === "string" && opts.learnerProfile.trim()) {
-    profile.note = truncateText(opts.learnerProfile.trim(), MAX_CONTEXT_CHARS);
-  }
-  if (opts.nextTopicHint && opts.nextTopicHint.trim()) {
-    profile.next_topic_hint = truncateText(opts.nextTopicHint.trim(), 160);
-  }
-
-  const recents: Record<string, unknown> = {};
-  if (opts.previousLessonSummary && opts.previousLessonSummary.trim()) {
-    recents.previous_lesson = truncateText(opts.previousLessonSummary.trim(), MAX_CONTEXT_CHARS);
-  }
-  if (opts.recentMissSummary && opts.recentMissSummary.trim()) {
-    recents.recent_miss = truncateText(opts.recentMissSummary.trim(), 140);
-  }
-
-  const preferences: Record<string, unknown> = {};
-  const toneHints = opts.toneTags ? dedupeStrings(opts.toneTags, 4) : [];
-  if (toneHints.length) preferences.tone_hints = toneHints;
-
-  const stylePrefs: Record<string, unknown> = {};
-  const lessonPrefs: Record<string, unknown> = {};
-  const personalization = opts.personalization ?? {};
-  if (personalization.style) {
-    const prefer = clampList(personalization.style.prefer, 6);
-    const avoid = clampList(personalization.style.avoid, 6);
-    if (prefer.length) stylePrefs.prefer = prefer;
-    if (avoid.length) stylePrefs.avoid = avoid;
-  }
-  const leanInto = personalization.lessons?.leanInto
-    ? clampList(personalization.lessons.leanInto, 6)
-    : clampList(opts.likedLessonDescriptors, 4);
-  if (leanInto.length) lessonPrefs.lean_into = leanInto;
-  const avoidLessons = personalization.lessons?.avoid
-    ? clampList(personalization.lessons.avoid, 6)
+  const trimmedTitleGuards = Array.isArray(opts.avoidTitles)
+    ? dedupeStrings(
+        opts.avoidTitles
+          .map((value) => (typeof value === "string" ? value.trim() : ""))
+          .filter((value) => value.length > 0),
+        4,
+      )
     : [];
-  if (avoidLessons.length) lessonPrefs.avoid = avoidLessons;
-  const savedLessons = personalization.lessons?.saved
-    ? clampList(personalization.lessons.saved, 4)
-    : clampList(opts.savedLessonDescriptors, 3);
-  if (savedLessons.length) lessonPrefs.saved = savedLessons;
-  if (Object.keys(stylePrefs).length) preferences.style = stylePrefs;
-  if (Object.keys(lessonPrefs).length) preferences.lessons = lessonPrefs;
-
-  const guardrails: Record<string, unknown> = {};
-  if (opts.avoidTitles?.length) {
-    const titles = clampList(opts.avoidTitles, MAX_GUARDRAIL_ITEMS);
-    if (titles.length) guardrails.avoid_titles = titles;
-  }
-  if (opts.avoidIds?.length) {
-    const ids = clampList(opts.avoidIds, MAX_GUARDRAIL_ITEMS);
-    if (ids.length) guardrails.avoid_ids = ids;
+  if (trimmedTitleGuards.length) {
+    lines.push(`Avoid reusing titles: ${trimmedTitleGuards.join(" | ")}`);
   }
 
-  const facts: Record<string, unknown> = {
-    subject: subjectLine,
-    focus: topicLine,
-  };
-  const progress: Record<string, unknown> = {
-    pace,
-  };
-  if (opts.accuracyBand) {
-    progress.accuracy_band = opts.accuracyBand;
-  } else if (accuracy != null) {
-    progress.accuracy_pct = accuracy;
+  const trimmedIdGuards = Array.isArray(opts.avoidIds)
+    ? dedupeStrings(
+        opts.avoidIds
+          .map((value) => (typeof value === "string" ? value.trim() : ""))
+          .filter((value) => value.length > 0),
+        4,
+      )
+    : [];
+  if (trimmedIdGuards.length) {
+    lines.push(`Avoid lessons with ids: ${trimmedIdGuards.join(" | ")}`);
   }
-  if (opts.mapSummary) {
-    const summary = truncateText(opts.mapSummary, MAX_MAP_SUMMARY_CHARS);
-    if (summary) progress.map = summary;
+
+  if (opts.nextTopicHint && opts.nextTopicHint.trim()) {
+    lines.push(`Upcoming: ${truncateText(opts.nextTopicHint.trim(), 120)}`);
   }
-  if (Object.keys(progress).length) facts.progress = progress;
-  if (Object.keys(knowledgePayload).length) facts.knowledge = knowledgePayload;
 
-  const payload: Record<string, unknown> = {
-    facts,
-    learner: {
-      profile,
-      ...(Object.keys(recents).length ? { recents } : {}),
-    },
-    goals: {
-      definition: "Explain the core idea plainly in one sentence.",
-      example: "Give one concrete example or walkthrough.",
-      pitfall: "Highlight a common misconception and how to fix it.",
-      next_step: "End with one actionable next step for the learner.",
-    },
-  };
-  if (Object.keys(preferences).length) payload.preferences = preferences;
-  if (Object.keys(guardrails).length) payload.guardrails = guardrails;
-
-  const prune = (value: unknown): unknown => {
-    if (Array.isArray(value)) {
-      const pruned = value.map((item) => prune(item)).filter((item) => {
-        if (item == null) return false;
-        if (typeof item === "string") return item.trim().length > 0;
-        if (Array.isArray(item)) return item.length > 0;
-        if (typeof item === "object") return Object.keys(item as Record<string, unknown>).length > 0;
-        return true;
-      });
-      return pruned;
-    }
-    if (value && typeof value === "object") {
-      const result: Record<string, unknown> = {};
-      for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
-        const pruned = prune(raw);
-        const isEmptyObject = pruned && typeof pruned === "object" && !Array.isArray(pruned) && Object.keys(pruned as Record<string, unknown>).length === 0;
-        const isEmptyArray = Array.isArray(pruned) && pruned.length === 0;
-        if (
-          pruned == null ||
-          (typeof pruned === "string" && !pruned.trim()) ||
-          isEmptyObject ||
-          isEmptyArray
-        ) {
-          continue;
-        }
-        result[key] = pruned;
-      }
-      return result;
-    }
-    if (typeof value === "string") {
-      return value.trim();
-    }
-    return value;
-  };
-
-  const cleaned = prune(payload) as Record<string, unknown>;
-  return JSON.stringify(cleaned);
+  return lines.join("\n");
 }
 
 export async function generateLessonForTopic(

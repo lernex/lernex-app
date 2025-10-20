@@ -23,4 +23,5 @@ export type Lesson = {
     prerequisites?: string[];
     reminders?: string[];
   } | null;
+  personaHash?: string | null;
 };
