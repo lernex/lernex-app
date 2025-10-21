@@ -607,7 +607,7 @@ export default function MarketingLanding() {
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 -z-10 bg-grid [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-lernex-blue/20 via-lernex-purple/20 to-transparent blur-3xl" />
-        <div className="mx-auto flex max-w-6xl flex-col items-center px-6 py-28 text-center md:py-32">
+        <div className="mx-auto flex max-w-6xl flex-col items-center px-6 pt-16 pb-28 text-center md:pt-20 md:pb-32">
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

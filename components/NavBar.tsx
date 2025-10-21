@@ -375,7 +375,7 @@ export default function NavBar() {
                 >
                   <button
                     onClick={() => setOpen((o) => !o)}
-                    className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-surface bg-surface-muted shadow-inner transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40"
+                    className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-inner transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 ${avatarBackground} ${avatarRing}`}
                     aria-label="Account menu"
                     aria-expanded={open}
                   >
@@ -392,6 +392,21 @@ export default function NavBar() {
                         {user.email?.[0]?.toUpperCase()}
                       </span>
                     )}
+                    {membership ? (
+                      <span
+                        className={`absolute -bottom-1 -right-1 z-10 flex h-4 w-4 items-center justify-center rounded-full text-white shadow-sm ${
+                          membership === "premium"
+                            ? "bg-gradient-to-br from-amber-400 to-rose-500"
+                            : "bg-gradient-to-br from-indigo-500 to-purple-500"
+                        }`}
+                      >
+                        {membership === "premium" ? (
+                          <Crown className="h-2.5 w-2.5" strokeWidth={2.4} />
+                        ) : (
+                          <Sparkles className="h-2.5 w-2.5" strokeWidth={2.4} />
+                        )}
+                      </span>
+                    ) : null}
                   </button>
                   <motion.div
                     initial={false}
@@ -493,10 +508,10 @@ export default function NavBar() {
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setOpen((o) => !o)}
-                className={`relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full shadow-sm transition-transform hover:scale-105 ${avatarBackground} ${avatarRing}`}
+                className={`relative flex h-9 w-9 items-center justify-center overflow-visible rounded-full shadow-sm transition-transform hover:scale-105 ${avatarBackground} ${avatarRing}`}
               >
                 {user.user_metadata?.avatar_url ? (
-                  <Image src={user.user_metadata.avatar_url} alt="avatar" width={36} height={36} />
+                  <Image src={user.user_metadata.avatar_url} alt="avatar" width={36} height={36} className="rounded-full" />
                 ) : (
                   <span className="text-sm font-semibold">
                     {user.email?.[0]?.toUpperCase()}
@@ -504,7 +519,7 @@ export default function NavBar() {
                 )}
                 {membership ? (
                   <span
-                    className={`absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-white shadow-sm ${
+                    className={`absolute -bottom-1 -right-1 z-10 flex h-4 w-4 items-center justify-center rounded-full text-white shadow-sm ${
                       membership === "premium"
                         ? "bg-gradient-to-br from-amber-400 to-rose-500"
                         : "bg-gradient-to-br from-indigo-500 to-purple-500"
