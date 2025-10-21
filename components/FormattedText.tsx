@@ -53,10 +53,15 @@ function devWarn(...args: unknown[]) {
 }
 
 // Precompiled regexes to reduce repeated work
-const RE_BOLD_A = /\*\*([^*]+)\*\*/g;
-const RE_BOLD_B = /__([^_]+)__/g;
-const RE_DEL = /~~([^~]+)~~/g;
+// Bold patterns - improved to handle word boundaries and prevent false matches
+const RE_BOLD_DOUBLE_ASTERISK = /\*\*(?=\S)((?:(?!\*\*).)+?)(?<=\S)\*\*/g;
+const RE_BOLD_DOUBLE_UNDERSCORE = /__(?=\S)((?:(?!__).)+?)(?<=\S)__/g;
+const RE_BOLD_SINGLE_ASTERISK = /(?<![*\w])\*(?=\S)((?:(?!\*).)+?)(?<=\S)\*(?![*\w])/g;
+const RE_BOLD_SINGLE_UNDERSCORE = /(?<![\w_])_(?=\S)((?:(?!_).)+?)(?<=\S)_(?![\w_])/g;
+const RE_DEL = /~~(?=\S)((?:(?!~~).)+?)(?<=\S)~~/g;
 const RE_CODE = /`([^`]+)`/g;
+const RE_CODE_BLOCK = /```[\s\S]*?```/g;
+const RE_HEADER = /^(#{1,6})\s+(.+?)$/gm;
 const RE_BEGIN_END = /\\begin\{([^}]+)\}[\s\S]*?\\end\{\1\}/g;
 const RE_SUBSCRIPT = /([A-Za-z]+)_(\{[^}]+\}|\d+|[A-Za-z])/g;
 const RE_DOUBLE_BAR = /\|\|([^|]{1,80})\|\|/g;
@@ -461,16 +466,52 @@ function splitMathSegments(src: string): Seg[] {
 function formatNonMath(s: string) {
   const wrap = (tex: string) => `\\(${tex}\\)`;
   const codeReplacements: Record<string, string> = {};
+  const codeBlockReplacements: Record<string, string> = {};
   let codeIndex = 0;
-  const withPlaceholders = s.replace(RE_CODE, (_match, inner: string) => {
+  let codeBlockIndex = 0;
+
+  // First, protect code blocks from all processing
+  const withCodeBlockPlaceholders = s.replace(RE_CODE_BLOCK, (match) => {
+    const key = `__CODE_BLOCK_${codeBlockIndex++}__`;
+    codeBlockReplacements[key] = `<pre><code>${escapeHtml(match.slice(3, -3))}</code></pre>`;
+    return key;
+  });
+
+  // Then protect inline code spans
+  const withPlaceholders = withCodeBlockPlaceholders.replace(RE_CODE, (_match, inner: string) => {
     const key = `__CODE_SPAN_${codeIndex++}__`;
     codeReplacements[key] = `<code>${escapeHtml(inner)}</code>`;
     return key;
   });
-  let out = escapeHtml(withPlaceholders)
-    .replace(RE_BOLD_A, "<strong>$1</strong>")
-    .replace(RE_BOLD_B, "<strong>$1</strong>")
-    .replace(RE_DEL, "<del>$1</del>");
+
+  // Escape HTML in the remaining text
+  let out = escapeHtml(withPlaceholders);
+
+  // Process markdown headers first (before bold/italic to handle nested formatting like "### **Bold Header**")
+  out = out.replace(RE_HEADER, (_match, hashes: string, content: string) => {
+    const level = Math.min(6, hashes.length); // Cap at h6
+    const tag = `h${level}`;
+    // Process inline formatting within headers
+    let headerContent = content;
+    headerContent = headerContent.replace(RE_BOLD_DOUBLE_ASTERISK, "<strong>$1</strong>");
+    headerContent = headerContent.replace(RE_BOLD_DOUBLE_UNDERSCORE, "<strong>$1</strong>");
+    headerContent = headerContent.replace(RE_BOLD_SINGLE_ASTERISK, "<strong>$1</strong>");
+    headerContent = headerContent.replace(RE_BOLD_SINGLE_UNDERSCORE, "<em>$1</em>");
+    return `<${tag}>${headerContent}</${tag}>`;
+  });
+
+  // Process markdown formatting in order: bold (double first), then single asterisk/underscore
+  // Double asterisk bold (higher priority)
+  out = out.replace(RE_BOLD_DOUBLE_ASTERISK, "<strong>$1</strong>");
+  // Double underscore bold (higher priority)
+  out = out.replace(RE_BOLD_DOUBLE_UNDERSCORE, "<strong>$1</strong>");
+  // Single asterisk bold (standard markdown uses this for italic, but treating as bold for consistency)
+  out = out.replace(RE_BOLD_SINGLE_ASTERISK, "<strong>$1</strong>");
+  // Single underscore for emphasis/italic
+  out = out.replace(RE_BOLD_SINGLE_UNDERSCORE, "<em>$1</em>");
+  // Strikethrough
+  out = out.replace(RE_DEL, "<del>$1</del>");
+
   // Conservatively wrap common TeX fragments that appear in plain text
   out = out.replace(RE_BEGIN_END, (m) => wrap(m));
   out = wrapBracedMacros(out, wrap);
@@ -481,6 +522,11 @@ function formatNonMath(s: string) {
   out = out.replace(RE_DOUBLE_BAR, (_m, inner) => wrap(`\\| ${inner.trim()} \\|`));
   out = out.replace(RE_ANGLE, (_m, inner) => wrap(`\\langle ${inner.trim()} \\rangle`));
   out = out.replace(RE_SQRT, (_m, inner) => wrap(`\\sqrt{${inner.trim()}}`));
+
+  // Restore code blocks first, then inline code
+  for (const key of Object.keys(codeBlockReplacements)) {
+    out = out.split(key).join(codeBlockReplacements[key]);
+  }
   for (const key of Object.keys(codeReplacements)) {
     out = out.split(key).join(codeReplacements[key]);
   }

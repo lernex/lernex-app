@@ -26,6 +26,87 @@ function sha256(s: string) {
   return crypto.createHash("sha256").update(s).digest("hex");
 }
 
+// Fix common LaTeX escaping issues in AI-generated JSON
+// The AI sometimes under-escapes LaTeX commands in JSON strings
+function fixLatexEscaping(str: string): string {
+  let result = str;
+
+  // Fix unescaped LaTeX delimiters: \( → \\(, \) → \\), \[ → \\[, \] → \\]
+  // But don't double-escape if already escaped (\\( should stay \\()
+  result = result.replace(/([^\\])\\([()[\]])/g, '$1\\\\$2');
+  result = result.replace(/^\\([()[\]])/g, '\\\\$1');
+
+  // Fix common LaTeX commands that appear unescaped
+  // Pattern matches: \command but not \\command
+  const latexCommands = [
+    'frac', 'sqrt', 'sum', 'int', 'lim', 'sin', 'cos', 'tan', 'log', 'ln',
+    'prod', 'alpha', 'beta', 'gamma', 'delta', 'theta', 'pi', 'infty',
+    'leq', 'geq', 'neq', 'cdot', 'times', 'pm', 'to', 'partial', 'nabla',
+    'mathbf', 'vec', 'hat', 'bar', 'underline', 'overline'
+  ];
+  const commandPattern = new RegExp(`([^\\\\])\\\\(${latexCommands.join('|')})\\b`, 'g');
+  result = result.replace(commandPattern, '$1\\\\\\\\$2');
+  const startPattern = new RegExp(`^\\\\(${latexCommands.join('|')})\\b`, 'g');
+  result = result.replace(startPattern, '\\\\\\\\$1');
+
+  return result;
+}
+
+// Try to parse JSON with LaTeX escaping fixes
+function tryParseJson(text: string): unknown | null {
+  const cleaned = text.trim();
+  if (!cleaned) return null;
+
+  const segments: string[] = [];
+
+  // Try as-is first
+  segments.push(cleaned);
+
+  // Remove markdown code fences
+  if (cleaned.startsWith("```")) {
+    const withoutFence = cleaned.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+    if (withoutFence) segments.push(withoutFence);
+  }
+
+  // Extract JSON object (greedy match)
+  const objectMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (objectMatch) segments.push(objectMatch[0]);
+
+  // Try to find JSON after any preamble text
+  const jsonStartIndex = cleaned.indexOf('{');
+  if (jsonStartIndex > 0) {
+    segments.push(cleaned.slice(jsonStartIndex));
+  }
+
+  // Add LaTeX-fixed versions
+  const fixedCleaned = fixLatexEscaping(cleaned);
+  if (fixedCleaned !== cleaned) {
+    segments.push(fixedCleaned);
+    const fixedObjectMatch = fixedCleaned.match(/\{[\s\S]*\}/);
+    if (fixedObjectMatch) segments.push(fixedObjectMatch[0]);
+  }
+
+  for (const candidate of segments) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (typeof parsed === "string") {
+        try {
+          return JSON.parse(parsed);
+        } catch {
+          continue;
+        }
+      }
+      if (parsed && typeof parsed === "object") {
+        return parsed;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
 const MAX_CACHE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 type CachedLesson = Lesson & { cachedAt?: string };
@@ -280,7 +361,8 @@ export async function POST(req: NextRequest) {
             }
             let parsed: unknown = null;
             try {
-              parsed = JSON.parse(full || "{}");
+              // Use tryParseJson to handle LaTeX escaping issues
+              parsed = tryParseJson(full) ?? JSON.parse(full || "{}");
             } catch {
               // ignore parse errors; client will handle
               return;
