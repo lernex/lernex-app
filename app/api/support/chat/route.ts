@@ -644,22 +644,33 @@ async function gatherLearnerContext(
       console.warn('[support-chat] subject state load failed', subjectsRes.error);
     }
 
-    const profileRow = profileRes.data ?? null;
+    type ProfileRow = {
+      full_name: string | null;
+      username: string | null;
+      is_premium: boolean | null;
+      interests: string[] | null;
+      streak: number | null;
+      points: number | null;
+      last_study_date: string | null;
+      created_at: string | null;
+    };
+
+    const profileRow = profileRes.data as ProfileRow | null;
     const attemptsData = Array.isArray(attemptsRes.data) ? attemptsRes.data : [];
     const subjectData = Array.isArray(subjectsRes.data) ? subjectsRes.data : [];
 
     const profile = profileRow
       ? {
-          fullName: safeString((profileRow as any).full_name),
-          username: safeString((profileRow as any).username),
-          isPremium: typeof (profileRow as any).is_premium === 'boolean' ? (profileRow as any).is_premium : null,
-          interests: Array.isArray((profileRow as any).interests)
-            ? ((profileRow as any).interests.filter((entry: unknown): entry is string => typeof entry === 'string') as string[])
+          fullName: safeString(profileRow.full_name),
+          username: safeString(profileRow.username),
+          isPremium: typeof profileRow.is_premium === 'boolean' ? profileRow.is_premium : null,
+          interests: Array.isArray(profileRow.interests)
+            ? (profileRow.interests.filter((entry: unknown): entry is string => typeof entry === 'string') as string[])
             : null,
-          streak: toNumber((profileRow as any).streak),
-          points: toNumber((profileRow as any).points),
-          lastStudyDate: safeString((profileRow as any).last_study_date),
-          createdAt: safeString((profileRow as any).created_at),
+          streak: toNumber(profileRow.streak),
+          points: toNumber(profileRow.points),
+          lastStudyDate: safeString(profileRow.last_study_date),
+          createdAt: safeString(profileRow.created_at),
         }
       : null;
 
