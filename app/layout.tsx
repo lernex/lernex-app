@@ -11,6 +11,7 @@ import { ProfileStatsProvider } from "./providers/ProfileStatsProvider";
 import StructuredData from "@/components/StructuredData";
 import { defaultMetadata } from "@/lib/seo";
 import { supabaseServer } from "@/lib/supabase-server";
+import SidebarOffsetWrapper from "@/components/SidebarOffsetWrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 type ThemeMode = "light" | "dark";
@@ -76,10 +77,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <ProfileStatsProvider>
             <div className="fixed inset-0 -z-10 bg-[radial-gradient(60%_40%_at_50%_0%,rgba(47,128,237,0.12),transparent)]"></div>
             <NavBar />
-            <PageTransition>
-              {children}
-            </PageTransition>
-            <Footer />
+            <SidebarOffsetWrapper>
+              <PageTransition>
+                {children}
+              </PageTransition>
+              <Footer />
+            </SidebarOffsetWrapper>
             <Analytics />
             <SpeedInsights />
             <StructuredData />

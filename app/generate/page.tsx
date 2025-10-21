@@ -319,99 +319,108 @@ Current Question: ${followUpQuestion}
               <QuizBlock lesson={lesson} onDone={() => setQuizCompleted(true)} />
             )}
 
-            {/* Follow-up Questions Section - Show after quiz completion or if no quiz */}
-            {(quizCompleted || (lesson.questions.length === 0)) && (
+            {/* Follow-up Questions Section - Show immediately after lesson is generated */}
+            {lesson && (
               <div className="space-y-4">
                 {/* Follow-up History */}
                 {followUpHistory.map((item, idx) => (
-                  <div key={idx} className="space-y-2">
+                  <div key={idx} className="space-y-3">
                     <div className="rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-4 shadow-sm">
                       <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1.5">Your Question</div>
                       <div className="text-foreground">{item.question}</div>
                     </div>
-                    <div className="rounded-2xl border border-surface bg-surface-card p-4 shadow-sm">
-                      <div className="text-xs font-semibold text-lernex-purple mb-1.5">Follow-up Answer</div>
-                      <FormattedText text={item.answer} />
+                    <div className="relative overflow-hidden rounded-[28px] border border-surface bg-surface-card shadow-xl ring-1 ring-black/5 backdrop-blur-xl">
+                      <div className="pointer-events-none absolute inset-0 opacity-80 dark:opacity-40 bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.2),transparent_55%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.18),transparent_48%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.08),transparent_60%)]" />
+                      <div className="relative px-5 py-4 sm:px-6">
+                        <div className="text-xs font-semibold text-lernex-purple mb-2">Follow-up Answer</div>
+                        <FormattedText text={item.answer} />
+                      </div>
                     </div>
                   </div>
                 ))}
 
                 {/* Streaming Answer */}
                 {followUpStreaming && (
-                  <div className="rounded-2xl border border-surface bg-surface-card p-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="text-xs font-semibold text-lernex-purple mb-1.5">Follow-up Answer</div>
-                    <FormattedText text={followUpStreaming} incremental />
+                  <div className="relative overflow-hidden rounded-[28px] border border-surface bg-surface-card shadow-xl ring-1 ring-black/5 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="pointer-events-none absolute inset-0 opacity-80 dark:opacity-40 bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.2),transparent_55%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.18),transparent_48%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.08),transparent_60%)]" />
+                    <div className="relative px-5 py-4 sm:px-6">
+                      <div className="text-xs font-semibold text-lernex-purple mb-2">Follow-up Answer</div>
+                      <FormattedText text={followUpStreaming} incremental />
+                    </div>
                   </div>
                 )}
 
                 {/* Follow-up Input */}
-                <div className="rounded-2xl border border-surface bg-gradient-to-br from-surface-panel to-surface-card p-5 shadow-md backdrop-blur transition-all hover:shadow-lg">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple flex items-center justify-center">
-                      <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                <div className="relative overflow-hidden rounded-[28px] border border-surface bg-surface-card shadow-xl ring-1 ring-black/5 backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:shadow-2xl">
+                  <div className="pointer-events-none absolute inset-0 opacity-80 dark:opacity-40 bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.2),transparent_55%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.18),transparent_48%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.08),transparent_60%)]" />
+                  <div className="relative px-5 py-5 sm:px-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple flex items-center justify-center shadow-sm">
+                        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-semibold text-foreground">Have a follow-up question?</h3>
                     </div>
-                    <h3 className="text-lg font-semibold text-foreground">Have a follow-up question?</h3>
-                  </div>
 
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
-                    Ask for clarification or dive deeper into any part of the lesson.
-                  </p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+                      Ask for clarification or dive deeper into any part of the lesson.
+                    </p>
 
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={followUpQuestion}
-                      onChange={(e) => setFollowUpQuestion(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey && !followUpLoading) {
-                          e.preventDefault();
-                          handleFollowUp();
-                        }
-                      }}
-                      placeholder="e.g., Can you explain that example in more detail?"
-                      disabled={followUpLoading}
-                      className="flex-1 rounded-xl border border-surface bg-surface-muted px-4 py-2.5 text-foreground outline-none transition-all focus:ring-2 focus:ring-lernex-blue/40 focus:border-lernex-blue placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:opacity-60"
-                    />
-                    <button
-                      onClick={handleFollowUp}
-                      disabled={followUpLoading || !followUpQuestion.trim()}
-                      className="rounded-xl bg-gradient-to-r from-lernex-blue to-lernex-purple px-6 py-2.5 text-white font-medium shadow-sm transition-all hover:opacity-90 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:shadow-sm"
-                    >
-                      {followUpLoading ? (
-                        <div className="flex items-center gap-2">
-                          <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                          <span>Thinking...</span>
-                        </div>
-                      ) : (
-                        "Ask"
-                      )}
-                    </button>
-                  </div>
-
-                  {followUpHistory.length === 0 && !followUpStreaming && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <div className="text-xs text-neutral-500 dark:text-neutral-400">Quick prompts:</div>
-                      {[
-                        "Can you give another example?",
-                        "What are common mistakes?",
-                        "How does this connect to other topics?",
-                      ].map((prompt) => (
-                        <button
-                          key={prompt}
-                          onClick={() => setFollowUpQuestion(prompt)}
-                          disabled={followUpLoading}
-                          className="text-xs rounded-full border border-surface bg-surface-muted px-3 py-1 text-neutral-700 dark:text-neutral-300 transition-all hover:bg-lernex-blue/10 hover:border-lernex-blue hover:text-lernex-blue disabled:opacity-60"
-                        >
-                          {prompt}
-                        </button>
-                      ))}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={followUpQuestion}
+                        onChange={(e) => setFollowUpQuestion(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey && !followUpLoading) {
+                            e.preventDefault();
+                            handleFollowUp();
+                          }
+                        }}
+                        placeholder="e.g., Can you explain that example in more detail?"
+                        disabled={followUpLoading}
+                        className="flex-1 rounded-xl border border-surface bg-surface-muted px-4 py-2.5 text-foreground outline-none transition-all focus:ring-2 focus:ring-lernex-blue/40 focus:border-lernex-blue placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:opacity-60"
+                      />
+                      <button
+                        onClick={handleFollowUp}
+                        disabled={followUpLoading || !followUpQuestion.trim()}
+                        className="rounded-xl bg-gradient-to-r from-lernex-blue to-lernex-purple px-6 py-2.5 text-white font-medium shadow-sm transition-all hover:opacity-90 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:shadow-sm"
+                      >
+                        {followUpLoading ? (
+                          <div className="flex items-center gap-2">
+                            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            <span>Thinking...</span>
+                          </div>
+                        ) : (
+                          "Ask"
+                        )}
+                      </button>
                     </div>
-                  )}
+
+                    {followUpHistory.length === 0 && !followUpStreaming && (
+                      <div className="mt-4 flex flex-wrap gap-2 items-center">
+                        <div className="text-xs text-neutral-500 dark:text-neutral-400">Quick prompts:</div>
+                        {[
+                          "Can you give another example?",
+                          "What are common mistakes?",
+                          "How does this connect to other topics?",
+                        ].map((prompt) => (
+                          <button
+                            key={prompt}
+                            onClick={() => setFollowUpQuestion(prompt)}
+                            disabled={followUpLoading}
+                            className="text-xs rounded-full border border-surface bg-surface-muted px-3 py-1 text-neutral-700 dark:text-neutral-300 transition-all hover:bg-lernex-blue/10 hover:border-lernex-blue hover:text-lernex-blue disabled:opacity-60"
+                          >
+                            {prompt}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

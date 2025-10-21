@@ -56,6 +56,18 @@ html {
 }
 
 @layer utilities {
+  /* Sidebar offset for authenticated pages - accounts for collapsed navbar width */
+  .sidebar-offset {
+    margin-left: 0;
+  }
+
+  /* Only apply offset on larger screens where sidebar is visible */
+  @media (min-width: 768px) {
+    .sidebar-offset {
+      margin-left: 104px; /* 112px collapsed width - 8px shift */
+    }
+  }
+
   .bg-grid {
     background-image:
       linear-gradient(to right, rgba(127,127,127,0.1) 1px, transparent 1px),
