@@ -19,7 +19,10 @@ import {
   X,
   Send,
   RefreshCcw,
+  Calendar,
+  Clock,
 } from "lucide-react";
+import StudyPlannerModal from "./StudyPlannerModal";
 
 type Friend = {
   id: string;
@@ -118,6 +121,33 @@ type SearchResult = {
 type ToastState = {
   message: string;
   tone: "success" | "error" | "neutral";
+};
+
+type StudySession = {
+  id: string;
+  organizerId: string;
+  friendId: string;
+  title: string;
+  description: string | null;
+  subject: string | null;
+  topics: string[] | null;
+  scheduledAt: string;
+  durationMinutes: number;
+  status: "pending" | "confirmed" | "cancelled" | "completed";
+  createdAt: string;
+  updatedAt: string | null;
+  organizer: {
+    id: string;
+    username: string | null;
+    fullName: string | null;
+    avatarUrl: string | null;
+  } | null;
+  friend: {
+    id: string;
+    username: string | null;
+    fullName: string | null;
+    avatarUrl: string | null;
+  } | null;
 };
 
 const fullDateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -258,6 +288,10 @@ export default function FriendsPage() {
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [plannerOpen, setPlannerOpen] = useState(false);
+  const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
+  const [studySessions, setStudySessions] = useState<StudySession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
 
   useEffect(() => {
     if (!toast) return;
@@ -292,6 +326,26 @@ export default function FriendsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadStudySessions = useCallback(async () => {
+    setSessionsLoading(true);
+    try {
+      const response = await fetch("/api/study-sessions", { method: "GET", cache: "no-store" });
+      if (!response.ok) throw new Error("Failed to fetch sessions");
+      const json = await response.json();
+      const sessions = Array.isArray(json?.sessions) ? json.sessions : [];
+      setStudySessions(sessions);
+    } catch (err) {
+      console.error("Failed to load study sessions:", err);
+      setStudySessions([]);
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStudySessions();
+  }, [loadStudySessions]);
 
   useEffect(() => {
     if (!data) return;
@@ -632,6 +686,94 @@ export default function FriendsPage() {
           hint="Earned from lessons and quizzes"
         />
       </section>
+
+      {studySessions.length > 0 && (
+        <section className="mt-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Upcoming study sessions</h2>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Your planned study sessions with friends
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {studySessions.slice(0, 6).map((session) => {
+              const isOrganizer = session.organizerId === data?.profile.id;
+              const partner = isOrganizer ? session.friend : session.organizer;
+              const partnerName = displayName(
+                partner?.username || null,
+                partner?.fullName || null,
+                "Friend"
+              );
+              const scheduledDate = new Date(session.scheduledAt);
+              const formattedDate = new Intl.DateTimeFormat(undefined, {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              }).format(scheduledDate);
+              const formattedTime = new Intl.DateTimeFormat(undefined, {
+                hour: "numeric",
+                minute: "2-digit",
+              }).format(scheduledDate);
+
+              return (
+                <div
+                  key={session.id}
+                  className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-4 shadow-[0_28px_60px_-40px_rgba(47,128,237,0.32)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_36px_70px_-38px_rgba(47,128,237,0.4)] dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
+                >
+                  <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 dark:hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-lernex-blue/10 via-transparent to-lernex-purple/10" />
+                  </div>
+                  <div className="relative z-10">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-lernex-blue/20 to-lernex-purple/20 text-lernex-blue dark:from-lernex-blue/30 dark:to-lernex-purple/30">
+                          <Calendar className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
+                            {session.title}
+                          </h3>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                            with {partnerName}
+                          </p>
+                        </div>
+                      </div>
+                      {partner && (
+                        <Avatar name={partnerName} src={partner.avatarUrl} size={36} />
+                      )}
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+                      <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
+                        <Calendar className="h-3.5 w-3.5 text-lernex-blue" />
+                        <span>{formattedDate}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
+                        <Clock className="h-3.5 w-3.5 text-lernex-purple" />
+                        <span>{formattedTime} • {session.durationMinutes} min</span>
+                      </div>
+                      {session.subject && (
+                        <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-lernex-blue/30 bg-gradient-to-r from-lernex-blue/10 to-lernex-purple/10 px-2.5 py-1 text-xs text-lernex-blue dark:text-lernex-blue/90">
+                          <Sparkles className="h-3 w-3" />
+                          {session.subject}
+                        </div>
+                      )}
+                    </div>
+
+                    {session.description && (
+                      <p className="mt-3 text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">
+                        {session.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <section
         className={cn(
@@ -988,8 +1130,11 @@ export default function FriendsPage() {
                         <Send className="h-3.5 w-3.5" /> Send nudge
                       </button>
                       <button
-                        onClick={() => setToast({ message: "Study session planner launching soon", tone: "neutral" })}
-                        className="inline-flex items-center gap-2 rounded-full border border-transparent bg-gradient-to-r from-lernex-blue/15 via-lernex-purple/10 to-lernex-blue/20 px-3 py-1.5 text-lernex-blue shadow-[0_20px_40px_-26px_rgba(47,128,237,0.45)] transition hover:scale-[1.01] hover:from-lernex-blue/20 hover:to-lernex-purple/20 dark:bg-lernex-blue/20 dark:text-lernex-blue/90 dark:shadow-none"
+                        onClick={() => {
+                          setSelectedFriend(friend);
+                          setPlannerOpen(true);
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full border border-transparent bg-gradient-to-r from-lernex-blue/15 via-lernex-purple/10 to-lernex-blue/20 px-3 py-1.5 text-lernex-blue shadow-[0_20px_40px_-26px_rgba(47,128,237,0.45)] transition hover:scale-[1.01] hover:from-lernex-blue/20 hover:to-lernex-purple/20 hover:shadow-[0_24px_48px_-24px_rgba(47,128,237,0.55)] dark:bg-lernex-blue/20 dark:text-lernex-blue/90 dark:shadow-none"
                       >
                         <Compass className="h-3.5 w-3.5" /> Plan session
                       </button>
@@ -1048,6 +1193,22 @@ export default function FriendsPage() {
         </div>
       </section>
       </div>
+
+      {selectedFriend && (
+        <StudyPlannerModal
+          isOpen={plannerOpen}
+          onClose={() => {
+            setPlannerOpen(false);
+            setSelectedFriend(null);
+          }}
+          friend={selectedFriend}
+          onSessionCreated={() => {
+            setToast({ message: "Study session planned successfully!", tone: "success" });
+            load({ silent: true });
+            loadStudySessions();
+          }}
+        />
+      )}
     </main>
   );
 }

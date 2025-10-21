@@ -58,12 +58,15 @@ Return ONLY a valid JSON object (no prose) matching exactly:
 Rules:
 - ${countRule}
 - Keep choices short (<= 8 words). Keep explanations concise (<= 25 words).
-- Use inline LaTeX with \\( ... \\) for math. Do NOT use single-dollar $...$ delimiters; prefer \\( ... \\) for inline and \\[ ... \\] only if necessary.
-- Always balance {} and math delimiters (\\( pairs with \\), \\[ with \\], $$ with $$).
-- Vector: \\langle a,b \\rangle; Norms: \\|v\\|; Matrices may use pmatrix with row breaks (\\).
+- Use inline LaTeX: \\( ... \\) for math. Do NOT use single-dollar $...$ delimiters.
+- Always balance delimiters: \\( pairs with \\), \\[ with \\], $$ with $$.
+- Vectors: \\langle a,b \\rangle; Norms: \\|v\\|; Matrices: use pmatrix with \\\\\\\\ for row breaks.
 - Avoid HTML tags and code fences.
-- Wrap single-letter macro arguments in braces (e.g., \\vec{v}, \\mathbf{v}, \\hat{v}).
-- JSON must be valid; escape backslashes so LaTeX survives JSON, and do not double-escape macros. After parsing, macros must start with a single backslash.
+- Wrap single-letter macro arguments in braces: \\vec{v}, \\mathbf{v}, \\hat{v}.
+- CRITICAL JSON ESCAPING: In JSON strings, use double backslash for LaTeX.
+  Examples: Write \\\\( not \\(, write \\\\frac{1}{2} not \\frac{1}{2}, write \\\\alpha not \\alpha
+- Example quiz JSON:
+  {"id":"quiz-001","subject":"Math","title":"Fractions","difficulty":"easy","questions":[{"prompt":"What is \\\\(\\\\frac{1}{2}\\\\)?","choices":["\\\\(0.5\\\\)","\\\\(1\\\\)","\\\\(2\\\\)","\\\\(0.25\\\\)"],"correctIndex":0,"explanation":"One half equals \\\\(0.5\\\\) in decimal."}]}
 `.trim();
 
     const cerebrasBaseUrl = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
