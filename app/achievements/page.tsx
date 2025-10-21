@@ -2266,7 +2266,7 @@ export default function AchievementsPage(): JSX.Element {
                       }}
                       whileTap={{ scale: 0.98 }}
                       animate={badge.unlocked ? "animate" : "initial"}
-                      className={`relative overflow-hidden rounded-2xl border p-5 shadow-sm transition cursor-pointer ${
+                      className={`relative overflow-visible rounded-2xl border p-5 shadow-sm transition cursor-pointer ${
                         badge.unlocked
                           ? "border-transparent bg-gradient-to-br from-lernex-blue/15 via-lernex-blue/10 to-sky-500/10 text-neutral-900 ring-1 ring-lernex-blue/25 dark:from-lernex-blue/25 dark:via-indigo-500/20 dark:to-sky-500/15 dark:text-white dark:ring-lernex-blue/20"
                           : "border-white/60 bg-white/70 text-neutral-900 dark:border-slate-800 dark:bg-[#101a27]/85 dark:text-neutral-100"
@@ -2284,12 +2284,12 @@ export default function AchievementsPage(): JSX.Element {
                     >
                       {badge.unlocked && (
                         <motion.div
-                          className="absolute -top-1 -right-1 w-6 h-6 bg-lernex-blue rounded-full flex items-center justify-center"
+                          className="absolute -top-2 -right-2 w-7 h-7 bg-lernex-blue rounded-full flex items-center justify-center shadow-lg z-10"
                           initial={{ scale: 0, rotate: -180 }}
                           animate={{ scale: 1, rotate: 0 }}
                           transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
                         >
-                          <Sparkles className="w-3 h-3 text-white" />
+                          <Sparkles className="w-3.5 h-3.5 text-white" />
                         </motion.div>
                       )}
                       <div className="flex items-start justify-between gap-3">
