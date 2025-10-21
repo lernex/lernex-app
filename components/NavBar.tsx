@@ -375,7 +375,7 @@ export default function NavBar() {
                 >
                   <button
                     onClick={() => setOpen((o) => !o)}
-                    className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-inner transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 ${avatarBackground} ${avatarRing}`}
+                    className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-visible rounded-xl shadow-inner transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 ${avatarBackground} ${avatarRing}`}
                     aria-label="Account menu"
                     aria-expanded={open}
                   >
@@ -385,7 +385,7 @@ export default function NavBar() {
                         alt="avatar"
                         width={44}
                         height={44}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-cover rounded-xl"
                       />
                     ) : (
                       <span className="text-sm font-semibold text-neutral-700 dark:text-white">
