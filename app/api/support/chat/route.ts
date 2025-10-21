@@ -650,16 +650,16 @@ async function gatherLearnerContext(
 
     const profile = profileRow
       ? {
-          fullName: safeString(profileRow.full_name),
-          username: safeString(profileRow.username),
-          isPremium: typeof profileRow.is_premium === 'boolean' ? profileRow.is_premium : null,
-          interests: Array.isArray(profileRow.interests)
-            ? (profileRow.interests.filter((entry: unknown): entry is string => typeof entry === 'string') as string[])
+          fullName: safeString((profileRow as any).full_name),
+          username: safeString((profileRow as any).username),
+          isPremium: typeof (profileRow as any).is_premium === 'boolean' ? (profileRow as any).is_premium : null,
+          interests: Array.isArray((profileRow as any).interests)
+            ? ((profileRow as any).interests.filter((entry: unknown): entry is string => typeof entry === 'string') as string[])
             : null,
-          streak: toNumber(profileRow.streak),
-          points: toNumber(profileRow.points),
-          lastStudyDate: safeString(profileRow.last_study_date),
-          createdAt: safeString(profileRow.created_at),
+          streak: toNumber((profileRow as any).streak),
+          points: toNumber((profileRow as any).points),
+          lastStudyDate: safeString((profileRow as any).last_study_date),
+          createdAt: safeString((profileRow as any).created_at),
         }
       : null;
 
