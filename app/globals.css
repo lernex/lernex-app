@@ -107,6 +107,15 @@ html {
   .lesson-scroll::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(to bottom, rgba(59, 130, 246, 0.75), rgba(168, 85, 247, 0.75));
   }
+  .scrollbar-thumb-neutral-300::-webkit-scrollbar-thumb {
+    @apply bg-neutral-300;
+  }
+  .dark .scrollbar-thumb-neutral-600::-webkit-scrollbar-thumb {
+    @apply bg-neutral-600;
+  }
+  .scrollbar-track-transparent::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
   .gradient-logo {
     background-size: 220% 220%;
     background-position: 0% 50%;

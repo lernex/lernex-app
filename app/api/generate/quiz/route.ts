@@ -57,6 +57,8 @@ Return ONLY a valid JSON object (no prose) matching exactly:
 }
 Rules:
 - ${countRule}
+- CRITICAL: All questions must stay strictly within the boundaries of the specified subject. Do NOT introduce concepts from other subjects or higher-level topics.
+- For example, if the subject is 'Algebra 1', do NOT include concepts like vectors, norms, calculus, or advanced topics. Only use concepts appropriate for that exact subject level.
 - Keep choices short (<= 8 words). Keep explanations concise (<= 25 words).
 - Use inline LaTeX: \\( ... \\) for math. Do NOT use single-dollar $...$ delimiters.
 - Always balance delimiters: \\( pairs with \\), \\[ with \\], $$ with $$.

@@ -1,7 +1,9 @@
 ﻿"use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Maximize2 } from "lucide-react";
 import { Lesson } from "@/types";
 import FormattedText from "./FormattedText";
+import ExpandedLessonModal from "./ExpandedLessonModal";
 
 type LessonCardProps = {
   lesson: Lesson;
@@ -19,6 +21,7 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
   const [showFade, setShowFade] = useState(false);
   const [reported, setReported] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const contextEntries = useMemo(() => {
     const ctx = lesson.context;
     if (!ctx || typeof ctx !== "object") return [];
@@ -219,7 +222,19 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
   ].join(" ");
 
   return (
-    <div ref={cardRef} className={rootClass}>
+    <>
+      <ExpandedLessonModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        lesson={{
+          subject: lesson.subject,
+          title: lesson.title,
+          content: lesson.content,
+          topic: lesson.topic,
+          difficulty: lesson.difficulty,
+        }}
+      />
+      <div ref={cardRef} className={rootClass}>
       <div className="pointer-events-none absolute inset-0 opacity-80 dark:opacity-40 bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.2),transparent_55%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.18),transparent_48%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.08),transparent_60%)]" />
       <div className="relative flex min-h-0 flex-1 flex-col gap-4 px-5 py-6 sm:px-6 md:py-7">
         <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">
@@ -290,11 +305,21 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
           {showFade && (
             <>
               <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white via-white/75 to-transparent dark:from-neutral-900 dark:via-neutral-900/70" />
-              <div className="pointer-events-none absolute bottom-3 right-4 flex items-center gap-2 rounded-full bg-neutral-900/75 px-3 py-1 text-[11px] font-medium text-white shadow-lg backdrop-blur-sm dark:bg-neutral-800/85">
-                <span>Scroll to read</span>
-                <span aria-hidden="true" className="text-base leading-none">
-                  ↓
-                </span>
+              <div className="absolute bottom-3 right-4 flex items-center gap-2">
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="flex items-center gap-2 rounded-full bg-lernex-blue/90 hover:bg-lernex-blue px-3 py-1.5 text-[11px] font-medium text-white shadow-lg backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40"
+                  aria-label="Expand lesson to full screen"
+                >
+                  <Maximize2 className="h-3.5 w-3.5" />
+                  <span>Expand</span>
+                </button>
+                <div className="pointer-events-none flex items-center gap-2 rounded-full bg-neutral-900/75 px-3 py-1 text-[11px] font-medium text-white shadow-lg backdrop-blur-sm dark:bg-neutral-800/85">
+                  <span>Scroll to read</span>
+                  <span aria-hidden="true" className="text-base leading-none">
+                    ↓
+                  </span>
+                </div>
               </div>
             </>
           )}
@@ -375,6 +400,7 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
         </div>
       </div>
     </div>
+    </>
   );
 }
 

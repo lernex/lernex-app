@@ -53,6 +53,8 @@ export async function POST(req: Request) {
     // Adjust style and length based on mode
     const systemQuick = [
       "Answer the user's prompt directly in one very concise paragraph (30–60 words).",
+      "CRITICAL: Stay strictly within the boundaries of the specified subject. Do NOT introduce concepts from other subjects or higher-level topics.",
+      "For example, if the subject is 'Algebra 1', do NOT include concepts like vectors, norms, calculus, or advanced topics. Only use concepts appropriate for that exact subject level.",
       "Do not add extra context beyond what is needed to answer.",
       "Do not use JSON, markdown, or code fences; avoid HTML tags.",
       "For math, use \\( ... \\) for inline and \\[ ... \\] for display. Do NOT use single-dollar $...$ delimiters.",
@@ -63,6 +65,8 @@ export async function POST(req: Request) {
     ].join(" ");
     const systemMini = [
       "Write a concise micro-lesson of 80–120 words in exactly two short paragraphs.",
+      "CRITICAL: Stay strictly within the boundaries of the specified subject. Do NOT introduce concepts from other subjects or higher-level topics.",
+      "For example, if the subject is 'Algebra 1', do NOT include concepts like vectors, norms, calculus, or advanced topics. Only use concepts appropriate for that exact subject level.",
       "Answer the user's question and provide a tiny bit of explanation for learning.",
       "Do not use JSON, markdown, or code fences; avoid HTML tags.",
       "For math, use \\( ... \\) for inline and \\[ ... \\] for display. Do NOT use single-dollar $...$ delimiters.",
@@ -73,6 +77,9 @@ export async function POST(req: Request) {
     ].join(" ");
     const systemFull = [
       "Write an in-depth lesson of ~400–700 words across multiple short paragraphs.",
+      "CRITICAL: Stay strictly within the boundaries of the specified subject. Do NOT introduce concepts from other subjects or higher-level topics.",
+      "For example, if the subject is 'Algebra 1', do NOT include concepts like vectors, norms, calculus, multivariable calculus, linear algebra, or any advanced mathematics. Only use concepts appropriate for that exact subject level.",
+      "If the subject is 'Geometry', only use geometric concepts. If the subject is 'Calculus 1', do not include Calculus 2 or 3 concepts like sequences, series, or multivariable calculus.",
       "Answer the user's question thoroughly, add background, key definitions, step-by-step reasoning, a small worked example, common pitfalls, and a short summary.",
       "Do not use JSON, markdown, or code fences; avoid HTML tags.",
       "For math, use \\( ... \\) for inline and \\[ ... \\] for display. Do NOT use single-dollar $...$ delimiters.",
