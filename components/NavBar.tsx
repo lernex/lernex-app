@@ -22,6 +22,7 @@ import {
   Flame,
   Star,
   Crown,
+  GraduationCap,
 } from "lucide-react";
 
 export default function NavBar() {
@@ -224,6 +225,7 @@ export default function NavBar() {
       { href: "/fyp", label: "Home", icon: Home, exact: true },
       { href: "/pricing", label: "Pricing", icon: Diamond },
       { href: "/generate", label: "Generate", icon: Sparkles },
+      { href: "/sat-prep", label: "SAT Prep", icon: GraduationCap },
       { href: "/upload", label: "Upload", icon: UploadCloud },
       { href: "/playlists", label: "Playlists", icon: BookOpen },
       { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
