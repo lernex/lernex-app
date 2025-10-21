@@ -332,6 +332,11 @@ export default function Leaderboard() {
           return;
         }
 
+        type FriendshipRow = {
+          user_a: string;
+          user_b: string;
+        };
+
         let friendIds: string[] = [];
         if (uid) {
           const { data: friendRows, error: friendError } = await supabase
@@ -340,7 +345,7 @@ export default function Leaderboard() {
             .or(`user_a.eq.${uid},user_b.eq.${uid}`);
           if (friendError) throw friendError;
           friendIds = uniqueIds(
-            (friendRows ?? []).map((row) => {
+            ((friendRows ?? []) as FriendshipRow[]).map((row) => {
               const a = typeof row.user_a === "string" ? row.user_a : null;
               const b = typeof row.user_b === "string" ? row.user_b : null;
               return a === uid ? b : a;
