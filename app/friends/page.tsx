@@ -125,28 +125,28 @@ type ToastState = {
 
 type StudySession = {
   id: string;
-  organizerId: string;
-  friendId: string;
+  organizer_id: string;
+  friend_id: string;
   title: string;
   description: string | null;
   subject: string | null;
   topics: string[] | null;
-  scheduledAt: string;
-  durationMinutes: number;
+  scheduled_at: string;
+  duration_minutes: number;
   status: "pending" | "confirmed" | "cancelled" | "completed";
-  createdAt: string;
-  updatedAt: string | null;
+  created_at: string;
+  updated_at: string | null;
   organizer: {
     id: string;
     username: string | null;
-    fullName: string | null;
-    avatarUrl: string | null;
+    full_name: string | null;
+    avatar_url: string | null;
   } | null;
   friend: {
     id: string;
     username: string | null;
-    fullName: string | null;
-    avatarUrl: string | null;
+    full_name: string | null;
+    avatar_url: string | null;
   } | null;
 };
 
@@ -291,7 +291,6 @@ export default function FriendsPage() {
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
   const [studySessions, setStudySessions] = useState<StudySession[]>([]);
-  const [sessionsLoading, setSessionsLoading] = useState(true);
 
   useEffect(() => {
     if (!toast) return;
@@ -328,7 +327,6 @@ export default function FriendsPage() {
   }, [load]);
 
   const loadStudySessions = useCallback(async () => {
-    setSessionsLoading(true);
     try {
       const response = await fetch("/api/study-sessions", { method: "GET", cache: "no-store" });
       if (!response.ok) throw new Error("Failed to fetch sessions");
@@ -338,8 +336,6 @@ export default function FriendsPage() {
     } catch (err) {
       console.error("Failed to load study sessions:", err);
       setStudySessions([]);
-    } finally {
-      setSessionsLoading(false);
     }
   }, []);
 
@@ -699,14 +695,14 @@ export default function FriendsPage() {
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {studySessions.slice(0, 6).map((session) => {
-              const isOrganizer = session.organizerId === data?.profile.id;
+              const isOrganizer = session.organizer_id === data?.profile.id;
               const partner = isOrganizer ? session.friend : session.organizer;
               const partnerName = displayName(
                 partner?.username || null,
-                partner?.fullName || null,
+                partner?.full_name || null,
                 "Friend"
               );
-              const scheduledDate = new Date(session.scheduledAt);
+              const scheduledDate = new Date(session.scheduled_at);
               const formattedDate = new Intl.DateTimeFormat(undefined, {
                 weekday: "short",
                 month: "short",
@@ -741,7 +737,7 @@ export default function FriendsPage() {
                         </div>
                       </div>
                       {partner && (
-                        <Avatar name={partnerName} src={partner.avatarUrl} size={36} />
+                        <Avatar name={partnerName} src={partner.avatar_url} size={36} />
                       )}
                     </div>
 
@@ -752,7 +748,7 @@ export default function FriendsPage() {
                       </div>
                       <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
                         <Clock className="h-3.5 w-3.5 text-lernex-purple" />
-                        <span>{formattedTime} • {session.durationMinutes} min</span>
+                        <span>{formattedTime} • {session.duration_minutes} min</span>
                       </div>
                       {session.subject && (
                         <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-lernex-blue/30 bg-gradient-to-r from-lernex-blue/10 to-lernex-purple/10 px-2.5 py-1 text-xs text-lernex-blue dark:text-lernex-blue/90">

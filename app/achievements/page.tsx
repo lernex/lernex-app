@@ -242,46 +242,6 @@ const itemVariants = {
   },
 };
 
-const badgeUnlockedVariants = {
-  initial: { scale: 1 },
-  animate: {
-    scale: [1, 1.05, 1],
-    boxShadow: [
-      "0 0 0px rgba(47, 128, 237, 0)",
-      "0 0 20px rgba(47, 128, 237, 0.6)",
-      "0 0 0px rgba(47, 128, 237, 0)",
-    ],
-    transition: {
-      duration: 2,
-      repeat: Infinity,
-      repeatDelay: 3,
-    },
-  },
-};
-
-const progressBarVariants = {
-  initial: { width: 0 },
-  animate: (progress: number) => ({
-    width: `${progress}%`,
-    transition: {
-      duration: 1.5,
-      ease: "easeOut",
-      delay: 0.2,
-    },
-  }),
-};
-
-const shimmerVariants = {
-  initial: { backgroundPosition: "-200% 0" },
-  animate: {
-    backgroundPosition: "200% 0",
-    transition: {
-      duration: 2,
-      repeat: Infinity,
-      ease: "linear",
-    },
-  },
-};
 
 // Confetti particle component
 function ConfettiParticle({ delay }: { delay: number }) {
@@ -2267,7 +2227,7 @@ export default function AchievementsPage(): JSX.Element {
           variants={containerVariants}
           className="space-y-6"
         >
-          {badgeGroups.map((group, groupIndex) => (
+          {badgeGroups.map((group) => (
             <motion.div
               key={group.id}
               variants={itemVariants}
