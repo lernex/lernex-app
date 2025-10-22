@@ -14,7 +14,6 @@ import { supabaseServer } from "@/lib/supabase-server";
 import SidebarOffsetWrapper from "@/components/SidebarOffsetWrapper";
 
 const inter = Inter({ subsets: ["latin"] });
-type ThemeMode = "light" | "dark";
 type ThemePreference = "auto" | "light" | "dark";
 
 export const metadata: Metadata = defaultMetadata;
@@ -23,17 +22,6 @@ export const dynamic = "force-dynamic";
 
 const sanitizeThemePref = (value: unknown): ThemePreference | null =>
   value === "auto" || value === "light" || value === "dark" ? value : null;
-
-// Get browser's preferred color scheme (server-safe fallback)
-const getBrowserPreferenceServer = (): ThemeMode => "dark";
-
-// Resolve preference to actual theme (server-side version)
-const resolveThemeServer = (preference: ThemePreference | null): ThemeMode => {
-  if (preference === "light") return "light";
-  if (preference === "dark") return "dark";
-  // "auto" or null - default to dark for server-side
-  return getBrowserPreferenceServer();
-};
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   let initialPreference: ThemePreference | null = null;

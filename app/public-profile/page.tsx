@@ -71,7 +71,8 @@ function cn(...classes: Array<string | null | undefined | false>) {
 }
 
 export default function PublicProfilePage() {
-  const [data, setData] = useState<ProfileData | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
