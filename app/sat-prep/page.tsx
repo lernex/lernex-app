@@ -15,20 +15,20 @@ type SATTopic = {
 };
 
 const SAT_TOPICS: SATTopic[] = [
-  // Math topics
+  // Math topics (currently no questions in database)
   { id: "algebra", label: "Algebra", section: "math" },
   { id: "geometry", label: "Geometry", section: "math" },
   { id: "trigonometry", label: "Trigonometry", section: "math" },
   { id: "data-analysis", label: "Data Analysis", section: "math" },
   { id: "problem-solving", label: "Problem Solving", section: "math" },
 
-  // Reading topics
+  // Reading topics - matches database tags
+  { id: "vocabulary-in-context", label: "Vocabulary in Context", section: "reading" },
+  { id: "word-choice", label: "Word Choice", section: "reading" },
+  { id: "logical-completion", label: "Logical Completion", section: "reading" },
   { id: "comprehension", label: "Reading Comprehension", section: "reading" },
-  { id: "evidence-based", label: "Evidence-Based Reading", section: "reading" },
-  { id: "vocabulary", label: "Vocabulary in Context", section: "reading" },
-  { id: "main-idea", label: "Main Idea & Details", section: "reading" },
 
-  // Writing topics
+  // Writing topics (currently no questions in database)
   { id: "grammar", label: "Grammar & Usage", section: "writing" },
   { id: "sentence-structure", label: "Sentence Structure", section: "writing" },
   { id: "punctuation", label: "Punctuation", section: "writing" },
@@ -36,8 +36,8 @@ const SAT_TOPICS: SATTopic[] = [
 ];
 
 export default function SATPrep() {
-  const [selectedSection, setSelectedSection] = useState<SATSection>("math");
-  const [selectedTopic, setSelectedTopic] = useState<string>("algebra");
+  const [selectedSection, setSelectedSection] = useState<SATSection>("reading");
+  const [selectedTopic, setSelectedTopic] = useState<string>("vocabulary-in-context");
   const [streamed, setStreamed] = useState("");
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [loading, setLoading] = useState(false);

@@ -41,12 +41,24 @@ export async function POST(req: Request) {
     console.log("[sat-prep/quiz] request-start", { section, topic, topicLabel });
 
     // Fetch sample SAT questions from database
-    const { data: sampleQuestions } = await sb
+    // Try topic-specific query first, fall back to section-only query if no matches
+    let { data: sampleQuestions } = await sb
       .from("sat_questions")
       .select("question_text, answer_choices, correct_answer, explanation")
       .eq("section", section)
-      .ilike("tags", `%${topic}%`)
+      .or(`tags.cs.{${topic}},topic.ilike.%${topic}%`)
       .limit(3);
+
+    // If no topic-specific questions found, get any questions from this section
+    if (!sampleQuestions || sampleQuestions.length === 0) {
+      console.log(`[sat-prep/quiz] no questions for topic "${topic}", trying section-only`);
+      const fallbackResult = await sb
+        .from("sat_questions")
+        .select("question_text, answer_choices, correct_answer, explanation")
+        .eq("section", section)
+        .limit(3);
+      sampleQuestions = fallbackResult.data;
+    }
 
     const hasExamples = sampleQuestions && sampleQuestions.length > 0;
     let exampleContext = "";
@@ -62,6 +74,8 @@ export async function POST(req: Request) {
         }
         exampleContext += `Correct: ${q.correct_answer}\nExplanation: ${q.explanation}\n\n`;
       });
+    } else {
+      console.log(`[sat-prep/quiz] no questions found for section "${section}", generating without examples`);
     }
 
     const systemPrompt = [
