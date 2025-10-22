@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     const hasExamples = sampleQuestions && sampleQuestions.length > 0;
     let exampleContext = "";
 
-    if (hasExamples) {
+    if (hasExamples && sampleQuestions) {
       exampleContext = "\n\nHere are some real SAT question examples for reference:\n\n";
       sampleQuestions.forEach((q, idx) => {
         exampleContext += `Example ${idx + 1}:\n${q.question_text}\n`;
