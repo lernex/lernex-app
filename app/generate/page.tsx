@@ -25,7 +25,6 @@ export default function Generate() {
   const [followUpHistory, setFollowUpHistory] = useState<Array<{ question: string; answer: string }>>([]);
   const [followUpStreaming, setFollowUpStreaming] = useState("");
   const [followUpLoading, setFollowUpLoading] = useState(false);
-  const [quizCompleted, setQuizCompleted] = useState(false);
 
   const startProgress = () => {
     setProgress(0);
@@ -107,7 +106,6 @@ Current Question: ${followUpQuestion}
     setStreamed("");
     setFollowUpHistory([]);
     setFollowUpQuestion("");
-    setQuizCompleted(false);
     startProgress();
 
     try {
@@ -316,7 +314,7 @@ Current Question: ${followUpQuestion}
           <div className="space-y-3">
             <LessonCard lesson={lesson} className="max-h-[60vh] sm:max-h-[520px] min-h-[260px]" />
             {Array.isArray(lesson.questions) && lesson.questions.length > 0 && (
-              <QuizBlock lesson={lesson} onDone={() => setQuizCompleted(true)} />
+              <QuizBlock lesson={lesson} onDone={() => {}} />
             )}
 
             {/* Follow-up Questions Section - Show immediately after lesson is generated */}
