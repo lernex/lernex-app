@@ -17,7 +17,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { AnimatePresence, motion } from "framer-motion";
-import { Camera, CheckCircle2, Loader2, UploadCloud } from "lucide-react";
+import { Camera, CheckCircle2, Loader2, UploadCloud, Plus, Trash2 } from "lucide-react";
+import AddInterestModal from "@/components/AddInterestModal";
+import RemoveInterestModal from "@/components/RemoveInterestModal";
 
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
@@ -87,6 +89,10 @@ export default function SettingsPage() {
   const [usernameStatusMessage, setUsernameStatusMessage] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [initialUsername, setInitialUsername] = useState<string>("");
+  const [interests, setInterests] = useState<string[]>([]);
+  const [levelMap, setLevelMap] = useState<Record<string, string> | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -172,6 +178,9 @@ export default function SettingsPage() {
         setUsernameStatus("idle");
         setUsernameStatusMessage("");
         setPreferencesFeedback(null);
+        // Load interests and level_map
+        setInterests(Array.isArray(data.interests) ? data.interests : []);
+        setLevelMap(data.level_map && typeof data.level_map === "object" ? data.level_map : null);
       } catch {
         if (!active) return;
         setPreferencesFeedback({
@@ -564,6 +573,19 @@ export default function SettingsPage() {
     }
   }, []);
 
+  const handleInterestsRefresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/profile/me", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setInterests(Array.isArray(data.interests) ? data.interests : []);
+        setLevelMap(data.level_map && typeof data.level_map === "object" ? data.level_map : null);
+      }
+    } catch {
+      // Silently fail - user will see old data
+    }
+  }, []);
+
   const subjects = useMemo(
     () => Object.entries(accuracyBySubject).sort((a, b) => b[1].total - a[1].total),
     [accuracyBySubject],
@@ -727,18 +749,37 @@ export default function SettingsPage() {
               </div>
             )}
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <Link
-                href="/onboarding"
-                className="rounded-2xl border border-white/40 px-4 py-3 text-center text-sm font-semibold transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10"
+              <motion.button
+                onClick={() => setShowAddModal(true)}
+                className="group relative overflow-hidden rounded-2xl border border-lernex-blue/50 bg-gradient-to-r from-lernex-blue to-sky-500 px-4 py-3 text-center text-sm font-semibold text-white shadow-lg shadow-lernex-blue/25 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-lernex-blue/30"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
-                Update interests
-              </Link>
-              <Link
-                href="/placement"
-                className="rounded-2xl border border-white/40 px-4 py-3 text-center text-sm font-semibold transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10"
+                <span className="relative z-10 flex items-center justify-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add Subject
+                </span>
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-sky-500 to-lernex-blue opacity-0 transition-opacity group-hover:opacity-100"
+                  initial={false}
+                />
+              </motion.button>
+              <motion.button
+                onClick={() => setShowRemoveModal(true)}
+                disabled={interests.length === 0}
+                className="group relative overflow-hidden rounded-2xl border border-rose-500/50 bg-gradient-to-r from-rose-500 to-red-600 px-4 py-3 text-center text-sm font-semibold text-white shadow-lg shadow-rose-500/25 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-rose-500/30 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                whileHover={{ scale: interests.length > 0 ? 1.02 : 1 }}
+                whileTap={{ scale: interests.length > 0 ? 0.98 : 1 }}
               >
-                Run placement
-              </Link>
+                <span className="relative z-10 flex items-center justify-center gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  Remove Subject
+                </span>
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-red-600 to-rose-500 opacity-0 transition-opacity group-hover:opacity-100"
+                  initial={false}
+                />
+              </motion.button>
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-white/40 bg-white/70 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-neutral-950/50">
@@ -1087,6 +1128,21 @@ export default function SettingsPage() {
         </div>
       </motion.section>
     </div>
+
+    {/* Modals */}
+    <AddInterestModal
+      isOpen={showAddModal}
+      onClose={() => setShowAddModal(false)}
+      currentInterests={interests}
+      onSuccess={handleInterestsRefresh}
+    />
+    <RemoveInterestModal
+      isOpen={showRemoveModal}
+      onClose={() => setShowRemoveModal(false)}
+      currentInterests={interests}
+      levelMap={levelMap}
+      onSuccess={handleInterestsRefresh}
+    />
     </main>
   );
 }

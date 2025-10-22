@@ -171,7 +171,24 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
 
   if (!state) {
-    return new Response(JSON.stringify({ error: "No learning path" }), { status: 400 });
+    // Auto-create user_subject_state if it doesn't exist to allow feedback
+    try {
+      const { error: createError } = await sb
+        .from("user_subject_state")
+        .upsert({
+          user_id: user.id,
+          subject,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id,subject" });
+
+      if (createError) {
+        console.error("[fyp-feedback] Failed to create subject state", createError);
+        return new Response(JSON.stringify({ error: "Failed to initialize subject state" }), { status: 500 });
+      }
+    } catch (initErr) {
+      console.error("[fyp-feedback] Failed to initialize subject state", initErr);
+      return new Response(JSON.stringify({ error: "Failed to initialize subject state" }), { status: 500 });
+    }
   }
 
   let liked: string[] = [];
