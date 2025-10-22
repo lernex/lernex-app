@@ -12,6 +12,7 @@ import {
   ArrowUp,
   BookOpen,
   Calendar,
+  Check,
   Edit3,
   Globe,
   Link2,

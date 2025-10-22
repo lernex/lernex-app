@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       .order("position", { ascending: false })
       .limit(1);
 
-    let nextPosition = (items && items[0]?.position) ? items[0].position + 1 : 1;
+    const nextPosition = (items && items[0]?.position) ? items[0].position + 1 : 1;
 
     // Get existing lesson IDs in playlist to avoid duplicates
     const { data: existingItems } = await sb

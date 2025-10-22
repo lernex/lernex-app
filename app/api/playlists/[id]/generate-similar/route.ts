@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
-import { generateLesson } from "@/lib/fyp";
+import { generateLessonForTopic } from "@/lib/fyp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ export const maxDuration = 60;
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const sb = supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
@@ -19,7 +19,7 @@ export async function GET(
     });
   }
 
-  const { id: playlistId } = params;
+  const { id: playlistId } = await params;
   const url = new URL(req.url);
   const countParam = url.searchParams.get("count");
   const count = countParam ? Math.min(Math.max(1, parseInt(countParam)), 10) : 3;
@@ -141,7 +141,7 @@ export async function GET(
 
     for (let i = 0; i < count; i++) {
       try {
-        const lesson = await generateLesson(
+        const lesson = await generateLessonForTopic(
           sb,
           user.id,
           ip,

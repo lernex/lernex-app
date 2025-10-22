@@ -739,7 +739,7 @@ export default function FriendsPage() {
             </div>
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            {studySessions.slice(0, 6).map((session) => {
+            {studySessions.slice(0, 6).map((session, index) => {
               const isOrganizer = session.organizer_id === data?.profile.id;
               const partner = isOrganizer ? session.friend : session.organizer;
               const partnerName = displayName(

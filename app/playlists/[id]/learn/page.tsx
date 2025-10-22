@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Loader2, Play, RefreshCw, Sparkles, Zap } from "lucide-react";
+import { ArrowLeft, Loader2, Play, Sparkles, Zap } from "lucide-react";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import LessonCard from "@/components/LessonCard";
@@ -23,7 +23,6 @@ type SavedLesson = {
 
 export default function PlaylistLearnMode() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const [mode, setMode] = useState<"learn" | "reinforce">("learn");
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -344,7 +343,7 @@ export default function PlaylistLearnMode() {
               >
                 <QuizBlock
                   lesson={currentLesson}
-                  onComplete={() => {
+                  onDone={() => {
                     setQuizMode(false);
                     if (currentIndex < lessons.length - 1) {
                       setTimeout(() => handleNext(), 1000);

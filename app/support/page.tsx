@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import { useProfileStats } from '@/app/providers/ProfileStatsProvider';
-import { FormattedText } from '@/components/FormattedText';
+import FormattedText from '@/components/FormattedText';
 
 const SUPPORT_EMAIL = 'support@lernex.net';
 
@@ -462,7 +462,7 @@ function SupportChat({ context }: { context: string }) {
             }`}
           >
             <div className="block whitespace-pre-wrap">
-              <FormattedText>{message.content}</FormattedText>
+              <FormattedText text={message.content} />
             </div>
           </div>
         ))}

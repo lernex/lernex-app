@@ -8,8 +8,6 @@ import {
   Save,
   Loader2,
   Eye,
-  EyeOff,
-  ImageIcon,
   X,
   Plus,
   Check,
@@ -474,7 +472,7 @@ export default function PublicProfilePage() {
                   Study Interests
                 </h2>
                 <p className="mb-4 text-sm text-neutral-600 dark:text-neutral-300">
-                  Add subjects you're interested in to help others find you. Select from the list
+                  Add subjects you&apos;re interested in to help others find you. Select from the list
                   below or add your own.
                 </p>
 

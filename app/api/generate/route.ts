@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { buildLessonPrompts } from "@/lib/lesson-prompts";
+import { supabaseServer } from "@/lib/supabase-server";
 
 
 export const dynamic = "force-dynamic";
