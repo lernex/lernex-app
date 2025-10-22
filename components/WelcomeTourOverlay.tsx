@@ -258,7 +258,7 @@ export default function WelcomeTourOverlay() {
                     </button>
                     <button
                       onClick={isLast ? closeTour : nextStep}
-                      className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition hover:bg-white/90"
+                      className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition hover:bg-white/90 dark:bg-white dark:text-neutral-900"
                     >
                       {isLast ? "Start exploring" : "Next"}
                     </button>

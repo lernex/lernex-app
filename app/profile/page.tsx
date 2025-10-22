@@ -27,7 +27,7 @@ type FeedbackTone = "success" | "error" | "info";
 type FeedbackState = { message: string; tone: FeedbackTone };
 
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid" | "blocked";
-type ThemePreference = "light" | "dark";
+type ThemePreference = "auto" | "light" | "dark";
 
 const toneClass: Record<FeedbackTone, string> = {
   success: "text-emerald-600 dark:text-emerald-400",
@@ -80,8 +80,8 @@ export default function SettingsPage() {
   const [firstName, setFirstName] = useState<string>("");
   const [lastName, setLastName] = useState<string>("");
   const [dob, setDob] = useState<string>("");
-  const [themePreference, setThemePreference] = useState<ThemePreference>("dark");
-  const [savedThemePreference, setSavedThemePreference] = useState<ThemePreference>("dark");
+  const [themePreference, setThemePreference] = useState<ThemePreference>("auto");
+  const [savedThemePreference, setSavedThemePreference] = useState<ThemePreference>("auto");
   const [accountLoading, setAccountLoading] = useState(true);
   const [preferencesSaving, setPreferencesSaving] = useState(false);
   const [preferencesFeedback, setPreferencesFeedback] = useState<FeedbackState | null>(null);
@@ -171,10 +171,13 @@ export default function SettingsPage() {
         setDob(typeof data.dob === "string" ? data.dob : "");
         const themePrefRaw =
           typeof data?.theme_pref === "string" ? (data.theme_pref as string) : null;
-        const nextTheme: ThemePreference = themePrefRaw === "light" ? "light" : "dark";
+        const nextTheme: ThemePreference =
+          themePrefRaw === "auto" ? "auto" :
+          themePrefRaw === "light" ? "light" :
+          themePrefRaw === "dark" ? "dark" : "auto";
         setSavedThemePreference(nextTheme);
         setThemePreference(nextTheme);
-        setTheme(nextTheme);
+        // Don't call setTheme here - let ThemeProvider handle it based on preference
         setUsernameStatus("idle");
         setUsernameStatusMessage("");
         setPreferencesFeedback(null);
@@ -499,8 +502,21 @@ export default function SettingsPage() {
           : trimmedFirst
         : null;
 
-    // Apply theme IMMEDIATELY for instant visual feedback
-    setTheme(themePreference);
+    // Save the preference to localStorage and apply it immediately
+    try {
+      window.localStorage.setItem('lernex-theme', themePreference);
+    } catch {
+      // ignore
+    }
+
+    // Apply theme based on preference for instant visual feedback
+    const resolveTheme = (pref: ThemePreference): "light" | "dark" => {
+      if (pref === "light") return "light";
+      if (pref === "dark") return "dark";
+      // auto - use browser preference
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    };
+    setTheme(resolveTheme(themePreference));
     setSavedThemePreference(themePreference);
 
     setPreferencesSaving(true);
@@ -982,8 +998,9 @@ export default function SettingsPage() {
                   disabled={accountLoading || preferencesSaving}
                   className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950"
                 >
-                  <option value="dark">Dark</option>
+                  <option value="auto">Auto (Browser Default)</option>
                   <option value="light">Light</option>
+                  <option value="dark">Dark</option>
                 </select>
               </div>
             </div>

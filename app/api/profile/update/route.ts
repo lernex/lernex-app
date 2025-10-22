@@ -72,7 +72,7 @@ export async function POST(req: Request) {
       normalizedUsername ??
       (typeof username === "string" ? username.trim() || undefined : undefined),
     dob: typeof dob === "string" ? dob : undefined,
-    theme_pref: theme_pref === "light" || theme_pref === "dark" ? theme_pref : undefined,
+    theme_pref: theme_pref === "auto" || theme_pref === "light" || theme_pref === "dark" ? theme_pref : undefined,
     updated_at: new Date().toISOString(),
   };
 

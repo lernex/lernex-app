@@ -30,15 +30,52 @@ const LATEX_SET_MACROS = [
 const LATEX_SYMBOL_MACROS = [
   "cdot",
   "times",
+  "div",
   "pm",
+  "mp",
   "leq",
   "geq",
   "neq",
   "approx",
   "sim",
+  "cong",
+  "equiv",
   "propto",
   "forall",
   "exists",
+  "in",
+  "notin",
+  "subset",
+  "supset",
+  "subseteq",
+  "supseteq",
+  "cap",
+  "cup",
+  "emptyset",
+  "rightarrow",
+  "leftarrow",
+  "leftrightarrow",
+  "Rightarrow",
+  "Leftarrow",
+  "Leftrightarrow",
+  "mapsto",
+  "implies",
+  "iff",
+  "neg",
+  "wedge",
+  "vee",
+  "perp",
+  "parallel",
+  "angle",
+  "triangle",
+  "square",
+  "circ",
+  "bullet",
+  "star",
+  "ast",
+  "oplus",
+  "otimes",
+  "odot",
 ] as const;
 
 const LATEX_GREEK_LOWER = [
@@ -98,9 +135,29 @@ const LATEX_CALCULUS_MACROS = [
 
 const LATEX_FUNCTION_MACROS = [
   "log",
+  "ln",
   "sin",
   "cos",
   "tan",
+  "sec",
+  "csc",
+  "cot",
+  "arcsin",
+  "arccos",
+  "arctan",
+  "sinh",
+  "cosh",
+  "tanh",
+  "exp",
+  "min",
+  "max",
+  "det",
+  "dim",
+  "ker",
+  "deg",
+  "arg",
+  "gcd",
+  "lcm",
   "to",
 ] as const;
 
@@ -109,9 +166,19 @@ const LATEX_ENVIRONMENT_MACROS = [
   "end",
 ] as const;
 
+const LATEX_TEXT_MACROS = [
+  "text",
+  "textrm",
+  "textit",
+  "textbf",
+  "textsf",
+  "texttt",
+] as const;
+
 export const LATEX_TEXT_BRACED_MACROS = [
   ...LATEX_STRUCTURE_MACROS,
   ...LATEX_ACCENT_MACROS,
+  ...LATEX_TEXT_MACROS,
 ] as const;
 
 export const LATEX_TEXT_SYMBOL_MACROS = [
@@ -147,6 +214,7 @@ export const LATEX_MACRO_NAMES = [
   ...LATEX_CALCULUS_MACROS,
   ...LATEX_FUNCTION_MACROS,
   ...LATEX_ENVIRONMENT_MACROS,
+  ...LATEX_TEXT_MACROS,
   "infty",
 ] as const;
 
@@ -225,3 +293,6 @@ export function hasLatexIssues(scan: LatexScanResult): boolean {
     scan.oddDollarBlocks
   );
 }
+
+// Export MATH_TRIGGER_RE for use in components
+export const MATH_TRIGGER_RE = /(\$|\\\(|\\\[|\\begin|√|⟨|_\{|\\\^)/;

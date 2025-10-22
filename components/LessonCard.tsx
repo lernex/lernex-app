@@ -5,13 +5,12 @@ import { Lesson } from "@/types";
 import FormattedText from "./FormattedText";
 import ExpandedLessonModal from "./ExpandedLessonModal";
 import ReportIssueModal from "./ReportIssueModal";
+import { MATH_TRIGGER_RE } from "@/lib/latex";
 
 type LessonCardProps = {
   lesson: Lesson;
   className?: string;
 };
-
-const MATH_TRIGGER_RE = /(\$|\\\(|\\\[|\\begin|âˆš|âŸ¨|_\{|\\\^)/;
 
 export default function LessonCard({ lesson, className }: LessonCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);

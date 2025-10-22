@@ -30,7 +30,7 @@ export interface Database {
           updated_at: string | null;
           dob: string | null;               // date as ISO string
           placement_ready: boolean | null;  // flag to gate /placement
-          theme_pref: string | null;        // "light" or "dark"
+          theme_pref: string | null;        // "auto", "light", or "dark"
         };
         Insert: {
           id: string;

@@ -767,13 +767,13 @@ export default function MarketingLanding() {
                     <div className="cursor-pointer rounded-xl border-2 border-lernex-green bg-lernex-green/10 px-4 py-3 font-medium text-neutral-900 shadow-sm transition">
                       ✓ Never trust, always verify
                     </div>
-                    <div className="cursor-pointer rounded-xl border-2 border-neutral-200 bg-white px-4 py-3 text-neutral-700 opacity-60">
+                    <div className="cursor-pointer rounded-xl border-2 border-neutral-200 bg-white px-4 py-3 text-neutral-700 opacity-60 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
                       Trust internal networks by default
                     </div>
-                    <div className="cursor-pointer rounded-xl border-2 border-neutral-200 bg-white px-4 py-3 text-neutral-700 opacity-60">
+                    <div className="cursor-pointer rounded-xl border-2 border-neutral-200 bg-white px-4 py-3 text-neutral-700 opacity-60 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
                       Block all external connections
                     </div>
-                    <div className="cursor-pointer rounded-xl border-2 border-neutral-200 bg-white px-4 py-3 text-neutral-700 opacity-60">
+                    <div className="cursor-pointer rounded-xl border-2 border-neutral-200 bg-white px-4 py-3 text-neutral-700 opacity-60 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
                       Verify only at network perimeter
                     </div>
                   </div>
@@ -918,7 +918,7 @@ export default function MarketingLanding() {
             <div className="mt-8 flex flex-col items-center justify-center gap-4 md:flex-row">
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center rounded-full bg-white px-8 py-3 font-semibold text-lernex-purple shadow-lg shadow-black/20 transition transform hover:-translate-y-0.5"
+                className="inline-flex items-center justify-center rounded-full bg-white px-8 py-3 font-semibold text-lernex-purple shadow-lg shadow-black/20 transition transform hover:-translate-y-0.5 dark:bg-white dark:text-lernex-purple"
               >
                 Start for free
               </Link>

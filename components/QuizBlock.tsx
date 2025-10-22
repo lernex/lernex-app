@@ -5,6 +5,7 @@ import { useLernexStore } from "@/lib/store";
 import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
 import { normalizeProfileStats } from "@/lib/profile-stats";
 import FormattedText from "./FormattedText";
+import { MATH_TRIGGER_RE } from "@/lib/latex";
 
 // Lightweight SFX helpers (WebAudio)
 let audioCtx: AudioContext | null = null;
@@ -122,8 +123,6 @@ type QuizBlockProps = {
   onDone: (correctCount: number) => void;
   showSummary?: boolean;
 };
-
-const MATH_TRIGGER_RE = /(\$|\\\(|\\\[|\\begin|√|⟨|_\{|\\\^)/;
 
 export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBlockProps) {
   const { stats, setStats, refresh } = useProfileStats();

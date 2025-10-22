@@ -7,6 +7,7 @@ import {
   LATEX_TEXT_SYMBOL_MACROS,
   LATEX_TEXT_BARE_MACROS,
   LATEX_TEXT_SINGLE_LETTER_MACROS,
+  MATH_TRIGGER_RE,
 } from "@/lib/latex";
 
 interface MathJaxWithConfig {
@@ -68,7 +69,11 @@ const RE_DOUBLE_BAR = /\|\|([^|]{1,80})\|\|/g;
 // Angle brackets ⟨...⟩ and square root √(...) using literal UTF-8 characters
 const RE_ANGLE = /⟨([^⟩]{1,80})⟩/g;
 const RE_SQRT = /√\s*\(?([0-9A-Za-z+\-*/^\s,.]+?)\)?(?=(\s|[.,;:)\]]|$))/g;
-const MATH_TRIGGER_RE = /(\$|\\\(|\\\[|\\begin|√|⟨|_\{|\\\^)/;
+// Superscript patterns - match ^{...} or ^single_char but not in TeX blocks
+const RE_SUPERSCRIPT = /([A-Za-z0-9]+)\^(\{[^}]+\}|[A-Za-z0-9])/g;
+// Markdown list patterns
+const RE_UNORDERED_LIST = /^[ \t]*[-*+]\s+(.+)$/gm;
+const RE_ORDERED_LIST = /^[ \t]*(\d+)\.\s+(.+)$/gm;
 
 const SINGLE_DOLLAR_MAX_DISTANCE = 240;
 const SYMBOL_MACRO_SET = new Set<string>(Array.from(LATEX_TEXT_SYMBOL_MACROS));
@@ -465,22 +470,20 @@ function splitMathSegments(src: string): Seg[] {
 
 function formatNonMath(s: string) {
   const wrap = (tex: string) => `\\(${tex}\\)`;
-  const codeReplacements: Record<string, string> = {};
-  const codeBlockReplacements: Record<string, string> = {};
-  let codeIndex = 0;
-  let codeBlockIndex = 0;
+  const replacements = new Map<string, string>();
+  let placeholderIndex = 0;
 
   // First, protect code blocks from all processing
   const withCodeBlockPlaceholders = s.replace(RE_CODE_BLOCK, (match) => {
-    const key = `__CODE_BLOCK_${codeBlockIndex++}__`;
-    codeBlockReplacements[key] = `<pre><code>${escapeHtml(match.slice(3, -3))}</code></pre>`;
+    const key = `__PLACEHOLDER_${placeholderIndex++}__`;
+    replacements.set(key, `<pre><code>${escapeHtml(match.slice(3, -3))}</code></pre>`);
     return key;
   });
 
   // Then protect inline code spans
   const withPlaceholders = withCodeBlockPlaceholders.replace(RE_CODE, (_match, inner: string) => {
-    const key = `__CODE_SPAN_${codeIndex++}__`;
-    codeReplacements[key] = `<code>${escapeHtml(inner)}</code>`;
+    const key = `__PLACEHOLDER_${placeholderIndex++}__`;
+    replacements.set(key, `<code>${escapeHtml(inner)}</code>`);
     return key;
   });
 
@@ -512,6 +515,25 @@ function formatNonMath(s: string) {
   // Strikethrough
   out = out.replace(RE_DEL, "<del>$1</del>");
 
+  // Process markdown lists before applying LaTeX wrapping
+  // Unordered lists
+  out = out.replace(RE_UNORDERED_LIST, (_match, content: string) => {
+    return `<li>${content.trim()}</li>`;
+  });
+  // Ordered lists
+  out = out.replace(RE_ORDERED_LIST, (_match, _num: string, content: string) => {
+    return `<li>${content.trim()}</li>`;
+  });
+  // Wrap consecutive <li> tags in proper list containers
+  out = out.replace(/(<li>[\s\S]+?<\/li>)(?:\n|$)/g, (match) => {
+    // Check if this block of <li>s is already wrapped
+    if (!match.includes('<ul>') && !match.includes('<ol>')) {
+      // Simple heuristic: if the first item in the source had a number, use <ol>
+      return `<ul>${match}</ul>`;
+    }
+    return match;
+  });
+
   // Conservatively wrap common TeX fragments that appear in plain text
   out = out.replace(RE_BEGIN_END, (m) => wrap(m));
   out = wrapBracedMacros(out, wrap);
@@ -519,16 +541,14 @@ function formatNonMath(s: string) {
     SYMBOL_MACRO_SET.has(name) ? wrap(match) : match
   );
   out = out.replace(RE_SUBSCRIPT, (_m, a, b) => wrap(`${a}_${b}`));
+  out = out.replace(RE_SUPERSCRIPT, (_m, a, b) => wrap(`${a}^${b}`));
   out = out.replace(RE_DOUBLE_BAR, (_m, inner) => wrap(`\\| ${inner.trim()} \\|`));
   out = out.replace(RE_ANGLE, (_m, inner) => wrap(`\\langle ${inner.trim()} \\rangle`));
   out = out.replace(RE_SQRT, (_m, inner) => wrap(`\\sqrt{${inner.trim()}}`));
 
-  // Restore code blocks first, then inline code
-  for (const key of Object.keys(codeBlockReplacements)) {
-    out = out.split(key).join(codeBlockReplacements[key]);
-  }
-  for (const key of Object.keys(codeReplacements)) {
-    out = out.split(key).join(codeReplacements[key]);
+  // Restore all placeholders in one pass
+  for (const [key, value] of replacements) {
+    out = out.replace(key, value);
   }
   return out;
 }

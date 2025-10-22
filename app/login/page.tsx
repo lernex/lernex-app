@@ -95,7 +95,7 @@ export default function LoginPage() {
 
         <button
           onClick={signInWithGoogle}
-          className="flex items-center justify-center w-full gap-2 py-3 rounded-xl bg-white border border-neutral-300 text-black hover:bg-neutral-200"
+          className="flex items-center justify-center w-full gap-2 py-3 rounded-xl bg-white border border-neutral-300 text-black hover:bg-neutral-200 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-700"
         >
           <Image src="/GoogleLogo.svg" alt="Google logo" width={20} height={20} />
           Continue with Google
