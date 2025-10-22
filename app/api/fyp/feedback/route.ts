@@ -243,7 +243,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (isPreferenceAction) {
-    await sb
+    const { error: prefError } = await sb
       .from("user_subject_preferences")
       .upsert({
         user_id: user.id,
@@ -254,13 +254,23 @@ export async function POST(req: NextRequest) {
         tone_tags: toneTags,
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id,subject" });
+
+    if (prefError) {
+      console.error("[fyp-feedback] Failed to save preferences", prefError);
+      return new Response(JSON.stringify({ error: "Failed to save feedback" }), { status: 500 });
+    }
   }
 
-  await sb
+  const { error: stateError } = await sb
     .from("user_subject_state")
     .update({ updated_at: new Date().toISOString() })
     .eq("user_id", user.id)
     .eq("subject", subject);
+
+  if (stateError) {
+    console.error("[fyp-feedback] Failed to update state", stateError);
+    return new Response(JSON.stringify({ error: "Failed to update state" }), { status: 500 });
+  }
 
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
 }

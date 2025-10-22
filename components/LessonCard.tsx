@@ -4,6 +4,7 @@ import { Maximize2 } from "lucide-react";
 import { Lesson } from "@/types";
 import FormattedText from "./FormattedText";
 import ExpandedLessonModal from "./ExpandedLessonModal";
+import ReportIssueModal from "./ReportIssueModal";
 
 type LessonCardProps = {
   lesson: Lesson;
@@ -22,6 +23,7 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
   const [reported, setReported] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const contextEntries = useMemo(() => {
     const ctx = lesson.context;
     if (!ctx || typeof ctx !== "object") return [];
@@ -221,6 +223,19 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
       : "border-surface bg-surface-muted text-neutral-600 hover:bg-surface-card dark:text-neutral-300",
   ].join(" ");
 
+  const handleReportSubmit = async (reason: string) => {
+    setReporting(true);
+    const success = await sendFeedback("report", { reason });
+    if (success) {
+      setReported(true);
+      setReporting(false);
+      return true;
+    } else {
+      setReporting(false);
+      return false;
+    }
+  };
+
   return (
     <>
       <ExpandedLessonModal
@@ -233,6 +248,12 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
           topic: lesson.topic,
           difficulty: lesson.difficulty,
         }}
+      />
+      <ReportIssueModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        onSubmit={handleReportSubmit}
+        isSubmitting={reporting}
       />
       <div ref={cardRef} className={rootClass}>
       <div className="pointer-events-none absolute inset-0 opacity-80 dark:opacity-40 bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.2),transparent_55%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.18),transparent_48%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.08),transparent_60%)]" />
@@ -378,18 +399,7 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
           <button
             onClick={() => {
               if (reporting || reported) return;
-              const note = window.prompt("Let us know what's inaccurate or confusing:", "");
-              if (note === null) return;
-              const trimmed = note.trim();
-              setReporting(true);
-              void sendFeedback("report", { reason: trimmed ? trimmed : undefined }).then((ok) => {
-                if (!ok) {
-                  setReporting(false);
-                  return;
-                }
-                setReported(true);
-                setReporting(false);
-              });
+              setIsReportModalOpen(true);
             }}
             className={reportClass}
             aria-label="Report inaccuracy"
