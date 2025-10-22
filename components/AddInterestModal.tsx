@@ -99,7 +99,7 @@ export default function AddInterestModal({
                   <h2 className="text-2xl font-bold">Add a Subject</h2>
                 </div>
                 <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                  Select a subject to add. You'll run a placement test to determine your
+                  Select a subject to add. You&apos;ll run a placement test to determine your
                   starting level.
                 </p>
               </div>
@@ -108,7 +108,7 @@ export default function AddInterestModal({
               {availableInterests.length === 0 ? (
                 <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-6 text-center dark:border-neutral-800 dark:bg-neutral-800/50">
                   <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                    You've already added all available subjects!
+                    You&apos;ve already added all available subjects!
                   </p>
                 </div>
               ) : (
