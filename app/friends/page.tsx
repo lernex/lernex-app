@@ -21,8 +21,11 @@ import {
   RefreshCcw,
   Calendar,
   Clock,
+  Eye,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import StudyPlannerModal from "./StudyPlannerModal";
+import UserProfileModal from "./UserProfileModal";
 
 type Friend = {
   id: string;
@@ -255,17 +258,20 @@ function Avatar(props: { name: string; src: string | null; size?: number }) {
 
 function StatCard(props: { icon: ReactNode; label: string; value: string; hint?: string }) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50 to-sky-50/60 p-4 shadow-[0_22px_45px_-28px_rgba(47,128,237,0.32)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_30px_60px_-32px_rgba(47,128,237,0.4)] dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_18px_45px_-30px_rgba(0,0,0,0.9)] dark:hover:shadow-[0_18px_45px_-26px_rgba(0,0,0,0.85)]">
+    <div className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50 to-sky-50/60 p-4 shadow-[0_22px_45px_-28px_rgba(47,128,237,0.32)] backdrop-blur-sm transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_30px_60px_-32px_rgba(47,128,237,0.4)] hover:scale-[1.02] dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_18px_45px_-30px_rgba(0,0,0,0.9)] dark:hover:shadow-[0_18px_45px_-26px_rgba(0,0,0,0.85)]">
       <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 dark:hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-lernex-blue/10 via-transparent to-lernex-purple/10" />
       </div>
+      <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 dark:block dark:hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-lernex-blue/20 via-transparent to-lernex-purple/15" />
+      </div>
       <div className="relative flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-lernex-blue shadow-[0_18px_26px_-20px_rgba(47,128,237,0.6)] ring-1 ring-lernex-blue/20 group-hover:ring-lernex-blue/40 dark:bg-lernex-blue/20">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-white to-slate-50 text-lernex-blue shadow-[0_18px_26px_-20px_rgba(47,128,237,0.6)] ring-1 ring-lernex-blue/20 transition-all duration-300 group-hover:scale-110 group-hover:ring-lernex-blue/40 dark:from-lernex-blue/20 dark:to-lernex-purple/20">
           {props.icon}
         </div>
         <div>
-          <div className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{props.label}</div>
-          <div className="text-xl font-semibold text-neutral-900 dark:text-white">{props.value}</div>
+          <div className="text-xs uppercase tracking-wide text-neutral-500 transition-colors group-hover:text-lernex-blue dark:text-neutral-400 dark:group-hover:text-lernex-blue/80">{props.label}</div>
+          <div className="text-xl font-semibold text-neutral-900 transition-colors dark:text-white">{props.value}</div>
           {props.hint && (
             <div className="text-xs text-neutral-500 dark:text-neutral-400">{props.hint}</div>
           )}
@@ -291,6 +297,8 @@ export default function FriendsPage() {
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
   const [studySessions, setStudySessions] = useState<StudySession[]>([]);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -617,19 +625,25 @@ export default function FriendsPage() {
         className="pointer-events-none absolute inset-x-[-35vw] -top-48 hidden h-[520px] rounded-full bg-gradient-to-br from-lernex-blue/30 via-neutral-900/60 to-transparent opacity-70 blur-3xl dark:block -z-10"
       />
       <div className="relative z-10">
-        {toast && (
-          <div
-            className={cn(
-              "mb-4 flex items-center gap-2 rounded-2xl border border-neutral-200/70 bg-gradient-to-r from-white via-slate-50/70 to-white px-4 py-2 text-sm text-neutral-700 shadow-[0_24px_60px_-40px_rgba(47,128,237,0.35)] backdrop-blur-sm transition-colors dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-200 dark:shadow-none",
-              toast.tone === "success" && "border-emerald-200 bg-emerald-50/80 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200",
-              toast.tone === "error" && "border-rose-200 bg-rose-50/80 text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200",
-              toast.tone === "neutral" && "border-neutral-200/70 from-white via-slate-50/60 to-white dark:border-neutral-700 dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c]"
-            )}
-          >
-            <BellRing className="h-4 w-4" />
-            <span>{toast.message}</span>
-          </div>
-        )}
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              className={cn(
+                "mb-4 flex items-center gap-2 rounded-2xl border border-neutral-200/70 bg-gradient-to-r from-white via-slate-50/70 to-white px-4 py-3 text-sm text-neutral-700 shadow-[0_24px_60px_-40px_rgba(47,128,237,0.35)] backdrop-blur-sm transition-colors dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-200 dark:shadow-none",
+                toast.tone === "success" && "border-emerald-200 bg-emerald-50/80 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200",
+                toast.tone === "error" && "border-rose-200 bg-rose-50/80 text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200",
+                toast.tone === "neutral" && "border-neutral-200/70 from-white via-slate-50/60 to-white dark:border-neutral-700 dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c]"
+              )}
+            >
+              <BellRing className="h-4 w-4" />
+              <span>{toast.message}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -640,13 +654,15 @@ export default function FriendsPage() {
             Build your accountability circle, plan study sessions, and celebrate milestones together. We surface people who share your pace, interests, and streak energy.
           </p>
         </div>
-        <button
+        <motion.button
           onClick={handleCopyInvite}
-          className="inline-flex items-center gap-2 rounded-full border border-lernex-blue/30 bg-gradient-to-r from-lernex-blue/15 via-white/40 to-lernex-purple/15 px-4 py-2 text-sm font-medium text-lernex-blue shadow-[0_20px_35px_-20px_rgba(47,128,237,0.55)] backdrop-blur-sm transition hover:scale-[1.01] hover:border-lernex-blue/50 hover:from-lernex-blue/25 hover:to-lernex-purple/25 dark:border-lernex-blue/60 dark:bg-lernex-blue/20 dark:text-lernex-blue/90 dark:shadow-none"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="inline-flex items-center gap-2 rounded-full border border-lernex-blue/30 bg-gradient-to-r from-lernex-blue/15 via-white/40 to-lernex-purple/15 px-4 py-2 text-sm font-medium text-lernex-blue shadow-[0_20px_35px_-20px_rgba(47,128,237,0.55)] backdrop-blur-sm transition hover:border-lernex-blue/50 hover:from-lernex-blue/25 hover:to-lernex-purple/25 dark:border-lernex-blue/60 dark:bg-lernex-blue/20 dark:text-lernex-blue/90 dark:shadow-none"
         >
           <LinkIcon className="h-4 w-4" />
           {copyState === "copied" ? "Link copied" : copyState === "error" ? "Copy failed" : "Copy invite link"}
-        </button>
+        </motion.button>
       </div>
 
       {refreshing && (
@@ -656,32 +672,61 @@ export default function FriendsPage() {
         </div>
       )}
 
-      <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          icon={<Users className="h-5 w-5" />}
-          label="Friends"
-          value={String(data.counts.totalFriends)}
-          hint={incoming.length > 0 ? incoming.length + " waiting to connect" : "All caught up"}
-        />
-        <StatCard
-          icon={<BellRing className="h-5 w-5" />}
-          label="Requests"
-          value={String(totalPending)}
-          hint={outgoing.length > 0 ? outgoing.length + " sent" : ""}
-        />
-        <StatCard
-          icon={<Flame className="h-5 w-5 text-orange-500" />}
-          label="Your streak"
-          value={String(data.profile.streak ?? 0)}
-          hint={data.profile.lastStudyDate ? "Last studied " + formatRelative(data.profile.lastStudyDate) : "Keep the fire going"}
-        />
-        <StatCard
-          icon={<Star className="h-5 w-5 text-amber-500" />}
-          label="Points"
-          value={String(data.profile.points ?? 0)}
-          hint="Earned from lessons and quizzes"
-        />
-      </section>
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1, duration: 0.5 }}
+        className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2, duration: 0.4 }}
+        >
+          <StatCard
+            icon={<Users className="h-5 w-5" />}
+            label="Friends"
+            value={String(data.counts.totalFriends)}
+            hint={incoming.length > 0 ? incoming.length + " waiting to connect" : "All caught up"}
+          />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.3, duration: 0.4 }}
+        >
+          <StatCard
+            icon={<BellRing className="h-5 w-5" />}
+            label="Requests"
+            value={String(totalPending)}
+            hint={outgoing.length > 0 ? outgoing.length + " sent" : ""}
+          />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.4, duration: 0.4 }}
+        >
+          <StatCard
+            icon={<Flame className="h-5 w-5 text-orange-500" />}
+            label="Your streak"
+            value={String(data.profile.streak ?? 0)}
+            hint={data.profile.lastStudyDate ? "Last studied " + formatRelative(data.profile.lastStudyDate) : "Keep the fire going"}
+          />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.5, duration: 0.4 }}
+        >
+          <StatCard
+            icon={<Star className="h-5 w-5 text-amber-500" />}
+            label="Points"
+            value={String(data.profile.points ?? 0)}
+            hint="Earned from lessons and quizzes"
+          />
+        </motion.div>
+      </motion.section>
 
       {studySessions.length > 0 && (
         <section className="mt-8">
@@ -714,8 +759,11 @@ export default function FriendsPage() {
               }).format(scheduledDate);
 
               return (
-                <div
+                <motion.div
                   key={session.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1, duration: 0.4 }}
                   className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-4 shadow-[0_28px_60px_-40px_rgba(47,128,237,0.32)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_36px_70px_-38px_rgba(47,128,237,0.4)] dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
                 >
                   <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 dark:hidden">
@@ -764,7 +812,7 @@ export default function FriendsPage() {
                       </p>
                     )}
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -811,12 +859,15 @@ export default function FriendsPage() {
               {!searchError && searchResults.length === 0 && !searchPending && (
                 <div className="px-4 py-3 text-sm text-neutral-500 dark:text-neutral-300">No matches yet. Try another username.</div>
               )}
-              {!searchError && searchResults.map((match) => {
+              {!searchError && searchResults.map((match, index) => {
                 const label = displayName(match.username, match.fullName, "Learner", { preferUsername: true });
                 const pendingKey = pendingAction === "add:" + match.id;
                 return (
-                  <div
+                  <motion.div
                     key={match.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05, duration: 0.3 }}
                     className="flex items-center justify-between gap-3 rounded-2xl border border-transparent px-4 py-3 text-sm transition hover:border-lernex-blue/30 hover:bg-lernex-blue/5 dark:hover:border-lernex-blue/40 dark:hover:bg-lernex-blue/20"
                   >
                     <div className="flex items-center gap-3">
@@ -832,15 +883,27 @@ export default function FriendsPage() {
                         </div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleSendRequest(match.id, label)}
-                      disabled={pendingKey}
-                      className="inline-flex items-center gap-2 rounded-full bg-lernex-blue px-3 py-1.5 text-xs font-medium text-white shadow-[0_18px_38px_-20px_rgba(47,128,237,0.6)] transition hover:bg-lernex-blue/90 hover:shadow-[0_22px_48px_-18px_rgba(47,128,237,0.7)] disabled:cursor-not-allowed disabled:bg-lernex-blue/70 disabled:shadow-none"
-                    >
-                      {pendingKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
-                      Connect
-                    </button>
-                  </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setSelectedUserId(match.id);
+                          setProfileModalOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-lernex-blue/30 bg-white/80 px-3 py-1.5 text-xs font-medium text-lernex-blue shadow-sm transition hover:border-lernex-blue/50 hover:bg-lernex-blue/10 dark:border-lernex-blue/50 dark:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        View
+                      </button>
+                      <button
+                        onClick={() => handleSendRequest(match.id, label)}
+                        disabled={pendingKey}
+                        className="inline-flex items-center gap-2 rounded-full bg-lernex-blue px-3 py-1.5 text-xs font-medium text-white shadow-[0_18px_38px_-20px_rgba(47,128,237,0.6)] transition hover:bg-lernex-blue/90 hover:shadow-[0_22px_48px_-18px_rgba(47,128,237,0.7)] disabled:cursor-not-allowed disabled:bg-lernex-blue/70 disabled:shadow-none"
+                      >
+                        {pendingKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+                        Connect
+                      </button>
+                    </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -871,13 +934,16 @@ export default function FriendsPage() {
         {totalPending > 0 && (
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
             <div className="space-y-4">
-              {incoming.map((req) => {
+              {incoming.map((req, index) => {
                 const label = displayName(req.counterpart.username, req.counterpart.fullName, "Learner", { preferUsername: true });
                 const acceptKey = pendingAction === req.id + ":accept";
                 const declineKey = pendingAction === req.id + ":decline";
                 return (
-                  <div
+                  <motion.div
                     key={req.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1, duration: 0.4 }}
                     className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-4 shadow-[0_28px_60px_-40px_rgba(47,128,237,0.32)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_36px_70px_-38px_rgba(47,128,237,0.4)] dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
                   >
                     <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 dark:hidden">
@@ -920,17 +986,20 @@ export default function FriendsPage() {
                         )}
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
             <div className="space-y-4">
-              {outgoing.map((req) => {
+              {outgoing.map((req, index) => {
                 const label = displayName(req.counterpart.username, req.counterpart.fullName, "Learner", { preferUsername: true });
                 const cancelKey = pendingAction === "cancel:" + req.id;
                 return (
-                  <div
+                  <motion.div
                     key={req.id}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1, duration: 0.4 }}
                     className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-4 shadow-[0_28px_60px_-40px_rgba(47,128,237,0.32)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_36px_70px_-38px_rgba(47,128,237,0.4)] dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
                   >
                     <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 dark:hidden">
@@ -960,7 +1029,7 @@ export default function FriendsPage() {
                         )}
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -975,12 +1044,15 @@ export default function FriendsPage() {
           </div>
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {data.suggestions.slice(0, 6).map((candidate) => {
+          {data.suggestions.slice(0, 6).map((candidate, index) => {
             const label = displayName(candidate.username, candidate.fullName, "Learner", { preferUsername: true });
             const pendingKey = pendingAction === "add:" + candidate.id;
             return (
-              <div
+              <motion.div
                 key={candidate.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1, duration: 0.4 }}
                 className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-4 shadow-[0_26px_58px_-38px_rgba(47,128,237,0.34)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_34px_68px_-36px_rgba(47,128,237,0.42)] dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
               >
                 <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 dark:hidden">
@@ -1003,15 +1075,27 @@ export default function FriendsPage() {
                   <span className="inline-flex items-center gap-1"><Flame className="h-3.5 w-3.5 text-orange-500" /> {candidate.streak} day streak</span>
                   <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5 text-amber-500" /> {candidate.points} pts</span>
                 </div>
-                <button
-                  onClick={() => handleSendRequest(candidate.id, label)}
-                  disabled={pendingKey}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-lernex-blue px-3 py-2 text-xs font-semibold text-white shadow-[0_20px_45px_-24px_rgba(47,128,237,0.6)] transition hover:bg-lernex-blue/90 hover:shadow-[0_26px_55px_-22px_rgba(47,128,237,0.7)] disabled:cursor-not-allowed disabled:shadow-none"
-                >
-                  {pendingKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
-                  Add to circle
-                </button>
-              </div>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    onClick={() => {
+                      setSelectedUserId(candidate.id);
+                      setProfileModalOpen(true);
+                    }}
+                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full border border-lernex-blue/30 bg-white/80 px-3 py-2 text-xs font-medium text-lernex-blue shadow-sm transition hover:border-lernex-blue/50 hover:bg-lernex-blue/10 dark:border-lernex-blue/50 dark:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    View
+                  </button>
+                  <button
+                    onClick={() => handleSendRequest(candidate.id, label)}
+                    disabled={pendingKey}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-lernex-blue px-3 py-2 text-xs font-semibold text-white shadow-[0_20px_45px_-24px_rgba(47,128,237,0.6)] transition hover:bg-lernex-blue/90 hover:shadow-[0_26px_55px_-22px_rgba(47,128,237,0.7)] disabled:cursor-not-allowed disabled:shadow-none"
+                  >
+                    {pendingKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+                    Add
+                  </button>
+                </div>
+              </motion.div>
             );
           })}
           {data.suggestions.length === 0 && (
@@ -1073,12 +1157,15 @@ export default function FriendsPage() {
           </div>
         )}
         <div className="mt-5 grid gap-4 md:grid-cols-2">
-          {sortedFriends.map((friend) => {
+          {sortedFriends.map((friend, index) => {
             const label = displayName(friend.username, friend.fullName, "Learner");
             const removeKey = pendingAction === "remove:" + friend.id;
             return (
-              <article
+              <motion.article
                 key={friend.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05, duration: 0.4 }}
                 className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-4 shadow-[0_32px_64px_-42px_rgba(47,128,237,0.34)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_40px_74px_-38px_rgba(47,128,237,0.42)] dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:shadow-[0_20px_45px_-30px_rgba(0,0,0,0.85)]"
               >
                 <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 dark:hidden">
@@ -1137,7 +1224,7 @@ export default function FriendsPage() {
                     </div>
                   </div>
                 </div>
-              </article>
+              </motion.article>
             );
           })}
         </div>
@@ -1202,6 +1289,17 @@ export default function FriendsPage() {
             setToast({ message: "Study session planned successfully!", tone: "success" });
             load({ silent: true });
             loadStudySessions();
+          }}
+        />
+      )}
+
+      {selectedUserId && (
+        <UserProfileModal
+          userId={selectedUserId}
+          isOpen={profileModalOpen}
+          onClose={() => {
+            setProfileModalOpen(false);
+            setSelectedUserId(null);
           }}
         />
       )}

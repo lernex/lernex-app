@@ -208,3 +208,70 @@ html {
     box-shadow: 0 0 20px rgba(47, 128, 237, 0.6);
   }
 }
+
+/* Formatted text styling - make headers visually distinct */
+.formatted-lesson-content h1,
+.formatted-lesson-content h2,
+.formatted-lesson-content h3,
+.formatted-lesson-content h4,
+.formatted-lesson-content h5,
+.formatted-lesson-content h6 {
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.3;
+}
+
+.formatted-lesson-content h1 {
+  font-size: 1.5rem;
+  color: var(--color-lernex-blue);
+  border-bottom: 2px solid var(--surface-border);
+  padding-bottom: 0.375rem;
+}
+
+.formatted-lesson-content h2 {
+  font-size: 1.25rem;
+  color: var(--color-lernex-blue);
+  border-bottom: 1px solid var(--surface-border);
+  padding-bottom: 0.25rem;
+}
+
+.formatted-lesson-content h3 {
+  font-size: 1.125rem;
+  color: var(--color-lernex-purple);
+}
+
+.formatted-lesson-content h4 {
+  font-size: 1rem;
+  color: var(--color-lernex-purple);
+}
+
+.formatted-lesson-content h5 {
+  font-size: 0.9375rem;
+  color: var(--foreground);
+}
+
+.formatted-lesson-content h6 {
+  font-size: 0.875rem;
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+/* First header shouldn't have top margin */
+.formatted-lesson-content h1:first-child,
+.formatted-lesson-content h2:first-child,
+.formatted-lesson-content h3:first-child,
+.formatted-lesson-content h4:first-child,
+.formatted-lesson-content h5:first-child,
+.formatted-lesson-content h6:first-child {
+  margin-top: 0;
+}
+
+/* Add spacing after paragraphs within formatted content */
+.formatted-lesson-content p {
+  margin-bottom: 0.75rem;
+}
+
+.formatted-lesson-content p:last-child {
+  margin-bottom: 0;
+}

@@ -106,7 +106,9 @@ export async function POST(req: Request) {
         ? "Use the provided real SAT question examples as a reference for style, difficulty, and formatting. Match their tone and complexity."
         : "Model your content after official SAT question patterns and difficulty levels.",
       "",
-      "Do not use JSON, markdown headers, or code fences.",
+      "IMPORTANT: Organize your lesson into clear sections using markdown headers (## for main sections, ### for subsections). For example: '## Overview', '## Key Strategies', '## Common Mistakes', '## Example', '## Tips'.",
+      "Use headers to create visual breaks between different parts of your lesson. This helps students navigate the content.",
+      "Do not use JSON or code fences; avoid HTML tags.",
       "For math, use \\( ... \\) for inline and \\[ ... \\] for display equations.",
       "Always balance delimiters: \\( with \\), \\[ with \\].",
       "Use single backslash for LaTeX commands: \\frac{1}{2}, \\alpha, \\sin(x).",

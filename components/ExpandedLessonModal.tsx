@@ -146,7 +146,7 @@ export default function ExpandedLessonModal({
         <div
           ref={contentRef}
           className={cn(
-            "relative z-10 overflow-y-auto px-6 py-6 md:px-8 md:py-8",
+            "formatted-lesson-content relative z-10 overflow-y-auto px-6 py-6 md:px-8 md:py-8",
             "text-base leading-relaxed text-neutral-700 dark:text-neutral-300",
             "max-h-[calc(90vh-140px)]",
             "scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-600",

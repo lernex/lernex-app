@@ -146,6 +146,12 @@ export default function PlaylistDetail() {
   const [results, setResults] = useState<LessonLite[]>([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
 
+  const [savedLessons, setSavedLessons] = useState<LessonLite[]>([]);
+  const [loadingSavedLessons, setLoadingSavedLessons] = useState(false);
+  const [showSavedLessons, setShowSavedLessons] = useState(false);
+  const [addingMultiple, setAddingMultiple] = useState(false);
+  const [selectedSavedIds, setSelectedSavedIds] = useState<Set<string>>(new Set());
+
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const supabaseClient = useMemo(() => supabaseBrowser(), []);
 
@@ -224,6 +230,41 @@ export default function PlaylistDetail() {
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  const loadSavedLessons = useCallback(async () => {
+    setLoadingSavedLessons(true);
+    try {
+      const res = await fetch("/api/saved-lessons");
+      if (!res.ok) {
+        throw new Error("Failed to fetch saved lessons");
+      }
+      const data = await res.json();
+      const lessons = (data.lessons ?? []).map((lesson: {
+        lesson_id: string;
+        title: string;
+        subject: string;
+      }) => ({
+        id: lesson.lesson_id,
+        title: lesson.title,
+        subject: lesson.subject,
+      }));
+      setSavedLessons(lessons);
+    } catch (err) {
+      console.error("Failed to load saved lessons", err);
+      setFeedback({
+        type: "error",
+        message: "Could not load saved lessons.",
+      });
+    } finally {
+      setLoadingSavedLessons(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showSavedLessons && savedLessons.length === 0) {
+      void loadSavedLessons();
+    }
+  }, [showSavedLessons, savedLessons.length, loadSavedLessons]);
 
   useEffect(() => {
     if (!feedback) return;
@@ -573,6 +614,51 @@ export default function PlaylistDetail() {
   const resultEmptyState =
     query.trim().length > 0 && !loadingSearch && results.length === 0;
 
+  const toggleSavedLesson = (lessonId: string) => {
+    setSelectedSavedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(lessonId)) {
+        next.delete(lessonId);
+      } else {
+        next.add(lessonId);
+      }
+      return next;
+    });
+  };
+
+  const addSelectedSavedLessons = async () => {
+    if (!id || selectedSavedIds.size === 0) return;
+    setAddingMultiple(true);
+    try {
+      const res = await fetch("/api/playlists/add-saved-lessons", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          playlist_id: id,
+          lesson_ids: Array.from(selectedSavedIds),
+        }),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to add lessons");
+      }
+      const data = await res.json();
+      setFeedback({
+        type: "success",
+        message: data.message || "Lessons added to playlist",
+      });
+      setSelectedSavedIds(new Set());
+      await loadAll();
+    } catch (err) {
+      console.error("Failed to add saved lessons", err);
+      setFeedback({
+        type: "error",
+        message: "Could not add lessons to playlist.",
+      });
+    } finally {
+      setAddingMultiple(false);
+    }
+  };
+
   return (
     <PageTransition>
       <main className="relative min-h-[calc(100vh-56px)] bg-gradient-to-b from-white via-white to-lernex-gray/50 text-neutral-900 transition-colors dark:from-lernex-charcoal dark:via-lernex-charcoal/98 dark:to-lernex-charcoal/92 dark:text-white">
@@ -792,6 +878,15 @@ export default function PlaylistDetail() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-3">
+                        {items.length > 0 && (
+                          <Link
+                            href={`/playlists/${id}/learn`}
+                            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:scale-105 hover:shadow-lg"
+                          >
+                            <Sparkles className="h-4 w-4" />
+                            Start Learning
+                          </Link>
+                        )}
                         <button
                           onClick={() => void toggleVisibility()}
                           disabled={visibilitySaving}
@@ -870,105 +965,237 @@ export default function PlaylistDetail() {
                     layout
                     className="rounded-3xl border border-neutral-200/70 bg-white/80 p-6 shadow-lg shadow-lernex-blue/5 backdrop-blur dark:border-white/10 dark:bg-white/5"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-4">
                       <div>
                         <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">
-                          Discover lessons
+                          Add lessons
                         </h2>
                         <p className="mt-1 text-xs text-neutral-500 dark:text-white/60">
-                          Search by title or subject to grow this playlist.
+                          Search or add from your saved lessons.
                         </p>
                       </div>
                     </div>
 
+                    <div className="flex gap-2 mb-4">
+                      <button
+                        onClick={() => setShowSavedLessons(false)}
+                        className={`flex-1 rounded-full px-4 py-2 text-sm font-medium transition ${
+                          !showSavedLessons
+                            ? "bg-lernex-blue text-white shadow-sm"
+                            : "bg-white/80 text-neutral-600 border border-neutral-200 hover:bg-white dark:bg-white/10 dark:text-white/70 dark:border-white/10"
+                        }`}
+                      >
+                        <Search className="inline h-4 w-4 mr-1.5" />
+                        Search
+                      </button>
+                      <button
+                        onClick={() => setShowSavedLessons(true)}
+                        className={`flex-1 rounded-full px-4 py-2 text-sm font-medium transition ${
+                          showSavedLessons
+                            ? "bg-lernex-blue text-white shadow-sm"
+                            : "bg-white/80 text-neutral-600 border border-neutral-200 hover:bg-white dark:bg-white/10 dark:text-white/70 dark:border-white/10"
+                        }`}
+                      >
+                        <BookOpen className="inline h-4 w-4 mr-1.5" />
+                        Saved ({savedLessons.length})
+                      </button>
+                    </div>
+
                     <div className="mt-4 flex flex-col gap-3">
-                      <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400 dark:text-white/40" />
-                        <input
-                          value={query}
-                          onChange={(event) => setQuery(event.target.value)}
-                          placeholder="Try &quot;Calculus limits&quot; or &quot;World History&quot;"
-                          className="w-full rounded-2xl border border-neutral-200 bg-white/90 py-2.5 pl-10 pr-3 text-sm text-neutral-700 shadow-sm outline-none transition focus:border-lernex-blue focus:ring-2 focus:ring-lernex-blue/30 dark:border-white/15 dark:bg-white/10 dark:text-white"
-                        />
-                      </div>
+                      {!showSavedLessons ? (
+                        <>
+                          <div className="relative">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400 dark:text-white/40" />
+                            <input
+                              value={query}
+                              onChange={(event) => setQuery(event.target.value)}
+                              placeholder="Try &quot;Calculus limits&quot; or &quot;World History&quot;"
+                              className="w-full rounded-2xl border border-neutral-200 bg-white/90 py-2.5 pl-10 pr-3 text-sm text-neutral-700 shadow-sm outline-none transition focus:border-lernex-blue focus:ring-2 focus:ring-lernex-blue/30 dark:border-white/15 dark:bg-white/10 dark:text-white"
+                            />
+                          </div>
 
-                      <AnimatePresence initial={false} mode="wait">
-                        {loadingSearch ? (
-                          <motion.div
-                            key="search-loading"
-                            initial={{ opacity: 0, y: -6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 6 }}
-                            className="flex items-center gap-2 rounded-2xl border border-neutral-200/60 bg-white/80 px-3 py-2 text-sm text-neutral-500 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white/60"
-                          >
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Searching...
-                          </motion.div>
-                        ) : null}
-                      </AnimatePresence>
-
-                      {resultEmptyState ? (
-                        <motion.div
-                          initial={{ opacity: 0, y: -6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="rounded-2xl border border-dashed border-neutral-300/80 bg-white/60 px-4 py-6 text-center text-sm text-neutral-500 dark:border-white/10 dark:bg-white/5 dark:text-white/60"
-                        >
-                          <p>No lessons match &quot;{query.trim()}&quot; yet.</p>
-                          <p className="mt-1 text-xs">
-                            Try a different keyword or explore other subjects.
-                          </p>
-                        </motion.div>
-                      ) : null}
-
-                      <div className="space-y-2">
-                        <AnimatePresence initial={false}>
-                          {results.map((lesson) => {
-                            const alreadyAdded = items.some(
-                              (item) => item.lessons?.id === lesson.id
-                            );
-                            return (
+                          <AnimatePresence initial={false} mode="wait">
+                            {loadingSearch ? (
                               <motion.div
-                                key={lesson.id}
-                                layout
-                                variants={itemVariants}
-                                initial="initial"
-                                animate="animate"
-                                exit="exit"
-                                transition={{ duration: 0.2 }}
-                                className="group flex items-center justify-between gap-3 rounded-2xl border border-neutral-200/80 bg-white/80 px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-lernex-blue/60 hover:shadow-md dark:border-white/10 dark:bg-white/10"
+                                key="search-loading"
+                                initial={{ opacity: 0, y: -6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 6 }}
+                                className="flex items-center gap-2 rounded-2xl border border-neutral-200/60 bg-white/80 px-3 py-2 text-sm text-neutral-500 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white/60"
                               >
-                                <div>
-                                  <p className="text-xs uppercase tracking-wide text-neutral-400 dark:text-white/50">
-                                    {lesson.subject ?? "General"}
-                                  </p>
-                                  <p className="mt-1 text-sm font-medium text-neutral-800 dark:text-white/90">
-                                    {lesson.title}
-                                  </p>
-                                </div>
-                                <button
-                                  onClick={() => void addLesson(lesson)}
-                                  disabled={alreadyAdded || addingId === lesson.id}
-                                  className="inline-flex items-center gap-2 rounded-full bg-lernex-blue px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-lernex-blue/90 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  {alreadyAdded ? (
-                                    "Added"
-                                  ) : addingId === lesson.id ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <PlusCircle className="h-3.5 w-3.5" />
-                                      Add
-                                    </>
-                                  )}
-                                  {addingId === lesson.id && !alreadyAdded ? (
-                                    <span className="sr-only">Adding</span>
-                                  ) : null}
-                                </button>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Searching...
                               </motion.div>
-                            );
-                          })}
-                        </AnimatePresence>
-                      </div>
+                            ) : null}
+                          </AnimatePresence>
+
+                          {resultEmptyState ? (
+                            <motion.div
+                              initial={{ opacity: 0, y: -6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="rounded-2xl border border-dashed border-neutral-300/80 bg-white/60 px-4 py-6 text-center text-sm text-neutral-500 dark:border-white/10 dark:bg-white/5 dark:text-white/60"
+                            >
+                              <p>No lessons match &quot;{query.trim()}&quot; yet.</p>
+                              <p className="mt-1 text-xs">
+                                Try a different keyword or explore other subjects.
+                              </p>
+                            </motion.div>
+                          ) : null}
+
+                          <div className="space-y-2">
+                            <AnimatePresence initial={false}>
+                              {results.map((lesson) => {
+                                const alreadyAdded = items.some(
+                                  (item) => item.lessons?.id === lesson.id
+                                );
+                                return (
+                                  <motion.div
+                                    key={lesson.id}
+                                    layout
+                                    variants={itemVariants}
+                                    initial="initial"
+                                    animate="animate"
+                                    exit="exit"
+                                    transition={{ duration: 0.2 }}
+                                    className="group flex items-center justify-between gap-3 rounded-2xl border border-neutral-200/80 bg-white/80 px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-lernex-blue/60 hover:shadow-md dark:border-white/10 dark:bg-white/10"
+                                  >
+                                    <div>
+                                      <p className="text-xs uppercase tracking-wide text-neutral-400 dark:text-white/50">
+                                        {lesson.subject ?? "General"}
+                                      </p>
+                                      <p className="mt-1 text-sm font-medium text-neutral-800 dark:text-white/90">
+                                        {lesson.title}
+                                      </p>
+                                    </div>
+                                    <button
+                                      onClick={() => void addLesson(lesson)}
+                                      disabled={alreadyAdded || addingId === lesson.id}
+                                      className="inline-flex items-center gap-2 rounded-full bg-lernex-blue px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-lernex-blue/90 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      {alreadyAdded ? (
+                                        "Added"
+                                      ) : addingId === lesson.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        <>
+                                          <PlusCircle className="h-3.5 w-3.5" />
+                                          Add
+                                        </>
+                                      )}
+                                      {addingId === lesson.id && !alreadyAdded ? (
+                                        <span className="sr-only">Adding</span>
+                                      ) : null}
+                                    </button>
+                                  </motion.div>
+                                );
+                              })}
+                            </AnimatePresence>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {loadingSavedLessons ? (
+                            <div className="flex items-center gap-2 rounded-2xl border border-neutral-200/60 bg-white/80 px-3 py-2 text-sm text-neutral-500 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white/60">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading saved lessons...
+                            </div>
+                          ) : savedLessons.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-neutral-300/80 bg-white/60 px-4 py-6 text-center text-sm text-neutral-500 dark:border-white/10 dark:bg-white/5 dark:text-white/60">
+                              <BookOpen className="inline h-6 w-6 mb-2" />
+                              <p>You haven&apos;t saved any lessons yet.</p>
+                              <p className="mt-1 text-xs">
+                                Save lessons from the FYP to add them here.
+                              </p>
+                            </div>
+                          ) : (
+                            <>
+                              {selectedSavedIds.size > 0 && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: -6 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  className="flex items-center justify-between rounded-2xl border border-lernex-blue/30 bg-lernex-blue/10 px-4 py-2 dark:bg-lernex-blue/20"
+                                >
+                                  <span className="text-sm font-medium text-lernex-blue dark:text-lernex-blue/90">
+                                    {selectedSavedIds.size} selected
+                                  </span>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => void addSelectedSavedLessons()}
+                                      disabled={addingMultiple}
+                                      className="inline-flex items-center gap-1.5 rounded-full bg-lernex-blue px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-lernex-blue/90 disabled:opacity-60"
+                                    >
+                                      {addingMultiple ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        <PlusCircle className="h-3.5 w-3.5" />
+                                      )}
+                                      Add to playlist
+                                    </button>
+                                    <button
+                                      onClick={() => setSelectedSavedIds(new Set())}
+                                      className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 dark:border-white/10 dark:bg-white/10 dark:text-white/70"
+                                    >
+                                      Clear
+                                    </button>
+                                  </div>
+                                </motion.div>
+                              )}
+                              <div className="space-y-2 max-h-[500px] overflow-y-auto scrollbar-thin">
+                                <AnimatePresence initial={false}>
+                                  {savedLessons.map((lesson) => {
+                                    const alreadyAdded = items.some(
+                                      (item) => item.lessons?.id === lesson.id
+                                    );
+                                    const isSelected = selectedSavedIds.has(lesson.id);
+                                    return (
+                                      <motion.div
+                                        key={lesson.id}
+                                        layout
+                                        variants={itemVariants}
+                                        initial="initial"
+                                        animate="animate"
+                                        exit="exit"
+                                        transition={{ duration: 0.2 }}
+                                        onClick={() => !alreadyAdded && toggleSavedLesson(lesson.id)}
+                                        className={`group flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 shadow-sm transition ${
+                                          alreadyAdded
+                                            ? "border-neutral-200/60 bg-neutral-100/60 opacity-50 cursor-not-allowed dark:border-white/5 dark:bg-white/5"
+                                            : isSelected
+                                            ? "border-lernex-blue/60 bg-lernex-blue/10 cursor-pointer hover:-translate-y-0.5 hover:shadow-md dark:border-lernex-blue/40 dark:bg-lernex-blue/15"
+                                            : "border-neutral-200/80 bg-white/80 cursor-pointer hover:-translate-y-0.5 hover:border-lernex-blue/60 hover:shadow-md dark:border-white/10 dark:bg-white/10"
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-3 flex-1">
+                                          <div
+                                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition ${
+                                              isSelected
+                                                ? "border-lernex-blue bg-lernex-blue"
+                                                : "border-neutral-300 bg-white dark:border-white/20 dark:bg-white/5"
+                                            }`}
+                                          >
+                                            {isSelected && <Check className="h-3 w-3 text-white" />}
+                                          </div>
+                                          <div className="flex-1">
+                                            <p className="text-xs uppercase tracking-wide text-neutral-400 dark:text-white/50">
+                                              {lesson.subject ?? "General"}
+                                            </p>
+                                            <p className="mt-1 text-sm font-medium text-neutral-800 dark:text-white/90">
+                                              {lesson.title}
+                                            </p>
+                                            {alreadyAdded && (
+                                              <p className="mt-0.5 text-xs text-neutral-500">Already in playlist</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </motion.div>
+                                    );
+                                  })}
+                                </AnimatePresence>
+                              </div>
+                            </>
+                          )}
+                        </>
+                      )}
                     </div>
                   </motion.div>
 

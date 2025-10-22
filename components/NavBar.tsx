@@ -435,6 +435,13 @@ export default function NavBar() {
                         className="absolute right-0 bottom-full z-30 mb-3 w-56 rounded-xl border border-surface bg-surface-panel py-2 text-foreground shadow-xl shadow-neutral-900/10 dark:shadow-black/30"
                       >
                         <Link
+                          href="/public-profile"
+                          className="block px-4 py-2 text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                          onClick={() => setOpen(false)}
+                        >
+                          Profile
+                        </Link>
+                        <Link
                           href="/settings"
                           className="block px-4 py-2 text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
                           onClick={() => setOpen(false)}
@@ -542,6 +549,13 @@ export default function NavBar() {
                     transition={{ duration: 0.15 }}
                     className="absolute right-0 mt-2 w-44 rounded-md border border-white/10 bg-gradient-to-br from-white to-neutral-100 py-2 text-neutral-900 shadow-lg dark:from-lernex-charcoal dark:to-neutral-900 dark:text-white"
                   >
+                    <Link
+                      href="/public-profile"
+                      className="block px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                      onClick={() => setOpen(false)}
+                    >
+                      Profile
+                    </Link>
                     <Link
                       href="/settings"
                       className="block px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"

@@ -180,6 +180,21 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
         console.warn("[lesson-card] feedback failed", { action, status: res.status });
         return false;
       }
+
+      // If saving, also store the full lesson data
+      if (action === "save") {
+        try {
+          await fetch("/api/saved-lessons", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ lesson }),
+          });
+        } catch (saveError) {
+          console.warn("[lesson-card] failed to save full lesson data", saveError);
+          // Don't fail the whole operation if this fails
+        }
+      }
+
       return true;
     } catch (error) {
       console.warn("[lesson-card] feedback request error", error);
@@ -319,7 +334,7 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
         <div className="relative mt-3 flex min-h-0 flex-1 flex-col pb-2 sm:pb-3">
           <div
             ref={scrollRef}
-            className="lesson-scroll scrollbar-thin flex-1 overflow-y-auto pr-3 pb-8 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 md:pr-4"
+            className="formatted-lesson-content lesson-scroll scrollbar-thin flex-1 overflow-y-auto pr-3 pb-8 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 md:pr-4"
           >
             <FormattedText text={lesson.content} />
           </div>
