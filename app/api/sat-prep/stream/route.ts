@@ -267,6 +267,25 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     console.error("[sat-prep/stream] top-level-error", e);
+    const msg = e instanceof Error ? e.message : "Server error";
+    // Log error usage if we have user context
+    try {
+      const sb = supabaseServer();
+      const { data: { user } } = await sb.auth.getUser();
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+      if (user) {
+        const model = process.env.CEREBRAS_STREAM_MODEL ?? "gpt-oss-120b";
+        await logUsage(sb, user.id, ip, model, { input_tokens: null, output_tokens: null }, {
+          metadata: {
+            route: "sat-prep-lesson",
+            error: msg,
+            errorType: e instanceof Error ? e.name : typeof e,
+          }
+        });
+      }
+    } catch {
+      /* ignore logging errors */
+    }
     return new Response("Server error", { status: 500 });
   }
 }

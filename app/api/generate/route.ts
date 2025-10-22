@@ -419,6 +419,30 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Server error";
+    // Log error usage if we have user context
+    try {
+      const sb = supabaseServer();
+      let uid: string | null = null;
+      try {
+        const { data: { user } } = await sb.auth.getUser();
+        uid = user?.id ?? null;
+      } catch {
+        uid = null;
+      }
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+      if (uid) {
+        const model = process.env.CEREBRAS_LESSON_MODEL ?? "gpt-oss-120b";
+        await logUsage(sb, uid, ip, model, { input_tokens: null, output_tokens: null }, {
+          metadata: {
+            route: "lesson-stream",
+            error: msg,
+            errorType: err instanceof Error ? err.name : typeof err,
+          }
+        });
+      }
+    } catch {
+      /* ignore logging errors */
+    }
     return new Response(JSON.stringify({ error: msg }), { status: 500 });
   }
 }

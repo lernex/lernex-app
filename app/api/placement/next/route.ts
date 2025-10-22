@@ -257,7 +257,18 @@ Create exactly one discriminative multiple-choice question from the course's app
     }
     if (mapped) {
       try {
-        await logUsage(sb, uid, ip, model, mapped);
+        await logUsage(sb, uid, ip, model, mapped, {
+          metadata: {
+            route: "placement-test",
+            subject: state.subject,
+            course: state.course,
+            difficulty: state.difficulty,
+            step: state.step,
+            maxSteps: state.maxSteps,
+            mistakes: state.mistakes,
+            correctStreak: state.correctStreak,
+          }
+        });
       } catch {
         /* ignore */
       }
@@ -426,6 +437,24 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Server error";
+    // Log error usage if we have user context
+    try {
+      const sb = supabaseServer();
+      const { data: { user } } = await sb.auth.getUser();
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+      if (user) {
+        const model = process.env.CEREBRAS_PLACEMENT_MODEL ?? process.env.CEREBRAS_LESSON_MODEL ?? "gpt-oss-120b";
+        await logUsage(sb, user.id, ip, model, { input_tokens: null, output_tokens: null }, {
+          metadata: {
+            route: "placement-test",
+            error: msg,
+            errorType: e instanceof Error ? e.name : typeof e,
+          }
+        });
+      }
+    } catch {
+      /* ignore logging errors */
+    }
     return new Response(JSON.stringify({ error: msg }), { status: 500 });
   }
 }

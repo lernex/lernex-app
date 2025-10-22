@@ -162,7 +162,16 @@ Create fair multiple-choice questions based on the source, following the rules.`
       }
       if (mapped) {
         try {
-          await logUsage(sb, user.id, ip, model, mapped);
+          await logUsage(sb, user.id, ip, model, mapped, {
+            metadata: {
+              route: "generate-quiz",
+              subject,
+              difficulty,
+              mode,
+              usedFallback,
+              sourceTextLength: src.length,
+            }
+          });
         } catch {
           /* ignore */
         }
@@ -304,6 +313,24 @@ Create fair multiple-choice questions based on the source, following the rules.`
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";
+    // Log error usage if we have user context
+    try {
+      const sb = supabaseServer();
+      const { data: { user } } = await sb.auth.getUser();
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+      if (user) {
+        const model = process.env.CEREBRAS_QUIZ_MODEL ?? "gpt-oss-120b";
+        await logUsage(sb, user.id, ip, model, { input_tokens: null, output_tokens: null }, {
+          metadata: {
+            route: "generate-quiz",
+            error: msg,
+            errorType: e instanceof Error ? e.name : typeof e,
+          }
+        });
+      }
+    } catch {
+      /* ignore logging errors */
+    }
     return new Response(JSON.stringify({ error: msg }), { status: 500 });
   }
 }
