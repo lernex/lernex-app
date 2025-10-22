@@ -78,6 +78,16 @@ export async function POST(req: Request) {
       console.log(`[sat-prep/quiz] no questions found for section "${section}", generating without examples`);
     }
 
+    // Detect question type for better prompt targeting
+    const isDataQuestion = topic.includes('graph') || topic.includes('table') || topic.includes('data');
+    const isVocabQuestion = ['contextual-meaning', 'context-clues', 'precise-word-choice', 'technical-vocabulary', 'nuanced-vocabulary', 'inference-from-evidence', 'synonym-recognition', 'spatial-vocabulary', 'advanced-vocabulary', 'contrast-interpretation'].includes(topic);
+
+    const formatGuidance = isDataQuestion
+      ? "- NOTE: For data questions, describe a hypothetical graph or table scenario in the prompt text, then ask interpretation questions about that described data."
+      : isVocabQuestion
+      ? "- Format: Each question should be a passage with a blank (______) and 4 word choices. The passage should provide context clues."
+      : "- Format: Each question should include a passage excerpt followed by a comprehension question with 4 answer choices.";
+
     const systemPrompt = [
       `You are an SAT question generator. Create exactly 3 multiple-choice questions for SAT ${section} on the topic of ${topicLabel}.`,
       "",
@@ -104,6 +114,7 @@ export async function POST(req: Request) {
       hasExamples
         ? "- Use the provided real SAT examples to match style, tone, and complexity"
         : "- Match official SAT question patterns",
+      formatGuidance,
       "- Each question has exactly 4 choices",
       "- correctIndex is 0-3 (A=0, B=1, C=2, D=3)",
       "- Explanations should be 15-40 words",

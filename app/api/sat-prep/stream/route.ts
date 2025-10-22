@@ -81,6 +81,16 @@ export async function POST(req: Request) {
 
     const enc = new TextEncoder();
 
+    // Detect question type for better prompt targeting
+    const isDataQuestion = topic.includes('graph') || topic.includes('table') || topic.includes('data');
+    const isVocabQuestion = ['contextual-meaning', 'context-clues', 'precise-word-choice', 'technical-vocabulary', 'nuanced-vocabulary', 'inference-from-evidence', 'synonym-recognition', 'spatial-vocabulary', 'advanced-vocabulary', 'contrast-interpretation'].includes(topic);
+
+    const questionTypeGuidance = isDataQuestion
+      ? "Focus on strategies for reading graphs and tables: check axes, units, scale, and labels. Explain how to compare values and identify trends."
+      : isVocabQuestion
+      ? "Focus on strategies for determining word meaning from context: look for signal words, surrounding sentences, and logical relationships."
+      : "Focus on passage analysis strategies: identifying main ideas, understanding author's purpose, and drawing inferences from textual evidence.";
+
     const systemPrompt = [
       `You are an expert SAT prep tutor. Create a comprehensive mini-lesson for SAT ${section} on the topic of ${topicLabel}.`,
       "Your lesson should be 150-200 words and include:",
@@ -88,6 +98,8 @@ export async function POST(req: Request) {
       "2. Key strategies for approaching these questions on the SAT",
       "3. Common mistakes to avoid",
       "4. A worked example demonstrating the concept",
+      "",
+      questionTypeGuidance,
       "",
       "CRITICAL: Your lesson must emulate the exact style, difficulty, and format of real SAT questions.",
       hasExamples

@@ -22,11 +22,34 @@ const SAT_TOPICS: SATTopic[] = [
   { id: "data-analysis", label: "Data Analysis", section: "math" },
   { id: "problem-solving", label: "Problem Solving", section: "math" },
 
-  // Reading topics - matches database tags
-  { id: "vocabulary-in-context", label: "Vocabulary in Context", section: "reading" },
-  { id: "word-choice", label: "Word Choice", section: "reading" },
-  { id: "logical-completion", label: "Logical Completion", section: "reading" },
-  { id: "comprehension", label: "Reading Comprehension", section: "reading" },
+  // Reading topics - Vocabulary (first 10 questions)
+  { id: "contextual-meaning", label: "Contextual Meaning", section: "reading" },
+  { id: "context-clues", label: "Context Clues", section: "reading" },
+  { id: "precise-word-choice", label: "Precise Word Choice", section: "reading" },
+  { id: "technical-vocabulary", label: "Technical Vocabulary", section: "reading" },
+  { id: "nuanced-vocabulary", label: "Nuanced Vocabulary", section: "reading" },
+  { id: "inference-from-evidence", label: "Inference from Evidence", section: "reading" },
+  { id: "synonym-recognition", label: "Synonym Recognition", section: "reading" },
+  { id: "spatial-vocabulary", label: "Spatial Vocabulary", section: "reading" },
+  { id: "advanced-vocabulary", label: "Advanced Vocabulary", section: "reading" },
+  { id: "contrast-interpretation", label: "Contrast Interpretation", section: "reading" },
+
+  // Reading topics - Comprehension (next 10 questions)
+  { id: "main-idea-identification", label: "Main Idea", section: "reading" },
+  { id: "author-purpose", label: "Author's Purpose", section: "reading" },
+  { id: "textual-inference", label: "Textual Inference", section: "reading" },
+  { id: "structural-analysis", label: "Text Structure", section: "reading" },
+  { id: "cross-text-synthesis", label: "Cross-Text Analysis", section: "reading" },
+  { id: "character-motivation", label: "Character Motivation", section: "reading" },
+  { id: "explicit-meaning", label: "Explicit Meaning", section: "reading" },
+  { id: "literary-device-analysis", label: "Literary Devices", section: "reading" },
+  { id: "central-claim", label: "Central Claim", section: "reading" },
+  { id: "character-perspective", label: "Character Perspective", section: "reading" },
+  { id: "graph-data-analysis", label: "Graph Analysis", section: "reading" },
+  { id: "table-data-analysis", label: "Table Analysis", section: "reading" },
+  { id: "table-trend-analysis", label: "Data Trends", section: "reading" },
+  { id: "summarizing-claims", label: "Summarizing", section: "reading" },
+  { id: "evidence-evaluation", label: "Evidence Evaluation", section: "reading" },
 
   // Writing topics (currently no questions in database)
   { id: "grammar", label: "Grammar & Usage", section: "writing" },
@@ -37,7 +60,7 @@ const SAT_TOPICS: SATTopic[] = [
 
 export default function SATPrep() {
   const [selectedSection, setSelectedSection] = useState<SATSection>("reading");
-  const [selectedTopic, setSelectedTopic] = useState<string>("vocabulary-in-context");
+  const [selectedTopic, setSelectedTopic] = useState<string>("contextual-meaning");
   const [streamed, setStreamed] = useState("");
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [loading, setLoading] = useState(false);
