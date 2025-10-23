@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       removed: deleteRes.data.map((row) => normalizeFriendship(row as RawFriendship)),
-      counterpart: normalizeProfile(friendProfileRes.data as RawProfile),
+      counterpart: normalizeProfile(friendProfileRes.data as unknown as RawProfile),
     });
   } catch (error) {
     console.error("/api/friends/remove POST error", error);

@@ -73,7 +73,8 @@ export async function POST(req: Request) {
     }
 
     if (incoming.data) {
-      const accept = await sb
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const accept = await (sb as any)
         .from("friend_requests")
         .update({ status: "accepted", resolved_at: new Date().toISOString() })
         .eq("id", incoming.data.id)

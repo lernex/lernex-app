@@ -26,10 +26,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Request not found" }, { status: 404 });
     }
 
-    if (requestRes.data.sender_id !== user.id) {
+    type RequestData = { sender_id?: string; status?: string } | null;
+    const requestData = requestRes.data as RequestData;
+    if (requestData?.sender_id !== user.id) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     }
-    if (requestRes.data.status !== "pending") {
+    if (requestData?.status !== "pending") {
       return NextResponse.json({ error: "Request already processed" }, { status: 409 });
     }
 
@@ -41,7 +43,7 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (deleteRes.error) throw deleteRes.error;
 
-    return NextResponse.json({ ok: true, request: normalizeRequest(deleteRes.data as RawRequest) });
+    return NextResponse.json({ ok: true, request: normalizeRequest(deleteRes.data as unknown as RawRequest) });
   } catch (error) {
     console.error("/api/friends/request/cancel POST error", error);
     return NextResponse.json({ error: "Unable to cancel request" }, { status: 500 });
