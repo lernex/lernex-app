@@ -32,6 +32,7 @@ type ProfileData = {
     showAccuracy: boolean;
     showActivity: boolean;
   };
+  showRealName: boolean;
 };
 
 type ToastState = {
@@ -92,6 +93,7 @@ export default function PublicProfilePage() {
   });
   const [newInterest, setNewInterest] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [showRealName, setShowRealName] = useState(false);
 
   useEffect(() => {
     if (!toast) return;
@@ -117,6 +119,7 @@ export default function PublicProfilePage() {
       setInterests(json.interests || []);
       setPublicStats(json.publicStats);
       setAvatarUrl(json.avatarUrl);
+      setShowRealName(json.showRealName ?? false);
     } catch (err) {
       console.error(err);
       setToast({
@@ -145,6 +148,7 @@ export default function PublicProfilePage() {
           interests,
           publicStats,
           avatarUrl,
+          showRealName,
         }),
       });
       if (!response.ok) {
@@ -566,7 +570,39 @@ export default function PublicProfilePage() {
                   Public Visibility
                 </h2>
                 <p className="mb-6 text-sm text-neutral-600 dark:text-neutral-300">
-                  Control which stats are visible to other users when they view your profile.
+                  Control which information is visible to other users when they view your profile.
+                </p>
+
+                {/* Real Name Visibility Toggle */}
+                <div className="mb-6">
+                  <motion.div
+                    whileHover={{ scale: 1.01 }}
+                    className="flex items-start gap-3 rounded-xl border border-neutral-200/60 bg-white/50 p-4 dark:border-neutral-800 dark:bg-neutral-900/30"
+                  >
+                    <button
+                      onClick={() => setShowRealName(!showRealName)}
+                      className={cn(
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2 transition",
+                        showRealName
+                          ? "border-lernex-blue bg-lernex-blue text-white"
+                          : "border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-800"
+                      )}
+                    >
+                      {showRealName && <Check className="h-4 w-4" />}
+                    </button>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-neutral-900 dark:text-white">
+                        Show Real Name
+                      </div>
+                      <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                        Display your full name on your public profile. When disabled, only your username will be visible. {!showRealName && <span className="font-medium text-rose-600 dark:text-rose-400">(Currently hidden for privacy)</span>}
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+
+                <p className="mb-4 text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                  Stats Visibility
                 </p>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -617,6 +653,8 @@ export default function PublicProfilePage() {
           <ProfilePreview
             displayName={displayName}
             username={username}
+            fullName={fullName}
+            showRealName={showRealName}
             bio={bio}
             interests={interests}
             avatarUrl={avatarUrl}
@@ -633,6 +671,8 @@ export default function PublicProfilePage() {
 function ProfilePreview({
   displayName,
   username,
+  fullName,
+  showRealName,
   bio,
   interests,
   avatarUrl,
@@ -642,6 +682,8 @@ function ProfilePreview({
 }: {
   displayName: string;
   username: string;
+  fullName: string;
+  showRealName: boolean;
   bio: string;
   interests: string[];
   avatarUrl: string | null;
@@ -654,6 +696,8 @@ function ProfilePreview({
     showActivity: boolean;
   };
 }) {
+  // Determine what name to show based on showRealName setting
+  const visibleName = showRealName && fullName ? fullName : (username || displayName);
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.98 }}
@@ -694,9 +738,9 @@ function ProfilePreview({
             </div>
           )}
           <h3 className="text-2xl font-bold text-neutral-900 dark:text-white">
-            {displayName}
+            {visibleName}
           </h3>
-          {username && (
+          {showRealName && fullName && username && (
             <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
               @{username}
             </p>

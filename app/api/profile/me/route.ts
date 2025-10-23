@@ -12,7 +12,7 @@ export async function GET() {
   const { data, error } = await sb
     .from("profiles")
     .select(
-      "username, full_name, dob, interests, level_map, placement_ready, streak, points, last_study_date, theme_pref",
+      "username, full_name, dob, interests, level_map, placement_ready, streak, points, last_study_date, theme_pref, show_real_name",
     )
     .eq("id", user.id)
     .maybeSingle();

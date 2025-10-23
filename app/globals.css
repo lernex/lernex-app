@@ -163,6 +163,20 @@ html {
   .text-foreground {
     color: var(--foreground);
   }
+
+  /* Enhanced shadow utilities */
+  .shadow-3xl {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  }
+
+  .dark .shadow-3xl {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Smooth transitions for all interactive elements */
+  input, select, textarea, button {
+    @apply transition-all duration-300;
+  }
 }
 
 @keyframes fadeIn {

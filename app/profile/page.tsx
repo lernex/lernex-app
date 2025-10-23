@@ -41,6 +41,39 @@ const cardMotion = {
   transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
 } as const;
 
+const staggerContainer = {
+  animate: {
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+const fadeInUp = {
+  initial: { opacity: 0, y: 20 },
+  animate: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.5,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
+
+const scaleIn = {
+  initial: { opacity: 0, scale: 0.95 },
+  animate: {
+    opacity: 1,
+    scale: 1,
+    transition: {
+      duration: 0.4,
+      ease: [0.16, 1, 0.3, 1],
+    },
+  },
+};
+
 function splitFullName(fullName: string | null | undefined) {
   if (!fullName) {
     return { first: "", last: "" };
@@ -85,6 +118,7 @@ export default function SettingsPage() {
   const [accountLoading, setAccountLoading] = useState(true);
   const [preferencesSaving, setPreferencesSaving] = useState(false);
   const [preferencesFeedback, setPreferencesFeedback] = useState<FeedbackState | null>(null);
+  const [showRealName, setShowRealName] = useState<boolean>(false);
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
   const [usernameStatusMessage, setUsernameStatusMessage] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -185,6 +219,8 @@ export default function SettingsPage() {
         // Load interests and level_map
         setInterests(Array.isArray(data.interests) ? data.interests : []);
         setLevelMap(data.level_map && typeof data.level_map === "object" ? data.level_map : null);
+        // Load show_real_name preference
+        setShowRealName(typeof data.show_real_name === "boolean" ? data.show_real_name : false);
       } catch {
         if (!active) return;
         setPreferencesFeedback({
@@ -532,6 +568,7 @@ export default function SettingsPage() {
           last_name: trimmedLast,
           dob: dob ? dob : null,
           theme_pref: themePreference,
+          show_real_name: showRealName,
         }),
       });
       const payload = await res.json().catch(() => ({}));
@@ -619,8 +656,37 @@ export default function SettingsPage() {
   const nextMilestone = Math.max(0, 7 - ((streak ?? 0) % 7));
 
   return (
-    <main className="min-h-[calc(100vh-56px)] px-0 text-neutral-900 dark:text-white">
-      <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-12">
+    <main className="relative min-h-[calc(100vh-56px)] overflow-hidden px-0 text-neutral-900 dark:text-white">
+      {/* Animated background gradients */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <motion.div
+          className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-gradient-to-br from-lernex-blue/20 via-sky-400/10 to-transparent blur-3xl"
+          animate={{
+            scale: [1, 1.2, 1],
+            opacity: [0.3, 0.5, 0.3],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+        <motion.div
+          className="absolute -right-32 top-64 h-96 w-96 rounded-full bg-gradient-to-bl from-lernex-purple/20 via-violet-400/10 to-transparent blur-3xl"
+          animate={{
+            scale: [1.2, 1, 1.2],
+            opacity: [0.3, 0.5, 0.3],
+          }}
+          transition={{
+            duration: 10,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 1,
+          }}
+        />
+      </div>
+
+      <div className="relative mx-auto w-full max-w-5xl px-4 pb-16 pt-12">
         <input
           ref={fileInputRef}
           type="file"
@@ -628,25 +694,54 @@ export default function SettingsPage() {
           className="hidden"
           onChange={handleFileInputChange}
         />
-        <div className="grid gap-5 items-start lg:grid-cols-[320px,1fr] xl:grid-cols-[360px,1fr]">
+
+        {/* Page Header with Animation */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="mb-8"
+        >
+          <h1 className="bg-gradient-to-r from-lernex-blue via-sky-500 to-lernex-purple bg-clip-text text-4xl font-bold text-transparent">
+            Profile & Settings
+          </h1>
+          <p className="mt-2 text-neutral-600 dark:text-neutral-400">
+            Customize your learning experience and manage your account
+          </p>
+        </motion.div>
+
+        <motion.div
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+          className="grid gap-5 items-start lg:grid-cols-[320px,1fr] xl:grid-cols-[360px,1fr]"
+        >
         {/* Left: profile card */}
         <motion.section
-          {...cardMotion}
-          className="relative overflow-hidden rounded-3xl border border-white/30 bg-white/85 p-6 shadow-xl backdrop-blur-md dark:border-white/10 dark:bg-neutral-900/80"
+          variants={fadeInUp}
+          className="group relative overflow-hidden rounded-3xl border border-white/40 bg-gradient-to-br from-white/90 via-white/85 to-white/80 p-6 shadow-2xl backdrop-blur-xl transition-all duration-500 hover:shadow-3xl dark:border-white/20 dark:from-neutral-900/90 dark:via-neutral-900/85 dark:to-neutral-900/80"
         >
-          <div className="absolute -left-10 -top-10 h-32 w-32 rounded-full bg-lernex-blue/10 blur-3xl dark:bg-lernex-blue/20" />
+          {/* Animated gradient overlay */}
+          <div className="absolute -left-16 -top-16 h-40 w-40 rounded-full bg-gradient-to-br from-lernex-blue/20 via-sky-400/15 to-transparent blur-3xl transition-all duration-700 group-hover:scale-125 dark:from-lernex-blue/30 dark:via-sky-400/20" />
+          <div className="absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-gradient-to-tl from-lernex-purple/15 via-violet-400/10 to-transparent blur-2xl transition-all duration-700 group-hover:scale-125" />
+
           <div className="relative flex flex-col gap-6">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="relative h-14 w-14 overflow-hidden rounded-full border border-white/60 bg-white shadow-inner dark:border-white/10 dark:bg-neutral-950">
+                <motion.div
+                  whileHover={{ scale: 1.05, rotate: 2 }}
+                  whileTap={{ scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                  className="relative h-14 w-14 overflow-hidden rounded-full border-2 border-white/80 bg-white shadow-lg ring-2 ring-lernex-blue/20 transition-all hover:ring-4 hover:ring-lernex-blue/30 dark:border-white/20 dark:bg-neutral-950 dark:ring-sky-400/20 dark:hover:ring-sky-400/30"
+                >
                   {avatar ? (
                     <Image src={avatar} alt="avatar" fill sizes="56px" className="object-cover" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neutral-200 to-neutral-100 text-lg font-semibold text-neutral-600 dark:from-neutral-800 dark:to-neutral-900 dark:text-neutral-200">
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-lernex-blue/30 via-sky-400/20 to-lernex-purple/30 text-lg font-bold text-lernex-blue dark:text-sky-300">
                       {email?.[0]?.toUpperCase() ?? "?"}
                     </div>
                   )}
-                </div>
+                </motion.div>
                 <div>
                   <div className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">
                     Signed in as
@@ -662,43 +757,111 @@ export default function SettingsPage() {
                 {avatar ? "Profile ready" : "Add an avatar"}
               </span>
             </div>
-            <div className="rounded-2xl border border-white/30 bg-white/70 p-4 text-sm text-neutral-600 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-neutral-950/60 dark:text-neutral-300">
-              Keep your streak alive and your avatar fresh to stay visible on the leaderboard and in
-              study groups.
-            </div>
-            <div className="grid grid-cols-1 gap-3 text-center sm:grid-cols-2">
-              <div className="rounded-2xl bg-gradient-to-br from-amber-100 via-orange-50 to-white p-4 shadow-sm dark:from-orange-500/20 dark:via-orange-500/10 dark:to-transparent">
-                <div className="text-xs text-neutral-500 dark:text-neutral-300">🔥 Streak</div>
-                <div className="mt-1 text-2xl font-semibold">{streak}</div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+              className="rounded-2xl border border-white/40 bg-gradient-to-br from-white/80 via-white/70 to-white/60 p-4 text-sm text-neutral-700 shadow-lg backdrop-blur-lg dark:border-white/20 dark:from-neutral-950/70 dark:via-neutral-950/60 dark:to-neutral-950/50 dark:text-neutral-300"
+            >
+              <div className="flex items-start gap-2">
+                <span className="text-lg">💡</span>
+                <p className="flex-1">
+                  Keep your streak alive and your avatar fresh to stay visible on the leaderboard and in
+                  study groups.
+                </p>
               </div>
-              <div className="rounded-2xl bg-gradient-to-br from-indigo-100 via-sky-50 to-white p-4 shadow-sm dark:from-sky-500/20 dark:via-sky-500/10 dark:to-transparent">
-                <div className="text-xs text-neutral-500 dark:text-neutral-300">⭐ Points</div>
-                <div className="mt-1 text-2xl font-semibold">{points}</div>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-3 text-sm font-semibold sm:grid-cols-2">
-              <Link
-                href="/settings"
-                className="rounded-xl bg-lernex-blue px-4 py-2 text-center text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/50"
+            </motion.div>
+
+            <motion.div
+              variants={staggerContainer}
+              initial="initial"
+              animate="animate"
+              className="grid grid-cols-1 gap-3 text-center sm:grid-cols-2"
+            >
+              <motion.div
+                variants={fadeInUp}
+                whileHover={{ y: -4, scale: 1.02 }}
+                className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-200 via-orange-100 to-amber-50 p-5 shadow-lg transition-all dark:from-orange-500/30 dark:via-orange-500/20 dark:to-orange-500/10"
               >
-                Settings
-              </Link>
-              <Link
-                href="/leaderboard"
-                className="rounded-xl border border-white/40 px-4 py-2 text-center transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10"
+                <div className="absolute inset-0 bg-gradient-to-br from-orange-400/0 via-orange-400/0 to-orange-400/10 opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="relative">
+                  <div className="flex items-center justify-center gap-2 text-sm font-medium text-orange-700 dark:text-orange-300">
+                    <span className="text-xl">🔥</span>
+                    Streak
+                  </div>
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.5, type: "spring", stiffness: 200 }}
+                    className="mt-2 text-3xl font-bold text-orange-800 dark:text-orange-200"
+                  >
+                    {streak}
+                  </motion.div>
+                  <div className="mt-1 text-xs text-orange-600/70 dark:text-orange-400/70">
+                    days in a row
+                  </div>
+                </div>
+              </motion.div>
+
+              <motion.div
+                variants={fadeInUp}
+                whileHover={{ y: -4, scale: 1.02 }}
+                className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-200 via-sky-100 to-indigo-50 p-5 shadow-lg transition-all dark:from-sky-500/30 dark:via-sky-500/20 dark:to-sky-500/10"
               >
-                Leaderboard
-              </Link>
-            </div>
+                <div className="absolute inset-0 bg-gradient-to-br from-sky-400/0 via-sky-400/0 to-sky-400/10 opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="relative">
+                  <div className="flex items-center justify-center gap-2 text-sm font-medium text-sky-700 dark:text-sky-300">
+                    <span className="text-xl">⭐</span>
+                    Points
+                  </div>
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.6, type: "spring", stiffness: 200 }}
+                    className="mt-2 text-3xl font-bold text-sky-800 dark:text-sky-200"
+                  >
+                    {points}
+                  </motion.div>
+                  <div className="mt-1 text-xs text-sky-600/70 dark:text-sky-400/70">
+                    total earned
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+            <motion.div
+              variants={staggerContainer}
+              initial="initial"
+              animate="animate"
+              className="grid grid-cols-1 gap-3 text-sm font-semibold sm:grid-cols-2"
+            >
+              <motion.div variants={fadeInUp}>
+                <Link
+                  href="/settings"
+                  className="group relative block overflow-hidden rounded-xl bg-gradient-to-r from-lernex-blue to-sky-500 px-4 py-2.5 text-center text-white shadow-lg shadow-lernex-blue/25 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-lernex-blue/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/50"
+                >
+                  <span className="relative z-10">Settings</span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-sky-500 to-lernex-blue opacity-0 transition-opacity group-hover:opacity-100" />
+                </Link>
+              </motion.div>
+              <motion.div variants={fadeInUp}>
+                <Link
+                  href="/leaderboard"
+                  className="group relative block overflow-hidden rounded-xl border-2 border-white/50 bg-white/30 px-4 py-2.5 text-center backdrop-blur-sm transition-all hover:-translate-y-1 hover:border-lernex-blue/50 hover:bg-lernex-blue/10 hover:shadow-lg dark:border-white/20 dark:bg-white/5 dark:hover:border-sky-400/50 dark:hover:bg-sky-400/10"
+                >
+                  <span className="relative z-10">Leaderboard</span>
+                </Link>
+              </motion.div>
+            </motion.div>
           </div>
         </motion.section>
 
         {/* Right: subjects + actions */}
         <motion.section
-          {...cardMotion}
-          className="relative overflow-hidden rounded-3xl border border-white/30 bg-white/85 p-6 shadow-xl backdrop-blur-md dark:border-white/10 dark:bg-neutral-900/85"
+          variants={fadeInUp}
+          className="group relative overflow-hidden rounded-3xl border border-white/40 bg-gradient-to-br from-white/90 via-white/85 to-white/80 p-6 shadow-2xl backdrop-blur-xl transition-all duration-500 hover:shadow-3xl dark:border-white/20 dark:from-neutral-900/90 dark:via-neutral-900/85 dark:to-neutral-900/80"
         >
-          <div className="absolute inset-0 opacity-70 [background:radial-gradient(circle_at_top,_rgba(59,130,246,0.08),_transparent_55%)] dark:opacity-60" />
+          <div className="absolute inset-0 opacity-50 [background:radial-gradient(circle_at_top_right,_rgba(59,130,246,0.15),_transparent_60%)] transition-opacity group-hover:opacity-70 dark:opacity-40 dark:group-hover:opacity-60" />
+          <div className="absolute -right-20 top-20 h-64 w-64 rounded-full bg-gradient-to-bl from-lernex-purple/10 via-violet-400/5 to-transparent blur-3xl transition-all duration-700 group-hover:scale-125" />
           <div className="relative">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">Your Learning</h2>
@@ -831,44 +994,71 @@ export default function SettingsPage() {
           </div>
         </motion.section>
       </div>
+
+      {/* Account Settings Section */}
       <motion.section
-        {...cardMotion}
-        className="mt-6 rounded-3xl border border-white/30 bg-white/80 p-6 shadow-xl backdrop-blur-md dark:border-white/10 dark:bg-neutral-900/80"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        className="relative mt-8 overflow-hidden rounded-3xl border border-white/40 bg-gradient-to-br from-white/90 via-white/85 to-white/80 p-8 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:from-neutral-900/90 dark:via-neutral-900/85 dark:to-neutral-900/80"
       >
-        <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h3 className="text-base font-semibold">Account settings</h3>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              Manage how others see you and how Lernex behaves.
-            </p>
-          </div>
-          <div className="inline-flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-            <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-            Theme updates apply instantly; other changes take effect after you save.
+        {/* Decorative gradients */}
+        <div className="absolute -left-20 top-1/4 h-72 w-72 rounded-full bg-gradient-to-br from-lernex-blue/15 via-sky-400/10 to-transparent blur-3xl" />
+        <div className="absolute -right-20 bottom-1/4 h-72 w-72 rounded-full bg-gradient-to-tl from-lernex-purple/15 via-violet-400/10 to-transparent blur-3xl" />
+
+        <div className="relative">
+          <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h3 className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-2xl font-bold text-transparent">
+                Account Settings
+              </h3>
+              <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+                Manage how others see you and customize your Lernex experience
+              </p>
+            </div>
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.6 }}
+              className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-50/50 px-3 py-1.5 text-xs font-medium text-emerald-700 backdrop-blur-sm dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Changes save instantly
+            </motion.div>
           </div>
         </div>
-        <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr),minmax(0,1.2fr)]">
-          <div className="rounded-2xl border border-white/30 bg-white/70 p-5 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-neutral-950/60">
-            <label
-              htmlFor="username"
-              className="mb-2 block text-xs font-medium uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400"
-            >
-              Username
-            </label>
-            <input
-              id="username"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              placeholder="your_name"
-              disabled={accountLoading}
-              className={`w-full rounded-xl border bg-white px-3 py-2 text-sm shadow-inner focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-neutral-950 ${
-                usernameStatus === "available"
-                  ? "border-emerald-500 focus:border-emerald-500 focus:ring-emerald-500/30 dark:border-emerald-400 dark:focus:ring-emerald-500/30"
-                  : usernameStatus === "taken" || usernameStatus === "invalid" || usernameStatus === "blocked"
-                  ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500/30 dark:border-rose-400 dark:focus:ring-rose-500/30"
-                  : "border-neutral-200 focus:border-lernex-blue focus:ring-lernex-blue/30 dark:border-neutral-700 dark:focus:ring-lernex-blue/30"
-              }`}
-            />
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.5 }}
+          className="relative mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr),minmax(0,1.2fr)]"
+        >
+          {/* Left Column - Form Fields */}
+          <div className="space-y-6 rounded-2xl border border-white/40 bg-gradient-to-br from-white/80 via-white/70 to-white/60 p-6 shadow-lg backdrop-blur-lg dark:border-white/20 dark:from-neutral-950/80 dark:via-neutral-950/70 dark:to-neutral-950/60">
+            {/* Username Field */}
+            <div className="group">
+              <label
+                htmlFor="username"
+                className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-neutral-700 dark:text-neutral-300"
+              >
+                <span className="h-1 w-1 rounded-full bg-lernex-blue" />
+                Username
+              </label>
+              <div className="relative">
+                <input
+                  id="username"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  placeholder="your_name"
+                  disabled={accountLoading}
+                  className={`w-full rounded-xl border-2 bg-white/90 px-4 py-2.5 text-sm font-medium shadow-sm backdrop-blur-sm transition-all duration-300 placeholder:text-neutral-400 focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-neutral-900/90 dark:placeholder:text-neutral-500 ${
+                    usernameStatus === "available"
+                      ? "border-emerald-400 focus:border-emerald-500 focus:ring-emerald-500/20 dark:border-emerald-500 dark:focus:ring-emerald-500/30"
+                      : usernameStatus === "taken" || usernameStatus === "invalid" || usernameStatus === "blocked"
+                      ? "border-rose-400 focus:border-rose-500 focus:ring-rose-500/20 dark:border-rose-500 dark:focus:ring-rose-500/30"
+                      : "border-neutral-300 focus:border-lernex-blue focus:ring-lernex-blue/20 dark:border-neutral-600 dark:focus:border-sky-400 dark:focus:ring-sky-400/30"
+                  }`}
+                />
             {usernameStatus !== "idle" && usernameStatusMessage ? (
               <p
                 className={`mt-2 text-xs font-medium ${
@@ -914,11 +1104,12 @@ export default function SettingsPage() {
               ) : null}
             </AnimatePresence>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2">
+              <div className="group">
                 <label
                   htmlFor="firstName"
-                  className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400"
+                  className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-neutral-700 dark:text-neutral-300"
                 >
+                  <span className="h-1 w-1 rounded-full bg-lernex-green" />
                   First name
                 </label>
                 <input
@@ -927,16 +1118,17 @@ export default function SettingsPage() {
                   onChange={(event) => setFirstName(event.target.value)}
                   placeholder="Ada"
                   disabled={accountLoading || preferencesSaving}
-                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950"
+                  className="w-full rounded-xl border-2 border-neutral-300 bg-white/90 px-4 py-2.5 text-sm font-medium shadow-sm backdrop-blur-sm transition-all duration-300 placeholder:text-neutral-400 focus:border-lernex-green focus:outline-none focus:ring-4 focus:ring-lernex-green/20 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-600 dark:bg-neutral-900/90 dark:placeholder:text-neutral-500 dark:focus:border-emerald-400 dark:focus:ring-emerald-400/30"
                 />
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="group">
                 <label
                   htmlFor="lastName"
-                  className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400"
+                  className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-neutral-700 dark:text-neutral-300"
                 >
+                  <span className="h-1 w-1 rounded-full bg-lernex-green opacity-50" />
                   Last name{" "}
-                  <span className="normal-case lowercase text-[0.75rem] tracking-normal text-neutral-400 dark:text-neutral-500">
+                  <span className="normal-case lowercase text-[0.7rem] tracking-normal text-neutral-500 dark:text-neutral-400">
                     (optional)
                   </span>
                 </label>
@@ -946,16 +1138,70 @@ export default function SettingsPage() {
                   onChange={(event) => setLastName(event.target.value)}
                   placeholder="Lovelace"
                   disabled={accountLoading || preferencesSaving}
-                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950"
+                  className="w-full rounded-xl border-2 border-neutral-300 bg-white/90 px-4 py-2.5 text-sm font-medium shadow-sm backdrop-blur-sm transition-all duration-300 placeholder:text-neutral-400 focus:border-lernex-green focus:outline-none focus:ring-4 focus:ring-lernex-green/20 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-600 dark:bg-neutral-900/90 dark:placeholder:text-neutral-500 dark:focus:border-emerald-400 dark:focus:ring-emerald-400/30"
                 />
               </div>
             </div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              className="mt-6 overflow-hidden rounded-2xl border-2 border-white/50 bg-gradient-to-br from-white/70 via-white/60 to-white/50 p-5 shadow-lg backdrop-blur-sm dark:border-white/20 dark:from-neutral-900/70 dark:via-neutral-900/60 dark:to-neutral-900/50"
+            >
+              <div className="flex items-start gap-4">
+                <motion.button
+                  type="button"
+                  onClick={() => setShowRealName(!showRealName)}
+                  disabled={accountLoading || preferencesSaving}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={`relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 shadow-sm transition-all duration-300 ${
+                    showRealName
+                      ? "border-lernex-blue bg-gradient-to-br from-lernex-blue to-sky-500 text-white shadow-lernex-blue/30"
+                      : "border-neutral-300 bg-white hover:border-neutral-400 dark:border-neutral-600 dark:bg-neutral-800 dark:hover:border-neutral-500"
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  <AnimatePresence mode="wait">
+                    {showRealName && (
+                      <motion.div
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        exit={{ scale: 0, rotate: 180 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-neutral-900 dark:text-white">
+                      Show real name on public profile
+                    </span>
+                    <span className={`rounded-full px-2 py-0.5 text-[0.65rem] font-semibold transition-all ${
+                      showRealName
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+                        : "bg-neutral-200 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-400"
+                    }`}>
+                      {showRealName ? "Visible" : "Hidden"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+                    {showRealName
+                      ? "Your full name is visible to other users on your public profile."
+                      : "Only your username is shown. Your real name is kept private for enhanced privacy."}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2">
+              <div className="group">
                 <label
                   htmlFor="dob"
-                  className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400"
+                  className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-neutral-700 dark:text-neutral-300"
                 >
+                  <span className="h-1 w-1 rounded-full bg-lernex-yellow" />
                   Date of birth
                 </label>
                 <input
@@ -964,73 +1210,124 @@ export default function SettingsPage() {
                   value={dob}
                   onChange={(event) => setDob(event.target.value)}
                   disabled={accountLoading || preferencesSaving}
-                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950"
+                  className="w-full rounded-xl border-2 border-neutral-300 bg-white/90 px-4 py-2.5 text-sm font-medium shadow-sm backdrop-blur-sm transition-all duration-300 focus:border-lernex-yellow focus:outline-none focus:ring-4 focus:ring-lernex-yellow/20 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-600 dark:bg-neutral-900/90 dark:focus:border-amber-400 dark:focus:ring-amber-400/30"
                 />
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="group">
                 <label
                   htmlFor="themePref"
-                  className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400"
+                  className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-neutral-700 dark:text-neutral-300"
                 >
+                  <span className="h-1 w-1 rounded-full bg-lernex-purple" />
                   Theme preference
                 </label>
-                <select
-                  id="themePref"
-                  value={themePreference}
-                  onChange={(event) => {
-                    const nextTheme = event.target.value as ThemePreference;
-                    setThemePreference(nextTheme);
-                    if (nextTheme !== savedThemePreference) {
-                      setPreferencesFeedback({
-                        message: "Save settings to apply theme changes.",
-                        tone: "info",
-                      });
-                    } else {
-                      setPreferencesFeedback((current) => {
-                        if (
-                          current?.tone === "info" &&
-                          current?.message === "Save settings to apply theme changes."
-                        ) {
-                          return null;
-                        }
-                        return current;
-                      });
-                    }
-                  }}
-                  disabled={accountLoading || preferencesSaving}
-                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-700 dark:bg-neutral-950"
-                >
-                  <option value="auto">Auto (Browser Default)</option>
-                  <option value="light">Light</option>
-                  <option value="dark">Dark</option>
-                </select>
+                <div className="relative">
+                  <select
+                    id="themePref"
+                    value={themePreference}
+                    onChange={(event) => {
+                      const nextTheme = event.target.value as ThemePreference;
+                      setThemePreference(nextTheme);
+                      if (nextTheme !== savedThemePreference) {
+                        setPreferencesFeedback({
+                          message: "Save settings to apply theme changes.",
+                          tone: "info",
+                        });
+                      } else {
+                        setPreferencesFeedback((current) => {
+                          if (
+                            current?.tone === "info" &&
+                            current?.message === "Save settings to apply theme changes."
+                          ) {
+                            return null;
+                          }
+                          return current;
+                        });
+                      }
+                    }}
+                    disabled={accountLoading || preferencesSaving}
+                    className="w-full appearance-none rounded-xl border-2 border-neutral-300 bg-white/90 px-4 py-2.5 pr-10 text-sm font-medium shadow-sm backdrop-blur-sm transition-all duration-300 focus:border-lernex-purple focus:outline-none focus:ring-4 focus:ring-lernex-purple/20 disabled:cursor-not-allowed disabled:opacity-70 dark:border-neutral-600 dark:bg-neutral-900/90 dark:focus:border-violet-400 dark:focus:ring-violet-400/30"
+                  >
+                    <option value="auto">🔄 Auto (Browser Default)</option>
+                    <option value="light">🌞 Light Mode</option>
+                    <option value="dark">🌙 Dark Mode</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                    <svg className="h-5 w-5 text-neutral-400 dark:text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                {themePreference !== savedThemePreference && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-2 flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400"
+                  >
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-600 dark:bg-amber-400" />
+                    Save to apply this theme
+                  </motion.p>
+                )}
               </div>
             </div>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7 }}
+              className="mt-6 flex flex-wrap gap-3"
+            >
+              <motion.button
                 type="button"
                 onClick={handlePreferencesSave}
                 disabled={preferencesSaving || accountLoading}
-                className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg disabled:pointer-events-none disabled:opacity-60"
+                whileHover={{ scale: 1.02, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                className="group relative overflow-hidden rounded-xl bg-gradient-to-r from-lernex-blue via-sky-500 to-lernex-purple px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-lernex-blue/30 transition-all hover:shadow-xl hover:shadow-lernex-blue/40 disabled:pointer-events-none disabled:opacity-60"
               >
-                {preferencesSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save settings"}
-              </button>
-              <button
+                <span className="relative z-10 flex items-center gap-2">
+                  {preferencesSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Settings"
+                  )}
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-lernex-purple via-violet-500 to-lernex-blue opacity-0 transition-opacity group-hover:opacity-100" />
+              </motion.button>
+
+              <motion.button
                 type="button"
                 onClick={() => router.push("/onboarding")}
-                className="inline-flex items-center justify-center rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10"
+                whileHover={{ scale: 1.02, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                className="inline-flex items-center justify-center rounded-xl border-2 border-white/50 bg-white/30 px-5 py-2.5 text-sm font-semibold backdrop-blur-sm transition-all hover:border-lernex-blue/50 hover:bg-lernex-blue/10 hover:shadow-lg dark:border-white/20 dark:bg-white/5 dark:hover:border-sky-400/50 dark:hover:bg-sky-400/10"
               >
-                Edit subjects
-              </button>
-              <button
+                Edit Subjects
+              </motion.button>
+
+              <motion.button
                 type="button"
                 onClick={handleDeleteAccount}
                 disabled={deleteBusy}
-                className="ml-auto inline-flex items-center justify-center rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg disabled:pointer-events-none disabled:opacity-60"
+                whileHover={{ scale: deleteBusy ? 1 : 1.02, y: deleteBusy ? 0 : -2 }}
+                whileTap={{ scale: deleteBusy ? 1 : 0.98 }}
+                className="ml-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-rose-500/30 transition-all hover:shadow-xl hover:shadow-rose-500/40 disabled:pointer-events-none disabled:opacity-60"
               >
-                {deleteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete account"}
-              </button>
-            </div>
+                {deleteBusy ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    Delete Account
+                  </>
+                )}
+              </motion.button>
+            </motion.div>
             <AnimatePresence mode="wait">
               {preferencesFeedback ? (
                 <motion.p
@@ -1048,12 +1345,16 @@ export default function SettingsPage() {
               Tip: Keep your profile details current so recommendations stay relevant.
             </p>
           </div>
-          <div className="space-y-4">
-            <div
-              className={`group relative flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed px-5 py-6 text-center transition will-change-transform ${
+          {/* Right Column - Avatar Upload */}
+          <div className="space-y-5">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.6, duration: 0.5 }}
+              className={`group relative flex cursor-pointer flex-col items-center justify-center gap-5 overflow-hidden rounded-2xl border-2 border-dashed px-6 py-8 text-center backdrop-blur-lg transition-all duration-500 ${
                 isDragActive
-                  ? "border-lernex-blue/70 bg-lernex-blue/10 shadow-lg dark:border-sky-400/70 dark:bg-sky-500/10"
-                  : "border-white/40 bg-white/70 hover:border-lernex-blue/60 hover:shadow-lg dark:border-white/10 dark:bg-neutral-950/60"
+                  ? "scale-[1.02] border-lernex-blue bg-gradient-to-br from-lernex-blue/20 via-sky-400/15 to-lernex-blue/10 shadow-2xl shadow-lernex-blue/30 dark:border-sky-400 dark:from-sky-500/20 dark:via-sky-400/15 dark:to-sky-500/10"
+                  : "border-white/50 bg-gradient-to-br from-white/80 via-white/70 to-white/60 hover:scale-[1.01] hover:border-lernex-blue/50 hover:shadow-xl dark:border-white/20 dark:from-neutral-950/80 dark:via-neutral-950/70 dark:to-neutral-950/60 dark:hover:border-sky-400/50"
               }`}
               onClick={triggerFileDialog}
               onDragOver={handleDragOver}
@@ -1063,45 +1364,90 @@ export default function SettingsPage() {
               role="button"
               tabIndex={0}
             >
-              <div className="relative h-24 w-24 overflow-hidden rounded-full border border-white/60 bg-white shadow-inner transition group-hover:scale-[1.02] dark:border-white/10 dark:bg-neutral-950">
-                {previewUrl ? (
-                  <Image
-                    src={previewUrl}
-                    alt="Avatar preview"
-                    fill
-                    sizes="96px"
-                    className="object-cover"
-                    unoptimized
-                  />
-                ) : avatar ? (
-                  <Image src={avatar} alt="Profile avatar" fill sizes="96px" className="object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neutral-200 to-neutral-100 text-2xl font-semibold text-neutral-600 dark:from-neutral-800 dark:to-neutral-900 dark:text-neutral-200">
-                    {email?.[0]?.toUpperCase() ?? "?"}
-                  </div>
+              {/* Animated background when dragging */}
+              <AnimatePresence>
+                {isDragActive && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 bg-gradient-to-br from-lernex-blue/10 via-transparent to-sky-400/10"
+                  >
+                    <motion.div
+                      animate={{
+                        scale: [1, 1.2, 1],
+                        opacity: [0.3, 0.6, 0.3],
+                      }}
+                      transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                      }}
+                      className="absolute inset-0 rounded-full bg-lernex-blue/20 blur-3xl"
+                    />
+                  </motion.div>
                 )}
-                <button
+              </AnimatePresence>
+
+              <div className="relative">
+                <motion.div
+                  whileHover={{ scale: 1.05, rotate: 3 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="relative h-32 w-32 overflow-hidden rounded-full border-4 border-white/80 bg-white shadow-2xl ring-4 ring-lernex-blue/20 transition-all hover:ring-8 hover:ring-lernex-blue/30 dark:border-white/30 dark:bg-neutral-950 dark:ring-sky-400/20 dark:hover:ring-sky-400/40"
+                >
+                  {previewUrl ? (
+                    <Image
+                      src={previewUrl}
+                      alt="Avatar preview"
+                      fill
+                      sizes="128px"
+                      className="object-cover"
+                      unoptimized
+                    />
+                  ) : avatar ? (
+                    <Image src={avatar} alt="Profile avatar" fill sizes="128px" className="object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-lernex-blue/30 via-sky-400/20 to-lernex-purple/30 text-4xl font-bold text-lernex-blue dark:text-sky-300">
+                      {email?.[0]?.toUpperCase() ?? "?"}
+                    </div>
+                  )}
+                </motion.div>
+
+                <motion.button
                   type="button"
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
                     triggerFileDialog();
                   }}
-                  className="absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-lernex-blue text-white shadow-lg transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/60"
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  whileTap={{ scale: 0.9 }}
+                  className="absolute -bottom-2 -right-2 inline-flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-lernex-blue to-sky-500 text-white shadow-xl shadow-lernex-blue/40 transition-all hover:shadow-2xl hover:shadow-lernex-blue/50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-lernex-blue/50"
                   aria-label="Upload new avatar"
                 >
-                  {avatarSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                </button>
+                  {avatarSaving ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Camera className="h-5 w-5" />
+                  )}
+                </motion.button>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">
-                  Drop a new photo or click to upload
+
+              <div className="relative">
+                <p className="text-base font-bold text-neutral-800 dark:text-neutral-100">
+                  {isDragActive ? "Drop your photo here!" : "Upload Profile Photo"}
                 </p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  JPG, PNG, or WEBP up to 4MB
+                <p className="mt-1 text-xs font-medium text-neutral-600 dark:text-neutral-400">
+                  {isDragActive ? "Release to upload" : "Drag & drop or click to browse"}
                 </p>
+                <div className="mt-3 flex items-center justify-center gap-2 text-xs text-neutral-500 dark:text-neutral-500">
+                  <span className="rounded-full bg-neutral-200/80 px-2 py-0.5 dark:bg-neutral-700/80">JPG</span>
+                  <span className="rounded-full bg-neutral-200/80 px-2 py-0.5 dark:bg-neutral-700/80">PNG</span>
+                  <span className="rounded-full bg-neutral-200/80 px-2 py-0.5 dark:bg-neutral-700/80">WEBP</span>
+                  <span className="rounded-full bg-neutral-200/80 px-2 py-0.5 dark:bg-neutral-700/80">Max 4MB</span>
+                </div>
               </div>
-            </div>
+            </motion.div>
             <AnimatePresence mode="wait">
               {avatarFeedback ? (
                 <motion.p
@@ -1115,34 +1461,53 @@ export default function SettingsPage() {
                 </motion.p>
               ) : null}
             </AnimatePresence>
-            <div className="rounded-2xl border border-white/30 bg-white/70 p-5 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-neutral-950/60">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7 }}
+              className="rounded-2xl border-2 border-white/40 bg-gradient-to-br from-white/80 via-white/70 to-white/60 p-5 shadow-lg backdrop-blur-lg dark:border-white/20 dark:from-neutral-950/80 dark:via-neutral-950/70 dark:to-neutral-950/60"
+            >
               <label
                 htmlFor="avatarUrl"
-                className="mb-2 block text-xs font-medium uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400"
+                className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-neutral-700 dark:text-neutral-300"
               >
-                Avatar URL (optional)
+                <span className="h-1 w-1 rounded-full bg-sky-500" />
+                Avatar URL
+                <span className="normal-case lowercase text-[0.7rem] tracking-normal text-neutral-500 dark:text-neutral-400">
+                  (optional)
+                </span>
               </label>
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <input
                   id="avatarUrl"
                   value={avatarUrlInput}
                   onChange={(event) => setAvatarUrlInput(event.target.value)}
                   placeholder="https://your-image-host.com/avatar.png"
-                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm shadow-inner focus:border-lernex-blue focus:outline-none focus:ring-2 focus:ring-lernex-blue/30 dark:border-neutral-700 dark:bg-neutral-950"
+                  className="w-full rounded-xl border-2 border-neutral-300 bg-white/90 px-4 py-2.5 text-sm font-medium shadow-sm backdrop-blur-sm transition-all duration-300 placeholder:text-neutral-400 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-500/20 dark:border-neutral-600 dark:bg-neutral-900/90 dark:placeholder:text-neutral-500 dark:focus:border-sky-400 dark:focus:ring-sky-400/30"
                 />
-                <button
+                <motion.button
                   type="button"
                   onClick={handleAvatarUrlSave}
                   disabled={avatarSaving}
-                  className="inline-flex shrink-0 items-center justify-center rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5 hover:shadow-lg disabled:pointer-events-none disabled:opacity-60 dark:border-white/10"
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border-2 border-white/50 bg-white/30 px-5 py-2.5 text-sm font-semibold backdrop-blur-sm transition-all hover:border-sky-500/50 hover:bg-sky-500/10 hover:shadow-lg disabled:pointer-events-none disabled:opacity-60 dark:border-white/20 dark:bg-white/5 dark:hover:border-sky-400/50 dark:hover:bg-sky-400/10"
                 >
-                  {avatarSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save URL"}
-                </button>
+                  {avatarSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save URL"
+                  )}
+                </motion.button>
               </div>
-              <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-                Use this if you already host your avatar elsewhere or want to clear it.
+              <p className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+                <span className="text-sm">💡</span>
+                <span>Use this if you host your avatar on an external service (Gravatar, CDN, etc.) or to clear your current avatar.</span>
               </p>
-            </div>
+            </motion.div>
           </div>
         </div>
       </motion.section>

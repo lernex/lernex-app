@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const { username, dob, theme_pref, first_name, last_name } = await req.json().catch(() => ({}));
+  const { username, dob, theme_pref, first_name, last_name, show_real_name } = await req.json().catch(() => ({}));
   let normalizedUsername: string | undefined;
   let trimmedFirstName: string | undefined;
   let trimmedLastName: string | undefined;
@@ -74,6 +74,7 @@ export async function POST(req: Request) {
       (typeof username === "string" ? username.trim() || undefined : undefined),
     dob: typeof dob === "string" ? dob : undefined,
     theme_pref: theme_pref === "auto" || theme_pref === "light" || theme_pref === "dark" ? theme_pref : undefined,
+    show_real_name: typeof show_real_name === "boolean" ? show_real_name : undefined,
     updated_at: new Date().toISOString(),
   };
 

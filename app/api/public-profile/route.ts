@@ -16,7 +16,7 @@ export async function GET() {
     const { data: profile, error } = await supabase
       .from("profiles")
       .select(
-        "id, username, full_name, avatar_url, bio, interests, public_stats"
+        "id, username, full_name, avatar_url, bio, interests, public_stats, show_real_name"
       )
       .eq("id", user.id)
       .single();
@@ -41,6 +41,7 @@ export async function GET() {
       bio: profile.bio || "",
       interests: Array.isArray(profile.interests) ? profile.interests : [],
       publicStats: profile.public_stats || defaultPublicStats,
+      showRealName: profile.show_real_name ?? false,
     };
 
     return NextResponse.json(response);
@@ -63,7 +64,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { username, fullName, bio, interests, publicStats, avatarUrl } = body;
+    const { username, fullName, bio, interests, publicStats, avatarUrl, showRealName } = body;
 
     // Validate username (alphanumeric and underscores only)
     if (username && !/^[a-zA-Z0-9_]+$/.test(username)) {
@@ -108,6 +109,7 @@ export async function PATCH(request: NextRequest) {
         interests,
         public_stats: publicStats,
         avatar_url: avatarUrl,
+        show_real_name: typeof showRealName === "boolean" ? showRealName : undefined,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);

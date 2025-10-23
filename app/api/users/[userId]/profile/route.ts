@@ -22,7 +22,7 @@ export async function GET(
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select(
-        "id, username, full_name, avatar_url, bio, streak, points, last_study_date, interests, created_at, public_stats"
+        "id, username, full_name, avatar_url, bio, streak, points, last_study_date, interests, created_at, public_stats, show_real_name"
       )
       .eq("id", targetUserId)
       .single();
@@ -106,10 +106,13 @@ export async function GET(
       createdAt: activity.created_at,
     }));
 
+    // Respect the show_real_name privacy setting
+    const showRealName = profile.show_real_name ?? false;
+
     const response = {
       id: profile.id,
       username: profile.username,
-      fullName: profile.full_name,
+      fullName: showRealName ? profile.full_name : null,
       avatarUrl: profile.avatar_url,
       bio: profile.bio || "",
       streak: publicStats.showStreak ? profile.streak || 0 : null,
