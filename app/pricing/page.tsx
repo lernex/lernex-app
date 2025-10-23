@@ -39,6 +39,7 @@ const tiers: Tier[] = [
     sellingPoint: 'Perfect for exploring what Lernex can do for your learning goals.',
     features: [
       'Daily AI-generated micro-lessons tailored to your interests',
+      'Standard AI model with fundamental personalization capabilities',
       'Interactive quizzes with instant feedback and explanations',
       'Track your streaks and build consistent study habits',
       'Access to community challenges and weekend competitions',
@@ -62,6 +63,7 @@ const tiers: Tier[] = [
     cta: 'Unlock Plus now',
     sellingPoint: 'The sweet spot for serious learners who want faster results with less effort.',
     features: [
+      'Advanced AI model with 6x more intelligence for deeper personalization',
       '3x higher daily AI creation limits with unlimited instant retries',
       'Adaptive study paths that learn from every question you skip or answer',
       'Curated exam playlists and interview prep drills for your field',
@@ -87,6 +89,7 @@ const tiers: Tier[] = [
     cta: 'Go Premium today',
     sellingPoint: 'For those who refuse to settle - unlimited everything with enterprise-grade tools.',
     features: [
+      'Advanced AI model with 6x more intelligence for maximum personalization',
       'Unlimited AI generation with zero daily caps or restrictions',
       'Collaborative workspaces for study groups, teams, or classrooms',
       'Instant access to every beta feature the moment it ships',

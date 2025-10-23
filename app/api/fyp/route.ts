@@ -6,6 +6,7 @@ import { getLearningPathProgress, type LevelMap } from "@/lib/learning-path";
 import type { Lesson } from "@/lib/schema";
 import type { Difficulty } from "@/types/placement";
 import { acquireGenLock, releaseGenLock } from "@/lib/db-lock";
+import { getUserTier } from "@/lib/model-config";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -46,6 +47,15 @@ export async function GET(req: NextRequest) {
   const uid = user.id;
   const reqId = Math.random().toString(36).slice(2, 8);
   try { console.debug(`[fyp][${reqId}] begin`, { uid: uid.slice(0,8), ip }); } catch {}
+
+  // Fetch user tier for model selection
+  const { data: userProfile } = await sb
+    .from("profiles")
+    .select("subscription_tier")
+    .eq("id", uid)
+    .single();
+  const userTier = getUserTier(userProfile || {});
+  try { console.debug(`[fyp][${reqId}] user-tier`, { tier: userTier }); } catch {}
 
   const preview = (value: unknown, max = 160) => {
     if (typeof value !== "string") return value;
@@ -1152,6 +1162,7 @@ export async function GET(req: NextRequest) {
       recentMissSummary,
       personalization,
     } = lessonPrep;
+    // FYP uses FAST model for immediate lesson generation to show results quickly
     const generatorOptions: Parameters<typeof generateLessonForTopic>[5] = {
       pace,
       accuracyPct: accuracyPct ?? undefined,
@@ -1172,6 +1183,8 @@ export async function GET(req: NextRequest) {
       recentMissSummary: recentMissSummary ?? undefined,
       knowledge: lessonKnowledge,
       personalization,
+      userTier,
+      modelSpeed: 'fast',
     };
     try {
       console.debug(`[fyp][${reqId}] generator options`, {

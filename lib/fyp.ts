@@ -6,6 +6,7 @@ import { LessonSchema, MIN_LESSON_WORDS, MAX_LESSON_WORDS, MAX_LESSON_CHARS } fr
 import type { Lesson } from "./schema";
 import { checkUsageLimit, logUsage } from "./usage";
 import { buildLessonPrompts } from "./lesson-prompts";
+import { createModelClient, getUserTier, type UserTier, type ModelSpeed } from "./model-config";
 
 type Pace = "slow" | "normal" | "fast";
 
@@ -58,6 +59,8 @@ type LessonOptions = {
     style?: { prefer?: string[]; avoid?: string[] };
     lessons?: { leanInto?: string[]; avoid?: string[]; saved?: string[] };
   };
+  userTier?: UserTier;
+  modelSpeed?: ModelSpeed;
 };
 
 const MAX_CONTEXT_CHARS = 280; // Reduced from 360 to prevent prompt bloat
@@ -1071,8 +1074,22 @@ export async function generateLessonForTopic(
   topic: string,
   opts: LessonOptions = {}
 ): Promise<Lesson> {
-  const client = getClient();
-  const model = DEFAULT_MODEL;
+  // Use tiered model system based on user tier and speed requirement
+  const userTier = opts.userTier || 'free';
+  const modelSpeed = opts.modelSpeed || 'fast';
+
+  const { client, model, modelIdentifier, provider } = createModelClient(userTier, modelSpeed);
+
+  console.log('[fyp/generateLessonForTopic]', {
+    subject,
+    topic,
+    userTier,
+    modelSpeed,
+    provider,
+    model,
+    modelIdentifier
+  });
+
   const completionMaxTokens = Math.min(
     4096,
     Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS ?? "3800") || 3800),
@@ -1361,7 +1378,11 @@ export async function generateLessonForTopic(
       metadata.error = errorDetails instanceof Error ? errorDetails.message : String(errorDetails);
     }
     try {
-      await logUsage(sb, uid, ip, model, usagePayload, { metadata });
+      // Add provider and tier to metadata for cost tracking
+      metadata.provider = provider;
+      metadata.tier = userTier;
+      metadata.modelSpeed = modelSpeed;
+      await logUsage(sb, uid, ip, modelIdentifier, usagePayload, { metadata });
     } catch (usageErr) {
       console.warn("[fyp] usage log failed", usageErr);
     }

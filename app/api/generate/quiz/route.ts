@@ -6,6 +6,7 @@ import OpenAI from "openai";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { normalizeLatex, scanLatex, hasLatexIssues } from "@/lib/latex";
+import { createModelClient, getUserTier } from "@/lib/model-config";
 
 const MAX_CHARS = 4300;
 
@@ -24,16 +25,18 @@ export async function POST(req: Request) {
     
     const { text, subject = "Algebra 1", difficulty = "easy", mode = "mini" } = await req.json();
 
-    const cerebrasApiKey = process.env.CEREBRAS_API_KEY;
-    if (!cerebrasApiKey) {
-      return new Response(
-        JSON.stringify({ error: "Missing CEREBRAS_API_KEY" }),
-        { status: 500 }
-      );
-    }
     if (typeof text !== "string" || text.trim().length < 20) {
       return new Response(JSON.stringify({ error: "Provide >= 20 characters" }), { status: 400 });
     }
+
+    // Fetch user profile to determine tier
+    const { data: profile } = user
+      ? await sb.from("profiles").select("subscription_tier").eq("id", user.id).single()
+      : { data: null };
+    const userTier = getUserTier(profile || {});
+
+    // Generate page uses FAST model for immediate response
+    const { client, model, modelIdentifier, provider } = createModelClient(userTier, 'fast');
 
     const src = text.slice(0, MAX_CHARS);
 
@@ -71,8 +74,6 @@ Rules:
   {"id":"quiz-001","subject":"Math","title":"Fractions","difficulty":"easy","questions":[{"prompt":"What is \\\\(\\\\frac{1}{2}\\\\)?","choices":["\\\\(0.5\\\\)","\\\\(1\\\\)","\\\\(2\\\\)","\\\\(0.25\\\\)"],"correctIndex":0,"explanation":"One half equals \\\\(0.5\\\\) in decimal."}]}
 `.trim();
 
-    const cerebrasBaseUrl = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
-    const model = process.env.CEREBRAS_QUIZ_MODEL ?? "gpt-oss-120b";
     const quickMaxTokens = Math.min(
       900,
       Math.max(320, Number(process.env.GROQ_QUIZ_MAX_TOKENS_QUICK ?? "600") || 600),
@@ -89,10 +90,6 @@ Rules:
     let raw = "";
     let usedFallback = false;
 
-    const client = new OpenAI({
-      apiKey: cerebrasApiKey,
-      baseURL: cerebrasBaseUrl,
-    });
     let completion: Awaited<ReturnType<typeof client.chat.completions.create>> | null = null;
     try {
       completion = await client.chat.completions.create({
@@ -162,7 +159,7 @@ Create fair multiple-choice questions based on the source, following the rules.`
       }
       if (mapped) {
         try {
-          await logUsage(sb, user.id, ip, model, mapped, {
+          await logUsage(sb, user.id, ip, modelIdentifier, mapped, {
             metadata: {
               route: "generate-quiz",
               subject,
@@ -170,6 +167,8 @@ Create fair multiple-choice questions based on the source, following the rules.`
               mode,
               usedFallback,
               sourceTextLength: src.length,
+              provider,
+              tier: userTier,
             }
           });
         } catch {
@@ -313,24 +312,7 @@ Create fair multiple-choice questions based on the source, following the rules.`
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";
-    // Log error usage if we have user context
-    try {
-      const sb = await supabaseServer();
-      const { data: { user } } = await sb.auth.getUser();
-      const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
-      if (user) {
-        const model = process.env.CEREBRAS_QUIZ_MODEL ?? "gpt-oss-120b";
-        await logUsage(sb, user.id, ip, model, { input_tokens: null, output_tokens: null }, {
-          metadata: {
-            route: "generate-quiz",
-            error: msg,
-            errorType: e instanceof Error ? e.name : typeof e,
-          }
-        });
-      }
-    } catch {
-      /* ignore logging errors */
-    }
+    // Note: Error logging handled in main try block with proper model context
     return new Response(JSON.stringify({ error: msg }), { status: 500 });
   }
 }

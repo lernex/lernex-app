@@ -6,6 +6,7 @@ import OpenAI from "openai";
 import type { ChatCompletionCreateParams } from "openai/resources/chat/completions";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
+import { createModelClient, getUserTier } from "@/lib/model-config";
 
 export async function POST(req: Request) {
   const t0 = Date.now();
@@ -30,16 +31,16 @@ export async function POST(req: Request) {
       topicLabel?: string;
     };
 
-    const cerebrasApiKey = process.env.CEREBRAS_API_KEY;
-    if (!cerebrasApiKey) {
-      console.error("[sat-prep/stream] missing CEREBRAS_API_KEY");
-      return new Response("Missing CEREBRAS_API_KEY", { status: 500 });
-    }
+    // Fetch user profile to determine tier
+    const { data: profile } = uid
+      ? await sb.from("profiles").select("subscription_tier").eq("id", uid).single()
+      : { data: null };
+    const userTier = getUserTier(profile || {});
 
-    const cerebrasBaseUrl = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
-    const model = process.env.CEREBRAS_STREAM_MODEL ?? "gpt-oss-120b";
+    // SAT Prep uses FAST model for immediate response
+    const { client, model, modelIdentifier, provider } = createModelClient(userTier, 'fast');
 
-    console.log("[sat-prep/stream] request-start", { section, topic, topicLabel, dt: 0 });
+    console.log("[sat-prep/stream] request-start", { section, topic, topicLabel, tier: userTier, provider, model, dt: 0 });
 
     // Fetch sample SAT questions from database
     // Try topic-specific query first, fall back to section-only query if no matches
@@ -128,11 +129,6 @@ export async function POST(req: Request) {
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ];
-
-    const client = new OpenAI({
-      apiKey: cerebrasApiKey,
-      baseURL: cerebrasBaseUrl,
-    });
 
     const streamPromise = client.chat.completions.create({
       model,
@@ -248,8 +244,8 @@ export async function POST(req: Request) {
           }
           if (usageSummary && (uid || ip)) {
             try {
-              await logUsage(sb, uid, ip, model, usageSummary, {
-                metadata: { route: "sat-prep-lesson", section, topic },
+              await logUsage(sb, uid, ip, modelIdentifier, usageSummary, {
+                metadata: { route: "sat-prep-lesson", section, topic, provider, tier: userTier },
               });
             } catch (logErr) {
               console.warn("[sat-prep/stream] usage-log-error", logErr);
@@ -271,24 +267,7 @@ export async function POST(req: Request) {
   } catch (e) {
     console.error("[sat-prep/stream] top-level-error", e);
     const msg = e instanceof Error ? e.message : "Server error";
-    // Log error usage if we have user context
-    try {
-      const sb = await supabaseServer();
-      const { data: { user } } = await sb.auth.getUser();
-      const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
-      if (user) {
-        const model = process.env.CEREBRAS_STREAM_MODEL ?? "gpt-oss-120b";
-        await logUsage(sb, user.id, ip, model, { input_tokens: null, output_tokens: null }, {
-          metadata: {
-            route: "sat-prep-lesson",
-            error: msg,
-            errorType: e instanceof Error ? e.name : typeof e,
-          }
-        });
-      }
-    } catch {
-      /* ignore logging errors */
-    }
+    // Note: Error logging handled in main try block with proper model context
     return new Response("Server error", { status: 500 });
   }
 }
