@@ -25,7 +25,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 
-export default function NavBar() {
+export default function Navbar() {
   const { stats } = useProfileStats();
   const points = stats?.points ?? 0;
   const streak = stats?.streak ?? 0;

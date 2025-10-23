@@ -1,7 +1,7 @@
 ﻿import type { Metadata } from "next";
 import "./globals.css";
 import { Inter } from "next/font/google";
-import NavBar from "@/components/Navbar";
+import Navbar from "@/components/Navbar";
 import { Analytics } from "@vercel/analytics/next";
 import Footer from "@/components/Footer";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -91,7 +91,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ThemeProvider initialPreference={initialPreference}>
           <ProfileStatsProvider>
             <div className="fixed inset-0 -z-10 bg-[radial-gradient(60%_40%_at_50%_0%,rgba(47,128,237,0.12),transparent)]"></div>
-            <NavBar />
+            <Navbar />
             <SidebarOffsetWrapper>
               <PageTransition>
                 {children}
