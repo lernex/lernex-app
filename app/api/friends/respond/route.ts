@@ -37,15 +37,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Request not found" }, { status: 404 });
     }
 
-    if (requestRes.data.receiver_id !== user.id) {
+    const requestData = requestRes.data as RawRequest;
+
+    if (requestData.receiver_id !== user.id) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     }
 
-    if (requestRes.data.status !== "pending") {
+    if (requestData.status !== "pending") {
       return NextResponse.json({ error: "Request already handled" }, { status: 409 });
     }
 
-    const counterpartId = requestRes.data.sender_id;
+    const counterpartId = requestData.sender_id as string;
 
     const counterpartRes = await sb
       .from("profiles")
@@ -57,7 +59,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Sender profile missing" }, { status: 404 });
     }
 
-    const updateRes = await sb
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateRes = await (sb as any)
       .from("friend_requests")
       .update({
         status: action === "accept" ? "accepted" : "declined",
@@ -99,7 +102,8 @@ export async function POST(req: Request) {
     let friendshipRecord: RawFriendship | null = (existingFriendship.data?.[0] as RawFriendship | undefined) ?? null;
 
     if (!friendshipRecord) {
-      const insertRes = await sb
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const insertRes = await (sb as any)
         .from("friendships")
         .insert({
           user_a: user.id,

@@ -36,12 +36,14 @@ export async function GET(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Server error" }), { status: 500 });
   }
 
-  if (!cacheRow || !Array.isArray(cacheRow.lessons)) {
+  const cache = cacheRow as { lessons?: unknown } | null;
+
+  if (!cache || !Array.isArray(cache.lessons)) {
     return new Response(JSON.stringify({ error: "Not found" }), { status: 404 });
   }
 
   const now = Date.now();
-  const lessons = cacheRow.lessons as unknown[];
+  const lessons = cache.lessons as unknown[];
 
   const pickLesson = () => {
     if (lessonId) {

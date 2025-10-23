@@ -42,8 +42,10 @@ export async function GET(
       });
     }
 
+    const playlistData = playlist as { id: string; user_id: string };
+
     // Check if user has access (owner or member)
-    const isOwner = playlist.user_id === user.id;
+    const isOwner = playlistData.user_id === user.id;
     let hasAccess = isOwner;
 
     if (!isOwner) {
@@ -79,8 +81,10 @@ export async function GET(
       });
     }
 
+    const items = playlistItems as Array<{ lesson_id: string }>;
+
     // Get full lesson data from saved_lessons
-    const lessonIds = playlistItems.map(item => item.lesson_id);
+    const lessonIds = items.map(item => item.lesson_id);
     const { data: savedLessons, error: lessonsError } = await sb
       .from("saved_lessons")
       .select("*")
@@ -99,10 +103,12 @@ export async function GET(
       });
     }
 
+    const lessons = savedLessons as Array<{ subject?: string | null; topic?: string | null; difficulty?: string | null; lesson_data?: unknown }>;
+
     // Analyze the lessons to determine common patterns
-    const subjects = savedLessons.map(l => l.subject).filter(Boolean);
-    const topics = savedLessons.map(l => l.topic).filter(Boolean);
-    const difficulties = savedLessons.map(l => l.difficulty).filter(Boolean);
+    const subjects = lessons.map(l => l.subject).filter((s): s is string => Boolean(s));
+    const topics = lessons.map(l => l.topic).filter((t): t is string => Boolean(t));
+    const difficulties = lessons.map(l => l.difficulty).filter((d): d is string => Boolean(d));
 
     // Most common subject
     const subjectCounts = subjects.reduce((acc, s) => {
@@ -132,7 +138,7 @@ export async function GET(
     )[0] as "intro" | "easy" | "medium" | "hard" | undefined;
 
     // Extract tone tags and titles for context
-    const allTitles = savedLessons.map(l => l.title);
+    const allTitles = lessons.map(l => (l as { title?: string }).title).filter((t): t is string => Boolean(t));
     const lessonDescriptors = allTitles.slice(0, 5);
 
     // Generate similar lessons
@@ -149,7 +155,7 @@ export async function GET(
           primaryTopic || `${primarySubject} Concepts`,
           {
             difficultyPref: primaryDifficulty,
-            avoidTitles: [...allTitles, ...generatedLessons.map(l => l.title)],
+            avoidTitles: [...allTitles, ...generatedLessons.map(l => l.title).filter((t): t is string => Boolean(t))],
             savedLessonDescriptors: lessonDescriptors,
             structuredContext: {
               focus: "reinforcement",

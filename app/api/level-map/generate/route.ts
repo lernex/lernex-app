@@ -23,8 +23,9 @@ export async function POST(req: NextRequest) {
     .select("interests, level_map")
     .eq("id", user.id)
     .maybeSingle();
-  const interests: string[] = Array.isArray(prof?.interests) ? (prof!.interests as string[]) : [];
-  const levelMap = (prof?.level_map || {}) as Record<string, string>;
+  const profile = prof as { interests?: unknown; level_map?: unknown } | null;
+  const interests: string[] = Array.isArray(profile?.interests) ? (profile.interests as string[]) : [];
+  const levelMap = (profile?.level_map || {}) as Record<string, string>;
 
   const targets = interests
     .filter((s) => levelMap[s])
@@ -42,8 +43,9 @@ export async function POST(req: NextRequest) {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(100);
+    const attemptData = (attempts ?? []) as Array<{ subject?: string | null; correct_count?: number | null; total?: number | null; created_at?: string | null }>;
     let correct = 0, total = 0;
-    (attempts ?? []).forEach((a) => {
+    attemptData.forEach((a) => {
       if (!a.subject || a.subject === t.subject) {
         correct += a.correct_count ?? 0;
         total += a.total ?? 0;
@@ -52,7 +54,7 @@ export async function POST(req: NextRequest) {
     const mastery = total > 0 ? Math.round((correct / total) * 100) : 50;
 
     const now = Date.now();
-    const recent = (attempts ?? []).filter((a) => a.created_at && (now - +new Date(a.created_at)) < 72 * 3600_000);
+    const recent = attemptData.filter((a) => a.created_at && (now - +new Date(a.created_at)) < 72 * 3600_000);
     const pace = recent.length >= 12 ? "fast" : recent.length >= 4 ? "normal" : "slow";
     const notes = `Learner pace: ${pace}. Personalized for ${t.subject}. Use more real-world examples for engineering contexts when relevant.`;
 
@@ -74,14 +76,15 @@ export async function POST(req: NextRequest) {
           .eq("user_id", user.id)
           .eq("subject", t.subject)
           .maybeSingle();
-        const p0 = existing?.path as unknown;
+        const existingState = existing as { path?: unknown; course?: string } | null;
+        const p0 = existingState?.path as unknown;
         const hasTopics = (o: unknown): o is { topics: unknown[] } => {
           if (!o || typeof o !== "object") return false;
           const t = (o as { topics?: unknown }).topics;
           return Array.isArray(t);
         };
         const valid = hasTopics(p0) && p0.topics.length > 0;
-        if (valid && existing?.course === t.course) {
+        if (valid && existingState?.course === t.course) {
           results.push({ subject: t.subject, ok: true });
           if (lock.acquired && lock.supported) await releaseGenLock(sb, user.id, t.subject);
           continue;

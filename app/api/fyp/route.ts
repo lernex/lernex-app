@@ -66,7 +66,8 @@ export async function GET(req: NextRequest) {
       .eq("user_id", user.id)
       .limit(1)
       .maybeSingle();
-    subject = first?.subject ?? null;
+    const firstState = first as { subject?: string } | null;
+    subject = firstState?.subject ?? null;
 
     // If none, fall back to the first interest with a chosen course
     if (!subject) {
@@ -75,8 +76,9 @@ export async function GET(req: NextRequest) {
         .select("interests, level_map")
         .eq("id", user.id)
         .maybeSingle();
-      const interests: string[] = Array.isArray(prof?.interests) ? (prof!.interests as string[]) : [];
-      const levelMap = (prof?.level_map || {}) as Record<string, string>;
+      const profile = prof as { interests?: unknown; level_map?: unknown } | null;
+      const interests: string[] = Array.isArray(profile?.interests) ? (profile.interests as string[]) : [];
+      const levelMap = (profile?.level_map || {}) as Record<string, string>;
       const firstSubject = interests.find((s) => levelMap[s]);
       subject = firstSubject ?? null;
     }
@@ -239,9 +241,9 @@ export async function GET(req: NextRequest) {
       .maybeSingle(),
   ]);
 
-  let state = stateResponse.data ?? null;
-  const progressRow = progressRowResponse.data ?? null;
-  const preferenceRow = preferenceResponse.data ?? null;
+  let state = stateResponse.data as { path?: unknown; next_topic?: string; difficulty?: string; course?: string } | null;
+  const progressRow = progressRowResponse.data as { topic_idx?: number; subtopic_idx?: number; delivered_mini?: number; delivered_by_topic?: unknown; delivered_ids_by_topic?: unknown; delivered_titles_by_topic?: unknown; completion_map?: unknown; metrics?: unknown } | null;
+  const preferenceRow = preferenceResponse.data as { liked_ids?: unknown; disliked_ids?: unknown; saved_ids?: unknown; tone_tags?: unknown } | null;
 
   type PathProgress = {
     deliveredByTopic?: Record<string, number>;
@@ -276,7 +278,8 @@ export async function GET(req: NextRequest) {
         .select("level_map")
         .eq("id", user.id)
         .maybeSingle();
-      const levelMap = (prof?.level_map || {}) as Record<string, string>;
+      const profData = prof as { level_map?: unknown } | null;
+      const levelMap = (profData?.level_map || {}) as Record<string, string>;
       levelMapKeys = Object.keys(levelMap);
       const findCourse = (subj: string | null): string | undefined => {
         if (!subj) return undefined;
@@ -292,7 +295,8 @@ export async function GET(req: NextRequest) {
         course = lookedUp.trim();
         if (!state?.course || state.course !== course) {
           try {
-            await sb
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (sb as any)
               .from("user_subject_state")
               .upsert({
                 user_id: user.id,
@@ -1038,10 +1042,11 @@ export async function GET(req: NextRequest) {
     .eq("topic_label", currentLabel)
     .maybeSingle();
 
+  const cache = cacheRow as { lessons?: unknown } | null;
   const nowMs = Date.now();
   const cachedCandidates: CachedLesson[] = [];
-  if (Array.isArray(cacheRow?.lessons)) {
-    for (const raw of cacheRow!.lessons as CachedLesson[]) {
+  if (Array.isArray(cache?.lessons)) {
+    for (const raw of cache.lessons as CachedLesson[]) {
       if (!raw) continue;
       const stamped = raw.cachedAt ? +new Date(raw.cachedAt) : NaN;
       if (!Number.isFinite(stamped) || nowMs - stamped > MAX_CACHE_AGE_MS) continue;
@@ -1114,7 +1119,8 @@ export async function GET(req: NextRequest) {
     if (staleCachedCandidates.length || (eligibleCachedCandidates[0]?.id !== responseLesson.id)) {
       const rewrittenCache = [responseLesson, ...eligibleCachedCandidates.filter((entry) => entry && entry.id !== responseLesson.id)].slice(0, 5);
       try {
-        await sb
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb as any)
           .from("user_topic_lesson_cache")
           .upsert({
             user_id: user.id,
@@ -1242,7 +1248,8 @@ export async function GET(req: NextRequest) {
   while (nextCache.length > 5) nextCache.pop();
 
   try {
-    await sb
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb as any)
       .from("user_topic_lesson_cache")
       .upsert({
         user_id: user.id,
@@ -1270,12 +1277,14 @@ export async function GET(req: NextRequest) {
   if (metricsPatch) progressPatch.p_metrics = metricsPatch;
 
   try {
-    await sb.rpc("apply_user_subject_progress_patch", progressPatch);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb as any).rpc("apply_user_subject_progress_patch", progressPatch);
   } catch (progressErr) {
     try { console.error(`[fyp][${reqId}] progress patch failed`, progressErr); } catch {}
   }
 
-  await sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb as any)
     .from("user_subject_state")
     .update({ next_topic: nextTopicStr, updated_at: new Date().toISOString() })
     .eq("user_id", user.id)

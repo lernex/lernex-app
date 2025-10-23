@@ -109,7 +109,7 @@ const classifyLessonTone = (lesson: Lesson): string[] => {
 };
 
 const findLessonForTone = async (
-  sb: ReturnType<typeof supabaseServer>,
+  sb: Awaited<ReturnType<typeof supabaseServer>>,
   userId: string,
   subject: string,
   lessonId: string
@@ -122,7 +122,8 @@ const findLessonForTone = async (
 
   if (!Array.isArray(cacheRows)) return null;
   for (const row of cacheRows) {
-    const lessons = Array.isArray(row?.lessons) ? (row.lessons as unknown[]) : [];
+    const rowData = row as { lessons?: unknown };
+    const lessons = Array.isArray(rowData?.lessons) ? (rowData.lessons as unknown[]) : [];
     for (const raw of lessons) {
       if (!raw || typeof raw !== "object") continue;
       if (typeof (raw as { id?: unknown }).id !== "string") continue;
@@ -173,7 +174,8 @@ export async function POST(req: NextRequest) {
   if (!state) {
     // Auto-create user_subject_state if it doesn't exist to allow feedback
     try {
-      const { error: createError } = await sb
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: createError } = await (sb as any)
         .from("user_subject_state")
         .upsert({
           user_id: user.id,
@@ -204,10 +206,12 @@ export async function POST(req: NextRequest) {
       .eq("subject", subject)
       .maybeSingle();
 
-    liked = normalizeIdList(prefRow?.liked_ids);
-    disliked = normalizeIdList(prefRow?.disliked_ids);
-    saved = normalizeIdList(prefRow?.saved_ids);
-    toneTags = normalizeToneTags(prefRow?.tone_tags);
+    const pref = prefRow as { liked_ids?: unknown; disliked_ids?: unknown; saved_ids?: unknown; tone_tags?: unknown } | null;
+
+    liked = normalizeIdList(pref?.liked_ids);
+    disliked = normalizeIdList(pref?.disliked_ids);
+    saved = normalizeIdList(pref?.saved_ids);
+    toneTags = normalizeToneTags(pref?.tone_tags);
 
     if (rawAction === "like") {
       liked = pushUnique(liked, lessonId);
@@ -260,7 +264,8 @@ export async function POST(req: NextRequest) {
   }
 
   if (isPreferenceAction) {
-    const { error: prefError } = await sb
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: prefError } = await (sb as any)
       .from("user_subject_preferences")
       .upsert({
         user_id: user.id,
@@ -278,7 +283,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const { error: stateError } = await sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: stateError } = await (sb as any)
     .from("user_subject_state")
     .update({ updated_at: new Date().toISOString() })
     .eq("user_id", user.id)

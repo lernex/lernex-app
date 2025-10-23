@@ -48,7 +48,8 @@ export async function POST(req: Request) {
   const nextTopic = firstTopic && firstSub ? `${firstTopic.name} > ${firstSub.name}` : null;
 
   // Write/Upsert user_subject_state
-  await sb.from("user_subject_state").upsert({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb as any).from("user_subject_state").upsert({
     user_id: user.id,
     subject: state.subject,
     course: state.course,
@@ -75,18 +76,21 @@ export async function POST(req: Request) {
   let includeSubject = !!subjectValue;
   let includeLevel = !!courseValue;
   let attemptPayload = buildAttempt(includeSubject, includeLevel);
-  let { error: attemptError } = await sb.from("attempts").insert(attemptPayload);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let { error: attemptError } = await (sb as any).from("attempts").insert(attemptPayload);
   if (attemptError?.code === "PGRST204" && includeSubject) {
     console.warn("[placement-finish] subject column missing; retry without subject");
     includeSubject = false;
     attemptPayload = buildAttempt(includeSubject, includeLevel);
-    ({ error: attemptError } = await sb.from("attempts").insert(attemptPayload));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ({ error: attemptError } = await (sb as any).from("attempts").insert(attemptPayload));
   }
   if (attemptError?.code === "PGRST204" && includeLevel) {
     console.warn("[placement-finish] level column missing; retry without level");
     includeLevel = false;
     attemptPayload = buildAttempt(includeSubject, includeLevel);
-    ({ error: attemptError } = await sb.from("attempts").insert(attemptPayload));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ({ error: attemptError } = await (sb as any).from("attempts").insert(attemptPayload));
   }
   if (attemptError) {
     console.error("[placement-finish] attempts insert failed", attemptError);
@@ -100,12 +104,14 @@ export async function POST(req: Request) {
     .select("points, streak, last_study_date")
     .eq("id", user.id)
     .maybeSingle();
-  const currentPoints = (prof?.points as number | null) ?? 0;
-  const last = (prof?.last_study_date as string | null) ?? null;
-  const previousStreak = (prof?.streak as number | null) ?? 0;
+  const profile = prof as { points?: number | null; streak?: number | null; last_study_date?: string | null } | null;
+  const currentPoints = profile?.points ?? 0;
+  const last = profile?.last_study_date ?? null;
+  const previousStreak = profile?.streak ?? 0;
   const newStreak = computeStreakAfterActivity(previousStreak, last, now);
   const addPts = Math.max(0, Number(correctTotal) || 0) * 10;
-  const { data: updatedProfile, error: updateError } = await sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: updatedProfile, error: updateError } = await (sb as any)
     .from("profiles")
     .update({
       last_study_date: today,
@@ -121,7 +127,8 @@ export async function POST(req: Request) {
   }
 
   // Clear the placement flag so /post-auth routes to /fyp next time
-  await sb.from("profiles").update({ placement_ready: false }).eq("id", user.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb as any).from("profiles").update({ placement_ready: false }).eq("id", user.id);
   try { console.debug(`[placement-finish][${reqId}] done`, { nextTopic }); } catch {}
   return NextResponse.json({
     ok: true,

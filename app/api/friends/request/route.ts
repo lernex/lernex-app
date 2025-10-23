@@ -73,17 +73,19 @@ export async function POST(req: Request) {
     }
 
     if (incoming.data) {
+      const incomingRequest = incoming.data as RawRequest;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const accept = await (sb as any)
         .from("friend_requests")
         .update({ status: "accepted", resolved_at: new Date().toISOString() })
-        .eq("id", incoming.data.id)
+        .eq("id", incomingRequest.id)
         .select("id, sender_id, receiver_id, status, message, created_at, resolved_at")
         .maybeSingle();
       if (accept.error) throw accept.error;
       const normalizedRequest = normalizeRequest(accept.data as RawRequest);
 
-      const friendshipInsert = await sb
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const friendshipInsert = await (sb as any)
         .from("friendships")
         .insert({
           user_a: user.id,
@@ -118,7 +120,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Request already sent" }, { status: 409 });
     }
 
-    const insertRes = await sb
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const insertRes = await (sb as any)
       .from("friend_requests")
       .insert({
         sender_id: user.id,

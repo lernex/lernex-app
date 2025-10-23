@@ -18,12 +18,14 @@ export async function POST() {
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!prof?.placement_ready) return NextResponse.json({ error: "Placement not required" }, { status: 400 });
 
-  const interests: string[] = Array.isArray(prof?.interests) ? prof!.interests : [];
+  const profile = prof as { interests?: unknown; level_map?: unknown; placement_ready?: boolean } | null;
+  if (!profile?.placement_ready) return NextResponse.json({ error: "Placement not required" }, { status: 400 });
+
+  const interests: string[] = Array.isArray(profile?.interests) ? profile.interests as string[] : [];
   if (!interests.length) return NextResponse.json({ error: "No interests" }, { status: 400 });
 
-  const levelMap: Record<string, string> = (prof?.level_map as Record<string, string>) ?? {};
+  const levelMap: Record<string, string> = (profile?.level_map as Record<string, string>) ?? {};
   const courses = interests
     .filter((s) => levelMap[s])
     .map((s) => ({ subject: s, course: levelMap[s]! }));

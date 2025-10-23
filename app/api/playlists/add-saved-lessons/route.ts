@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: "Playlist not found" }), { status: 404 });
     }
 
-    const isOwner = playlist.user_id === user.id;
+    const playlistData = playlist as { id: string; user_id: string };
+    const isOwner = playlistData.user_id === user.id;
     let isModerator = false;
 
     if (!isOwner) {
@@ -46,7 +47,8 @@ export async function POST(req: NextRequest) {
         .eq("profile_id", user.id)
         .maybeSingle();
 
-      isModerator = membership?.role === "moderator";
+      const memberData = membership as { role?: string } | null;
+      isModerator = memberData?.role === "moderator";
     }
 
     if (!isOwner && !isModerator) {
@@ -61,7 +63,8 @@ export async function POST(req: NextRequest) {
       .order("position", { ascending: false })
       .limit(1);
 
-    const nextPosition = (items && items[0]?.position) ? items[0].position + 1 : 1;
+    const positionItems = (items ?? []) as Array<{ position: number }>;
+    const nextPosition = (positionItems && positionItems[0]?.position) ? positionItems[0].position + 1 : 1;
 
     // Get existing lesson IDs in playlist to avoid duplicates
     const { data: existingItems } = await sb
@@ -69,7 +72,8 @@ export async function POST(req: NextRequest) {
       .select("lesson_id")
       .eq("playlist_id", playlist_id);
 
-    const existingLessonIds = new Set((existingItems ?? []).map(item => item.lesson_id));
+    const existingItemsData = (existingItems ?? []) as Array<{ lesson_id: string }>;
+    const existingLessonIds = new Set(existingItemsData.map(item => item.lesson_id));
 
     // Filter out lessons already in the playlist
     const newLessonIds = lesson_ids.filter(id => !existingLessonIds.has(id));

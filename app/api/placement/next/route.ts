@@ -347,10 +347,11 @@ export async function POST(req: Request) {
         .maybeSingle();
       if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
 
-      const interests: string[] = Array.isArray(prof?.interests) ? prof!.interests : [];
+      const profile = prof as { interests?: unknown; level_map?: unknown } | null;
+      const interests: string[] = Array.isArray(profile?.interests) ? profile.interests as string[] : [];
       if (!interests.length) return new Response(JSON.stringify({ error: "No interests" }), { status: 400 });
 
-      const levelMap = (prof?.level_map || {}) as Record<string, string>;
+      const levelMap = (profile?.level_map || {}) as Record<string, string>;
       const courses = interests
         .filter((s) => levelMap[s])
         .map((s) => ({ subject: s, course: levelMap[s]! }));
