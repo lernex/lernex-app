@@ -27,7 +27,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: fetchError.message }, { status: 500 });
   }
 
-  const currentInterests = profile?.interests || [];
+  const profileData = profile as { interests?: string[]; level_map?: unknown } | null;
+  const currentInterests = profileData?.interests || [];
 
   // Check if interest exists
   if (!currentInterests.includes(interest)) {
@@ -45,13 +46,14 @@ export async function POST(req: Request) {
   const updatedInterests = currentInterests.filter((i: string) => i !== interest);
 
   // Also update level_map to remove this subject's level
-  let updatedLevelMap = profile?.level_map as Record<string, string> | null;
+  let updatedLevelMap = profileData?.level_map as Record<string, string> | null;
   if (updatedLevelMap && updatedLevelMap[interest]) {
     updatedLevelMap = { ...updatedLevelMap };
     delete updatedLevelMap[interest];
   }
 
-  const { error: updateError } = await sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (sb as any)
     .from("profiles")
     .update({
       interests: updatedInterests,

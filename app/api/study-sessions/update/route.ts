@@ -32,13 +32,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
+    const sessionData = session as { id: string; organizer_id: string; friend_id: string };
+
     // Only allow organizer or friend to update status
-    if (session.organizer_id !== user.id && session.friend_id !== user.id) {
+    if (sessionData.organizer_id !== user.id && sessionData.friend_id !== user.id) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
     // Update the session
-    const { data: updatedSession, error: updateError } = await sb
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: updatedSession, error: updateError } = await (sb as any)
       .from("study_sessions")
       .update({
         status,

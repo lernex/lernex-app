@@ -14,7 +14,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid level_map" }, { status: 400 });
   }
 
-  const { error } = await sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (sb as any)
     .from("profiles")
     .update({ level_map, placement_ready: true })
     .eq("id", user.id);

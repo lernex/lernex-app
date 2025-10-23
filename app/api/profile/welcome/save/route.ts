@@ -20,7 +20,8 @@ export async function POST(req: Request) {
   }
 
   // Ensure the row exists (trigger should handle this, but belt-and-suspenders)
-  await sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb as any)
     .from("profiles")
     .insert({ id: user.id, total_cost: 0 })
     .select("id")
@@ -37,7 +38,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Username already taken" }, { status: 409 });
   }
 
-  const { error } = await sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (sb as any)
     .from("profiles")
     .update({
       username,

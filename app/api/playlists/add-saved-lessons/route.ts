@@ -95,7 +95,8 @@ export async function POST(req: NextRequest) {
       position: nextPosition + index
     }));
 
-    const { error: insertError } = await sb
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: insertError } = await (sb as any)
       .from("playlist_items")
       .insert(itemsToInsert);
 

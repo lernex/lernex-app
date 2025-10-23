@@ -60,7 +60,8 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: "Invalid lesson data" }), { status: 400 });
     }
 
-    const { data, error } = await sb
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (sb as any)
       .from("saved_lessons")
       .upsert({
         user_id: user.id,

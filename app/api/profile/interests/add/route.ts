@@ -29,7 +29,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: fetchError.message }, { status: 500 });
   }
 
-  const currentInterests = profile?.interests || [];
+  const profileData = profile as { interests?: string[] } | null;
+  const currentInterests = profileData?.interests || [];
 
   // Check if interest already exists
   if (currentInterests.includes(interest)) {
@@ -39,7 +40,8 @@ export async function POST(req: Request) {
   // Add the new interest
   const updatedInterests = [...currentInterests, interest];
 
-  const { error: updateError } = await sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (sb as any)
     .from("profiles")
     .update({
       interests: updatedInterests,

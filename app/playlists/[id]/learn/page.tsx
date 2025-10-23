@@ -53,7 +53,8 @@ export default function PlaylistLearnMode() {
         return;
       }
 
-      setPlaylistName(playlist.name);
+      const playlistData = playlist as { name: string };
+      setPlaylistName(playlistData.name);
 
       // Get playlist items
       const { data: items, error: itemsError } = await supabase

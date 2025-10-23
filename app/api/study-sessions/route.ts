@@ -96,7 +96,8 @@ export async function POST(req: Request) {
     }
 
     // Create the study session
-    const { data: session, error: insertError } = await sb
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: session, error: insertError } = await (sb as any)
       .from("study_sessions")
       .insert({
         organizer_id: user.id,

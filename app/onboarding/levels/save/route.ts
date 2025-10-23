@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 
 export async function POST(req: Request) {
-  const sb = supabaseServer();
+  const sb = await supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return NextResponse.redirect(new URL("/login", new URL(req.url).origin));
 
@@ -20,13 +20,15 @@ export async function POST(req: Request) {
   }
 
   // Ensure row exists
-  await sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb as any)
     .from("profiles")
     .insert({ id: user.id, total_cost: 0 })
     .select("id")
     .maybeSingle();
 
-  await sb.from("profiles").update({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb as any).from("profiles").update({
     level_map,
     placement_ready: true,
     updated_at: new Date().toISOString(),

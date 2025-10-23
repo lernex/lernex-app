@@ -16,13 +16,15 @@ export async function POST(req: Request) {
   }
 
   // Ensure row exists (safety)
-  await sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (sb as any)
     .from("profiles")
     .insert({ id: user.id, total_cost: 0 })
     .select("id")
     .maybeSingle();
 
-  const { error } = await sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (sb as any)
     .from("profiles")
     .update({ interests, level_map: null, updated_at: new Date().toISOString() })
     .eq("id", user.id);

@@ -65,8 +65,9 @@ export async function POST(req: Request) {
     let exampleContext = "";
 
     if (hasExamples && sampleQuestions) {
+      const questions = sampleQuestions as Array<{ question_text?: string; answer_choices?: unknown; correct_answer?: string }>;
       exampleContext = "\n\nHere are some real SAT question examples for reference:\n\n";
-      sampleQuestions.forEach((q, idx) => {
+      questions.forEach((q, idx) => {
         exampleContext += `Example ${idx + 1}:\n${q.question_text}\n`;
         if (q.answer_choices && Array.isArray(q.answer_choices)) {
           q.answer_choices.forEach((choice: string, i: number) => {

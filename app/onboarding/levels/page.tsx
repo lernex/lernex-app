@@ -17,7 +17,8 @@ export default async function LevelsPage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const interests: string[] = Array.isArray(prof?.interests) ? prof!.interests : [];
+  const profile = prof as { interests?: unknown; level_map?: unknown } | null;
+  const interests: string[] = Array.isArray(profile?.interests) ? profile.interests as string[] : [];
   if (!interests.length) redirect("/onboarding");
 
   // Render a simple form (SSR) that posts to our save endpoint

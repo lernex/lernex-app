@@ -47,8 +47,9 @@ export async function POST(req: Request) {
   }
 
   if (taken && taken.length > 0) {
+    const takenProfiles = taken as Array<{ id?: string; username?: string }>;
     const conflict =
-      taken.some(
+      takenProfiles.some(
         (row) =>
           row?.id &&
           typeof row.username === "string" &&
@@ -59,7 +60,8 @@ export async function POST(req: Request) {
     }
   }
 
-  const ensure = await sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ensure = await (sb as any)
     .from("profiles")
     .insert({ id: user.id, total_cost: 0 })
     .select("id")
@@ -88,7 +90,8 @@ export async function POST(req: Request) {
     payload.avatar_url = String(metaAvatar).trim();
   }
 
-  const { error } = await sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (sb as any)
     .from("profiles")
     .update(payload)
     .eq("id", user.id);

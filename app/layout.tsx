@@ -1,7 +1,7 @@
 ﻿import type { Metadata } from "next";
 import "./globals.css";
 import { Inter } from "next/font/google";
-import NavBar from "@/components/NavBar";
+import NavBar from "@/components/Navbar";
 import { Analytics } from "@vercel/analytics/next";
 import Footer from "@/components/Footer";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -38,7 +38,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         .select("theme_pref")
         .eq("id", user.id)
         .maybeSingle();
-      initialPreference = sanitizeThemePref(data?.theme_pref ?? null);
+      const profile = data as { theme_pref?: string } | null;
+      initialPreference = sanitizeThemePref(profile?.theme_pref ?? null);
     }
   } catch {
     initialPreference = null;

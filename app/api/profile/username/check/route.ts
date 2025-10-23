@@ -50,8 +50,9 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const profiles = data as Array<{ id?: string; username?: string }> | null;
   const takenByOther =
-    data?.some(
+    profiles?.some(
       (row) =>
         row?.id &&
         row.id !== user?.id &&

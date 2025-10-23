@@ -36,8 +36,9 @@ export async function POST(req: Request) {
     if (takenError) {
       return NextResponse.json({ error: "Could not validate username." }, { status: 500 });
     }
+    const takenProfiles = taken as Array<{ id?: string; username?: string }> | null;
     const conflict =
-      taken?.some(
+      takenProfiles?.some(
         (row) =>
           row?.id &&
           typeof row.username === "string" &&
@@ -80,7 +81,8 @@ export async function POST(req: Request) {
     updatePayload.full_name = fullNameUpdate;
   }
 
-  const { error } = await sb.from("profiles").update(updatePayload).eq("id", user.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (sb as any).from("profiles").update(updatePayload).eq("id", user.id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

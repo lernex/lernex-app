@@ -114,7 +114,8 @@ export async function POST(req: Request) {
   const timestampedUrl = `${publicUrl}?t=${Date.now()}`;
 
   const [{ error: profileError }, { error: authError }] = await Promise.all([
-    supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
       .from("profiles")
       .update({
         avatar_url: timestampedUrl,
