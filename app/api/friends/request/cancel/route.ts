@@ -4,7 +4,7 @@ import { normalizeRequest, RawRequest } from "../../shared";
 
 export async function POST(req: Request) {
   try {
-    const sb = supabaseServer();
+    const sb = await supabaseServer();
     const authState = await sb.auth.getUser();
     if (authState.error) throw authState.error;
     const user = authState.data.user;

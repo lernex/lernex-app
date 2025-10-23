@@ -27,7 +27,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   let initialPreference: ThemePreference | null = null;
 
   try {
-    const sb = supabaseServer();
+    const sb = await supabaseServer();
     const {
       data: { user },
     } = await sb.auth.getUser();

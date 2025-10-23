@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 // Public metrics endpoint (dev-only): no auth required
 export async function GET(req: NextRequest) {
-  const sb = supabaseServer();
+  const sb = await supabaseServer();
 
   const url = new URL(req.url);
   const daysParam = url.searchParams.get("days");

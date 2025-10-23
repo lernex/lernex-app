@@ -477,16 +477,16 @@ export default function AnalyticsPage() {
         if (profileRes.error) throw profileRes.error;
         if (usageRes.error) throw usageRes.error;
 
-        const attemptRows = (attemptRes.data ?? []).map((row) =>
+        const attemptRows = (attemptRes.data ?? []).map((row: unknown) =>
           normalizeAttempt(row as Record<string, unknown>)
         );
-        const subjectRows = (stateRes.data ?? []).map((row) =>
+        const subjectRows = (stateRes.data ?? []).map((row: unknown) =>
           normalizeSubjectState(row as Record<string, unknown>)
         );
         const profileSnapshot = normalizeProfile(
           (profileRes.data as Record<string, unknown> | null | undefined) ?? null
         );
-        const usageRows = (usageRes.data ?? []).map((row) =>
+        const usageRows = (usageRes.data ?? []).map((row: unknown) =>
           normalizeUsage(row as Record<string, unknown>)
         );
 

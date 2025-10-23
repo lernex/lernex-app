@@ -39,7 +39,7 @@ type CachedLesson = Lesson & {
 };
 
 export async function GET(req: NextRequest) {
-  const sb = supabaseServer();
+  const sb = await supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";

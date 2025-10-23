@@ -135,7 +135,7 @@ const findLessonForTone = async (
 };
 
 export async function POST(req: NextRequest) {
-  const sb = supabaseServer();
+  const sb = await supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
 

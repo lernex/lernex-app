@@ -6,7 +6,7 @@ import { LEVELS_BY_DOMAIN } from "@/data/domains";
 export const dynamic = "force-dynamic";
 
 export default async function LevelsPage() {
-  const sb = supabaseServer();
+  const sb = await supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) redirect("/login");
 

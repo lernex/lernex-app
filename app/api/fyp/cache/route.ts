@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 const MAX_CACHE_AGE_MS = 7 * 24 * 3600_000;
 
 export async function GET(req: NextRequest) {
-  const sb = supabaseServer();
+  const sb = await supabaseServer();
   const {
     data: { user },
   } = await sb.auth.getUser();

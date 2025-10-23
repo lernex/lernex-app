@@ -11,7 +11,7 @@ const MAX_CHARS = 4300;
 
 export async function POST(req: Request) {
   try {
-    const sb = supabaseServer();
+    const sb = await supabaseServer();
     const { data: { user } } = await sb.auth.getUser();
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
 
@@ -315,7 +315,7 @@ Create fair multiple-choice questions based on the source, following the rules.`
     const msg = e instanceof Error ? e.message : "Server error";
     // Log error usage if we have user context
     try {
-      const sb = supabaseServer();
+      const sb = await supabaseServer();
       const { data: { user } } = await sb.auth.getUser();
       const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
       if (user) {

@@ -422,7 +422,7 @@ export async function POST(req: NextRequest) {
     const msg = err instanceof Error ? err.message : "Server error";
     // Log error usage if we have user context
     try {
-      const sb = supabaseServer();
+      const sb = await supabaseServer();
       let uid: string | null = null;
       try {
         const { data: { user } } = await sb.auth.getUser();

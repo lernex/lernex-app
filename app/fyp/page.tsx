@@ -4,7 +4,7 @@ import FypFeedClient from "./FypFeedClient";
 import { normalizeProfileBasics } from "@/lib/profile-basics";
 
 export default async function FypHome() {
-  const sb = supabaseServer();
+  const sb = await supabaseServer();
   const {
     data: { user },
   } = await sb.auth.getUser();

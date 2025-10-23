@@ -68,10 +68,10 @@ export default function NavBar() {
         : "border border-neutral-200 dark:border-white/10";
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
       setUser(session?.user ?? null);
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_: string, session: any) => {
       setUser(session?.user ?? null);
     });
     return () => listener.subscription.unsubscribe();
@@ -96,8 +96,8 @@ export default function NavBar() {
           setMembership(null);
           return;
         }
-        const premium = data?.premium === true;
-        const plus = data?.plus === true;
+        const premium = (data as any)?.premium === true;
+        const plus = (data as any)?.plus === true;
         setMembership(premium ? "premium" : plus ? "plus" : null);
       } catch (err) {
         if (!cancelled) {

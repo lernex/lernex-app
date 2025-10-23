@@ -10,7 +10,7 @@ import { checkUsageLimit, logUsage } from "@/lib/usage";
 export async function POST(req: Request) {
   const t0 = Date.now();
   try {
-    const sb = supabaseServer();
+    const sb = await supabaseServer();
     const { data: { user } } = await sb.auth.getUser();
     const uid = user?.id ?? null;
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
@@ -272,7 +272,7 @@ export async function POST(req: Request) {
     const msg = e instanceof Error ? e.message : "Server error";
     // Log error usage if we have user context
     try {
-      const sb = supabaseServer();
+      const sb = await supabaseServer();
       const { data: { user } } = await sb.auth.getUser();
       const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
       if (user) {

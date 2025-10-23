@@ -29,7 +29,7 @@ function buildSharedInterestExtractor(profile: ProfileSummary) {
 
 export async function GET() {
   try {
-    const sb = supabaseServer();
+    const sb = await supabaseServer();
     const authState = await sb.auth.getUser();
     if (authState.error) throw authState.error;
     if (!authState.data.user) {

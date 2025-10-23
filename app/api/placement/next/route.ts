@@ -320,7 +320,7 @@ Create exactly one discriminative multiple-choice question from the course's app
 export async function POST(req: Request) {
   try {
     // Auth (server component client works on Edge with “cookies”)
-    const sb = supabaseServer();
+    const sb = await supabaseServer();
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
@@ -439,7 +439,7 @@ export async function POST(req: Request) {
     const msg = e instanceof Error ? e.message : "Server error";
     // Log error usage if we have user context
     try {
-      const sb = supabaseServer();
+      const sb = await supabaseServer();
       const { data: { user } } = await sb.auth.getUser();
       const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
       if (user) {

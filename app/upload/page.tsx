@@ -4,7 +4,7 @@ import UploadLessonsClient from "./UploadLessonsClient";
 import { normalizeProfileBasics } from "@/lib/profile-basics";
 
 export default async function UploadHome() {
-  const sb = supabaseServer();
+  const sb = await supabaseServer();
   const {
     data: { user },
   } = await sb.auth.getUser();
