@@ -523,10 +523,11 @@ export default function SupportPage() {
       setAttemptsLoading(true);
       setAttemptsError(null);
       try {
+        // userId is guaranteed to be non-null here due to early return check above
         const { data, error } = await supabase
           .from('attempts')
           .select('subject, correct_count, total, created_at')
-          .eq('user_id', userId)
+          .eq('user_id', userId as string)
           .order('created_at', { ascending: false })
           .limit(200);
 

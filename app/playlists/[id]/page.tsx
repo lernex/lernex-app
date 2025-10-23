@@ -352,7 +352,8 @@ export default function PlaylistDetail() {
     }
     setSavingName(true);
     try {
-      const { error } = await supabaseClient
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabaseClient as any)
         .from("playlists")
         .update({ name: trimmed })
         .eq("id", id);
@@ -389,7 +390,8 @@ export default function PlaylistDetail() {
     setSavingDescription(true);
     try {
       const payload = trimmed ? { description: trimmed } : { description: null };
-      const { error } = await supabaseClient
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabaseClient as any)
         .from("playlists")
         .update(payload)
         .eq("id", id);
@@ -420,7 +422,8 @@ export default function PlaylistDetail() {
     const nextValue = !playlist.is_public;
     setVisibilitySaving(true);
     try {
-      const { error } = await supabaseClient
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabaseClient as any)
         .from("playlists")
         .update({ is_public: nextValue })
         .eq("id", id);
@@ -457,7 +460,8 @@ export default function PlaylistDetail() {
     setShareLoading(true);
     try {
       if (!playlist.is_public) {
-        const { error } = await supabaseClient
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabaseClient as any)
           .from("playlists")
           .update({ is_public: true })
           .eq("id", playlist.id);
@@ -491,7 +495,8 @@ export default function PlaylistDetail() {
     setAddingId(lesson.id);
     try {
       const nextPosition = computeNextPosition(items);
-      const { data, error } = await supabaseClient
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabaseClient as any)
         .from("playlist_items")
         .insert({
           playlist_id: id,
@@ -588,7 +593,8 @@ export default function PlaylistDetail() {
 
       await Promise.all(
         updates.map(({ id: targetId, position }) =>
-          supabaseClient
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabaseClient as any)
             .from("playlist_items")
             .update({ position })
             .eq("id", targetId)

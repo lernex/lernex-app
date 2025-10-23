@@ -70,6 +70,8 @@ export default function PlaylistLearnMode() {
         return;
       }
 
+      const playlistItems = items as Array<{ lesson_id: string }>;
+
       // Get lesson data from saved_lessons
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -77,7 +79,7 @@ export default function PlaylistLearnMode() {
         return;
       }
 
-      const lessonIds = items.map(item => item.lesson_id);
+      const lessonIds = playlistItems.map(item => item.lesson_id);
       const { data: savedLessons, error: lessonsError } = await supabase
         .from("saved_lessons")
         .select("*")

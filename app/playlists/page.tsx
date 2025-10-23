@@ -387,7 +387,8 @@ export default function Playlists() {
         return;
       }
 
-      const { error: insertError } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: insertError } = await (supabase as any)
         .from("playlists")
         .insert({ name: trimmed, user_id: userId });
 
@@ -420,7 +421,8 @@ export default function Playlists() {
       const nextVisibility = !playlist.is_public;
 
       try {
-        const { error: updateError } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: updateError } = await (supabase as any)
           .from("playlists")
           .update({ is_public: nextVisibility })
           .eq("id", playlist.id);
@@ -1146,7 +1148,8 @@ function PlaylistEditorPanel({
     setAddingId(lesson.id);
     try {
       const nextPosition = computeNextPosition(items);
-      const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
         .from("playlist_items")
         .insert({
           playlist_id: playlistId,
@@ -1276,7 +1279,8 @@ function PlaylistEditorPanel({
       if (updates.length > 0) {
         await Promise.all(
           updates.map(({ id: targetId, position }) =>
-            supabase
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (supabase as any)
               .from("playlist_items")
               .update({ position })
               .eq("id", targetId)
@@ -1734,7 +1738,8 @@ function SharePanel({
     setActionId(profile.id);
 
     try {
-      const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
         .from("playlist_memberships")
         .upsert(
           { playlist_id: playlist.id, profile_id: profile.id, role },
@@ -1811,7 +1816,8 @@ function SharePanel({
     setActionId(membershipId);
 
     try {
-      const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
         .from("playlist_memberships")
         .update({ role: nextRole })
         .eq("id", membershipId)

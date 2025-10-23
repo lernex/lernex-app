@@ -111,7 +111,7 @@ export default function SettingsPage() {
         // Load profile details if present
         if (u?.id) {
           const {
-            data: profile,
+            data: profileData,
             error,
           } = await supabase
             .from("profiles")
@@ -119,6 +119,7 @@ export default function SettingsPage() {
             .eq("id", u.id)
             .maybeSingle();
           if (!active || error) return;
+          const profile = profileData as { username?: string; avatar_url?: string } | null;
           const profileUsername =
             typeof profile?.username === "string" ? (profile.username as string) : "";
           setUsername(profileUsername);
@@ -459,7 +460,8 @@ export default function SettingsPage() {
       const authRes = await supabase.auth.updateUser({ data: { avatar_url: targetUrl } });
       if (authRes.error) throw authRes.error;
       if (targetId) {
-        const profileRes = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const profileRes = await (supabase as any)
           .from("profiles")
           .update({
             avatar_url: targetUrl,
