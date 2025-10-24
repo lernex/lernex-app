@@ -8,6 +8,7 @@ import crypto from "crypto";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { buildLessonPrompts } from "@/lib/lesson-prompts";
 import { supabaseServer } from "@/lib/supabase-server";
+import { createModelClient, fetchUserTier } from "@/lib/model-config";
 
 
 export const dynamic = "force-dynamic";
@@ -119,14 +120,6 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429 });
   }
 
-  const cerebrasApiKey = process.env.CEREBRAS_API_KEY;
-  if (!cerebrasApiKey) {
-    return new Response(
-      JSON.stringify({ error: "Server misconfigured: missing CEREBRAS_API_KEY" }),
-      { status: 500 }
-    );
-  }
-
   // Supabase client (forward the user session for RLS)
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("sb-access-token")?.value ?? "";
@@ -151,6 +144,12 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: "Usage limit exceeded" }), { status: 403 });
     }
   }
+
+  // Fetch user tier with cache-busting (always fresh, no stale data)
+  const userTier = uid ? await fetchUserTier(sb, uid) : 'free';
+
+  // Use FAST model for immediate lesson generation
+  const { client, model, modelIdentifier, provider } = createModelClient(userTier, 'fast');
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -269,14 +268,12 @@ export async function POST(req: NextRequest) {
     }
     // ------------------------------------------------------------
 
-    // Model/provider selection (Cerebras)
-    const cerebrasBaseUrl = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
-    const model = process.env.CEREBRAS_LESSON_MODEL ?? "gpt-oss-120b";
+    // Model configuration (already set up above with tiered system)
     const temperature = 1;
-  const completionMaxTokens = Math.min(
-    3200,
-    Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS ?? "2200") || 2200),
-  );
+    const completionMaxTokens = Math.min(
+      3200,
+      Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS ?? "2200") || 2200),
+    );
 
     const { system, user: userPrompt } = buildLessonPrompts({
       subject,
@@ -285,11 +282,9 @@ export async function POST(req: NextRequest) {
       nextTopicHint: nextTopicHint || undefined,
     });
 
-    // Cerebras Chat Completions (streaming)
-    const client = new OpenAI({
-      apiKey: cerebrasApiKey,
-      baseURL: cerebrasBaseUrl,
-    });
+    console.log("[generate] request-start", { subject, difficulty, tier: userTier, provider, model });
+
+    // Create chat completion with tiered model
     const stream = await client.chat.completions.create({
       model,
       temperature,
@@ -402,8 +397,8 @@ export async function POST(req: NextRequest) {
           } finally {
             if (usageSummary && (uid || ip)) {
               try {
-                await logUsage(sb, uid, ip, model, usageSummary, {
-                  metadata: { route: "lesson-stream", subject, difficulty },
+                await logUsage(sb, uid, ip, modelIdentifier, usageSummary, {
+                  metadata: { route: "lesson-stream", subject, difficulty, provider, tier: userTier },
                 });
               } catch (logErr) {
                 console.warn("[gen/lesson] usage-log-error", logErr);
@@ -432,12 +427,13 @@ export async function POST(req: NextRequest) {
       }
       const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
       if (uid) {
-        const model = process.env.CEREBRAS_LESSON_MODEL ?? "gpt-oss-120b";
-        await logUsage(sb, uid, ip, model, { input_tokens: null, output_tokens: null }, {
+        await logUsage(sb, uid, ip, modelIdentifier, { input_tokens: null, output_tokens: null }, {
           metadata: {
             route: "lesson-stream",
             error: msg,
             errorType: err instanceof Error ? err.name : typeof err,
+            provider,
+            tier: userTier,
           }
         });
       }

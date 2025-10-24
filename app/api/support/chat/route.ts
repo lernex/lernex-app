@@ -6,14 +6,13 @@ import { take } from '@/lib/rate';
 import { checkUsageLimit, logUsage } from '@/lib/usage';
 import type { Database } from '@/lib/types_db';
 import { rankSupportKnowledge, type SupportKnowledgeEntry } from '@/lib/support-knowledge';
+import { createModelClient, fetchUserTier } from '@/lib/model-config';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const SUPPORT_MODEL = process.env.CEREBRAS_SUPPORT_MODEL ?? 'gpt-oss-120b';
 const SUPPORT_TEMPERATURE = Number(process.env.CEREBRAS_SUPPORT_TEMPERATURE ?? '0.2');
 const SUPPORT_MAX_TOKENS = Number(process.env.CEREBRAS_SUPPORT_MAX_TOKENS ?? '1024');
-const CEREBRAS_BASE_URL = process.env.CEREBRAS_BASE_URL ?? 'https://api.cerebras.ai/v1';
 const SUPPORT_EMAIL = 'support@lernex.net';
 const WEBSITE_CONTEXT = [
   '╔═══════════════════════════════════════════════════════════════════════════╗',
@@ -1162,11 +1161,6 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429 });
   }
 
-  const apiKey = process.env.CEREBRAS_API_KEY;
-  if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'Server misconfigured: missing CEREBRAS_API_KEY' }), { status: 500 });
-  }
-
   const cookieStore = await cookies();
   const accessToken = cookieStore.get('sb-access-token')?.value;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -1198,6 +1192,12 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: 'Usage limit exceeded' }), { status: 403 });
     }
   }
+
+  // Fetch user tier with cache-busting (always fresh, no stale data)
+  const userTier = userId ? await fetchUserTier(supabase, userId) : 'free';
+
+  // Use FAST model for immediate support chat response
+  const { client: aiClient, model, modelIdentifier, provider } = createModelClient(userTier, 'fast');
 
   let payload: { messages?: unknown; context?: unknown };
   try {
@@ -1235,14 +1235,9 @@ export async function POST(req: NextRequest) {
     websiteContext: WEBSITE_CONTEXT,
   });
 
-  const client = new OpenAI({
-    apiKey,
-    baseURL: CEREBRAS_BASE_URL,
-  });
-
   try {
-    const completion = await client.chat.completions.create({
-      model: SUPPORT_MODEL,
+    const completion = await aiClient.chat.completions.create({
+      model,
       temperature: SUPPORT_TEMPERATURE,
       max_tokens: SUPPORT_MAX_TOKENS,
       reasoning_effort: 'low',
@@ -1267,7 +1262,7 @@ export async function POST(req: NextRequest) {
           supabase,
           userId,
           ip,
-          SUPPORT_MODEL,
+          modelIdentifier,
           usageSummary,
           {
             metadata: {
@@ -1277,6 +1272,8 @@ export async function POST(req: NextRequest) {
               knowledgeIds: knowledgeEntries.map((entry) => entry.id),
               knowledgeCount: knowledgeEntries.length,
               hasLearnerSummary: Boolean(learnerSummary),
+              provider,
+              tier: userTier,
             },
           },
         );
@@ -1295,7 +1292,7 @@ export async function POST(req: NextRequest) {
           supabase,
           userId,
           ip,
-          SUPPORT_MODEL,
+          modelIdentifier,
           { input_tokens: null, output_tokens: null },
           {
             metadata: {
@@ -1306,6 +1303,8 @@ export async function POST(req: NextRequest) {
               knowledgeIds: knowledgeEntries.map((entry) => entry.id),
               knowledgeCount: knowledgeEntries.length,
               hasLearnerSummary: Boolean(learnerSummary),
+              provider,
+              tier: userTier,
             },
           },
         );

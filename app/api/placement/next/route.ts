@@ -8,10 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlacementState, PlacementItem, Difficulty, PlacementNextResponse } from "@/types/placement";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
-const ai = new OpenAI({
-  apiKey: process.env.CEREBRAS_API_KEY!,
-  baseURL: process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1",
-});
+import { createModelClient, fetchUserTier } from "@/lib/model-config";
 const MAX_TOKENS = Math.min(
   1800,
   Math.max(
@@ -257,7 +254,7 @@ Create exactly one discriminative multiple-choice question from the course's app
     }
     if (mapped) {
       try {
-        await logUsage(sb, uid, ip, model, mapped, {
+        await logUsage(sb, uid, ip, modelIdentifier, mapped, {
           metadata: {
             route: "placement-test",
             subject: state.subject,
@@ -267,6 +264,8 @@ Create exactly one discriminative multiple-choice question from the course's app
             maxSteps: state.maxSteps,
             mistakes: state.mistakes,
             correctStreak: state.correctStreak,
+            provider,
+            tier: userTier,
           }
         });
       } catch {
@@ -329,6 +328,12 @@ export async function POST(req: Request) {
     if (!ok) {
       return new Response(JSON.stringify({ error: "Usage limit exceeded" }), { status: 403 });
     }
+
+    // Fetch user tier with cache-busting (always fresh, no stale data)
+    const userTier = await fetchUserTier(sb, user.id);
+
+    // Use FAST model for immediate placement test response
+    const { client: ai, model, modelIdentifier, provider } = createModelClient(userTier, 'fast');
 
     const bodyText = await req.text();
     let body: { state?: PlacementState; lastAnswer?: number; lastItem?: PlacementItem } = {};
@@ -444,12 +449,13 @@ export async function POST(req: Request) {
       const { data: { user } } = await sb.auth.getUser();
       const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
       if (user) {
-        const model = process.env.CEREBRAS_PLACEMENT_MODEL ?? process.env.CEREBRAS_LESSON_MODEL ?? "gpt-oss-120b";
-        await logUsage(sb, user.id, ip, model, { input_tokens: null, output_tokens: null }, {
+        await logUsage(sb, user.id, ip, modelIdentifier, { input_tokens: null, output_tokens: null }, {
           metadata: {
             route: "placement-test",
             error: msg,
             errorType: e instanceof Error ? e.name : typeof e,
+            provider,
+            tier: userTier,
           }
         });
       }
