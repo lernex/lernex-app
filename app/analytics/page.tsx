@@ -67,8 +67,7 @@ type ProfileSnapshot = {
   interests: string[];
   lastStudyDate: string | null;
   placementReady: boolean;
-  plus: boolean;
-  premium: boolean;
+  subscription_tier: "free" | "plus" | "premium";
 };
 
 type DailyPoint = {
@@ -154,6 +153,9 @@ function normalizeProfile(row: Record<string, unknown> | null | undefined): Prof
   const interests = Array.isArray(interestsSource)
     ? interestsSource.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
     : [];
+  const tier = typeof row?.["subscription_tier"] === "string"
+    ? row["subscription_tier"].toLowerCase()
+    : "free";
   return {
     points: Math.max(0, Math.round(toNumber(row?.["points"], 0))),
     streak: Math.max(0, Math.round(toNumber(row?.["streak"], 0))),
@@ -161,8 +163,7 @@ function normalizeProfile(row: Record<string, unknown> | null | undefined): Prof
     interests,
     lastStudyDate: toStringOrNull(row?.["last_study_date"]),
     placementReady: row?.["placement_ready"] === true,
-    plus: row?.["plus"] === true,
-    premium: row?.["premium"] === true,
+    subscription_tier: (tier === "premium" || tier === "plus") ? tier : "free",
   };
 }
 
@@ -458,7 +459,7 @@ export default function AnalyticsPage() {
           }),
           supabase
             .from("profiles")
-            .select("points, streak, total_cost, last_study_date, interests, placement_ready, plus, premium")
+            .select("points, streak, total_cost, last_study_date, interests, placement_ready, subscription_tier")
             .eq("id", userId)
             .maybeSingle(),
           supabase
@@ -653,8 +654,8 @@ export default function AnalyticsPage() {
     };
   }, [usage]);
 
-  const planLabel = profile?.premium ? "Premium" : profile?.plus ? "Plus" : "Free";
-  const usageAllowance = profile?.premium ? 4.5 : profile?.plus ? 2.25 : 0.5;
+  const planLabel = profile?.subscription_tier === "premium" ? "Premium" : profile?.subscription_tier === "plus" ? "Plus" : "Free";
+  const usageAllowance = profile?.subscription_tier === "premium" ? 4.5 : profile?.subscription_tier === "plus" ? 2.25 : 0.5;
   const usageSpent = profile?.totalCost ?? usageSummary.totalCost;
   const usageFill = usageAllowance > 0 ? clamp01(usageSpent / usageAllowance) : 0;
   const usagePercentUsed = Math.round(usageFill * 100);

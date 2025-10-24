@@ -35,8 +35,7 @@ type ProfileRow = {
   username: string | null;
   points: number | null;
   streak: number | null;
-  plus: boolean;
-  premium: boolean;
+  subscription_tier: Tier;
 };
 
 type RawProfile = {
@@ -44,8 +43,7 @@ type RawProfile = {
   username?: unknown;
   points?: unknown;
   streak?: unknown;
-  plus?: unknown;
-  premium?: unknown;
+  subscription_tier?: unknown;
 };
 
 function toStr(value: unknown): string {
@@ -63,14 +61,13 @@ function toNumOrNull(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function toBool(value: unknown): boolean {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value === 1;
+function toTier(value: unknown): Tier {
   if (typeof value === "string") {
     const normalized = value.toLowerCase();
-    return normalized === "true" || normalized === "t" || normalized === "1";
+    if (normalized === "premium") return "premium";
+    if (normalized === "plus") return "plus";
   }
-  return false;
+  return null;
 }
 
 function normalizeProfiles(rows: unknown[] | null | undefined): ProfileRow[] {
@@ -80,8 +77,7 @@ function normalizeProfiles(rows: unknown[] | null | undefined): ProfileRow[] {
     username: toStrOrNull(row.username),
     points: toNumOrNull(row.points),
     streak: toNumOrNull(row.streak),
-    plus: toBool(row.plus),
-    premium: toBool(row.premium),
+    subscription_tier: toTier(row.subscription_tier),
   }));
 }
 
@@ -148,12 +144,6 @@ async function fetchAttemptTotals(
 }
 
 type Tier = "premium" | "plus" | null;
-
-function resolveTier(plus: boolean, premium: boolean): Tier {
-  if (premium) return "premium";
-  if (plus) return "plus";
-  return null;
-}
 
 function getLeaderboardRowClasses(tier: Tier, isSelf: boolean, index: number): string {
   const base =
@@ -271,7 +261,7 @@ export default function Leaderboard() {
   const showStreakLeaderboard = range === "all";
   const podium = topPoints.slice(0, 3);
   const champion = podium[0];
-  const championTier = champion ? resolveTier(champion.plus, champion.premium) : null;
+  const championTier = champion?.subscription_tier ?? null;
   const activeRangeLabel =
     RANGE_OPTIONS.find((option) => option.value === range)?.label ?? "All Time";
   const personalCards: Array<{
@@ -370,7 +360,7 @@ export default function Leaderboard() {
           } else {
             let pointsQuery = supabase
               .from("profiles")
-              .select("id, username, points, streak, plus, premium")
+              .select("id, username, points, streak, subscription_tier")
               .order("points", { ascending: false })
               .limit(20);
             if (scope === "friends" && scopedIds && scopedIds.length) {
@@ -427,7 +417,7 @@ export default function Leaderboard() {
               if (profileIds.length) {
                 const { data: profileData, error: profileError } = await supabase
                   .from("profiles")
-                  .select("id, username, points, streak, plus, premium")
+                  .select("id, username, points, streak, subscription_tier")
                   .in("id", profileIds);
                 if (profileError) throw profileError;
                 profiles = normalizeProfiles(profileData ?? []);
@@ -441,8 +431,7 @@ export default function Leaderboard() {
                   username: base?.username ?? null,
                   points: entry.totalCorrect * POINTS_PER_CORRECT,
                   streak: base?.streak ?? null,
-                  plus: base?.plus ?? false,
-                  premium: base?.premium ?? false,
+                  subscription_tier: base?.subscription_tier ?? null,
                 };
               });
             } else {
@@ -461,7 +450,7 @@ export default function Leaderboard() {
           } else {
             let streakQuery = supabase
               .from("profiles")
-              .select("id, username, points, streak, plus, premium")
+              .select("id, username, points, streak, subscription_tier")
               .order("streak", { ascending: false })
               .limit(20);
             if (scope === "friends" && scopedIds && scopedIds.length) {
@@ -666,7 +655,7 @@ export default function Leaderboard() {
             <div className="pointer-events-none absolute -top-20 left-1/2 h-48 w-48 -translate-x-1/2 rounded-full bg-gradient-to-br from-lernex-purple/20 via-lernex-blue/15 to-transparent blur-3xl" />
             <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end">
               {podium.map((profile, index) => {
-                const tier = resolveTier(profile.plus, profile.premium);
+                const tier = profile.subscription_tier;
                 const isChampion = index === 0;
                 return (
                   <motion.div
@@ -744,7 +733,7 @@ export default function Leaderboard() {
                     </motion.li>
                   ) : (
                     topPoints.map((row, index) => {
-                      const tier = resolveTier(row.plus, row.premium);
+                      const tier = row.subscription_tier;
                       const isSelf = row.id === userId;
                       const rowClasses = getLeaderboardRowClasses(tier, isSelf, index);
                       return (
@@ -828,7 +817,7 @@ export default function Leaderboard() {
                       </motion.li>
                     ) : (
                       topStreak.map((row, index) => {
-                        const tier = resolveTier(row.plus, row.premium);
+                        const tier = row.subscription_tier;
                         const isSelf = row.id === userId;
                         const rowClasses = getLeaderboardRowClasses(tier, isSelf, index);
                         return (

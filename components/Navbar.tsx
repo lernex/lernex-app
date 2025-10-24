@@ -87,7 +87,7 @@ export default function Navbar() {
       try {
         const { data, error } = await supabase
           .from("profiles")
-          .select("plus, premium")
+          .select("subscription_tier")
           .eq("id", user.id)
           .maybeSingle();
         if (cancelled) return;
@@ -96,11 +96,10 @@ export default function Navbar() {
           setMembership(null);
           return;
         }
-        type MembershipData = { plus?: boolean; premium?: boolean } | null;
+        type MembershipData = { subscription_tier?: string } | null;
         const membershipData = data as MembershipData;
-        const premium = membershipData?.premium === true;
-        const plus = membershipData?.plus === true;
-        setMembership(premium ? "premium" : plus ? "plus" : null);
+        const tier = membershipData?.subscription_tier?.toLowerCase();
+        setMembership(tier === "premium" ? "premium" : tier === "plus" ? "plus" : null);
       } catch (err) {
         if (!cancelled) {
           console.warn("[navbar] membership fetch error", err);
