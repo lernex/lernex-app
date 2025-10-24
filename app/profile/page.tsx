@@ -1072,6 +1072,7 @@ export default function SettingsPage() {
                 {usernameStatusMessage}
               </p>
             ) : null}
+            </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -1103,6 +1104,7 @@ export default function SettingsPage() {
                 </motion.p>
               ) : null}
             </AnimatePresence>
+            </div>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <div className="group">
                 <label
@@ -1509,7 +1511,7 @@ export default function SettingsPage() {
               </p>
             </motion.div>
           </div>
-        </div>
+        </motion.div>
       </motion.section>
     </div>
 
