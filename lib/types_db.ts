@@ -212,6 +212,45 @@ export interface Database {
         };
         Relationships: [];
       };
+      user_pending_lessons: {
+        Row: {
+          id: string;
+          user_id: string;
+          subject: string;
+          topic_label: string;
+          lesson: Json;
+          model_speed: "fast" | "slow";
+          generation_tier: "free" | "plus" | "premium";
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          subject: string;
+          topic_label: string;
+          lesson: Json;
+          model_speed: "fast" | "slow";
+          generation_tier: "free" | "plus" | "premium";
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          subject?: string;
+          topic_label?: string;
+          lesson?: Json;
+          model_speed?: "fast" | "slow";
+          generation_tier?: "free" | "plus" | "premium";
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       course_outline_cache: {
         Row: {
           subject: string;

@@ -557,6 +557,24 @@ export default function FypFeed() {
     }
   }, [initialized, ensureBuffer]);
 
+  // Trigger background generation when component loads and has lessons
+  useEffect(() => {
+    if (!initialized || items.length === 0) return;
+
+    // Trigger initial background generation after first lesson is loaded
+    const firstLesson = items[0];
+    if (firstLesson) {
+      const topicLabel = firstLesson.topic ?? firstLesson.subject;
+      fetch("/api/fyp/generate-pending", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ subject: firstLesson.subject, topicLabel, count: 2 }),
+      }).catch((err) => {
+        console.debug("[fyp] initial background generation failed (non-critical)", err);
+      });
+    }
+  }, [initialized, items.length]);
+
   useEffect(() => {
     if (!initialized) return;
     if (items.length === 0) {
@@ -712,6 +730,31 @@ export default function FypFeed() {
       window.clearTimeout(autoAdvanceRef.current);
       autoAdvanceRef.current = null;
     }
+
+    // Call completion API to remove pending lesson and trigger background generation
+    (async () => {
+      try {
+        // Mark lesson as complete and remove from pending queue
+        await fetch("/api/fyp/complete", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ subject: lesson.subject, lessonId: lesson.id }),
+        });
+
+        // Trigger background generation of 1-2 lessons ahead using slow model
+        const topicLabel = lesson.topic ?? lesson.subject;
+        await fetch("/api/fyp/generate-pending", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ subject: lesson.subject, topicLabel, count: 2 }),
+        }).catch((err) => {
+          console.debug("[fyp] background generation failed (non-critical)", err);
+        });
+      } catch (err) {
+        console.debug("[fyp] completion/generation error (non-critical)", err);
+      }
+    })();
+
     const remaining = Math.max(0, items.length - (i + 1));
     if (remaining <= 0) {
       void ensureBuffer(1);

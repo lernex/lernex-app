@@ -7,6 +7,7 @@ import type { Lesson } from "@/lib/schema";
 import type { Difficulty } from "@/types/placement";
 import { acquireGenLock, releaseGenLock } from "@/lib/db-lock";
 import { fetchUserTier } from "@/lib/model-config";
+import { getNextPendingLesson, storePendingLesson, countPendingLessons } from "@/lib/pending-lessons";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -1142,6 +1143,75 @@ export async function GET(req: NextRequest) {
       JSON.stringify(responseBody),
       { status: 200, headers: { "content-type": "application/json", "x-fyp-cache": "hit" } }
     );
+  }
+
+  // Check for pending lessons (pre-generated with slow model in background)
+  const pendingLesson = await getNextPendingLesson(sb, user.id, subject);
+  if (pendingLesson && pendingLesson.lesson) {
+    try { console.debug(`[fyp][${reqId}] lesson: pending-hit`, { subject, currentLabel, lessonId: pendingLesson.lesson.id }); } catch {}
+
+    // Validate the pending lesson is for the current topic and not avoided
+    const pendingLessonId = typeof pendingLesson.lesson.id === 'string' ? pendingLesson.lesson.id : null;
+    const pendingLessonTitle = typeof pendingLesson.lesson.title === 'string' ? pendingLesson.lesson.title.trim() : '';
+    const isPendingLessonValid =
+      pendingLesson.topic_label === currentLabel &&
+      (!pendingLessonId || !avoidIdSet.has(pendingLessonId)) &&
+      (!pendingLessonTitle || !recentDeliveredTitles.includes(pendingLessonTitle));
+
+    if (isPendingLessonValid) {
+      const contextPayload = lessonPrep.structuredContext;
+      const knowledgePayload = lessonPrep.lessonKnowledge;
+      const responseLesson: CachedLesson = {
+        ...pendingLesson.lesson,
+        nextTopicHint: nextTopicHint ?? null,
+        context: contextPayload,
+        knowledge: knowledgePayload,
+        personaHash,
+      };
+
+      // Update progress tracking
+      const nextTopicStr: string | null = currentLabel;
+      const lid = typeof pendingLesson.lesson.id === "string" ? pendingLesson.lesson.id : null;
+      const ltitle = typeof pendingLesson.lesson.title === "string" ? pendingLesson.lesson.title.trim() : null;
+
+      const progressPatch: Record<string, unknown> = {
+        p_subject: subject,
+        p_topic_idx: topicIdx,
+        p_subtopic_idx: subtopicIdx,
+        p_delivered_delta: { [currentLabel]: 1 },
+      };
+      if (lid) progressPatch.p_id_append = { [currentLabel]: [lid] };
+      if (ltitle) progressPatch.p_title_append = { [currentLabel]: [ltitle] };
+      if (metricsPatch) progressPatch.p_metrics = metricsPatch;
+
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb as any).rpc("apply_user_subject_progress_patch", progressPatch);
+      } catch (progressErr) {
+        try { console.error(`[fyp][${reqId}] progress patch failed`, progressErr); } catch {}
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb as any)
+        .from("user_subject_state")
+        .update({ next_topic: nextTopicStr, updated_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+        .eq("subject", subject);
+
+      const responseBody: Record<string, unknown> = {
+        topic: currentLabel,
+        lesson: responseLesson,
+        nextTopicHint,
+      };
+
+      try { console.debug(`[fyp][${reqId}] success (pending)`, { topic: currentLabel, lessonId: responseLesson.id }); } catch {}
+      return new Response(
+        JSON.stringify(responseBody),
+        { status: 200, headers: { "content-type": "application/json", "x-fyp-source": "pending" } }
+      );
+    } else {
+      try { console.debug(`[fyp][${reqId}] pending lesson invalid`, { pendingTopicLabel: pendingLesson.topic_label, currentLabel, avoided: !isPendingLessonValid }); } catch {}
+    }
   }
 
   let lesson: Lesson;
