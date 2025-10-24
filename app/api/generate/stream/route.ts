@@ -2,7 +2,6 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import OpenAI from "openai";
 import type { ChatCompletionCreateParams } from "openai/resources/chat/completions";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
@@ -250,7 +249,6 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     console.error("[gen/stream] top-level-error", e);
-    const msg = e instanceof Error ? e.message : "Server error";
     // Note: Error logging handled in main try block with proper model context
     return new Response("Server error", { status: 500 });
   }

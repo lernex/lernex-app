@@ -2,7 +2,6 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import OpenAI from "openai";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { normalizeLatex, scanLatex, hasLatexIssues } from "@/lib/latex";

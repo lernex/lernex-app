@@ -6,7 +6,7 @@ import { LessonSchema, MIN_LESSON_WORDS, MAX_LESSON_WORDS, MAX_LESSON_CHARS } fr
 import type { Lesson } from "./schema";
 import { checkUsageLimit, logUsage } from "./usage";
 import { buildLessonPrompts } from "./lesson-prompts";
-import { createModelClient, getUserTier, type UserTier, type ModelSpeed } from "./model-config";
+import { createModelClient, type UserTier, type ModelSpeed } from "./model-config";
 
 type Pace = "slow" | "normal" | "fast";
 
@@ -124,8 +124,6 @@ function isRetryableCompletionError(error: unknown): boolean {
   return RETRYABLE_ERROR_PATTERN.test(message);
 }
 
-const DEFAULT_MODEL = process.env.CEREBRAS_LESSON_MODEL ?? "gpt-oss-120b";
-const DEFAULT_BASE_URL = process.env.CEREBRAS_BASE_URL ?? "https://api.cerebras.ai/v1";
 const FALLBACK_TEMPERATURE = 0.4;
 const VERIFICATION_RETRY_LIMIT = Math.max(
   1,
@@ -346,24 +344,6 @@ function deriveLessonTemperature(accuracyBand: string | undefined, accuracy: num
     return clampTemperature(0.45);
   }
   return DEFAULT_TEMPERATURE;
-}
-
-let cachedClient: { apiKey: string; baseUrl: string; client: OpenAI } | null = null;
-
-function getClient() {
-  const apiKey = process.env.CEREBRAS_API_KEY;
-  if (!apiKey) throw new Error("Missing CEREBRAS_API_KEY");
-  const baseUrl = process.env.CEREBRAS_BASE_URL ?? DEFAULT_BASE_URL;
-
-  if (!cachedClient || cachedClient.apiKey !== apiKey || cachedClient.baseUrl !== baseUrl) {
-    cachedClient = {
-      apiKey,
-      baseUrl,
-      client: new OpenAI({ apiKey, baseURL: baseUrl }),
-    };
-  }
-
-  return cachedClient.client;
 }
 
 function collectStrings(value: unknown, depth = 0, seen = new Set<unknown>()): string[] {
