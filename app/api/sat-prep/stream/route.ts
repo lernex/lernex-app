@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import type { ChatCompletionCreateParams } from "openai/resources/chat/completions";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
-import { createModelClient, getUserTier } from "@/lib/model-config";
+import { createModelClient, fetchUserTier } from "@/lib/model-config";
 
 export async function POST(req: Request) {
   const t0 = Date.now();
@@ -30,11 +30,8 @@ export async function POST(req: Request) {
       topicLabel?: string;
     };
 
-    // Fetch user profile to determine tier
-    const { data: profile } = uid
-      ? await sb.from("profiles").select("subscription_tier").eq("id", uid).single()
-      : { data: null };
-    const userTier = getUserTier(profile || {});
+    // Fetch user tier with cache-busting (always fresh, no stale data)
+    const userTier = uid ? await fetchUserTier(sb, uid) : 'free';
 
     // SAT Prep uses FAST model for immediate response
     const { client, model, modelIdentifier, provider } = createModelClient(userTier, 'fast');

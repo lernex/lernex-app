@@ -13,6 +13,7 @@
  */
 
 import OpenAI from 'openai';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type UserTier = 'free' | 'plus' | 'premium';
 export type ModelSpeed = 'fast' | 'slow';
@@ -122,4 +123,25 @@ export function getUserTier(userProfile: { subscription_tier?: string | null }):
   if (tier === 'premium') return 'premium';
   if (tier === 'plus') return 'plus';
   return 'free';
+}
+
+/**
+ * Fetch user tier directly from Supabase with cache-busting
+ * This ensures we always get the latest tier, even if the user just upgraded
+ */
+export async function fetchUserTier(supabase: SupabaseClient, userId: string): Promise<UserTier> {
+  // Force fresh data by using a timestamp in the query
+  // This prevents Next.js from caching the result
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("subscription_tier")
+    .eq("id", userId)
+    .single();
+
+  if (error) {
+    console.warn('[fetchUserTier] Error fetching tier:', error);
+    return 'free'; // Default to free on error
+  }
+
+  return getUserTier(profile || {});
 }

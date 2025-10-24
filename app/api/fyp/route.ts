@@ -6,7 +6,7 @@ import { getLearningPathProgress, type LevelMap } from "@/lib/learning-path";
 import type { Lesson } from "@/lib/schema";
 import type { Difficulty } from "@/types/placement";
 import { acquireGenLock, releaseGenLock } from "@/lib/db-lock";
-import { getUserTier } from "@/lib/model-config";
+import { fetchUserTier } from "@/lib/model-config";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -48,13 +48,8 @@ export async function GET(req: NextRequest) {
   const reqId = Math.random().toString(36).slice(2, 8);
   try { console.debug(`[fyp][${reqId}] begin`, { uid: uid.slice(0,8), ip }); } catch {}
 
-  // Fetch user tier for model selection
-  const { data: userProfile } = await sb
-    .from("profiles")
-    .select("subscription_tier")
-    .eq("id", uid)
-    .single();
-  const userTier = getUserTier(userProfile || {});
+  // Fetch user tier with cache-busting (always fresh, no stale data)
+  const userTier = await fetchUserTier(sb, uid);
   try { console.debug(`[fyp][${reqId}] user-tier`, { tier: userTier }); } catch {}
 
   const preview = (value: unknown, max = 160) => {

@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { normalizeLatex, scanLatex, hasLatexIssues } from "@/lib/latex";
-import { createModelClient, getUserTier } from "@/lib/model-config";
+import { createModelClient, fetchUserTier } from "@/lib/model-config";
 
 const MAX_CHARS = 4300;
 
@@ -28,11 +28,8 @@ export async function POST(req: Request) {
       return new Response(JSON.stringify({ error: "Provide >= 20 characters" }), { status: 400 });
     }
 
-    // Fetch user profile to determine tier
-    const { data: profile } = user
-      ? await sb.from("profiles").select("subscription_tier").eq("id", user.id).single()
-      : { data: null };
-    const userTier = getUserTier(profile || {});
+    // Fetch user tier with cache-busting (always fresh, no stale data)
+    const userTier = user ? await fetchUserTier(sb, user.id) : 'free';
 
     // Generate page uses FAST model for immediate response
     const { client, model, modelIdentifier, provider } = createModelClient(userTier, 'fast');

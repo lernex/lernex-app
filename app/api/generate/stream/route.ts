@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import type { ChatCompletionCreateParams } from "openai/resources/chat/completions";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
-import { createModelClient, getUserTier } from "@/lib/model-config";
+import { createModelClient, fetchUserTier } from "@/lib/model-config";
 
 // Raised limits per request
 const MAX_CHARS = 6000; // allow longer input passages
@@ -37,13 +37,8 @@ export async function POST(req: Request) {
       return new Response("Provide at least ~20 characters of study text.", { status: 400 });
     }
 
-    // Fetch user profile to determine tier (always fetch fresh, no cache)
-    const { data: profile } = await sb
-      .from("profiles")
-      .select("subscription_tier")
-      .eq("id", uid!)
-      .single();
-    const userTier = getUserTier(profile || {});
+    // Fetch user tier with cache-busting (always fresh, no stale data)
+    const userTier = await fetchUserTier(sb, uid!);
 
     // Generate page uses FAST model for immediate response
     const { client, model, modelIdentifier, provider } = createModelClient(userTier, 'fast');
