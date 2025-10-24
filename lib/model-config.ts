@@ -12,6 +12,8 @@
  * - Slow model: LightningAI gpt-oss-120b (higher intelligence, cost-optimized)
  */
 
+import OpenAI from 'openai';
+
 export type UserTier = 'free' | 'plus' | 'premium';
 export type ModelSpeed = 'fast' | 'slow';
 
@@ -95,9 +97,6 @@ export function getModelIdentifier(provider: ModelConfig['provider'], model: str
  */
 export function createModelClient(tier: UserTier, speed: ModelSpeed) {
   const config = getModelConfig(tier, speed);
-
-  // Dynamically import OpenAI to avoid issues
-  const OpenAI = require('openai');
 
   // Get the model identifier for usage tracking (matches pricing table)
   const modelIdentifier = getModelIdentifier(config.provider, config.model);
