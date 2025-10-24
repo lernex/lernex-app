@@ -33,19 +33,19 @@ export function getModelConfig(tier: UserTier, speed: ModelSpeed): ModelConfig {
   if (isPaidTier) {
     // Plus and Premium get the more intelligent models
     if (speed === 'fast') {
-      // Cerebras for fast, high-intelligence generation
+      // Cerebras for fast, high-intelligence generation (uses cerebras.cloud.sdk but supports OpenAI API)
       return {
         apiKey: process.env.CEREBRAS_API_KEY || '',
-        baseURL: process.env.CEREBRAS_BASE_URL || 'https://api.cerebras.ai/v1',
-        model: 'gpt-oss-120b',
+        baseURL: 'https://api.cerebras.ai/v1',
+        model: 'gpt-oss-120b', // Cerebras uses no prefix
         provider: 'cerebras'
       };
     } else {
       // LightningAI for slower, cost-optimized high-intelligence generation
       return {
         apiKey: process.env.LIGHTNINGAI_API_KEY || '',
-        baseURL: 'https://api.lightning.ai/v1',
-        model: 'gpt-oss-120b',
+        baseURL: 'https://lightning.ai/api/v1',
+        model: 'lightning-ai/gpt-oss-120b', // LightningAI uses lightning-ai/ prefix
         provider: 'lightningai'
       };
     }
@@ -56,15 +56,15 @@ export function getModelConfig(tier: UserTier, speed: ModelSpeed): ModelConfig {
       return {
         apiKey: process.env.GROQ_API_KEY || '',
         baseURL: 'https://api.groq.com/openai/v1',
-        model: 'gpt-oss-20b',
+        model: 'openai/gpt-oss-20b', // Groq uses openai/ prefix
         provider: 'groq'
       };
     } else {
       // Deepinfra for slower, cost-optimized generation
       return {
         apiKey: process.env.DEEPINFRA_API_KEY || '',
-        baseURL: process.env.DEEPINFRA_BASE_URL || 'https://api.deepinfra.com/v1/openai',
-        model: process.env.DEEPINFRA_MODEL || 'openai/gpt-oss-20b',
+        baseURL: 'https://api.deepinfra.com/v1/openai',
+        model: 'openai/gpt-oss-20b', // Deepinfra uses openai/ prefix
         provider: 'deepinfra'
       };
     }

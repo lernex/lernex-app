@@ -37,8 +37,12 @@ export async function POST(req: Request) {
       return new Response("Provide at least ~20 characters of study text.", { status: 400 });
     }
 
-    // Fetch user profile to determine tier
-    const { data: profile } = await sb.from("profiles").select("subscription_tier").eq("id", uid!).single();
+    // Fetch user profile to determine tier (always fetch fresh, no cache)
+    const { data: profile } = await sb
+      .from("profiles")
+      .select("subscription_tier")
+      .eq("id", uid!)
+      .single();
     const userTier = getUserTier(profile || {});
 
     // Generate page uses FAST model for immediate response
