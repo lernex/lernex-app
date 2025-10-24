@@ -65,6 +65,11 @@ async function makeQuestion(
   sb: SupabaseClient,
   uid: string,
   ip: string,
+  aiClient: OpenAI,
+  model: string,
+  modelIdentifier: string,
+  provider: string,
+  userTier: string,
   avoid: string[] = [],
   depth = 0
 ): Promise<PlacementItem | null> {
@@ -130,12 +135,6 @@ ${avoidText}
 Create exactly one discriminative multiple-choice question from the course's appropriate units. Include a short explanation. The question should address a key topic within the course's own syllabus.
 `.trim();
 
-  // Reuse explicit placement model if provided, otherwise fall back to existing Cerebras defaults
-  const model =
-    process.env.CEREBRAS_PLACEMENT_MODEL?.trim() ||
-    process.env.CEREBRAS_QUIZ_MODEL?.trim() ||
-    process.env.CEREBRAS_LESSON_MODEL?.trim() ||
-    "gpt-oss-120b";
   const TEMP = 0.4; // lower temp for more stable JSON
   const systemPrompt = depth === 0 ? systemNormal : systemTight;
 
@@ -145,7 +144,7 @@ Create exactly one discriminative multiple-choice question from the course's app
     maxTokens: number
   ): Promise<{ raw: string; completion: ChatCompletion | null }> {
     try {
-      const completion = await ai.chat.completions.create({
+      const completion = await aiClient.chat.completions.create({
         model,
         temperature: TEMP,
         max_tokens: maxTokens,
@@ -310,7 +309,7 @@ Create exactly one discriminative multiple-choice question from the course's app
 
   // If model ignored instructions, retry a couple times
   if (avoid.some((a) => a.trim() === item.prompt.trim()) && depth < 2) {
-    return makeQuestion(state, sb, uid, ip, avoid, depth + 1);
+    return makeQuestion(state, sb, uid, ip, aiClient, model, modelIdentifier, provider, userTier, avoid, depth + 1);
   }
 
   return item;
@@ -395,7 +394,7 @@ export async function POST(req: Request) {
     let nowItem: PlacementItem | null = null;
     for (let i = 0; i < MAX_TRIES && !nowItem; i++) {
       if (i > 0) { /* retry */ }
-      nowItem = await makeQuestion(state, sb, user.id, ip, state.asked);
+      nowItem = await makeQuestion(state, sb, user.id, ip, ai, model, modelIdentifier, provider, userTier, state.asked);
     }
     // If we could not generate a question but we are not truly finished,
     // return an error instead of { item: null } to avoid clients treating this
@@ -418,8 +417,8 @@ export async function POST(req: Request) {
       const stateIfWrong = nextState(state, false);
       const avoidForBranches = state.asked;
       const [rightItem, wrongItem] = await Promise.all([
-        makeQuestion(stateIfRight, sb, user.id, ip, avoidForBranches),
-        makeQuestion(stateIfWrong, sb, user.id, ip, avoidForBranches),
+        makeQuestion(stateIfRight, sb, user.id, ip, ai, model, modelIdentifier, provider, userTier, avoidForBranches),
+        makeQuestion(stateIfWrong, sb, user.id, ip, ai, model, modelIdentifier, provider, userTier, avoidForBranches),
       ]);
       const t1 = Date.now();
       if (rightItem) stateIfRight.asked.push(rightItem.prompt);
