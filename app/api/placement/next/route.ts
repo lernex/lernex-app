@@ -316,24 +316,24 @@ Create exactly one discriminative multiple-choice question from the course's app
 }
 
 export async function POST(req: Request) {
+  // Auth (server component client works on Edge with "cookies")
+  const sb = await supabaseServer();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+
+  const ok = await checkUsageLimit(sb, user.id);
+  if (!ok) {
+    return new Response(JSON.stringify({ error: "Usage limit exceeded" }), { status: 403 });
+  }
+
+  // Fetch user tier with cache-busting (always fresh, no stale data)
+  const userTier = await fetchUserTier(sb, user.id);
+
+  // Use FAST model for immediate placement test response
+  const { client: ai, model, modelIdentifier, provider } = createModelClient(userTier, 'fast');
+
   try {
-    // Auth (server component client works on Edge with “cookies”)
-    const sb = await supabaseServer();
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
-
-    const ok = await checkUsageLimit(sb, user.id);
-    if (!ok) {
-      return new Response(JSON.stringify({ error: "Usage limit exceeded" }), { status: 403 });
-    }
-
-    // Fetch user tier with cache-busting (always fresh, no stale data)
-    const userTier = await fetchUserTier(sb, user.id);
-
-    // Use FAST model for immediate placement test response
-    const { client: ai, model, modelIdentifier, provider } = createModelClient(userTier, 'fast');
-
     const bodyText = await req.text();
     let body: { state?: PlacementState; lastAnswer?: number; lastItem?: PlacementItem } = {};
     if (bodyText) { try { body = JSON.parse(bodyText); } catch { /* ignore */ } }
