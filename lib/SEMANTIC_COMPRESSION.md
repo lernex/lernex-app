@@ -6,7 +6,7 @@ This implementation provides **LLM-based semantic compression** to reduce token 
 
 ## How It Works
 
-Semantic compression uses a small, fast LLM (gpt-4o-mini) to intelligently compress text by:
+Semantic compression uses Groq's gpt-oss-20b (same model as your free tier) to intelligently compress text by:
 
 1. **Removing redundancy** - Eliminating verbose explanations and repeated concepts
 2. **Preserving semantics** - Keeping all critical instructions, rules, and technical details
@@ -85,25 +85,34 @@ ENABLE_SEMANTIC_COMPRESSION=true
 
 # Set compression rate (0-1)
 # 0.3 = 30% reduction (aggressive, good savings)
-# 0.4 = 40% reduction (balanced)
+# 0.4 = 40% reduction (balanced) ← RECOMMENDED
 # 0.5 = 50% reduction (very aggressive, may lose nuance)
 SEMANTIC_COMPRESSION_RATE=0.4
 
-# Required: OpenAI API key for compression
+# Required: Groq API key (uses gpt-oss-20b - same as free tier)
+GROQ_API_KEY=gsk_...
+
+# Optional: OpenAI API key (fallback if Groq unavailable)
 OPENAI_API_KEY=sk-...
 ```
 
 ### Cost Analysis
 
-Compression itself has a small cost but typically pays for itself:
+Compression uses your existing Groq infrastructure (gpt-oss-20b) and is extremely cost-effective:
 
 **Example calculation** (Support chat with 5000 token system prompt):
 - **Original cost** (Cerebras 120B): 5000 input tokens × $0.60/1M = $0.003
 - **With compression** (40% reduction):
-  - Compression cost (gpt-4o-mini): 5000 tokens × $0.15/1M = $0.00075
+  - Compression cost (Groq gpt-oss-20b): 5000 tokens × $0.10/1M = $0.0005
   - LLM cost (Cerebras): 3000 tokens × $0.60/1M = $0.0018
-  - **Total**: $0.00255 (15% savings)
+  - **Total**: $0.0023 (23% savings)
   - **Plus**: Faster response time due to smaller context
+
+**Groq Benefits**:
+- **Cheapest option**: $0.10/1M input tokens (vs OpenAI's $0.15/1M for gpt-4o-mini)
+- **Smarter model**: 20B parameters vs 8B in gpt-4o-mini
+- **Blazing fast**: Groq's LPU inference is extremely fast
+- **Already in your stack**: No new API dependencies
 
 **Break-even**: After just 1-2 requests with the same cached prompt, compression becomes profitable due to caching.
 
@@ -122,8 +131,9 @@ Main compression function.
     maxTokens?: number;       // Max output tokens (overrides rate)
     preserve?: string[];      // Keywords/phrases to protect
     useCache?: boolean;       // Enable 15-min cache, default: true
-    model?: string;           // LLM model, default: "gpt-4o-mini"
+    model?: string;           // LLM model, default: "openai/gpt-oss-20b"
     temperature?: number;     // Generation temp, default: 0.3
+    provider?: 'groq' | 'openai';  // Provider, default: 'groq'
   }
 }
 ```
@@ -267,12 +277,12 @@ console.log('[route] semantic-compression', {
 3. Lower the `temperature` for more deterministic compression
 4. Disable compression for that specific route
 
-### Issue: High OpenAI API costs
+### Issue: High API costs
 
 **Solutions**:
 1. Ensure caching is enabled to reduce duplicate compressions
 2. Use higher compression thresholds (e.g., only compress if > 1500 chars)
-3. Switch to a cheaper model (gpt-4o-mini is already the cheapest)
+3. Default is already using Groq (cheapest option at $0.10/1M)
 4. Measure actual savings vs. costs in your use case
 
 ### Issue: Cache not hitting as expected

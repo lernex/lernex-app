@@ -9,6 +9,7 @@
  */
 
 import OpenAI from "openai";
+import Groq from "groq-sdk";
 
 // Cache compressed results to avoid re-compression
 const compressionCache = new Map<string, { compressed: string; timestamp: number }>();
@@ -23,10 +24,12 @@ interface CompressionOptions {
   preserve?: string[];
   /** Use cache for identical inputs */
   useCache?: boolean;
-  /** Model to use for compression (default: gpt-4o-mini for cost efficiency) */
+  /** Model to use for compression (default: groq gpt-oss-20b for cost & quality) */
   model?: string;
   /** Temperature for compression (lower = more deterministic) */
   temperature?: number;
+  /** Provider to use ('groq' | 'openai') - default: groq */
+  provider?: 'groq' | 'openai';
 }
 
 interface CompressionResult {
@@ -92,8 +95,9 @@ export async function compressContext(
     maxTokens,
     preserve = [],
     useCache = true,
-    model = "gpt-4o-mini",
+    model = "openai/gpt-oss-20b",
     temperature = 0.3,
+    provider = 'groq',
   } = options;
 
   // Check cache first
@@ -141,19 +145,38 @@ ${preserveInstruction}
 Output ONLY the compressed text, no explanations or meta-commentary.`;
 
   try {
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    let response;
 
-    const response = await openai.chat.completions.create({
-      model,
-      temperature,
-      max_tokens: Math.min(targetTokens + 100, 4000), // Add buffer, cap at 4k
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: text },
-      ],
-    });
+    if (provider === 'groq') {
+      const groq = new Groq({
+        apiKey: process.env.GROQ_API_KEY,
+      });
+
+      response = await groq.chat.completions.create({
+        model,
+        temperature,
+        max_tokens: Math.min(targetTokens + 100, 8000), // Groq supports up to 8k output
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: text },
+        ],
+      });
+    } else {
+      // Fallback to OpenAI
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+
+      response = await openai.chat.completions.create({
+        model,
+        temperature,
+        max_tokens: Math.min(targetTokens + 100, 4000), // OpenAI cap at 4k
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: text },
+        ],
+      });
+    }
 
     const compressed = response.choices[0]?.message?.content || text;
     const compressedTokens = estimateTokens(compressed);

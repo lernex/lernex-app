@@ -5,7 +5,7 @@
  *   npx tsx scripts/test-compression.ts
  *
  * Requirements:
- *   - OPENAI_API_KEY set in environment
+ *   - GROQ_API_KEY set in environment
  *   - ENABLE_SEMANTIC_COMPRESSION=true (optional, for testing in different modes)
  */
 
@@ -206,8 +206,9 @@ async function runTests() {
   console.log('\nTo use in production:');
   console.log('1. Set ENABLE_SEMANTIC_COMPRESSION=true in .env.local');
   console.log('2. Set SEMANTIC_COMPRESSION_RATE=0.4 (or adjust)');
-  console.log('3. Ensure OPENAI_API_KEY is configured');
+  console.log('3. Ensure GROQ_API_KEY is configured');
   console.log('4. Monitor logs for compression metrics');
+  console.log('\n💡 Uses Groq gpt-oss-20b by default - cheapest & smartest option!');
 }
 
 // Run tests
