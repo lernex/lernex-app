@@ -6,6 +6,7 @@ import type { ChatCompletionCreateParams } from "openai/resources/chat/completio
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
+import { getCachedSampleQuestions } from "@/lib/sat-sample-cache";
 
 export async function POST(req: Request) {
   const t0 = Date.now();
@@ -38,42 +39,11 @@ export async function POST(req: Request) {
 
     console.log("[sat-prep/stream] request-start", { section, topic, topicLabel, tier: userTier, provider, model, dt: 0 });
 
-    // Fetch sample SAT questions from database
-    // Try topic-specific query first, fall back to section-only query if no matches
-    let { data: sampleQuestions } = await sb
-      .from("sat_questions")
-      .select("question_text, answer_choices, correct_answer, explanation")
-      .eq("section", section)
-      .or(`tags.cs.{${topic}},topic.ilike.%${topic}%`)
-      .limit(3);
+    // Fetch sample SAT questions using cached version (reduces DB calls + tokens)
+    const exampleContext = await getCachedSampleQuestions(sb, section, topic, "stream");
+    const hasExamples = exampleContext.length > 0;
 
-    // If no topic-specific questions found, get any questions from this section
-    if (!sampleQuestions || sampleQuestions.length === 0) {
-      console.log(`[sat-prep/stream] no questions for topic "${topic}", trying section-only`);
-      const fallbackResult = await sb
-        .from("sat_questions")
-        .select("question_text, answer_choices, correct_answer, explanation")
-        .eq("section", section)
-        .limit(3);
-      sampleQuestions = fallbackResult.data;
-    }
-
-    const hasExamples = sampleQuestions && sampleQuestions.length > 0;
-    let exampleContext = "";
-
-    if (hasExamples && sampleQuestions) {
-      const questions = sampleQuestions as Array<{ question_text?: string; answer_choices?: unknown; correct_answer?: string }>;
-      exampleContext = "\n\nHere are some real SAT question examples for reference:\n\n";
-      questions.forEach((q, idx) => {
-        exampleContext += `Example ${idx + 1}:\n${q.question_text}\n`;
-        if (q.answer_choices && Array.isArray(q.answer_choices)) {
-          q.answer_choices.forEach((choice: string, i: number) => {
-            exampleContext += `${String.fromCharCode(65 + i)}) ${choice}\n`;
-          });
-        }
-        exampleContext += `Correct Answer: ${q.correct_answer}\n\n`;
-      });
-    } else {
+    if (!hasExamples) {
       console.log(`[sat-prep/stream] no questions found for section "${section}", generating without examples`);
     }
 
@@ -104,12 +74,9 @@ export async function POST(req: Request) {
         ? "Use the provided real SAT question examples as a reference for style, difficulty, and formatting. Match their tone and complexity."
         : "Model your content after official SAT question patterns and difficulty levels.",
       "",
-      "IMPORTANT: Organize your lesson into clear sections using markdown headers (## for main sections, ### for subsections). For example: '## Overview', '## Key Strategies', '## Common Mistakes', '## Example', '## Tips'.",
-      "Use headers to create visual breaks between different parts of your lesson. This helps students navigate the content.",
+      "Use ## for sections if needed.",
       "Do not use JSON or code fences; avoid HTML tags.",
-      "For math, use \\( ... \\) for inline and \\[ ... \\] for display equations.",
-      "Always balance delimiters: \\( with \\), \\[ with \\].",
-      "Use single backslash for LaTeX commands: \\frac{1}{2}, \\alpha, \\sin(x).",
+      "Math: \\( ... \\) for inline and \\[ ... \\] for display. Balance pairs. Commands: \\frac \\sqrt \\alpha etc.",
       "Make the content practical and test-focused.",
     ].join(" ");
 

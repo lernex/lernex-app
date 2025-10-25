@@ -6,9 +6,39 @@ import type { ChatCompletionCreateParams } from "openai/resources/chat/completio
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
+import { compressContext } from "@/lib/semantic-compression";
 
 // Raised limits per request
 const MAX_CHARS = 6000; // allow longer input passages
+
+/**
+ * Attempts to parse partial JSON incrementally
+ * Returns the parsed content if available, null otherwise
+ */
+function tryParsePartial(buffer: string): { content: string | null; parsed: boolean } {
+  // Try to parse complete JSON first
+  try {
+    const parsed = JSON.parse(buffer);
+    if (parsed && typeof parsed === "object" && "content" in parsed) {
+      return { content: parsed.content, parsed: true };
+    }
+  } catch {
+    // JSON not complete yet, try to extract partial content
+    // Look for content field in partial JSON
+    const contentMatch = buffer.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (contentMatch && contentMatch[1]) {
+      // Unescape JSON string
+      try {
+        const unescaped = JSON.parse(`"${contentMatch[1]}"`);
+        return { content: unescaped, parsed: false };
+      } catch {
+        // Return raw if unescape fails
+        return { content: contentMatch[1], parsed: false };
+      }
+    }
+  }
+  return { content: null, parsed: false };
+}
 
 export async function POST(req: Request) {
   const t0 = Date.now();
@@ -49,48 +79,64 @@ export async function POST(req: Request) {
 
     const enc = new TextEncoder();
 
-    // Adjust style and length based on mode
-    const systemQuick = [
-      "Answer the user's prompt directly in one very concise paragraph (30–60 words).",
-      "CRITICAL: Stay strictly within the boundaries of the specified subject. Do NOT introduce concepts from other subjects or higher-level topics.",
-      "For example, if the subject is 'Algebra 1', do NOT include concepts like vectors, norms, calculus, or advanced topics. Only use concepts appropriate for that exact subject level.",
-      "Do not add extra context beyond what is needed to answer.",
-      "Do not use JSON, markdown, or code fences; avoid HTML tags.",
-      "For math, use \\( ... \\) for inline and \\[ ... \\] for display. Do NOT use single-dollar $...$ delimiters.",
-      "Always balance delimiters: \\( with \\), \\[ with \\], $$ with $$.",
-      "Vectors: \\langle ... \\rangle; Norms: \\|v\\|; Matrices: use pmatrix with \\\\ for row breaks.",
-      "Use single backslash for LaTeX commands: \\frac{1}{2}, \\alpha, \\sin(x).",
-      "Wrap single-letter macro arguments in braces: \\vec{v}, \\mathbf{v}, \\hat{x}.",
-    ].join(" ");
-    const systemMini = [
-      "Write a concise micro-lesson of 80–120 words in exactly two short paragraphs.",
-      "CRITICAL: Stay strictly within the boundaries of the specified subject. Do NOT introduce concepts from other subjects or higher-level topics.",
-      "For example, if the subject is 'Algebra 1', do NOT include concepts like vectors, norms, calculus, or advanced topics. Only use concepts appropriate for that exact subject level.",
-      "Answer the user's question and provide a tiny bit of explanation for learning.",
-      "If you need to organize content, you may use markdown headers (## or ###) to separate sections, but keep it minimal for this short format.",
-      "Do not use JSON or code fences; avoid HTML tags.",
-      "For math, use \\( ... \\) for inline and \\[ ... \\] for display. Do NOT use single-dollar $...$ delimiters.",
-      "Always balance delimiters: \\( with \\), \\[ with \\], $$ with $$.",
-      "Vectors: \\langle ... \\rangle; Norms: \\|v\\|; Matrices: use pmatrix with \\\\ for row breaks.",
-      "Use single backslash for LaTeX commands: \\frac{1}{2}, \\alpha, \\sin(x).",
-      "Wrap single-letter macro arguments in braces: \\vec{v}, \\mathbf{v}, \\hat{x}.",
-    ].join(" ");
-    const systemFull = [
-      "Write an in-depth lesson of ~400–700 words across multiple short paragraphs.",
-      "CRITICAL: Stay strictly within the boundaries of the specified subject. Do NOT introduce concepts from other subjects or higher-level topics.",
-      "For example, if the subject is 'Algebra 1', do NOT include concepts like vectors, norms, calculus, multivariable calculus, linear algebra, or any advanced mathematics. Only use concepts appropriate for that exact subject level.",
-      "If the subject is 'Geometry', only use geometric concepts. If the subject is 'Calculus 1', do not include Calculus 2 or 3 concepts like sequences, series, or multivariable calculus.",
-      "Answer the user's question thoroughly, add background, key definitions, step-by-step reasoning, a small worked example, common pitfalls, and a short summary.",
-      "IMPORTANT: Organize your lesson into clear sections using markdown headers (## for main sections, ### for subsections). For example: '## Background', '## Key Concepts', '## Worked Example', '## Common Pitfalls', '## Summary'.",
-      "Use headers to create visual breaks between different parts of your lesson. This helps students navigate the content.",
-      "Do not use JSON or code fences; avoid HTML tags.",
-      "For math, use \\( ... \\) for inline and \\[ ... \\] for display. Do NOT use single-dollar $...$ delimiters.",
-      "Always balance delimiters: \\( with \\), \\[ with \\], $$ with $$.",
-      "Vectors: \\langle ... \\rangle; Norms: \\|v\\|; Matrices: use pmatrix with \\\\ for row breaks.",
-      "Use single backslash for LaTeX commands: \\frac{1}{2}, \\alpha, \\sin(x).",
-      "Wrap single-letter macro arguments in braces: \\vec{v}, \\mathbf{v}, \\hat{x}.",
-    ].join(" ");
-    const system = mode === "quick" ? systemQuick : mode === "full" ? systemFull : systemMini;
+    // Common rules extracted to reduce duplication
+    const SUBJECT_BOUNDARY_RULE = "CRITICAL: Stay strictly within the boundaries of the specified subject. Do NOT introduce concepts from other subjects or higher-level topics. For example, if the subject is 'Algebra 1', do NOT include concepts like vectors, norms, calculus, or advanced topics. Only use concepts appropriate for that exact subject level.";
+    const MATH_FORMATTING_RULES = "Math: \\(inline\\) \\[display\\]. Escape in JSON: \\\\(. Balance pairs. Commands: \\frac \\sqrt \\alpha etc.";
+    const FORMAT_RESTRICTION = "Do not use JSON or code fences; avoid HTML tags.";
+
+    // Unified prompt builder function
+    const buildPrompt = (mode: "quick" | "mini" | "full"): string => {
+      const modeSpecs: Record<"quick" | "mini" | "full", string[]> = {
+        quick: [
+          "Answer the user's prompt directly in one very concise paragraph (30–60 words).",
+          "Do not add extra context beyond what is needed to answer.",
+        ],
+        mini: [
+          "Write a concise micro-lesson of 80–120 words in exactly two short paragraphs.",
+          "Answer the user's question and provide a tiny bit of explanation for learning.",
+          "Use ## for sections if needed.",
+        ],
+        full: [
+          "Write an in-depth lesson of ~400–700 words across multiple short paragraphs.",
+          "If the subject is 'Geometry', only use geometric concepts. If the subject is 'Calculus 1', do not include Calculus 2 or 3 concepts like sequences, series, or multivariable calculus.",
+          "Answer the user's question thoroughly, add background, key definitions, step-by-step reasoning, a small worked example, common pitfalls, and a short summary.",
+          "Use ## for sections if needed.",
+        ],
+      };
+
+      return [
+        ...modeSpecs[mode],
+        SUBJECT_BOUNDARY_RULE,
+        FORMAT_RESTRICTION,
+        MATH_FORMATTING_RULES,
+      ].join(" ");
+    };
+
+    const system = buildPrompt(mode);
+    let compressedSrc = src;
+
+    // Apply semantic compression if enabled and input is large
+    const enableCompression = process.env.ENABLE_SEMANTIC_COMPRESSION === 'true';
+    const compressionRate = Number(process.env.SEMANTIC_COMPRESSION_RATE ?? '0.35');
+
+    if (enableCompression && src.length > 1000) {
+      try {
+        const compressionResult = await compressContext(src, {
+          rate: compressionRate,
+          preserve: [subject],
+          useCache: true,
+          temperature: 0.3,
+        });
+        compressedSrc = compressionResult.compressed;
+        console.log('[gen/stream] sourceText-compression', {
+          saved: compressionResult.tokensEstimate.saved,
+          ratio: compressionResult.compressionRatio.toFixed(2),
+          cached: compressionResult.cached,
+        });
+      } catch (err) {
+        console.warn('[gen/stream] sourceText-compression-failed', err);
+      }
+    }
 
     // Token budgets per mode (clamped to keep responses compact)
     const quickMaxTokens = Math.min(
@@ -109,7 +155,7 @@ export async function POST(req: Request) {
     // Explicitly type messages so literal roles don't widen to `string`.
     const baseMessages: ChatCompletionCreateParams["messages"] = [
       { role: "system", content: system },
-      { role: "user", content: `Subject: ${subject}\nMode: ${mode}\nSource Text:\n${src}\nWrite the lesson as instructed.` },
+      { role: "user", content: `Subject: ${subject}\nMode: ${mode}\nSource Text:\n${compressedSrc}\nWrite the lesson as instructed.` },
     ];
 
     const streamPromise = client.chat.completions.create({
@@ -131,6 +177,12 @@ export async function POST(req: Request) {
         let fallbackReason: string | null = null;
         const startedAt = Date.now();
         let usageSummary: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
+
+        // Buffer for incremental JSON parsing
+        let buffer = "";
+        let lastSentLength = 0;
+        let isLikelyJSON = false;
+        let jsonCheckDone = false;
 
         const safeEnqueue = (s: string) => {
           if (!closed && s) controller.enqueue(enc.encode(s));
@@ -180,7 +232,32 @@ export async function POST(req: Request) {
             if (content) {
               sawActivity = true;
               sawContent = true;
-              safeEnqueue(content);
+
+              // Add to buffer for incremental parsing
+              buffer += content;
+
+              // Auto-detect JSON on first chunk
+              if (!jsonCheckDone) {
+                jsonCheckDone = true;
+                const trimmed = buffer.trim();
+                isLikelyJSON = trimmed.startsWith('{') || trimmed.startsWith('[');
+              }
+
+              // If it looks like JSON, try incremental parsing
+              if (isLikelyJSON) {
+                const partial = tryParsePartial(buffer);
+                if (partial.content) {
+                  // Only send new content to avoid duplicates
+                  const newContent = partial.content.slice(lastSentLength);
+                  if (newContent) {
+                    safeEnqueue(newContent);
+                    lastSentLength = partial.content.length;
+                  }
+                }
+              } else {
+                // Plain text mode: stream directly (existing behavior)
+                safeEnqueue(content);
+              }
             }
           }
 
@@ -209,7 +286,15 @@ export async function POST(req: Request) {
               const full = (nonStream?.choices?.[0]?.message?.content as string | undefined) ?? "";
               if (full) {
                 sawContent = true;
-                safeEnqueue(full);
+
+                // Apply same JSON parsing logic to fallback
+                const trimmed = full.trim();
+                if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                  const partial = tryParsePartial(full);
+                  safeEnqueue(partial.content ?? full);
+                } else {
+                  safeEnqueue(full);
+                }
               } else {
                 console.warn("[gen/stream] fallback-empty");
               }

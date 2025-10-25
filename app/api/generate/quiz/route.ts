@@ -59,15 +59,7 @@ Rules:
 - CRITICAL: All questions must stay strictly within the boundaries of the specified subject. Do NOT introduce concepts from other subjects or higher-level topics.
 - For example, if the subject is 'Algebra 1', do NOT include concepts like vectors, norms, calculus, or advanced topics. Only use concepts appropriate for that exact subject level.
 - Keep choices short (<= 8 words). Keep explanations concise (<= 25 words).
-- Use inline LaTeX: \\( ... \\) for math. Do NOT use single-dollar $...$ delimiters.
-- Always balance delimiters: \\( pairs with \\), \\[ with \\], $$ with $$.
-- Vectors: \\langle a,b \\rangle; Norms: \\|v\\|; Matrices: use pmatrix with \\\\\\\\ for row breaks.
-- Avoid HTML tags and code fences.
-- Wrap single-letter macro arguments in braces: \\vec{v}, \\mathbf{v}, \\hat{v}.
-- CRITICAL JSON ESCAPING: In JSON strings, use double backslash for LaTeX.
-  Examples: Write \\\\( not \\(, write \\\\frac{1}{2} not \\frac{1}{2}, write \\\\alpha not \\alpha
-- Example quiz JSON:
-  {"id":"quiz-001","subject":"Math","title":"Fractions","difficulty":"easy","questions":[{"prompt":"What is \\\\(\\\\frac{1}{2}\\\\)?","choices":["\\\\(0.5\\\\)","\\\\(1\\\\)","\\\\(2\\\\)","\\\\(0.25\\\\)"],"correctIndex":0,"explanation":"One half equals \\\\(0.5\\\\) in decimal."}]}
+- Math: \\(inline\\) \\[display\\). Escape in JSON: \\\\(. Balance pairs. Commands: \\frac \\sqrt \\alpha etc.
 `.trim();
 
     const quickMaxTokens = Math.min(

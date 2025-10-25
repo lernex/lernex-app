@@ -7,6 +7,7 @@ import { checkUsageLimit, logUsage } from '@/lib/usage';
 import type { Database } from '@/lib/types_db';
 import { rankSupportKnowledge, type SupportKnowledgeEntry } from '@/lib/support-knowledge';
 import { createModelClient, fetchUserTier } from '@/lib/model-config';
+import { compressContext } from '@/lib/semantic-compression';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,7 +49,7 @@ const WEBSITE_CONTEXT = [
   '   • Input: Paste text (up to 2 short paragraphs) or upload PDF (max 10MB)',
   '   • Select: Subject (6 domains) + Difficulty (intro/easy/medium/hard)',
   '   • Output: 80-105 word structured lesson (definition + example + pitfall + next step)',
-  '   • Includes: 3 MCQs with 10-35 word explanations per answer',
+  '   • Includes: 3 MCQs with max 25 word explanations per answer',
   '   • LaTeX: Full math support (inline \\(...\\), display \\[...\\])',
   '   • Limits: Free (standard daily quota), Plus (3x capacity), Premium (unlimited)',
   '   • Reset: Daily limits reset at midnight local timezone',
@@ -201,7 +202,7 @@ const WEBSITE_CONTEXT = [
   '',
   '🎮 QUIZZES:',
   '   • Format: Exactly 3 multiple-choice questions per lesson, 4 options each',
-  '   • Feedback: Instant explanations (10-35 words per answer)',
+  '   • Feedback: Instant explanations (max 15 words per answer)',
   '   • Scoring: 10 points per correct, 0 for incorrect',
   '   • Impact: Updates mastery score, adjusts difficulty, influences FYP recommendations',
   '   • No Retakes: Cannot retake same lesson quiz (but can review content unlimited)',
@@ -979,7 +980,7 @@ function buildSystemPrompt({
     '   • Input: Paste up to 2 paragraphs OR upload PDF (max 10MB, text-based only)',
     '   • Select: Subject (6 domains) + Difficulty (intro/easy/medium/hard)',
     '   • Output: 80-105 word micro-lesson (definition + example + pitfall + next step)',
-    '   • Includes: 3 MCQs with 10-35 word explanations',
+    '   • Includes: 3 MCQs with max 15 word explanations',
     '   • LaTeX: Inline \\(...\\), display \\[...\\]',
     '   • Limits: Free (standard quota), Plus (3x capacity), Premium (unlimited)',
     '   • Reset: Daily at midnight local timezone',
@@ -1024,7 +1025,7 @@ function buildSystemPrompt({
     '🎯 QUIZ MECHANICS:',
     '   • Format: Exactly 3 MCQs per lesson, 4 options each',
     '   • Scoring: 10 points per correct (max 30/lesson), 0 for incorrect',
-    '   • Feedback: Instant explanations (10-35 words per answer)',
+    '   • Feedback: Instant explanations (max 15 words per answer)',
     '   • Impact: Updates mastery score, adjusts difficulty, influences FYP',
     '   • No retakes: Can\'t retake same quiz (can review content unlimited)',
     '   • Thresholds: >80% accuracy → difficulty increases, <50% → decreases',
@@ -1228,12 +1229,37 @@ export async function POST(req: NextRequest) {
   const knowledgeEntries = rankSupportKnowledge(userQueryText, 5);
   const knowledgeDigest = renderKnowledgeDigest(knowledgeEntries);
   const learnerSummary = renderLearnerSummary(learnerContext);
-  const systemPrompt = buildSystemPrompt({
+  let systemPrompt = buildSystemPrompt({
     knowledgeDigest,
     learnerSummary,
     clientContext: context,
     websiteContext: WEBSITE_CONTEXT,
   });
+
+  // Apply semantic compression if enabled
+  const enableCompression = process.env.ENABLE_SEMANTIC_COMPRESSION === 'true';
+  const compressionRate = Number(process.env.SEMANTIC_COMPRESSION_RATE ?? '0.4');
+
+  if (enableCompression) {
+    try {
+      const compressionResult = await compressContext(systemPrompt, {
+        rate: compressionRate,
+        preserve: ['lernex.net', SUPPORT_EMAIL, '/fyp', '/generate', '/analytics'],
+        useCache: true,
+      });
+      systemPrompt = compressionResult.compressed;
+      console.log('[support/chat] semantic-compression', {
+        originalTokens: compressionResult.tokensEstimate.original,
+        compressedTokens: compressionResult.tokensEstimate.compressed,
+        saved: compressionResult.tokensEstimate.saved,
+        ratio: compressionResult.compressionRatio.toFixed(2),
+        cached: compressionResult.cached,
+      });
+    } catch (compressionError) {
+      console.warn('[support/chat] compression-failed, using original', compressionError);
+      // Continue with original systemPrompt if compression fails
+    }
+  }
 
   try {
     const completion = await aiClient.chat.completions.create({

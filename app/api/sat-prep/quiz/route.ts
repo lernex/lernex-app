@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
+import { getCachedSampleQuestions } from "@/lib/sat-sample-cache";
 
 export async function POST(req: Request) {
   const t0 = Date.now();
@@ -37,42 +38,11 @@ export async function POST(req: Request) {
 
     console.log("[sat-prep/quiz] request-start", { section, topic, topicLabel, tier: userTier, provider, model });
 
-    // Fetch sample SAT questions from database
-    // Try topic-specific query first, fall back to section-only query if no matches
-    let { data: sampleQuestions } = await sb
-      .from("sat_questions")
-      .select("question_text, answer_choices, correct_answer, explanation")
-      .eq("section", section)
-      .or(`tags.cs.{${topic}},topic.ilike.%${topic}%`)
-      .limit(3);
+    // Fetch sample SAT questions using cached version (reduces DB calls + tokens)
+    const exampleContext = await getCachedSampleQuestions(sb, section, topic, "quiz");
+    const hasExamples = exampleContext.length > 0;
 
-    // If no topic-specific questions found, get any questions from this section
-    if (!sampleQuestions || sampleQuestions.length === 0) {
-      console.log(`[sat-prep/quiz] no questions for topic "${topic}", trying section-only`);
-      const fallbackResult = await sb
-        .from("sat_questions")
-        .select("question_text, answer_choices, correct_answer, explanation")
-        .eq("section", section)
-        .limit(3);
-      sampleQuestions = fallbackResult.data;
-    }
-
-    const hasExamples = sampleQuestions && sampleQuestions.length > 0;
-    let exampleContext = "";
-
-    if (hasExamples && sampleQuestions) {
-      const questions = sampleQuestions as Array<{ question_text?: string; answer_choices?: unknown; correct_answer?: string; explanation?: string }>;
-      exampleContext = "\n\nReal SAT question examples for style reference:\n\n";
-      questions.forEach((q, idx) => {
-        exampleContext += `Example ${idx + 1}:\n${q.question_text}\n`;
-        if (q.answer_choices && Array.isArray(q.answer_choices)) {
-          q.answer_choices.forEach((choice: string, i: number) => {
-            exampleContext += `${String.fromCharCode(65 + i)}) ${choice}\n`;
-          });
-        }
-        exampleContext += `Correct: ${q.correct_answer}\nExplanation: ${q.explanation}\n\n`;
-      });
-    } else {
+    if (!hasExamples) {
       console.log(`[sat-prep/quiz] no questions found for section "${section}", generating without examples`);
     }
 

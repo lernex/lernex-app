@@ -498,9 +498,9 @@ export default function MarketingLanding() {
 
     const now = new Date();
     const year = now.getFullYear();
-    let target = localDateTimeToUtcMillis(year, 11, 1, 12, 0, 0);
+    let target = localDateTimeToUtcMillis(year, 11, 15, 12, 0, 0);
     if (Date.now() > target) {
-      target = localDateTimeToUtcMillis(year + 1, 11, 1, 12, 0, 0);
+      target = localDateTimeToUtcMillis(year + 1, 11, 15, 12, 0, 0);
     }
     return target;
   }, []);
@@ -968,7 +968,7 @@ export default function MarketingLanding() {
                 </div>
               </div>
               <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">
-                Target: Nov 1, 12:00 PM MT
+                Target: Nov 15, 12:00 PM MT
               </p>
             </motion.div>
           ) : (

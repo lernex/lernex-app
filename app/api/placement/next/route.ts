@@ -90,7 +90,6 @@ Rules:
 - Place the correct answer as the FIRST element in choices and set correctIndex to 0.
 - For intro/easy use 2–3 choices; for medium/hard use 3–4 choices.
 - Keep choices concise (<= 8 words each). Keep explanation concise (<= 25 words).
-- Difficulty maps to syllabus depth (intro: foundational; easy: early units; medium: mid-course; hard: late/advanced).
 - Only standard curriculum content for the course; avoid more advanced classes.
 - Use inline LaTeX like \\( ... \\) when needed. Avoid HTML. Ensure braces { } are balanced and backslashes escaped so the JSON remains valid.
 `.trim();
@@ -129,7 +128,7 @@ Rules:
   const user = `
 Subject: ${state.subject}
 Course: ${state.course}
-Target Difficulty: ${state.difficulty}
+Difficulty: ${state.difficulty}. Adjust complexity accordingly.
 Step: ${state.step} of ${state.maxSteps}
 ${avoidText}
 Create exactly one discriminative multiple-choice question from the course's appropriate units. Include a short explanation. The question should address a key topic within the course's own syllabus.
