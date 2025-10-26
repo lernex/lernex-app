@@ -10,6 +10,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * Plus/Premium Tier Models (gpt-oss-120b):
  * - Cerebras: $0.35 input / $0.75 output per 1M tokens
  * - LightningAI: $0.10 input / $0.40 output per 1M tokens
+ *
+ * TTS Models:
+ * - ElevenLabs: $0.30 per 1000 characters (tracked as "output tokens")
  */
 const PRICES: Record<string, { input: number; output: number }> = {
   // Legacy models (for backwards compatibility)
@@ -35,6 +38,11 @@ const PRICES: Record<string, { input: number; output: number }> = {
 
   // LightningAI gpt-oss-120b (SLOW model for paid tiers)
   "lightningai/gpt-oss-120b": { input: 0.1 / 1_000_000, output: 0.4 / 1_000_000 },
+
+  // TTS (Text-to-Speech) models
+  // ElevenLabs: $0.30 per 1000 INPUT characters (the translated text sent to ElevenLabs)
+  // We use "input" field to represent characters (1 char = 1 "token")
+  "elevenlabs": { input: 0.3 / 1000, output: 0 },
 };
 
 export function calcCost(model: string, inputTokens = 0, outputTokens = 0) {

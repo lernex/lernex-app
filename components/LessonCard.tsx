@@ -5,6 +5,7 @@ import { Lesson } from "@/types";
 import FormattedText from "./FormattedText";
 import ExpandedLessonModal from "./ExpandedLessonModal";
 import ReportIssueModal from "./ReportIssueModal";
+import TTSButton from "./TTSButton";
 import { MATH_TRIGGER_RE } from "@/lib/latex";
 
 type LessonCardProps = {
@@ -392,6 +393,7 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
           >
             {saved ? "Saved" : "Save"}
           </button>
+          <TTSButton lessonText={lesson.content} />
           <button
             onClick={() => {
               const prevLiked = liked;
