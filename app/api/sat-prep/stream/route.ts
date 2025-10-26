@@ -97,7 +97,6 @@ export async function POST(req: Request) {
       model,
       temperature: 0.8,
       max_tokens: maxTokens,
-      reasoning_effort: "medium",
       stream: true,
       messages: baseMessages,
     });
@@ -184,7 +183,6 @@ export async function POST(req: Request) {
                 model,
                 temperature: 0.8,
                 max_tokens: maxTokens,
-                reasoning_effort: "medium",
                 messages: baseMessages,
               });
               const full = (nonStream?.choices?.[0]?.message?.content as string | undefined) ?? "";

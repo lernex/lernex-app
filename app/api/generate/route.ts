@@ -289,7 +289,6 @@ export async function POST(req: NextRequest) {
       model,
       temperature,
       max_tokens: completionMaxTokens,
-      reasoning_effort: "medium",
       stream: true,
       messages: [
         { role: "system", content: system },
@@ -330,7 +329,6 @@ export async function POST(req: NextRequest) {
                   model,
                   temperature,
                   max_tokens: completionMaxTokens,
-                  reasoning_effort: "medium",
                   messages: [
                     { role: "system", content: system },
                     { role: "user", content: userPrompt },

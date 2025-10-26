@@ -84,7 +84,6 @@ Rules:
         model,
         temperature: 0.4,
         max_tokens: maxTokens,
-        reasoning_effort: "medium",
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
@@ -114,7 +113,6 @@ Create fair multiple-choice questions based on the source, following the rules.`
             model,
             temperature: 0.4,
             max_tokens: maxTokens,
-            reasoning_effort: "medium",
             messages: [
               { role: "system", content: system },
               {

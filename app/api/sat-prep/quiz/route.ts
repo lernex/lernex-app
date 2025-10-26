@@ -104,7 +104,6 @@ export async function POST(req: Request) {
       model,
       temperature: 0.9,
       max_tokens: 3200,
-      reasoning_effort: "medium",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
