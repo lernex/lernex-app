@@ -25,7 +25,7 @@ type UploadLessonsClientProps = {
   initialProfile?: ProfileBasics | null;
 };
 
-type Stage = "idle" | "extracting" | "chunking" | "generating" | "complete" | "error";
+type Stage = "idle" | "parsing" | "chunking" | "generating" | "complete" | "error";
 
 type SourcePreview = {
   name: string;
@@ -38,64 +38,28 @@ type PendingLesson = Lesson & {
 
 const MAX_FILE_SIZE_BYTES = 18 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 24_000;
-const MAX_CHUNKS = 4;
-const MAX_CHARS_PER_CHUNK = 4_200;
 const MIN_CHARS_REQUIRED = 220;
 
-const SUPPORTED_TEXT_EXTENSIONS = new Set(["txt", "md", "markdown", "json", "csv", "html", "htm", "rtf"]);
-
-let pdfModulePromise: Promise<typeof import("pdfjs-dist/legacy/build/pdf.mjs")> | null = null;
-
-type PdfJsModule = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
-type PdfDocumentOptions = Parameters<PdfJsModule["getDocument"]>[0] & {
-  disableWorker?: boolean;
-};
-
-async function extractPdfText(file: File): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer();
-  if (!pdfModulePromise) {
-    pdfModulePromise = import("pdfjs-dist/legacy/build/pdf.mjs");
-  }
-  const pdfjs = await pdfModulePromise;
-  const documentParams: PdfDocumentOptions = {
-    data: arrayBuffer,
-    useWorkerFetch: false,
-    isEvalSupported: false,
-    disableWorker: true,
-  };
-  const loadingTask = pdfjs.getDocument(documentParams);
-  const pdf = await loadingTask.promise;
-  let full = "";
-  for (let pageIndex = 1; pageIndex <= pdf.numPages; pageIndex += 1) {
-    const page = await pdf.getPage(pageIndex);
-    const content = await page.getTextContent();
-    const buffer: string[] = [];
-    for (const item of content.items as { str?: string }[]) {
-      if (typeof item?.str === "string") buffer.push(item.str);
-    }
-    const pageText = buffer.join(" ").replace(/\s+/g, " ").trim();
-    if (pageText) {
-      full += pageText;
-      if (pageIndex < pdf.numPages) full += "\n\n";
-    }
-  }
-  return full;
-}
-
-async function readFileToPlainText(file: File): Promise<string> {
+async function parseFileWithLlamaParse(file: File): Promise<string> {
   if (file.size > MAX_FILE_SIZE_BYTES) {
     throw new Error(`"${file.name}" is larger than ${(MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0)}MB.`);
   }
-  const extension = file.name.toLowerCase().split(".").pop() ?? "";
-  if (extension === "pdf" || file.type === "application/pdf") {
-    return extractPdfText(file);
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch('/api/upload/parse', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to parse file' }));
+    throw new Error(error.error || 'Failed to parse file');
   }
-  if (file.type.startsWith("text/") || SUPPORTED_TEXT_EXTENSIONS.has(extension)) {
-    return file.text();
-  }
-  throw new Error(
-    `Unsupported file type: ${extension || file.type || "unknown"}. Export slides or docs as PDF or plain text before uploading.`,
-  );
+
+  const result = await response.json();
+  return result.text || '';
 }
 
 function formatBytes(bytes: number): string {
@@ -115,9 +79,26 @@ function normalizeWhitespace(raw: string): string {
   return raw.replace(/\r/g, "\n").replace(/\t/g, " ").replace(/\u00a0/g, " ").replace(/[ ]{2,}/g, " ").trim();
 }
 
-function chunkTextPassages(text: string, maxChunks = MAX_CHUNKS): string[] {
+function chunkTextPassages(text: string): string[] {
   const clean = normalizeWhitespace(text);
   if (!clean) return [];
+
+  // Determine number of chunks based on content length
+  // Short content (< 1000 chars): 2-3 lessons
+  // Medium content (1000-3000 chars): 3-5 lessons
+  // Long content (> 3000 chars): 5-6 lessons
+  let targetChunks = 3;
+  const textLength = clean.length;
+
+  if (textLength < 1000) {
+    targetChunks = Math.max(2, Math.min(3, Math.ceil(textLength / 400)));
+  } else if (textLength < 3000) {
+    targetChunks = Math.max(3, Math.min(5, Math.ceil(textLength / 700)));
+  } else {
+    targetChunks = Math.max(5, Math.min(6, Math.ceil(textLength / 900)));
+  }
+
+  const maxCharsPerChunk = Math.ceil(textLength / targetChunks);
 
   const paragraphs = clean
     .split(/\n{2,}/)
@@ -130,36 +111,35 @@ function chunkTextPassages(text: string, maxChunks = MAX_CHUNKS): string[] {
   const pushCurrent = () => {
     const trimmed = current.trim();
     if (trimmed.length >= MIN_CHARS_REQUIRED) {
-      chunks.push(trimmed.slice(0, MAX_CHARS_PER_CHUNK));
+      chunks.push(trimmed);
     }
     current = "";
   };
 
   for (const paragraph of paragraphs) {
-    const paragraphText = paragraph.slice(0, MAX_CHARS_PER_CHUNK);
     if (!current) {
-      current = paragraphText;
+      current = paragraph;
       continue;
     }
-    const combinedLength = current.length + 2 + paragraphText.length;
-    if (combinedLength > MAX_CHARS_PER_CHUNK * 0.95 && current.length >= MIN_CHARS_REQUIRED) {
+    const combinedLength = current.length + 2 + paragraph.length;
+    if (combinedLength > maxCharsPerChunk * 0.95 && current.length >= MIN_CHARS_REQUIRED) {
       pushCurrent();
-      current = paragraphText;
+      current = paragraph;
     } else {
-      current = `${current}\n\n${paragraphText}`;
+      current = `${current}\n\n${paragraph}`;
     }
-    if (chunks.length >= maxChunks) break;
+    if (chunks.length >= targetChunks) break;
   }
 
-  if (current && chunks.length < maxChunks) {
+  if (current && chunks.length < targetChunks) {
     pushCurrent();
   }
 
   if (chunks.length === 0 && clean.length >= MIN_CHARS_REQUIRED) {
-    return [clean.slice(0, MAX_CHARS_PER_CHUNK)];
+    return [clean];
   }
 
-  return chunks.slice(0, maxChunks);
+  return chunks;
 }
 
 function deriveInsights(chunks: string[]): string[] {
@@ -253,8 +233,8 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
       setError(null);
-      setStage("extracting");
-      setStatusDetail("Extracting text from your files…");
+      setStage("parsing");
+      setStatusDetail("Parsing your documents with AI…");
       setProgress(8);
       setLessons([]);
       setInsights([]);
@@ -267,7 +247,11 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
           const file = files.item(index);
           if (!file) continue;
           previews.push({ name: file.name, sizeLabel: formatBytes(file.size) });
-          const extracted = await readFileToPlainText(file);
+
+          setStatusDetail(`Parsing ${file.name} with LlamaParse…`);
+          setProgress(8 + Math.round((index / files.length) * 12));
+
+          const extracted = await parseFileWithLlamaParse(file);
           if (extracted && extracted.trim().length) {
             textFragments.push(extracted);
           }
@@ -301,13 +285,13 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
       }
 
       setStage("chunking");
-      setStatusDetail("Structuring your notes into lesson-sized chunks…");
-      setProgress(18);
+      setStatusDetail("Structuring your content into lesson-sized chunks…");
+      setProgress(20);
 
       const chunks = chunkTextPassages(normalized);
       if (!chunks.length) {
         setStage("error");
-        setError("We couldn't segment your notes. Try adding a few headings or paragraphs.");
+        setError("We couldn't segment your content. Try adding a few headings or paragraphs.");
         setStatusDetail(null);
         setProgress(0);
         return;
@@ -315,7 +299,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
 
       setInsights(deriveInsights(chunks));
       setStage("generating");
-      setStatusDetail("Generating adaptive mini-lessons…");
+      setStatusDetail(`Generating ${chunks.length} adaptive mini-lessons…`);
       setProgress(26);
 
       const controller = new AbortController();
@@ -450,8 +434,9 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                   </span>
                 </h1>
                 <p className="max-w-2xl text-sm text-neutral-600 dark:text-neutral-300 sm:text-base">
-                  Drop in PDFs, lecture notes, or exported slide decks. Lernex extracts the essentials and crafts a flow
-                  of micro-lessons - complete with adaptive quizzes - so you can scroll, study, and retain faster.
+                  Drop in PDFs, PowerPoints, Word docs, or lecture notes. Our LlamaParse AI intelligently extracts the
+                  content and crafts a personalized flow of micro-lessons - complete with adaptive quizzes - based on what
+                  you uploaded.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-neutral-400 dark:text-neutral-500">
@@ -490,15 +475,15 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
               <ul className="mt-4 space-y-3 text-xs text-neutral-600 dark:text-neutral-300">
                 <li className="flex gap-2">
                   <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lernex-blue" />
-                  Export slides or Docs as PDF to keep structure and diagrams intact.
+                  Upload PowerPoint, Word, or PDF files directly - LlamaParse extracts everything intelligently.
                 </li>
                 <li className="flex gap-2">
                   <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lernex-purple" />
-                  Include headings or section breaks - each becomes its own learning card.
+                  Longer documents create 5-6 lessons, shorter ones create 2-3 - perfectly sized for learning.
                 </li>
                 <li className="flex gap-2">
                   <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                  Drop multiple files at once; we auto-merge and dedupe repeated sections.
+                  Drop multiple files at once; we automatically merge and create a cohesive lesson sequence.
                 </li>
               </ul>
             </motion.div>
@@ -591,7 +576,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.txt,.md,.markdown,.csv,.json,.rtf,.html,.htm"
+                accept=".pdf,.docx,.pptx,.txt,.md,.markdown,.csv,.json,.rtf,.html,.htm"
                 multiple
                 hidden
                 onChange={handleFileInputChange}
@@ -602,30 +587,59 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                 transition={{ duration: 0.4 }}
                 className="mx-auto flex max-w-xl flex-col items-center gap-6"
               >
-                <span className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-lernex-blue/15 via-lernex-blue/10 to-lernex-purple/20 text-lernex-blue dark:text-lernex-blue/80">
-                  {stage === "generating" ? (
+                <motion.span
+                  animate={
+                    stage === "generating" || stage === "parsing"
+                      ? {
+                          scale: [1, 1.05, 1],
+                          rotate: [0, 5, -5, 0],
+                        }
+                      : {}
+                  }
+                  transition={{
+                    duration: 2,
+                    repeat: stage === "generating" || stage === "parsing" ? Infinity : 0,
+                    ease: "easeInOut",
+                  }}
+                  className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-lernex-blue/15 via-lernex-blue/10 to-lernex-purple/20 text-lernex-blue dark:text-lernex-blue/80"
+                >
+                  {stage === "generating" || stage === "parsing" ? (
                     <Loader2 className="h-10 w-10 animate-spin" />
                   ) : (
                     <UploadCloud className="h-10 w-10" />
                   )}
-                </span>
+                </motion.span>
                 <div className="space-y-3 text-neutral-700 dark:text-neutral-200">
                   <p className="text-xl font-semibold">
-                    {stage === "generating" ? "Working on your lessons..." : "Drop files or click to upload"}
+                    {stage === "parsing"
+                      ? "Parsing your documents..."
+                      : stage === "generating"
+                      ? "Generating your lessons..."
+                      : "Drop files or click to upload"}
                   </p>
                   <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                    Accepts PDFs and text exports up to 18MB combined. We automatically merge sections, remove duplicates,
-                    and craft mini-lessons with quizzes tuned to <span className="font-medium">{subject}</span>.
+                    {stage === "parsing" || stage === "generating" ? (
+                      <>
+                        Using LlamaParse AI to intelligently extract and structure your content into personalized
+                        mini-lessons.
+                      </>
+                    ) : (
+                      <>
+                        Accepts PDFs, DOCX, PPTX, and text files up to 18MB combined. We use LlamaParse AI to extract
+                        content, then craft mini-lessons with quizzes tuned to <span className="font-medium">{subject}</span>
+                        .
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-neutral-500 dark:text-neutral-400">
                   <span className="inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/70 px-3 py-1 dark:border-white/10 dark:bg-white/10">
                     <FileText className="h-3.5 w-3.5 text-lernex-blue" />
-                    PDFs, TXT, Markdown
+                    PDF, DOCX, PPTX, TXT
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/70 px-3 py-1 dark:border-white/10 dark:bg-white/10">
                     <Sparkles className="h-3.5 w-3.5 text-lernex-purple" />
-                    Auto lesson sequencing
+                    LlamaParse AI Parsing
                   </span>
                 </div>
                 <button
@@ -638,21 +652,37 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                   Choose files
                 </button>
               </motion.div>
-              {stage === "generating" && (
+              {(stage === "parsing" || stage === "generating" || stage === "chunking") && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="mt-10 flex flex-col items-center gap-3"
                 >
-                  <div className="h-2 w-full max-w-lg overflow-hidden rounded-full bg-white/40 dark:bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple transition-[width]"
+                  <div className="relative h-3 w-full max-w-lg overflow-hidden rounded-full bg-white/40 shadow-inner dark:bg-white/10">
+                    <motion.div
+                      animate={{
+                        backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
+                      }}
+                      transition={{
+                        duration: 3,
+                        repeat: Infinity,
+                        ease: "linear",
+                      }}
+                      className="h-full rounded-full bg-gradient-to-r from-lernex-blue via-lernex-purple to-lernex-blue bg-[length:200%_100%] transition-[width] duration-300"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
-                  <p className="text-xs font-medium uppercase tracking-[0.25em] text-neutral-500 dark:text-neutral-400">
-                    {statusDetail ?? "Generating lessons"}
-                  </p>
+                  <motion.p
+                    animate={{ opacity: [1, 0.7, 1] }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                    className="text-xs font-semibold uppercase tracking-[0.25em] text-neutral-600 dark:text-neutral-400"
+                  >
+                    {statusDetail ?? "Processing"}
+                  </motion.p>
                   <button
                     type="button"
                     onClick={() => abortControllerRef.current?.abort()}
@@ -775,13 +805,24 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                       style={{ width: `${progress}%` }}
                     />
                   </div>
-                  <p className="mt-3 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                  <motion.p
+                    animate={
+                      stage === "complete"
+                        ? {
+                            scale: [1, 1.05, 1],
+                            color: ["rgb(34, 197, 94)", "rgb(22, 163, 74)", "rgb(34, 197, 94)"],
+                          }
+                        : {}
+                    }
+                    transition={{ duration: 1.5, repeat: stage === "complete" ? 3 : 0 }}
+                    className="mt-3 text-xs font-medium text-neutral-500 dark:text-neutral-400"
+                  >
                     {stage === "complete"
-                      ? "All lessons ready. Scroll and start learning!"
+                      ? "✨ All lessons ready! Scroll down to start learning!"
                       : stage === "error"
                       ? error ?? "Upload failed."
                       : statusDetail ?? "Waiting for upload..."}
-                  </p>
+                  </motion.p>
                 </div>
                 {insights.length > 0 && (
                   <div className="rounded-2xl border border-white/60 bg-white/70 p-4 shadow-sm dark:border-white/10 dark:bg-white/10">
@@ -809,71 +850,129 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
               <h2 className="text-sm font-semibold text-neutral-800 dark:text-white">Why it works</h2>
               <ul className="mt-4 space-y-3 text-neutral-600 dark:text-neutral-300">
                 <li>
-                  <span className="font-semibold text-neutral-700 dark:text-white">Adaptive pacing:</span> lesson difficulty adapts as we learn your accuracy patterns.
+                  <span className="font-semibold text-neutral-700 dark:text-white">Smart parsing:</span> LlamaParse AI
+                  extracts text, tables, and structure from any document format.
                 </li>
                 <li>
-                  <span className="font-semibold text-neutral-700 dark:text-white">Quiz-first design:</span> every card comes ready with comprehension checks.
+                  <span className="font-semibold text-neutral-700 dark:text-white">Tier-based AI:</span> free users get
+                  fast lessons with Groq, paid users get enhanced quality with Cerebras.
                 </li>
                 <li>
-                  <span className="font-semibold text-neutral-700 dark:text-white">Streak safe:</span> ready for quick scroll study or deep review.
+                  <span className="font-semibold text-neutral-700 dark:text-white">Quiz-first design:</span> every lesson
+                  comes with comprehension checks to lock in understanding.
                 </li>
               </ul>
             </motion.div>
           </motion.aside>
         </div>
 
-        <motion.section
-          initial={{ opacity: 0, y: 26 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.14, duration: 0.55 }}
-          className="relative rounded-[32px] border border-white/60 bg-white/80 p-6 shadow-[0_42px_120px_-46px_rgba(47,128,237,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">Generated mini-lessons</h2>
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                Swipe through and tap into each QuizBlock to lock in understanding.
-              </p>
-            </div>
-            {lessons.length > 0 && (
-              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-neutral-400 dark:text-neutral-500">
-                <span>{lessons.length} lessons</span>
+        <AnimatePresence>
+          {lessons.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 26 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ delay: 0.14, duration: 0.55 }}
+              className="relative"
+            >
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-semibold text-neutral-900 dark:text-white">Your Personalized Lessons</h2>
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                    Scroll through your custom-generated mini-lessons
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-neutral-600 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/10 dark:text-neutral-300">
+                  <Sparkles className="h-3.5 w-3.5 text-lernex-blue" />
+                  {lessons.length} Lessons
+                </div>
               </div>
-            )}
-          </div>
-          <div className="mt-6 grid gap-6 lg:grid-cols-2">
-            {lessons.length === 0 ? (
-              <div className="lg:col-span-2">
-                <motion.div
-                  initial={{ opacity: 0.6 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.6, repeat: Infinity, repeatType: "reverse" }}
-                  className="flex flex-col items-center justify-center rounded-[28px] border border-dashed border-white/60 bg-white/60 px-8 py-16 text-center text-sm text-neutral-500 dark:border-white/10 dark:bg-white/10 dark:text-neutral-400"
-                >
-                  <Sparkles className="mb-4 h-6 w-6 text-lernex-blue" />
-                  Upload to see your personalized lesson stream here.
-                </motion.div>
+
+              {/* Scrollable lesson container - FYP style */}
+              <div className="relative">
+                <div className="space-y-6 max-h-[80vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-lernex-blue/20 scrollbar-track-transparent">
+                  {lessons.map((lesson, index) => (
+                    <motion.article
+                      key={lesson.id}
+                      initial={{ opacity: 0, x: -30, scale: 0.95 }}
+                      animate={{ opacity: 1, x: 0, scale: 1 }}
+                      transition={{
+                        duration: 0.5,
+                        delay: index * 0.1,
+                        type: "spring",
+                        stiffness: 100,
+                        damping: 15,
+                      }}
+                      whileHover={{ scale: 1.01, y: -4 }}
+                      className="group relative overflow-hidden rounded-[32px] border border-white/60 bg-white/90 p-6 shadow-[0_20px_70px_-30px_rgba(47,128,237,0.4)] backdrop-blur-xl transition-all dark:border-white/10 dark:bg-white/5 dark:shadow-[0_20px_70px_-30px_rgba(47,128,237,0.6)]"
+                    >
+                      {/* Gradient overlay */}
+                      <div className="pointer-events-none absolute inset-0 -z-10 rounded-[32px] bg-[linear-gradient(135deg,rgba(59,130,246,0.08),rgba(129,140,248,0.05),transparent)] opacity-0 transition-opacity group-hover:opacity-100 dark:bg-[linear-gradient(135deg,rgba(47,128,237,0.2),rgba(129,140,248,0.1),transparent)]" />
+
+                      {/* Lesson number badge */}
+                      <div className="absolute -right-2 -top-2 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-lernex-blue to-lernex-purple text-sm font-bold text-white shadow-lg">
+                        {index + 1}
+                      </div>
+
+                      <div className="space-y-4">
+                        <LessonCard lesson={lesson} className="border-0 shadow-none" />
+
+                        {lesson.questions?.length ? (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.1 + 0.2 }}
+                            className="rounded-2xl border border-white/60 bg-white/70 p-4 text-sm shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/10"
+                          >
+                            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-lernex-purple">
+                              <Sparkles className="h-3.5 w-3.5" />
+                              Quiz Challenge
+                            </div>
+                            <QuizBlock lesson={lesson} onDone={() => {}} showSummary={false} />
+                          </motion.div>
+                        ) : null}
+                      </div>
+                    </motion.article>
+                  ))}
+                </div>
+
+                {/* Scroll indicator gradient at bottom */}
+                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white/80 to-transparent dark:from-neutral-950/80" />
               </div>
-            ) : (
-              lessons.map((lesson) => (
-                <motion.article
-                  key={lesson.id}
-                  initial={{ opacity: 0, y: 24 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4 }}
-                  className="flex flex-col gap-4 rounded-[28px] border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur-lg dark:border-white/10 dark:bg-white/10"
-                >
-                  <LessonCard lesson={lesson} />
-                  {lesson.questions?.length ? (
-                    <div className="rounded-2xl border border-white/60 bg-white/70 p-4 text-sm shadow-sm dark:border-white/10 dark:bg-white/10">
-                      <QuizBlock lesson={lesson} onDone={() => {}} showSummary={false} />
-                    </div>
-                  ) : null}
-                </motion.article>
-              ))
-            )}
-          </div>
-        </motion.section>
+            </motion.section>
+          )}
+        </AnimatePresence>
+
+        {/* Empty state when no lessons */}
+        {lessons.length === 0 && stage === "idle" && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="flex flex-col items-center justify-center rounded-[32px] border border-dashed border-white/60 bg-white/40 px-8 py-20 text-center backdrop-blur dark:border-white/10 dark:bg-white/5"
+          >
+            <motion.div
+              animate={{
+                y: [0, -10, 0],
+                rotate: [0, 5, -5, 0],
+              }}
+              transition={{
+                duration: 4,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            >
+              <Sparkles className="mb-4 h-12 w-12 text-lernex-blue/60" />
+            </motion.div>
+            <h3 className="text-xl font-semibold text-neutral-700 dark:text-neutral-200">
+              Ready to Transform Your Notes
+            </h3>
+            <p className="mt-2 max-w-md text-sm text-neutral-500 dark:text-neutral-400">
+              Upload your documents above to see AI-generated lessons appear here. Each lesson is tailored to help you
+              learn faster and retain more.
+            </p>
+          </motion.div>
+        )}
       </main>
     </ProfileBasicsProvider>
   );
