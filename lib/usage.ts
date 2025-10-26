@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * Model pricing per 1M tokens
  *
  * Free Tier Models (gpt-oss-20b):
- * - Groq: $0.10 input / $0.50 output per 1M tokens
+ * - Groq: $0.075 input / $0.30 output per 1M tokens
  * - Deepinfra: $0.03 input / $0.14 output per 1M tokens
  *
  * Plus/Premium Tier Models (gpt-oss-120b):
@@ -21,8 +21,8 @@ const PRICES: Record<string, { input: number; output: number }> = {
 
   // FREE TIER - gpt-oss-20b models (smaller, less expensive)
   // Groq gpt-oss-20b (FAST model for free tier)
-  "gpt-oss-20b": { input: 0.1 / 1_000_000, output: 0.5 / 1_000_000 },
-  "groq/gpt-oss-20b": { input: 0.1 / 1_000_000, output: 0.5 / 1_000_000 },
+  "gpt-oss-20b": { input: 0.075 / 1_000_000, output: 0.3 / 1_000_000 },
+  "groq/gpt-oss-20b": { input: 0.075 / 1_000_000, output: 0.3 / 1_000_000 },
 
   // Deepinfra gpt-oss-20b (SLOW model for free tier)
   "openai/gpt-oss-20b": { input: 0.03 / 1_000_000, output: 0.14 / 1_000_000 },

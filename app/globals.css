@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-:root {
+:root,
+html {
   --background: #ffffff;
   --foreground: #171717;
   --primary: #2F80ED;
@@ -9,6 +10,7 @@
   --surface-card: rgba(255, 255, 255, 0.9);
   --surface-muted: rgba(255, 255, 255, 0.8);
   --surface-border: rgba(203, 213, 225, 0.55);
+  color-scheme: light;
 }
 
 
@@ -25,6 +27,7 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html.dark,
 .dark {
   --background: #1C1C1E;
   --foreground: #f2f2f2;
@@ -33,6 +36,7 @@
   --surface-card: rgba(12, 16, 26, 0.82);
   --surface-muted: rgba(18, 23, 34, 0.75);
   --surface-border: rgba(71, 85, 105, 0.45);
+  color-scheme: dark;
 }
 
 body {

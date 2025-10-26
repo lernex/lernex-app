@@ -177,6 +177,7 @@ export default function ThemeProvider({
       defaultTheme={mountTheme}
       enableSystem={false}
       themes={["light", "dark"]}
+      value={{ light: "", dark: "dark" }}
       disableTransitionOnChange
     >
       <SyncThemeFromProfile initialPreference={sanitizedInitial} />

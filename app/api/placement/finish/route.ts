@@ -8,6 +8,40 @@ import { computeStreakAfterActivity } from "@/lib/profile-stats";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+// Background function to generate and update learning path asynchronously
+async function generateAndUpdatePathInBackground(
+  userId: string,
+  ip: string,
+  subject: string,
+  course: string,
+  accuracy: number,
+  difficulty: string,
+  reqId: string
+) {
+  try {
+    const sb = await supabaseServer();
+    const path = await generateLearningPath(sb, userId, ip, subject, course, accuracy);
+    try { console.debug(`[placement-finish][${reqId}] generated path in background`, { subject, course }); } catch {}
+
+    // Update with the generated path
+    const firstTopic = path?.topics?.[0];
+    const firstSub = firstTopic?.subtopics?.[0];
+    const nextTopic = firstTopic && firstSub ? `${firstTopic.name} > ${firstSub.name}` : null;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb as any).from("user_subject_state").update({
+      path,
+      next_topic: nextTopic,
+      updated_at: new Date().toISOString(),
+    }).match({ user_id: userId, subject });
+
+    try { console.debug(`[placement-finish][${reqId}] path updated in background`, { nextTopic }); } catch {}
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    try { console.error(`[placement-finish][${reqId}] background generate error`, { msg }); } catch {}
+  }
+}
+
 export async function POST(req: Request) {
   const sb = await supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
@@ -29,23 +63,18 @@ export async function POST(req: Request) {
   // Roll simple mastery estimate
   const acc = questionTotal > 0 ? correctTotal / questionTotal : 0.5;
   const difficulty = state.difficulty;
-  let path: LevelMap | null = null;
-  try {
-    path = await generateLearningPath(sb, user.id, ip, state.subject, state.course, Math.round(acc * 100));
-    try { console.debug(`[placement-finish][${reqId}] generated path`, { subject: state.subject, course: state.course }); } catch {}
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server error";
-    if (msg === "Usage limit exceeded") {
-      try { console.warn(`[placement-finish][${reqId}] usage-limit`, { subject: state.subject, course: state.course }); } catch {}
-      return NextResponse.json({ error: msg }, { status: 403 });
-    }
-    path = null;
-    try { console.error(`[placement-finish][${reqId}] generate error`, { msg }); } catch {}
-  }
-  // First subtopic as starting point
-  const firstTopic = path?.topics?.[0];
-  const firstSub = firstTopic?.subtopics?.[0];
-  const nextTopic = firstTopic && firstSub ? `${firstTopic.name} > ${firstSub.name}` : null;
+
+  // Fire off learning path generation in the background WITHOUT awaiting
+  // This allows us to return immediately and redirect the user to /fyp
+  // The path will be generated asynchronously and updated when ready
+  const accuracyPercent = Math.round(acc * 100);
+  generateAndUpdatePathInBackground(user.id, ip, state.subject, state.course, accuracyPercent, difficulty, reqId).catch(err => {
+    try { console.error(`[placement-finish][${reqId}] background task error`, err); } catch {}
+  });
+
+  // Set initial values to null - they'll be updated when generation completes
+  const path: LevelMap | null = null;
+  const nextTopic: string | null = null;
 
   // Write/Upsert user_subject_state
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -150,10 +150,10 @@ BEGIN
       v_output_cost := 0.5 / 1000000.0;
 
     -- FREE TIER - gpt-oss-20b models
-    -- Groq (FAST)
+    -- Groq (FAST) - Updated pricing as of 2025-01-26
     WHEN 'gpt-oss-20b', 'groq/gpt-oss-20b' THEN
-      v_input_cost := 0.1 / 1000000.0;
-      v_output_cost := 0.5 / 1000000.0;
+      v_input_cost := 0.075 / 1000000.0;
+      v_output_cost := 0.3 / 1000000.0;
 
     -- Deepinfra (SLOW)
     WHEN 'openai/gpt-oss-20b', 'deepinfra/gpt-oss-20b' THEN

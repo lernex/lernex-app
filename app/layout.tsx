@@ -65,15 +65,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
 
-        // Clean up and apply theme
+        // Clean up and apply theme - Tailwind only uses 'dark' class
+        // Light mode is the ABSENCE of the 'dark' class
         document.documentElement.classList.remove('light', 'dark');
-        if (theme === 'light' || theme === 'dark') {
-          document.documentElement.classList.add(theme);
-        } else {
+        if (theme === 'dark') {
           document.documentElement.classList.add('dark');
         }
+        // For light mode, we don't add any class - just remove 'dark'
       } catch (e) {
-        document.documentElement.classList.remove('light', 'dark');
+        // Fallback to dark mode on error
+        document.documentElement.classList.remove('light');
         document.documentElement.classList.add('dark');
       }
     })();

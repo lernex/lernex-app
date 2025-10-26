@@ -290,7 +290,7 @@ export default function Navbar() {
               </AnimatePresence>
             </div>
             <div
-              className={`mt-6 flex flex-1 flex-col overflow-y-auto overflow-x-hidden pb-6 scrollbar-thin ${listPadding}`}
+              className={`mt-6 flex flex-1 flex-col overflow-y-auto overflow-x-hidden pb-6 ${navExpanded ? 'scrollbar-thin' : 'scrollbar-none'} ${listPadding}`}
               style={{ gap: "clamp(1.25rem, 3vh, 1.75rem)" }}
             >
               <div
