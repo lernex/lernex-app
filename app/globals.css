@@ -233,6 +233,64 @@ html {
   }
 }
 
+@keyframes progress-fill {
+  0% {
+    width: 0%;
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes progress-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes branch-grow {
+  0% {
+    transform: scaleY(0);
+    transform-origin: top;
+    opacity: 0;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes current-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+.animate-progress-fill {
+  animation: progress-fill 0.8s ease-out forwards;
+}
+
+.animate-progress-shimmer {
+  animation: progress-shimmer 2s ease-in-out infinite;
+}
+
+.animate-branch-grow {
+  animation: branch-grow 0.5s ease-out forwards;
+}
+
+.animate-current-pulse {
+  animation: current-pulse 2s ease-in-out infinite;
+}
+
 /* Formatted text styling - make headers visually distinct */
 .formatted-lesson-content h1,
 .formatted-lesson-content h2,

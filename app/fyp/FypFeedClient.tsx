@@ -16,6 +16,7 @@ import FypFeed from "@/components/FypFeed";
 import { ProfileBasicsProvider } from "@/app/providers/ProfileBasicsProvider";
 import { useLernexStore } from "@/lib/store";
 import type { ProfileBasics } from "@/lib/profile-basics";
+import LearningPathProgress from "./LearningPathProgress";
 
 type FypFeedClientProps = {
   initialProfile?: ProfileBasics | null;
@@ -148,6 +149,8 @@ export default function FypFeedClient({ initialProfile }: FypFeedClientProps) {
             transition={{ delay: 0.18, duration: 0.5 }}
             className="w-full space-y-6 lg:w-[min(360px,40%)]"
           >
+            <LearningPathProgress />
+
             <motion.div
               whileHover={{ y: -4 }}
               transition={{ type: "spring", stiffness: 260, damping: 22 }}
