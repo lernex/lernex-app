@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     const response = await fetch(LLAMAPARSE_API_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.LLAMAPARSE_API_KEY}`,
+        'Authorization': process.env.LLAMAPARSE_API_KEY || '',
       },
       body: apiFormData,
     });
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
         `https://api.cloud.llamaindex.ai/api/parsing/job/${jobId}/result/markdown`,
         {
           headers: {
-            'Authorization': `Bearer ${process.env.LLAMAPARSE_API_KEY}`,
+            'Authorization': process.env.LLAMAPARSE_API_KEY || '',
           },
         }
       );
