@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Clock } from "lucide-react";
 import type { Lesson } from "@/types";
 import LessonCard from "@/components/LessonCard";
 import QuizBlock from "@/components/QuizBlock";
 import FormattedText from "@/components/FormattedText";
+import LessonHistoryModal from "@/components/LessonHistoryModal";
 
 export default function Generate() {
   const [text, setText] = useState("");
@@ -25,6 +27,9 @@ export default function Generate() {
   const [followUpHistory, setFollowUpHistory] = useState<Array<{ question: string; answer: string }>>([]);
   const [followUpStreaming, setFollowUpStreaming] = useState("");
   const [followUpLoading, setFollowUpLoading] = useState(false);
+
+  // history modal state
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const startProgress = () => {
     setProgress(0);
@@ -188,6 +193,11 @@ Current Question: ${followUpQuestion}
       setLesson(assembled);
       const t3 = performance.now();
       console.log("[client] stream-complete", (t3 - t0).toFixed(1), "ms");
+
+      // Save lesson to history (fire and forget)
+      saveToHistory(assembled).catch((err) =>
+        console.warn("[generate] Failed to save to history:", err)
+      );
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error";
       setErr(message);
@@ -234,8 +244,38 @@ Current Question: ${followUpQuestion}
     } catch {}
   }, [followUpHistory]);
 
+  const saveToHistory = async (lessonToSave: Lesson) => {
+    try {
+      await fetch("/api/lesson-history", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          lesson: lessonToSave,
+          subject,
+          topic: lessonToSave.topic,
+          mode,
+        }),
+      });
+    } catch (error) {
+      console.error("[generate] Error saving to history:", error);
+    }
+  };
+
   return (
-    <main className="min-h-[calc(100vh-56px)] flex items-center justify-center px-4 py-10 text-foreground">
+    <>
+      <LessonHistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
+    <main className="relative min-h-[calc(100vh-56px)] flex items-center justify-center px-4 py-10 text-foreground">
+      {/* History Button - Top Right */}
+      <button
+        onClick={() => setIsHistoryOpen(true)}
+        className="fixed top-20 right-6 flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-surface bg-surface-card hover:bg-surface-muted shadow-lg hover:shadow-xl transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 z-10 group"
+      >
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-lernex-purple/15 text-lernex-purple group-hover:bg-lernex-purple/25 transition-colors">
+          <Clock className="h-4 w-4" />
+        </div>
+        <span className="text-sm font-medium text-foreground">History</span>
+      </button>
+
       <div className="w-full max-w-md space-y-4 py-6">
         <div className="rounded-2xl border border-surface bg-surface-panel p-5 space-y-3 shadow-sm backdrop-blur transition-colors">
           <h1 className="text-xl font-semibold">Generate a Micro-Lesson</h1>
@@ -426,5 +466,6 @@ Current Question: ${followUpQuestion}
         )}
       </div>
     </main>
+    </>
   );
 }

@@ -2,9 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Volume2, VolumeX, Loader2, Pause } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface TTSButtonProps {
   lessonText: string;
+  lessonId?: string; // Optional lesson ID for fetching pre-existing audio
+  audioUrl?: string; // Optional pre-existing audio URL
+  onAudioGenerated?: (audioUrl: string) => void; // Callback when new audio is generated
   className?: string;
 }
 
@@ -14,17 +18,28 @@ interface TTSButtonProps {
  * Provides text-to-speech functionality for lesson content.
  * - Off by default (muted icon)
  * - Only generates TTS when user clicks the button
+ * - Caches audio to prevent regeneration
  * - Shows loading state during generation
  * - Plays audio and shows playing state
  * - Allows pausing/resuming audio
+ * - Stops audio on page/tab navigation
  * - Includes tooltip
  */
-export default function TTSButton({ lessonText, className = "" }: TTSButtonProps) {
+export default function TTSButton({
+  lessonText,
+  lessonId,
+  audioUrl: initialAudioUrl,
+  onAudioGenerated,
+  className = ""
+}: TTSButtonProps) {
   const [state, setState] = useState<"off" | "loading" | "playing" | "paused">("off");
   const [error, setError] = useState<string | null>(null);
   const [showTooltip, setShowTooltip] = useState(false);
+  const [cachedAudioUrl, setCachedAudioUrl] = useState<string | null>(initialAudioUrl || null);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const router = useRouter();
 
   // Cleanup audio on unmount
   useEffect(() => {
@@ -33,40 +48,93 @@ export default function TTSButton({ lessonText, className = "" }: TTSButtonProps
         audioRef.current.pause();
         audioRef.current.src = "";
       }
-      if (audioUrlRef.current) {
+      if (audioUrlRef.current && !cachedAudioUrl) {
+        // Only revoke if it's a blob URL and not a cached URL
         URL.revokeObjectURL(audioUrlRef.current);
       }
     };
+  }, [cachedAudioUrl]);
+
+  // Stop audio when tab visibility changes (user switches tabs)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && audioRef.current && state === "playing") {
+        audioRef.current.pause();
+        setState("paused");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [state]);
+
+  // Stop audio when navigating away (route change)
+  useEffect(() => {
+    const handleRouteChange = () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      }
+    };
+
+    // Listen for route changes
+    window.addEventListener("beforeunload", handleRouteChange);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleRouteChange);
+      handleRouteChange();
+    };
   }, []);
+
+  const generateAndCacheAudio = async (): Promise<string> => {
+    // Generate TTS
+    const response = await fetch("/api/tts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ lessonText, lessonId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: "Failed to generate audio" }));
+      throw new Error(errorData.error || "Failed to generate audio");
+    }
+
+    // Get audio blob
+    const audioBlob = await response.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+
+    // Cache the audio URL
+    setCachedAudioUrl(audioUrl);
+
+    // Notify parent component if callback provided
+    if (onAudioGenerated) {
+      onAudioGenerated(audioUrl);
+    }
+
+    return audioUrl;
+  };
 
   const handleClick = async () => {
     try {
       setError(null);
 
-      // If off, generate and play
+      // If off, generate/load and play
       if (state === "off") {
         setState("loading");
 
-        // Generate TTS
-        const response = await fetch("/api/tts", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ lessonText }),
-        });
+        let audioUrl = cachedAudioUrl;
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: "Failed to generate audio" }));
-          throw new Error(errorData.error || "Failed to generate audio");
+        // If no cached audio, generate new audio
+        if (!audioUrl) {
+          audioUrl = await generateAndCacheAudio();
         }
 
-        // Get audio blob
-        const audioBlob = await response.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-
-        // Clean up old audio URL if it exists
-        if (audioUrlRef.current) {
+        // Clean up old audio URL if it exists and it's a blob
+        if (audioUrlRef.current && audioUrlRef.current !== cachedAudioUrl) {
           URL.revokeObjectURL(audioUrlRef.current);
         }
         audioUrlRef.current = audioUrl;
@@ -129,7 +197,7 @@ export default function TTSButton({ lessonText, className = "" }: TTSButtonProps
         return "Resume audio";
       case "off":
       default:
-        return "Listen to lesson";
+        return cachedAudioUrl ? "Play audio" : "Listen to lesson";
     }
   };
 

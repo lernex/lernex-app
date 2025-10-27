@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     // Parse request body
     const body = await req.json();
-    const { lessonText } = body;
+    const { lessonText, lessonId } = body;
 
     if (!lessonText || typeof lessonText !== "string") {
       return NextResponse.json(
@@ -104,6 +104,33 @@ export async function POST(req: NextRequest) {
     // Total cost
     const totalCost = translationCost + ttsCost;
     console.log(`[tts] Total TTS cost: $${totalCost.toFixed(6)}`);
+
+    // If lessonId is provided, upload audio to Supabase Storage and return URL
+    if (lessonId) {
+      try {
+        const fileName = `${user.id}/${lessonId}.mp3`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("tts-audio")
+          .upload(fileName, audioBuffer, {
+            contentType: "audio/mpeg",
+            upsert: true, // Replace if exists
+          });
+
+        if (uploadError) {
+          console.error("[tts] Failed to upload audio to storage:", uploadError);
+        } else {
+          // Get public URL
+          const { data: publicUrlData } = supabase.storage
+            .from("tts-audio")
+            .getPublicUrl(fileName);
+
+          console.log("[tts] Audio uploaded to storage:", publicUrlData.publicUrl);
+        }
+      } catch (uploadError) {
+        console.error("[tts] Error uploading audio:", uploadError);
+        // Continue even if upload fails
+      }
+    }
 
     // Return audio as MP3
     return new NextResponse(audioBuffer, {
