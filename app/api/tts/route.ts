@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
     if (lessonId) {
       try {
         const fileName = `${user.id}/${lessonId}.mp3`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from("tts-audio")
           .upload(fileName, audioBuffer, {
             contentType: "audio/mpeg",

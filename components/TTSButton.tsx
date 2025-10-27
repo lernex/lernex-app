@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Volume2, VolumeX, Loader2, Pause } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 interface TTSButtonProps {
   lessonText: string;
@@ -39,7 +38,6 @@ export default function TTSButton({
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
-  const router = useRouter();
 
   // Cleanup audio on unmount
   useEffect(() => {

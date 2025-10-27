@@ -91,14 +91,15 @@ export async function POST(req: NextRequest) {
     // Insert lesson into history
     const { data: insertedLesson, error } = await supabase
       .from("lesson_history")
+      // @ts-expect-error - Supabase types not yet generated for lesson_history table
       .insert({
         user_id: user.id,
-        lesson_data: lesson as any,
+        lesson_data: lesson,
         subject: subject || null,
         topic: topic || null,
         mode: mode || null,
         audio_url: audioUrl || null,
-      } as any)
+      })
       .select()
       .single();
 
