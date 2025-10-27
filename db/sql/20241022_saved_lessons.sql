@@ -27,6 +27,7 @@ alter table public.saved_lessons enable row level security;
 
 drop policy if exists "Users read own saved lessons" on public.saved_lessons;
 drop policy if exists "Users insert own saved lessons" on public.saved_lessons;
+drop policy if exists "Users update own saved lessons" on public.saved_lessons;
 drop policy if exists "Users delete own saved lessons" on public.saved_lessons;
 
 create policy "Users read own saved lessons"
@@ -37,6 +38,12 @@ create policy "Users read own saved lessons"
 create policy "Users insert own saved lessons"
   on public.saved_lessons
   for insert
+  with check (auth.uid() = user_id);
+
+create policy "Users update own saved lessons"
+  on public.saved_lessons
+  for update
+  using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
 create policy "Users delete own saved lessons"

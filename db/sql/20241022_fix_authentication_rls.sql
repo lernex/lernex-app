@@ -126,11 +126,13 @@ BEGIN
     -- Drop existing policies
     DROP POLICY IF EXISTS "Users can read own saved lessons" ON public.saved_lessons;
     DROP POLICY IF EXISTS "Users can insert own saved lessons" ON public.saved_lessons;
+    DROP POLICY IF EXISTS "Users can update own saved lessons" ON public.saved_lessons;
     DROP POLICY IF EXISTS "Users can delete own saved lessons" ON public.saved_lessons;
 
     -- Create policies
     EXECUTE 'CREATE POLICY "Users can read own saved lessons" ON public.saved_lessons FOR SELECT USING (auth.uid() = user_id)';
     EXECUTE 'CREATE POLICY "Users can insert own saved lessons" ON public.saved_lessons FOR INSERT WITH CHECK (auth.uid() = user_id)';
+    EXECUTE 'CREATE POLICY "Users can update own saved lessons" ON public.saved_lessons FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id)';
     EXECUTE 'CREATE POLICY "Users can delete own saved lessons" ON public.saved_lessons FOR DELETE USING (auth.uid() = user_id)';
   END IF;
 END $$;

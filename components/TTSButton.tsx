@@ -53,9 +53,11 @@ export default function TTSButton({
     };
   }, [cachedAudioUrl]);
 
-  // Stop audio when tab visibility changes (user switches tabs)
+  // Pause audio when tab visibility changes (user switches tabs)
+  // Only pause if already playing - don't interrupt loading
   useEffect(() => {
     const handleVisibilityChange = () => {
+      // Only pause if audio is currently playing (not loading)
       if (document.hidden && audioRef.current && state === "playing") {
         audioRef.current.pause();
         setState("paused");
@@ -137,7 +139,7 @@ export default function TTSButton({
         }
         audioUrlRef.current = audioUrl;
 
-        // Create and play audio
+        // Create audio element
         const audio = new Audio(audioUrl);
         audioRef.current = audio;
 
@@ -145,13 +147,27 @@ export default function TTSButton({
           setState("off");
         };
 
-        audio.onerror = () => {
+        audio.onerror = (e) => {
+          console.error("[TTS] Audio playback error:", e);
           setState("off");
           setError("Failed to play audio");
         };
 
-        await audio.play();
-        setState("playing");
+        // Only auto-play if the tab is visible
+        // If tab is hidden, just set to paused state so user can play when they return
+        if (!document.hidden) {
+          try {
+            await audio.play();
+            setState("playing");
+          } catch (playError) {
+            console.error("[TTS] Play error:", playError);
+            // If play fails, just set to paused so user can try again
+            setState("paused");
+          }
+        } else {
+          // Tab is hidden, don't auto-play but audio is ready
+          setState("paused");
+        }
       }
       // If playing, pause
       else if (state === "playing") {
