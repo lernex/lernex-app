@@ -13,12 +13,12 @@ export interface TTSGenerationResult {
 /**
  * Generate speech audio from text using ElevenLabs Eleven V3
  * @param text - The text to convert to speech (should be pre-translated for best results)
- * @param voiceId - Optional ElevenLabs voice ID (defaults to a clear, educational voice)
+ * @param voiceId - Optional ElevenLabs voice ID (defaults to Liam)
  * @returns Audio buffer and character count for cost tracking
  */
 export async function generateSpeech(
   text: string,
-  voiceId: string = 'pNInz6obpgDQGcFmaJgB' // Adam - clear, professional voice
+  voiceId: string = 'TX3LPaxmHKxFdv7VOQHJ' // Liam - natural, engaging voice
 ): Promise<TTSGenerationResult> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
 
@@ -27,7 +27,7 @@ export async function generateSpeech(
   }
 
   try {
-    // ElevenLabs API endpoint for text-to-speech with Eleven Turbo v2.5 model
+    // ElevenLabs API endpoint for text-to-speech with Eleven V3 model
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
 
     const response = await fetch(url, {
@@ -39,12 +39,9 @@ export async function generateSpeech(
       },
       body: JSON.stringify({
         text,
-        model_id: 'eleven_turbo_v2_5', // Using Turbo v2.5 which supports expression tags
+        model_id: 'eleven_v3', // Using Eleven V3 which supports expression tags
         voice_settings: {
           stability: 0.5, // Balance between consistency and expressiveness
-          similarity_boost: 0.75, // Higher voice consistency
-          style: 0.5, // Medium style exaggeration for natural teaching tone
-          use_speaker_boost: true // Enhance clarity
         },
       }),
     });
@@ -84,6 +81,7 @@ export function calculateTTSCost(characterCount: number): number {
  * You can customize this list based on your preferences
  */
 export const EDUCATIONAL_VOICES = {
+  liam: 'TX3LPaxmHKxFdv7VOQHJ', // Natural, engaging voice (default)
   adam: 'pNInz6obpgDQGcFmaJgB', // Clear, professional male voice
   rachel: '21m00Tcm4TlvDq8ikWAM', // Calm, clear female voice
   domi: 'AZnzlk1XvdvUeBnXmlld', // Strong, confident female voice
