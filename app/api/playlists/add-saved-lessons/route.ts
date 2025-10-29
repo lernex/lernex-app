@@ -33,7 +33,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify user has access to the playlist (owner or moderator)
-    const { data: playlist, error: playlistError } = await sb
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: playlist, error: playlistError } = await (sb as any)
       .from("playlists")
       .select("id, user_id")
       .eq("id", playlist_id)
@@ -57,7 +58,8 @@ export async function POST(req: NextRequest) {
     let isModerator = false;
 
     if (!isOwner) {
-      const { data: membership } = await sb
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: membership } = await (sb as any)
         .from("playlist_memberships")
         .select("role")
         .eq("playlist_id", playlist_id)
@@ -79,7 +81,8 @@ export async function POST(req: NextRequest) {
     console.log("[add-saved-lessons] User has permissions:", { isOwner, isModerator });
 
     // Get current max position
-    const { data: items } = await sb
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: items } = await (sb as any)
       .from("playlist_items")
       .select("position")
       .eq("playlist_id", playlist_id)
@@ -90,7 +93,8 @@ export async function POST(req: NextRequest) {
     const nextPosition = (positionItems && positionItems[0]?.position) ? positionItems[0].position + 1 : 1;
 
     // Get existing lesson IDs in playlist to avoid duplicates
-    const { data: existingItems } = await sb
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existingItems } = await (sb as any)
       .from("playlist_items")
       .select("lesson_id")
       .eq("playlist_id", playlist_id);
@@ -130,7 +134,8 @@ export async function POST(req: NextRequest) {
       startPosition: nextPosition
     });
 
-    const { error: insertError } = await sb
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: insertError } = await (sb as any)
       .from("playlist_items")
       .insert(itemsToInsert);
 
