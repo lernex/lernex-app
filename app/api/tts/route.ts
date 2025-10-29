@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { translateLessonForTTS } from "@/lib/tts-translation";
-import { generateSpeech } from "@/lib/elevenlabs-tts";
+import { generateSpeech } from "@/lib/kokoro-tts";
 import { logUsage, calcCost, checkUsageLimit } from "@/lib/usage";
 
 /**
@@ -11,15 +11,17 @@ import { logUsage, calcCost, checkUsageLimit } from "@/lib/usage";
  *
  * Request body:
  * - lessonText: string - The lesson text to convert to speech
+ * - lessonId: string (optional) - Lesson ID for uploading audio to storage
  *
  * Response:
  * - audio/mpeg - The generated audio file
  *
  * Process:
- * 1. Translate lesson text using DeepInfra GPT-OSS-20B
- * 2. Generate speech using ElevenLabs Eleven V3
+ * 1. Translate lesson text using DeepInfra GPT-OSS-20B (grammar and math formatting)
+ * 2. Generate speech using hexgrad/Kokoro-82M via DeepInfra ($0.62 per 1M tokens)
  * 3. Log usage costs for both steps
- * 4. Return audio file
+ * 4. Optionally upload to Supabase Storage if lessonId provided
+ * 5. Return audio file
  */
 export async function POST(req: NextRequest) {
   try {
@@ -84,21 +86,21 @@ export async function POST(req: NextRequest) {
     const translationCost = calcCost("deepinfra/gpt-oss-20b", inputTokens, outputTokens);
     console.log(`[tts] Translation complete. Cost: $${translationCost.toFixed(6)}`);
 
-    // Step 2: Generate speech using ElevenLabs
+    // Step 2: Generate speech using Kokoro-82M (DeepInfra)
     console.log("[tts] Generating speech...");
     const { audioBuffer, characterCount } = await generateSpeech(translatedText);
 
-    // Log TTS usage (character count is INPUT to ElevenLabs API)
+    // Log TTS usage (character count is INPUT to Kokoro-82M API)
     await logUsage(
       supabase,
       user.id,
       ip,
-      "elevenlabs",
+      "deepinfra/kokoro-82m",
       { input_tokens: characterCount, output_tokens: 0 },
       { metadata: { type: "tts-generation", characterCount } }
     );
 
-    const ttsCost = calcCost("elevenlabs", characterCount, 0);
+    const ttsCost = calcCost("deepinfra/kokoro-82m", characterCount, 0);
     console.log(`[tts] Speech generation complete. Input characters: ${characterCount}, Cost: $${ttsCost.toFixed(6)}`);
 
     // Total cost
@@ -132,11 +134,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Return audio as MP3
+    // Return audio as WAV
     return new NextResponse(audioBuffer, {
       status: 200,
       headers: {
-        "Content-Type": "audio/mpeg",
+        "Content-Type": "audio/wav",
         "Content-Length": audioBuffer.byteLength.toString(),
         "Cache-Control": "public, max-age=3600", // Cache for 1 hour
       },

@@ -152,6 +152,7 @@ export default function PlaylistDetail() {
   const [showSavedLessons, setShowSavedLessons] = useState(false);
   const [addingMultiple, setAddingMultiple] = useState(false);
   const [selectedSavedIds, setSelectedSavedIds] = useState<Set<string>>(new Set());
+  const [savedLessonsQuery, setSavedLessonsQuery] = useState("");
 
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const supabaseClient = useMemo(() => supabaseBrowser(), []);
@@ -621,6 +622,16 @@ export default function PlaylistDetail() {
   const resultEmptyState =
     query.trim().length > 0 && !loadingSearch && results.length === 0;
 
+  const filteredSavedLessons = useMemo(() => {
+    if (!savedLessonsQuery.trim()) return savedLessons;
+    const search = savedLessonsQuery.trim().toLowerCase();
+    return savedLessons.filter(
+      (lesson) =>
+        lesson.title.toLowerCase().includes(search) ||
+        (lesson.subject?.toLowerCase().includes(search) ?? false)
+    );
+  }, [savedLessons, savedLessonsQuery]);
+
   const toggleSavedLesson = (lessonId: string) => {
     setSelectedSavedIds((prev) => {
       const next = new Set(prev);
@@ -993,7 +1004,7 @@ export default function PlaylistDetail() {
                         }`}
                       >
                         <Search className="inline h-4 w-4 mr-1.5" />
-                        Search
+                        All Lessons
                       </button>
                       <button
                         onClick={() => setShowSavedLessons(true)}
@@ -1004,7 +1015,7 @@ export default function PlaylistDetail() {
                         }`}
                       >
                         <BookOpen className="inline h-4 w-4 mr-1.5" />
-                        Saved ({savedLessons.length})
+                        Saved Lessons ({savedLessons.length})
                       </button>
                     </div>
 
@@ -1101,6 +1112,16 @@ export default function PlaylistDetail() {
                         </>
                       ) : (
                         <>
+                          <div className="relative">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400 dark:text-white/40" />
+                            <input
+                              value={savedLessonsQuery}
+                              onChange={(event) => setSavedLessonsQuery(event.target.value)}
+                              placeholder="Filter your saved lessons..."
+                              className="w-full rounded-2xl border border-neutral-200 bg-white/90 py-2.5 pl-10 pr-3 text-sm text-neutral-700 shadow-sm outline-none transition focus:border-lernex-blue focus:ring-2 focus:ring-lernex-blue/30 dark:border-white/15 dark:bg-white/10 dark:text-white"
+                            />
+                          </div>
+
                           {loadingSavedLessons ? (
                             <div className="flex items-center gap-2 rounded-2xl border border-neutral-200/60 bg-white/80 px-3 py-2 text-sm text-neutral-500 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white/60">
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1112,6 +1133,13 @@ export default function PlaylistDetail() {
                               <p>You haven&apos;t saved any lessons yet.</p>
                               <p className="mt-1 text-xs">
                                 Save lessons from the FYP to add them here.
+                              </p>
+                            </div>
+                          ) : filteredSavedLessons.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-neutral-300/80 bg-white/60 px-4 py-6 text-center text-sm text-neutral-500 dark:border-white/10 dark:bg-white/5 dark:text-white/60">
+                              <p>No saved lessons match &quot;{savedLessonsQuery.trim()}&quot;</p>
+                              <p className="mt-1 text-xs">
+                                Try a different keyword or clear the search.
                               </p>
                             </div>
                           ) : (
@@ -1149,7 +1177,7 @@ export default function PlaylistDetail() {
                               )}
                               <div className="space-y-2 max-h-[500px] overflow-y-auto scrollbar-thin">
                                 <AnimatePresence initial={false}>
-                                  {savedLessons.map((lesson) => {
+                                  {filteredSavedLessons.map((lesson) => {
                                     const alreadyAdded = items.some(
                                       (item) => item.lessons?.id === lesson.id
                                     );

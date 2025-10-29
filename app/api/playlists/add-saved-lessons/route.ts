@@ -9,15 +9,27 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await sb.auth.getUser();
 
   if (!user) {
-    return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
+    console.log("[add-saved-lessons] Not authenticated");
+    return new Response(JSON.stringify({ error: "Not authenticated" }), {
+      status: 401,
+      headers: { "content-type": "application/json" }
+    });
   }
+
+  console.log("[add-saved-lessons] User authenticated:", user.id);
 
   try {
     const payload = await req.json();
     const { playlist_id, lesson_ids } = payload;
 
+    console.log("[add-saved-lessons] Received payload:", { playlist_id, lesson_ids });
+
     if (!playlist_id || !Array.isArray(lesson_ids) || lesson_ids.length === 0) {
-      return new Response(JSON.stringify({ error: "Invalid payload" }), { status: 400 });
+      console.log("[add-saved-lessons] Invalid payload");
+      return new Response(JSON.stringify({ error: "Invalid payload" }), {
+        status: 400,
+        headers: { "content-type": "application/json" }
+      });
     }
 
     // Verify user has access to the playlist (owner or moderator)
@@ -28,11 +40,16 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (playlistError) {
+      console.error("[add-saved-lessons] Playlist query error:", playlistError);
       throw playlistError;
     }
 
     if (!playlist) {
-      return new Response(JSON.stringify({ error: "Playlist not found" }), { status: 404 });
+      console.log("[add-saved-lessons] Playlist not found:", playlist_id);
+      return new Response(JSON.stringify({ error: "Playlist not found" }), {
+        status: 404,
+        headers: { "content-type": "application/json" }
+      });
     }
 
     const playlistData = playlist as { id: string; user_id: string };
@@ -52,8 +69,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (!isOwner && !isModerator) {
-      return new Response(JSON.stringify({ error: "Insufficient permissions" }), { status: 403 });
+      console.log("[add-saved-lessons] Insufficient permissions:", { userId: user.id, playlistOwnerId: playlistData.user_id });
+      return new Response(JSON.stringify({ error: "Insufficient permissions" }), {
+        status: 403,
+        headers: { "content-type": "application/json" }
+      });
     }
+
+    console.log("[add-saved-lessons] User has permissions:", { isOwner, isModerator });
 
     // Get current max position
     const { data: items } = await sb
@@ -78,7 +101,14 @@ export async function POST(req: NextRequest) {
     // Filter out lessons already in the playlist
     const newLessonIds = lesson_ids.filter(id => !existingLessonIds.has(id));
 
+    console.log("[add-saved-lessons] Filtering lessons:", {
+      totalRequested: lesson_ids.length,
+      alreadyInPlaylist: lesson_ids.length - newLessonIds.length,
+      newToAdd: newLessonIds.length
+    });
+
     if (newLessonIds.length === 0) {
+      console.log("[add-saved-lessons] All lessons already in playlist");
       return new Response(JSON.stringify({
         message: "All selected lessons are already in the playlist",
         added: 0
@@ -95,14 +125,21 @@ export async function POST(req: NextRequest) {
       position: nextPosition + index
     }));
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: insertError } = await (sb as any)
+    console.log("[add-saved-lessons] Inserting items:", {
+      count: itemsToInsert.length,
+      startPosition: nextPosition
+    });
+
+    const { error: insertError } = await sb
       .from("playlist_items")
       .insert(itemsToInsert);
 
     if (insertError) {
+      console.error("[add-saved-lessons] Insert error:", insertError);
       throw insertError;
     }
+
+    console.log("[add-saved-lessons] Successfully inserted items");
 
     return new Response(JSON.stringify({
       ok: true,
@@ -114,8 +151,13 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("[add-saved-lessons] Failed", error);
-    return new Response(JSON.stringify({ error: "Failed to add lessons to playlist" }), {
-      status: 500
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return new Response(JSON.stringify({
+      error: "Failed to add lessons to playlist",
+      details: errorMessage
+    }), {
+      status: 500,
+      headers: { "content-type": "application/json" }
     });
   }
 }

@@ -12,7 +12,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * - LightningAI: $0.10 input / $0.40 output per 1M tokens
  *
  * TTS Models:
- * - ElevenLabs: $0.30 per 1000 characters (tracked as "output tokens")
+ * - hexgrad/Kokoro-82M: $0.62 per 1M input tokens (via DeepInfra)
  */
 const PRICES: Record<string, { input: number; output: number }> = {
   // Legacy models (for backwards compatibility)
@@ -40,9 +40,10 @@ const PRICES: Record<string, { input: number; output: number }> = {
   "lightningai/gpt-oss-120b": { input: 0.1 / 1_000_000, output: 0.4 / 1_000_000 },
 
   // TTS (Text-to-Speech) models
-  // ElevenLabs: $0.30 per 1000 INPUT characters (the translated text sent to ElevenLabs)
-  // We use "input" field to represent characters (1 char = 1 "token")
-  "elevenlabs": { input: 0.3 / 1000, output: 0 },
+  // hexgrad/Kokoro-82M via DeepInfra: $0.62 per 1M INPUT tokens
+  // We use "input" field to represent tokens (approximating 1 char ≈ 1 token)
+  "kokoro-tts": { input: 0.62 / 1_000_000, output: 0 },
+  "deepinfra/kokoro-82m": { input: 0.62 / 1_000_000, output: 0 },
 };
 
 export function calcCost(model: string, inputTokens = 0, outputTokens = 0) {
