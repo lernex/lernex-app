@@ -497,7 +497,7 @@ function parseMarkdownTable(tableText: string): string {
     const codeReplacements = new Map<string, string>();
     let codeIndex = 0;
     let processed = cell.replace(RE_CODE, (_match, inner: string) => {
-      const key = `__CODE_${codeIndex++}__`;
+      const key = `\u{FFFC}CODE${codeIndex++}\u{FFFC}`;
       codeReplacements.set(key, `<code>${escapeHtml(inner)}</code>`);
       return key;
     });
@@ -551,22 +551,23 @@ function formatNonMath(s: string) {
   let placeholderIndex = 0;
 
   // First, protect markdown tables from all processing
+  // Use a placeholder format that won't be caught by markdown regexes
   const withTablePlaceholders = s.replace(RE_TABLE, (match) => {
-    const key = `__PLACEHOLDER_${placeholderIndex++}__`;
+    const key = `\u{FFFC}PLACEHOLDER${placeholderIndex++}\u{FFFC}`;
     replacements.set(key, parseMarkdownTable(match));
     return key;
   });
 
   // Then protect code blocks from all processing
   const withCodeBlockPlaceholders = withTablePlaceholders.replace(RE_CODE_BLOCK, (match) => {
-    const key = `__PLACEHOLDER_${placeholderIndex++}__`;
+    const key = `\u{FFFC}PLACEHOLDER${placeholderIndex++}\u{FFFC}`;
     replacements.set(key, `<pre><code>${escapeHtml(match.slice(3, -3))}</code></pre>`);
     return key;
   });
 
   // Then protect inline code spans
   const withPlaceholders = withCodeBlockPlaceholders.replace(RE_CODE, (_match, inner: string) => {
-    const key = `__PLACEHOLDER_${placeholderIndex++}__`;
+    const key = `\u{FFFC}PLACEHOLDER${placeholderIndex++}\u{FFFC}`;
     replacements.set(key, `<code>${escapeHtml(inner)}</code>`);
     return key;
   });
