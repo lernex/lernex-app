@@ -147,15 +147,11 @@ export default function TTSButton({
           audioUrl = await generateAndCacheAudio();
         }
 
-        // Clean up old audio URL if it exists and it's a blob
-        if (audioUrlRef.current && audioUrlRef.current !== cachedAudioUrl) {
-          URL.revokeObjectURL(audioUrlRef.current);
-        }
+        // Store the URL before creating audio element
         audioUrlRef.current = audioUrl;
 
-        // Create audio element
+        // Create audio element and set up all event handlers BEFORE setting src
         const audio = new Audio();
-        audioRef.current = audio;
 
         audio.onended = () => {
           setState("off");
@@ -201,10 +197,14 @@ export default function TTSButton({
           }
         };
 
+        // IMPORTANT: Set ref BEFORE setting src to prevent garbage collection
+        audioRef.current = audio;
+
         // Set the audio source (this will trigger loading)
         console.log("[TTS] Setting audio source:", audioUrl);
         audio.src = audioUrl;
-        console.log("[TTS] Audio element created and source set");
+        audio.load(); // Explicitly call load() to ensure it starts loading
+        console.log("[TTS] Audio element created, source set, and load initiated");
       }
       // If playing, pause
       else if (state === "playing") {
