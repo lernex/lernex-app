@@ -103,9 +103,23 @@ export default function TTSButton({
       throw new Error(errorData.error || "Failed to generate audio");
     }
 
-    // Get audio blob
+    // Get audio blob and verify it's valid
     const audioBlob = await response.blob();
-    const audioUrl = URL.createObjectURL(audioBlob);
+
+    console.log("[TTS] Audio blob received:", {
+      size: audioBlob.size,
+      type: audioBlob.type,
+    });
+
+    if (audioBlob.size === 0) {
+      throw new Error("Received empty audio file");
+    }
+
+    // Create blob URL with explicit type for WAV
+    const blobWithType = new Blob([audioBlob], { type: 'audio/wav' });
+    const audioUrl = URL.createObjectURL(blobWithType);
+
+    console.log("[TTS] Created blob URL:", audioUrl);
 
     // Cache the audio URL
     setCachedAudioUrl(audioUrl);
@@ -149,12 +163,27 @@ export default function TTSButton({
 
         audio.onerror = (e) => {
           console.error("[TTS] Audio playback error:", e);
+          console.error("[TTS] Audio element state:", {
+            src: audio.src,
+            readyState: audio.readyState,
+            networkState: audio.networkState,
+            error: audio.error,
+          });
           setState("off");
           setError("Failed to play audio");
         };
 
+        audio.onloadstart = () => {
+          console.log("[TTS] Audio loading started");
+        };
+
+        audio.onloadeddata = () => {
+          console.log("[TTS] Audio data loaded");
+        };
+
         // Wait for audio to be ready before attempting to play
         audio.oncanplaythrough = async () => {
+          console.log("[TTS] Audio ready to play");
           // Only auto-play if the tab is visible
           // If tab is hidden, just set to paused state so user can play when they return
           if (!document.hidden) {
@@ -173,7 +202,9 @@ export default function TTSButton({
         };
 
         // Set the audio source (this will trigger loading)
+        console.log("[TTS] Setting audio source:", audioUrl);
         audio.src = audioUrl;
+        console.log("[TTS] Audio element created and source set");
       }
       // If playing, pause
       else if (state === "playing") {
