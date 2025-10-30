@@ -134,11 +134,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Return audio as WAV
+    // Return audio as MP3
     return new NextResponse(audioBuffer, {
       status: 200,
       headers: {
-        "Content-Type": "audio/wav",
+        "Content-Type": "audio/mpeg",
         "Content-Length": audioBuffer.byteLength.toString(),
         "Cache-Control": "public, max-age=3600", // Cache for 1 hour
       },

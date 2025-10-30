@@ -38,20 +38,26 @@ export default function TTSButton({
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const cachedAudioUrlRef = useRef<string | null>(initialAudioUrl || null);
 
-  // Cleanup audio on unmount
+  // Update ref when cachedAudioUrl state changes
+  useEffect(() => {
+    cachedAudioUrlRef.current = cachedAudioUrl;
+  }, [cachedAudioUrl]);
+
+  // Cleanup audio on unmount only (not when cachedAudioUrl changes)
   useEffect(() => {
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.src = "";
       }
-      if (audioUrlRef.current && !cachedAudioUrl) {
-        // Only revoke if it's a blob URL and not a cached URL
-        URL.revokeObjectURL(audioUrlRef.current);
+      // Revoke the cached URL on unmount
+      if (cachedAudioUrlRef.current) {
+        URL.revokeObjectURL(cachedAudioUrlRef.current);
       }
     };
-  }, [cachedAudioUrl]);
+  }, []); // Empty deps - cleanup only runs on unmount
 
   // Pause audio when tab visibility changes (user switches tabs)
   // Only pause if already playing - don't interrupt loading
@@ -115,8 +121,8 @@ export default function TTSButton({
       throw new Error("Received empty audio file");
     }
 
-    // Create blob URL with explicit type for WAV
-    const blobWithType = new Blob([audioBlob], { type: 'audio/wav' });
+    // Create blob URL with explicit type for MP3
+    const blobWithType = new Blob([audioBlob], { type: 'audio/mpeg' });
     const audioUrl = URL.createObjectURL(blobWithType);
 
     console.log("[TTS] Created blob URL:", audioUrl);

@@ -41,7 +41,7 @@ export async function generateSpeech(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       voice: voice as any, // Cast to any since OpenAI types don't include custom voices
       input: text,
-      response_format: 'wav', // Using WAV format
+      response_format: 'mp3', // Using MP3 format for better browser compatibility
     });
 
     // Get audio buffer
