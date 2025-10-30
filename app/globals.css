@@ -358,8 +358,8 @@ html {
   margin-bottom: 0;
 }
 
-/* Markdown table styling */
-.markdown-table {
+/* LaTeX table styling */
+.latex-table {
   border-collapse: collapse;
   width: 100%;
   margin: 1rem 0;
@@ -369,40 +369,40 @@ html {
   overflow: hidden;
 }
 
-.markdown-table thead {
+.latex-table thead {
   background-color: var(--surface-muted);
 }
 
-.markdown-table th {
+.latex-table th {
   padding: 0.75rem;
   font-weight: 600;
   border-bottom: 2px solid var(--surface-border);
   color: var(--foreground);
 }
 
-.markdown-table td {
+.latex-table td {
   padding: 0.625rem 0.75rem;
   border-bottom: 1px solid var(--surface-border);
   color: var(--foreground);
 }
 
-.markdown-table tbody tr:last-child td {
+.latex-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.markdown-table tbody tr:hover {
+.latex-table tbody tr:hover {
   background-color: var(--surface-card);
 }
 
 /* Dark mode adjustments for tables */
-.dark .markdown-table {
+.dark .latex-table {
   border-color: var(--surface-border);
 }
 
-.dark .markdown-table th {
+.dark .latex-table th {
   border-bottom-color: var(--surface-border);
 }
 
-.dark .markdown-table td {
+.dark .latex-table td {
   border-bottom-color: var(--surface-border);
 }

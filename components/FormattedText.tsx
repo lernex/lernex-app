@@ -74,9 +74,8 @@ const RE_SUPERSCRIPT = /([A-Za-z0-9]+)\^(\{[^}]+\}|[A-Za-z0-9])/g;
 // Markdown list patterns
 const RE_UNORDERED_LIST = /^[ \t]*[-*+]\s+(.+)$/gm;
 const RE_ORDERED_LIST = /^[ \t]*(\d+)\.\s+(.+)$/gm;
-// Markdown table pattern - matches entire table structure
-// Matches: header row, separator row with dashes, and data rows
-const RE_TABLE = /(?:^|\n)(\|.+\|[ \t]*\n\|[\s:|-]+\|[ \t]*\n(?:\|.+\|[ \t]*(?:\n|$))*)/gm;
+// LaTeX table pattern - matches tabular environment
+const RE_LATEX_TABLE = /\\begin\{tabular\}\{[^}]*\}([\s\S]*?)\\end\{tabular\}/g;
 
 const SINGLE_DOLLAR_MAX_DISTANCE = 240;
 const SYMBOL_MACRO_SET = new Set<string>(Array.from(LATEX_TEXT_SYMBOL_MACROS));
@@ -471,74 +470,63 @@ function splitMathSegments(src: string): Seg[] {
   return segs;
 }
 
-function parseMarkdownTable(tableText: string): string {
-  const lines = tableText.trim().split('\n').map(line => line.trim());
-  if (lines.length < 3) return tableText; // Need at least header, separator, and one row
+function parseLatexTable(match: string, content: string): string {
+  // Extract column spec from \begin{tabular}{...}
+  const colSpecMatch = match.match(/\\begin\{tabular\}\{([^}]*)\}/);
+  const colSpec = colSpecMatch?.[1] || '';
 
-  // Parse header row
-  const headerCells = lines[0]!.split('|').map(cell => cell.trim()).filter(cell => cell);
-
-  // Parse alignment row
-  const alignmentRow = lines[1]!.split('|').map(cell => cell.trim()).filter(cell => cell);
-  const alignments = alignmentRow.map(cell => {
-    if (cell.startsWith(':') && cell.endsWith(':')) return 'center';
-    if (cell.endsWith(':')) return 'right';
+  // Parse alignment from column spec (l=left, c=center, r=right)
+  const alignments = colSpec.split('').filter(c => ['l', 'c', 'r'].includes(c)).map(c => {
+    if (c === 'c') return 'center';
+    if (c === 'r') return 'right';
     return 'left';
   });
 
-  // Parse data rows
-  const dataRows = lines.slice(2).map(line =>
-    line.split('|').map(cell => cell.trim()).filter(cell => cell)
-  );
+  // Split into rows by \\ (but not \\\\ which might be escaped)
+  const rows = content.split('\\\\').map(r => r.trim()).filter(r => r && r !== '\\hline');
 
-  // Helper to process cell content (handle LaTeX, bold, etc.)
+  if (rows.length === 0) return match; // Return original if parsing fails
+
+  // Helper to process cell content (wrap in math mode for LaTeX rendering)
   const processCell = (cell: string): string => {
-    // First protect inline code
-    const codeReplacements = new Map<string, string>();
-    let codeIndex = 0;
-    let processed = cell.replace(RE_CODE, (_match, inner: string) => {
-      const key = `\u{FFFC}CODE${codeIndex++}\u{FFFC}`;
-      codeReplacements.set(key, `<code>${escapeHtml(inner)}</code>`);
-      return key;
-    });
-
-    // Escape HTML in the remaining content
-    processed = escapeHtml(processed);
-
-    // Apply markdown formatting
-    processed = processed.replace(RE_BOLD_DOUBLE_ASTERISK, "<strong>$1</strong>");
-    processed = processed.replace(RE_BOLD_DOUBLE_UNDERSCORE, "<strong>$1</strong>");
-    processed = processed.replace(RE_BOLD_SINGLE_ASTERISK, "<strong>$1</strong>");
-    processed = processed.replace(RE_BOLD_SINGLE_UNDERSCORE, "<em>$1</em>");
-
-    // Restore code placeholders
-    for (const [key, value] of codeReplacements) {
-      processed = processed.replace(key, value);
+    const trimmed = cell.trim();
+    // If cell contains LaTeX commands or symbols, wrap for MathJax
+    if (trimmed.includes('\\') || /[\^_{}]/.test(trimmed)) {
+      return `\\(${trimmed}\\)`;
     }
-
-    return processed;
+    return escapeHtml(trimmed);
   };
 
   // Build HTML table
-  let html = '<table class="markdown-table">';
+  let html = '<table class="latex-table">';
 
-  // Build header
-  html += '<thead><tr>';
-  headerCells.forEach((cell, i) => {
-    const align = alignments[i] || 'left';
-    html += `<th style="text-align:${align}">${processCell(cell)}</th>`;
-  });
-  html += '</tr></thead>';
+  // First row is typically the header (after first \hline if present)
+  const hasHeader = rows.length > 1;
+  const headerRow = hasHeader ? rows[0]!.replace(/\\hline/g, '').split('&').map(c => c.trim()) : [];
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+
+  // Build header if present
+  if (hasHeader && headerRow.length > 0) {
+    html += '<thead><tr>';
+    headerRow.forEach((cell, i) => {
+      const align = alignments[i] || 'left';
+      html += `<th style="text-align:${align}">${processCell(cell)}</th>`;
+    });
+    html += '</tr></thead>';
+  }
 
   // Build body
   html += '<tbody>';
   dataRows.forEach(row => {
-    html += '<tr>';
-    row.forEach((cell, i) => {
-      const align = alignments[i] || 'left';
-      html += `<td style="text-align:${align}">${processCell(cell)}</td>`;
-    });
-    html += '</tr>';
+    const cells = row.replace(/\\hline/g, '').split('&').map(c => c.trim());
+    if (cells.length > 0 && cells[0]) {
+      html += '<tr>';
+      cells.forEach((cell, i) => {
+        const align = alignments[i] || 'left';
+        html += `<td style="text-align:${align}">${processCell(cell)}</td>`;
+      });
+      html += '</tr>';
+    }
   });
   html += '</tbody></table>';
 
@@ -550,11 +538,11 @@ function formatNonMath(s: string) {
   const replacements = new Map<string, string>();
   let placeholderIndex = 0;
 
-  // First, protect markdown tables from all processing
+  // First, protect LaTeX tables from all processing
   // Use a placeholder format that won't be caught by markdown regexes
-  const withTablePlaceholders = s.replace(RE_TABLE, (match) => {
+  const withTablePlaceholders = s.replace(RE_LATEX_TABLE, (match, content) => {
     const key = `\u{FFFC}PLACEHOLDER${placeholderIndex++}\u{FFFC}`;
-    replacements.set(key, parseMarkdownTable(match));
+    replacements.set(key, parseLatexTable(match, content));
     return key;
   });
 

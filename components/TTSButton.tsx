@@ -140,7 +140,7 @@ export default function TTSButton({
         audioUrlRef.current = audioUrl;
 
         // Create audio element
-        const audio = new Audio(audioUrl);
+        const audio = new Audio();
         audioRef.current = audio;
 
         audio.onended = () => {
@@ -153,21 +153,27 @@ export default function TTSButton({
           setError("Failed to play audio");
         };
 
-        // Only auto-play if the tab is visible
-        // If tab is hidden, just set to paused state so user can play when they return
-        if (!document.hidden) {
-          try {
-            await audio.play();
-            setState("playing");
-          } catch (playError) {
-            console.error("[TTS] Play error:", playError);
-            // If play fails, just set to paused so user can try again
+        // Wait for audio to be ready before attempting to play
+        audio.oncanplaythrough = async () => {
+          // Only auto-play if the tab is visible
+          // If tab is hidden, just set to paused state so user can play when they return
+          if (!document.hidden) {
+            try {
+              await audio.play();
+              setState("playing");
+            } catch (playError) {
+              console.error("[TTS] Play error:", playError);
+              // If play fails, just set to paused so user can try again
+              setState("paused");
+            }
+          } else {
+            // Tab is hidden, don't auto-play but audio is ready
             setState("paused");
           }
-        } else {
-          // Tab is hidden, don't auto-play but audio is ready
-          setState("paused");
-        }
+        };
+
+        // Set the audio source (this will trigger loading)
+        audio.src = audioUrl;
       }
       // If playing, pause
       else if (state === "playing") {

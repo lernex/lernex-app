@@ -77,6 +77,7 @@ export async function POST(req: Request) {
       "Use ## for sections if needed.",
       "Do not use JSON or code fences; avoid HTML tags.",
       "Math: \\( ... \\) for inline and \\[ ... \\] for display. Balance pairs. Commands: \\frac \\sqrt \\alpha etc.",
+      "Tables (if needed): \\begin{tabular}{lrc} header & row \\\\ \\hline data & row \\\\ \\end{tabular}",
       "Make the content practical and test-focused.",
     ].join(" ");
 

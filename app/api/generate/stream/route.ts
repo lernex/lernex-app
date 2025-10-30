@@ -82,6 +82,7 @@ export async function POST(req: Request) {
     // Common rules extracted to reduce duplication
     const SUBJECT_BOUNDARY_RULE = "CRITICAL: Stay strictly within the boundaries of the specified subject. Do NOT introduce concepts from other subjects or higher-level topics. For example, if the subject is 'Algebra 1', do NOT include concepts like vectors, norms, calculus, or advanced topics. Only use concepts appropriate for that exact subject level.";
     const MATH_FORMATTING_RULES = "Math: \\(inline\\) \\[display\\]. Escape in JSON: \\\\(. Balance pairs. Commands: \\frac \\sqrt \\alpha etc.";
+    const TABLE_FORMATTING_RULE = "Tables (if needed): \\begin{tabular}{lrc} header & row \\\\ \\hline data & row \\\\ \\end{tabular}";
     const FORMAT_RESTRICTION = "Do not use JSON or code fences; avoid HTML tags.";
 
     // Unified prompt builder function
@@ -104,12 +105,19 @@ export async function POST(req: Request) {
         ],
       };
 
-      return [
+      const rules = [
         ...modeSpecs[mode],
         SUBJECT_BOUNDARY_RULE,
         FORMAT_RESTRICTION,
         MATH_FORMATTING_RULES,
-      ].join(" ");
+      ];
+
+      // Add table formatting rule for mini and full modes
+      if (mode === "mini" || mode === "full") {
+        rules.push(TABLE_FORMATTING_RULE);
+      }
+
+      return rules.join(" ");
     };
 
     const system = buildPrompt(mode);
