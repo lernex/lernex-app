@@ -218,6 +218,8 @@ export default function LessonHistoryModal({ isOpen, onClose }: LessonHistoryMod
                 <div className="space-y-4 max-w-3xl mx-auto">
                   <LessonCard
                     lesson={selectedLesson.lesson_data}
+                    lessonId={selectedLesson.id}
+                    audioUrl={selectedLesson.audio_url || undefined}
                     className="max-h-none"
                   />
                   {Array.isArray(selectedLesson.lesson_data.questions) &&

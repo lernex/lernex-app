@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
     // Parse request body
     const body = await req.json();
-    const { lessonText, lessonId } = body;
+    const { lessonText, lessonId, voice } = body;
 
     if (!lessonText || typeof lessonText !== "string") {
       return NextResponse.json(
@@ -64,6 +64,21 @@ export async function POST(req: NextRequest) {
         { error: "Lesson text is too long (max 10,000 characters)" },
         { status: 400 }
       );
+    }
+
+    // Get user's preferred voice if not provided in request
+    let selectedVoice = voice || 'af_bella';
+    if (!voice) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('tts_voice')
+        .eq('user_id', user.id)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .maybeSingle() as { data: any };
+
+      if (profile && typeof profile.tts_voice === 'string') {
+        selectedVoice = profile.tts_voice;
+      }
     }
 
     // Get client IP for logging
@@ -87,8 +102,8 @@ export async function POST(req: NextRequest) {
     console.log(`[tts] Translation complete. Cost: $${translationCost.toFixed(6)}`);
 
     // Step 2: Generate speech using Kokoro-82M (DeepInfra)
-    console.log("[tts] Generating speech...");
-    const { audioBuffer, characterCount } = await generateSpeech(translatedText);
+    console.log(`[tts] Generating speech with voice: ${selectedVoice}...`);
+    const { audioBuffer, characterCount } = await generateSpeech(translatedText, selectedVoice);
 
     // Log TTS usage (character count is INPUT to Kokoro-82M API)
     await logUsage(
@@ -107,7 +122,8 @@ export async function POST(req: NextRequest) {
     const totalCost = translationCost + ttsCost;
     console.log(`[tts] Total TTS cost: $${totalCost.toFixed(6)}`);
 
-    // If lessonId is provided, upload audio to Supabase Storage and return URL
+    // If lessonId is provided, upload audio to Supabase Storage and update lesson_history
+    let audioUrl: string | null = null;
     if (lessonId) {
       try {
         const fileName = `${user.id}/${lessonId}.mp3`;
@@ -126,7 +142,22 @@ export async function POST(req: NextRequest) {
             .from("tts-audio")
             .getPublicUrl(fileName);
 
-          console.log("[tts] Audio uploaded to storage:", publicUrlData.publicUrl);
+          audioUrl = publicUrlData.publicUrl;
+          console.log("[tts] Audio uploaded to storage:", audioUrl);
+
+          // Update lesson_history with audio URL
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: updateError } = await (supabase as any)
+            .from('lesson_history')
+            .update({ audio_url: audioUrl, updated_at: new Date().toISOString() })
+            .eq('id', lessonId)
+            .eq('user_id', user.id);
+
+          if (updateError) {
+            console.error("[tts] Failed to update lesson_history with audio URL:", updateError);
+          } else {
+            console.log("[tts] Updated lesson_history with audio URL");
+          }
         }
       } catch (uploadError) {
         console.error("[tts] Error uploading audio:", uploadError);
@@ -134,14 +165,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Return audio as MP3
+    // Return audio as MP3 with storage URL in header (if available)
+    const responseHeaders: HeadersInit = {
+      "Content-Type": "audio/mpeg",
+      "Content-Length": audioBuffer.byteLength.toString(),
+      "Cache-Control": "public, max-age=3600", // Cache for 1 hour
+    };
+
+    if (audioUrl) {
+      responseHeaders["X-Audio-URL"] = audioUrl;
+    }
+
     return new NextResponse(audioBuffer, {
       status: 200,
-      headers: {
-        "Content-Type": "audio/mpeg",
-        "Content-Length": audioBuffer.byteLength.toString(),
-        "Cache-Control": "public, max-age=3600", // Cache for 1 hour
-      },
+      headers: responseHeaders,
     });
   } catch (error) {
     console.error("[tts] Error:", error);

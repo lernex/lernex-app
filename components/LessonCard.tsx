@@ -11,9 +11,12 @@ import { MATH_TRIGGER_RE } from "@/lib/latex";
 type LessonCardProps = {
   lesson: Lesson;
   className?: string;
+  lessonId?: string; // For TTS audio storage
+  audioUrl?: string; // Pre-cached audio URL from storage
+  autoPlay?: boolean; // Auto-play TTS preference
 };
 
-export default function LessonCard({ lesson, className }: LessonCardProps) {
+export default function LessonCard({ lesson, className, lessonId, audioUrl, autoPlay }: LessonCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [liked, setLiked] = useState(false);
@@ -393,7 +396,12 @@ export default function LessonCard({ lesson, className }: LessonCardProps) {
           >
             {saved ? "Saved" : "Save"}
           </button>
-          <TTSButton lessonText={lesson.content} />
+          <TTSButton
+            lessonText={lesson.content}
+            lessonId={lessonId}
+            audioUrl={audioUrl}
+            autoPlay={autoPlay}
+          />
           <button
             onClick={() => {
               const prevLiked = liked;

@@ -20,6 +20,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Camera, CheckCircle2, Loader2, UploadCloud, Plus, Trash2 } from "lucide-react";
 import AddInterestModal from "@/components/AddInterestModal";
 import RemoveInterestModal from "@/components/RemoveInterestModal";
+import TTSSettings from "@/components/TTSSettings";
 
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
@@ -1495,6 +1496,22 @@ export default function SettingsPage() {
             </motion.div>
           </div>
         </motion.div>
+      </motion.section>
+
+      {/* TTS Settings Section */}
+      <motion.section
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        className="relative mt-8 overflow-hidden rounded-3xl border border-white/40 bg-gradient-to-br from-white/90 via-white/85 to-white/80 p-8 shadow-2xl backdrop-blur-xl dark:border-white/20 dark:from-neutral-900/90 dark:via-neutral-900/85 dark:to-neutral-900/80"
+      >
+        {/* Decorative gradients */}
+        <div className="absolute -left-20 top-1/4 h-72 w-72 rounded-full bg-gradient-to-br from-lernex-blue/15 via-sky-400/10 to-transparent blur-3xl" />
+        <div className="absolute -right-20 bottom-1/4 h-72 w-72 rounded-full bg-gradient-to-tl from-lernex-purple/15 via-violet-400/10 to-transparent blur-3xl" />
+
+        <div className="relative">
+          <TTSSettings />
+        </div>
       </motion.section>
     </div>
 

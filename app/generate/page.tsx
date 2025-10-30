@@ -31,6 +31,10 @@ export default function Generate() {
   // history modal state
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
+  // TTS settings
+  const [ttsAutoPlay, setTtsAutoPlay] = useState(false);
+  const [savedLessonId, setSavedLessonId] = useState<string | null>(null);
+
   const startProgress = () => {
     setProgress(0);
     if (timerRef.current) window.clearInterval(timerRef.current);
@@ -44,6 +48,23 @@ export default function Generate() {
     setTimeout(() => setProgress(0), 400);
   };
   useEffect(() => () => { if (timerRef.current) window.clearInterval(timerRef.current); }, []);
+
+  // Fetch TTS settings on mount
+  useEffect(() => {
+    const fetchTTSSettings = async () => {
+      try {
+        const res = await fetch("/api/tts/settings");
+        if (res.ok) {
+          const data = await res.json();
+          setTtsAutoPlay(data.tts_auto_play || false);
+        }
+      } catch (error) {
+        console.error("[generate] Failed to load TTS settings:", error);
+      }
+    };
+
+    fetchTTSSettings();
+  }, []);
 
   const handleFollowUp = async () => {
     if (!followUpQuestion.trim() || !lesson) return;
@@ -108,6 +129,7 @@ Current Question: ${followUpQuestion}
     setLoading(true);
     setErr(null);
     setLesson(null);
+    setSavedLessonId(null); // Reset saved lesson ID for new generation
     setStreamed("");
     setFollowUpHistory([]);
     setFollowUpQuestion("");
@@ -246,7 +268,7 @@ Current Question: ${followUpQuestion}
 
   const saveToHistory = async (lessonToSave: Lesson) => {
     try {
-      await fetch("/api/lesson-history", {
+      const res = await fetch("/api/lesson-history", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -256,6 +278,14 @@ Current Question: ${followUpQuestion}
           mode,
         }),
       });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.id) {
+          setSavedLessonId(data.id);
+          console.log("[generate] Lesson saved to history with ID:", data.id);
+        }
+      }
     } catch (error) {
       console.error("[generate] Error saving to history:", error);
     }
@@ -352,7 +382,12 @@ Current Question: ${followUpQuestion}
 
         {lesson && (
           <div className="space-y-3">
-            <LessonCard lesson={lesson} className="max-h-[60vh] sm:max-h-[520px] min-h-[260px]" />
+            <LessonCard
+              lesson={lesson}
+              lessonId={savedLessonId || undefined}
+              autoPlay={ttsAutoPlay}
+              className="max-h-[60vh] sm:max-h-[520px] min-h-[260px]"
+            />
             {Array.isArray(lesson.questions) && lesson.questions.length > 0 && (
               <QuizBlock lesson={lesson} onDone={() => {}} />
             )}

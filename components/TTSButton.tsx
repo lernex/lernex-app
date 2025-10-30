@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Volume2, VolumeX, Loader2, Pause } from "lucide-react";
 
 interface TTSButtonProps {
   lessonText: string;
   lessonId?: string; // Optional lesson ID for fetching pre-existing audio
-  audioUrl?: string; // Optional pre-existing audio URL
+  audioUrl?: string; // Optional pre-existing audio URL (from storage or blob)
+  autoPlay?: boolean; // Auto-play when component mounts (for user preference)
   onAudioGenerated?: (audioUrl: string) => void; // Callback when new audio is generated
   className?: string;
 }
@@ -28,6 +29,7 @@ export default function TTSButton({
   lessonText,
   lessonId,
   audioUrl: initialAudioUrl,
+  autoPlay = false,
   onAudioGenerated,
   className = ""
 }: TTSButtonProps) {
@@ -35,6 +37,7 @@ export default function TTSButton({
   const [error, setError] = useState<string | null>(null);
   const [showTooltip, setShowTooltip] = useState(false);
   const [cachedAudioUrl, setCachedAudioUrl] = useState<string | null>(initialAudioUrl || null);
+  const autoPlayTriggeredRef = useRef(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
@@ -94,7 +97,8 @@ export default function TTSButton({
     };
   }, []);
 
-  const generateAndCacheAudio = async (): Promise<string> => {
+  // Generate and cache audio function
+  const generateAndCacheAudio = useCallback(async (): Promise<string> => {
     // Generate TTS
     const response = await fetch("/api/tts", {
       method: "POST",
@@ -136,7 +140,62 @@ export default function TTSButton({
     }
 
     return audioUrl;
-  };
+  }, [lessonText, lessonId, onAudioGenerated]);
+
+  // Auto-play if user preference is enabled
+  useEffect(() => {
+    if (autoPlay && !autoPlayTriggeredRef.current && lessonText && state === "off") {
+      autoPlayTriggeredRef.current = true;
+
+      // Trigger auto-play after a short delay to ensure component is mounted
+      const timer = setTimeout(async () => {
+        try {
+          setState("loading");
+
+          let audioUrl = cachedAudioUrl;
+
+          // If no cached audio, generate new audio
+          if (!audioUrl) {
+            audioUrl = await generateAndCacheAudio();
+          }
+
+          // Store the URL
+          audioUrlRef.current = audioUrl;
+
+          // Create audio element
+          const audio = new Audio();
+
+          audio.onended = () => setState("off");
+          audio.onerror = () => {
+            setState("off");
+            setError("Failed to play audio");
+          };
+
+          audio.oncanplaythrough = async () => {
+            if (!document.hidden) {
+              try {
+                await audio.play();
+                setState("playing");
+              } catch {
+                setState("paused");
+              }
+            } else {
+              setState("paused");
+            }
+          };
+
+          audioRef.current = audio;
+          audio.src = audioUrl;
+          audio.load();
+        } catch (err) {
+          setState("off");
+          setError(err instanceof Error ? err.message : "An error occurred");
+        }
+      }, 500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [autoPlay, lessonText, state, cachedAudioUrl, generateAndCacheAudio]);
 
   const handleClick = async () => {
     try {
