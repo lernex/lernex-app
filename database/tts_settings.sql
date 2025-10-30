@@ -7,8 +7,8 @@ ALTER TABLE profiles
 ADD COLUMN IF NOT EXISTS tts_voice TEXT DEFAULT 'af_bella',
 ADD COLUMN IF NOT EXISTS tts_auto_play BOOLEAN DEFAULT false;
 
--- Create index for faster lookups
-CREATE INDEX IF NOT EXISTS idx_profiles_tts_settings ON profiles(user_id, tts_voice, tts_auto_play);
+-- Create index for faster lookups (using 'id' as the primary key column)
+CREATE INDEX IF NOT EXISTS idx_profiles_tts_settings ON profiles(id, tts_voice, tts_auto_play);
 
 -- 2. Create table for voice preview audio cache
 -- This stores the "quick brown fox" preview for each voice
@@ -62,22 +62,33 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('tts-audio', 'tts-audio', true)
 ON CONFLICT (id) DO NOTHING;
 
+-- Drop existing policies if they exist (to allow re-running this script)
+DO $$
+BEGIN
+  DROP POLICY IF EXISTS "Authenticated users can upload TTS audio" ON storage.objects;
+  DROP POLICY IF EXISTS "Anyone can view TTS audio" ON storage.objects;
+  DROP POLICY IF EXISTS "Users can update their own TTS audio" ON storage.objects;
+  DROP POLICY IF EXISTS "Users can delete their own TTS audio" ON storage.objects;
+EXCEPTION
+  WHEN undefined_object THEN NULL;
+END $$;
+
 -- RLS Policies for tts-audio bucket
 -- Policy 1: Authenticated users can upload (insert)
-CREATE POLICY IF NOT EXISTS "Authenticated users can upload TTS audio"
+CREATE POLICY "Authenticated users can upload TTS audio"
   ON storage.objects
   FOR INSERT
   TO authenticated
   WITH CHECK (bucket_id = 'tts-audio');
 
 -- Policy 2: Everyone can read (since previews are public, and lesson audio is shareable)
-CREATE POLICY IF NOT EXISTS "Anyone can view TTS audio"
+CREATE POLICY "Anyone can view TTS audio"
   ON storage.objects
   FOR SELECT
   USING (bucket_id = 'tts-audio');
 
 -- Policy 3: Users can update their own audio
-CREATE POLICY IF NOT EXISTS "Users can update their own TTS audio"
+CREATE POLICY "Users can update their own TTS audio"
   ON storage.objects
   FOR UPDATE
   TO authenticated
@@ -85,7 +96,7 @@ CREATE POLICY IF NOT EXISTS "Users can update their own TTS audio"
   WITH CHECK (bucket_id = 'tts-audio');
 
 -- Policy 4: Users can delete their own audio
-CREATE POLICY IF NOT EXISTS "Users can delete their own TTS audio"
+CREATE POLICY "Users can delete their own TTS audio"
   ON storage.objects
   FOR DELETE
   TO authenticated

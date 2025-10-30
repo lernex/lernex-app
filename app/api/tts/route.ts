@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       const { data: profile } = await supabase
         .from('profiles')
         .select('tts_voice')
-        .eq('user_id', user.id)
+        .eq('id', user.id)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .maybeSingle() as { data: any };
 

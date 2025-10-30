@@ -30,7 +30,7 @@ export async function GET() {
     const { data: profile, error } = await supabase
       .from("profiles")
       .select("tts_voice, tts_auto_play")
-      .eq("user_id", user.id)
+      .eq("id", user.id)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .maybeSingle() as { data: any; error: any };
 
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
     const { error } = await (supabase as any)
       .from("profiles")
       .update(updates)
-      .eq("user_id", user.id);
+      .eq("id", user.id);
 
     if (error) {
       console.error("[tts-settings] Error updating settings:", error);
