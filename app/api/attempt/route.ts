@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
       skip_points,
       correct_increment,
       points_per_correct,
+      difficulty,
     } = (body ?? {}) as {
       lesson_id?: unknown;
       subject?: unknown;
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
       skip_points?: unknown;
       correct_increment?: unknown;
       points_per_correct?: unknown;
+      difficulty?: unknown;
     };
 
     const cookieStore = await cookies();
@@ -153,6 +155,18 @@ export async function POST(req: NextRequest) {
       const resolvedStreak = computeStreakAfterActivity(previousStreak, last, now);
       newStreak = resolvedStreak;
       addPts = units * perCorrect;
+
+      console.log("[api/attempt] Updating profile:", {
+        uid: uid.slice(0, 8),
+        currentPoints,
+        addPts,
+        newTotal: currentPoints + addPts,
+        previousStreak,
+        newStreak: resolvedStreak,
+        difficulty: difficulty ?? "none",
+        perCorrect,
+      });
+
       // TypeScript has issues with the profiles table type, using any to bypass
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: profile, error: updateError } = await (supabase as any)
@@ -173,6 +187,7 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         );
       }
+      console.log("[api/attempt] Profile updated successfully:", profile);
       updatedProfile = profile ?? null;
     }
 

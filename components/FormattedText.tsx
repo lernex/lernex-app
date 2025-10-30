@@ -76,6 +76,8 @@ const RE_UNORDERED_LIST = /^[ \t]*[-*+]\s+(.+)$/gm;
 const RE_ORDERED_LIST = /^[ \t]*(\d+)\.\s+(.+)$/gm;
 // LaTeX table pattern - matches tabular environment
 const RE_LATEX_TABLE = /\\begin\{tabular\}\{[^}]*\}([\s\S]*?)\\end\{tabular\}/g;
+// Markdown table pattern - matches pipe-delimited tables with header separator
+const RE_MARKDOWN_TABLE = /^\|.+\|[ \t]*\n\|[-:\s|]+\|[ \t]*\n(?:\|.+\|[ \t]*\n?)+/gm;
 
 const SINGLE_DOLLAR_MAX_DISTANCE = 240;
 const SYMBOL_MACRO_SET = new Set<string>(Array.from(LATEX_TEXT_SYMBOL_MACROS));
@@ -533,14 +535,79 @@ function parseLatexTable(match: string, content: string): string {
   return html;
 }
 
+function parseMarkdownTable(match: string): string {
+  const lines = match.trim().split('\n').map(l => l.trim());
+  if (lines.length < 3) return match; // Need at least header, separator, and one data row
+
+  // Parse header row
+  const headerCells = lines[0]!.split('|').map(c => c.trim()).filter(c => c);
+
+  // Parse alignment from separator row
+  const separatorCells = lines[1]!.split('|').map(c => c.trim()).filter(c => c);
+  const alignments = separatorCells.map(cell => {
+    const left = cell.startsWith(':');
+    const right = cell.endsWith(':');
+    if (left && right) return 'center';
+    if (right) return 'right';
+    return 'left';
+  });
+
+  // Helper to process cell content (wrap in math mode for LaTeX rendering if needed)
+  const processCell = (cell: string): string => {
+    const trimmed = cell.trim();
+    // If cell contains LaTeX commands or symbols, wrap for MathJax
+    if (trimmed.includes('\\') || /[\^_{}]/.test(trimmed)) {
+      return `\\(${trimmed}\\)`;
+    }
+    return escapeHtml(trimmed);
+  };
+
+  // Build HTML table with AP/College Board styling
+  let html = '<table class="markdown-table ap-table">';
+
+  // Build header
+  html += '<thead><tr>';
+  headerCells.forEach((cell, i) => {
+    const align = alignments[i] || 'left';
+    html += `<th style="text-align:${align}">${processCell(cell)}</th>`;
+  });
+  html += '</tr></thead>';
+
+  // Build body rows
+  html += '<tbody>';
+  for (let i = 2; i < lines.length; i++) {
+    const row = lines[i]!;
+    if (!row) continue;
+    const cells = row.split('|').map(c => c.trim()).filter(c => c);
+    if (cells.length > 0) {
+      html += '<tr>';
+      cells.forEach((cell, j) => {
+        const align = alignments[j] || 'left';
+        html += `<td style="text-align:${align}">${processCell(cell)}</td>`;
+      });
+      html += '</tr>';
+    }
+  }
+  html += '</tbody></table>';
+
+  return html;
+}
+
 function formatNonMath(s: string) {
   const wrap = (tex: string) => `\\(${tex}\\)`;
   const replacements = new Map<string, string>();
   let placeholderIndex = 0;
 
-  // First, protect LaTeX tables from all processing
+  // First, protect markdown tables from all processing
+  const withMarkdownTablePlaceholders = s.replace(RE_MARKDOWN_TABLE, (match) => {
+    const key = `\u{FFFC}PLACEHOLDER${placeholderIndex++}\u{FFFC}`;
+    replacements.set(key, parseMarkdownTable(match));
+    return key;
+  });
+
+  // Second, protect LaTeX tables from all processing
   // Use a placeholder format that won't be caught by markdown regexes
-  const withTablePlaceholders = s.replace(RE_LATEX_TABLE, (match, content) => {
+  const withTablePlaceholders = withMarkdownTablePlaceholders.replace(RE_LATEX_TABLE, (match, content) => {
     const key = `\u{FFFC}PLACEHOLDER${placeholderIndex++}\u{FFFC}`;
     replacements.set(key, parseLatexTable(match, content));
     return key;

@@ -42,11 +42,13 @@ html.dark,
 body {
   background: var(--surface-page);
   color: var(--foreground);
+  overflow-x: hidden;
   @apply antialiased;
 }
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 @layer base {
@@ -405,4 +407,75 @@ html {
 
 .dark .latex-table td {
   border-bottom-color: var(--surface-border);
+}
+
+/* AP/College Board-style Markdown table styling */
+.markdown-table.ap-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.25rem 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  border: 1px solid #333333;
+  background-color: #ffffff;
+}
+
+.markdown-table.ap-table thead {
+  background-color: #f5f5f5;
+  border-bottom: 2px solid #333333;
+}
+
+.markdown-table.ap-table th {
+  padding: 0.625rem 0.875rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  border: 1px solid #333333;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.markdown-table.ap-table td {
+  padding: 0.5rem 0.875rem;
+  color: #1a1a1a;
+  border: 1px solid #333333;
+  vertical-align: middle;
+}
+
+/* Alternating row colors for better readability (AP/CB style) */
+.markdown-table.ap-table tbody tr:nth-child(even) {
+  background-color: #fafafa;
+}
+
+.markdown-table.ap-table tbody tr:nth-child(odd) {
+  background-color: #ffffff;
+}
+
+/* Dark mode adjustments for AP-style tables */
+.dark .markdown-table.ap-table {
+  background-color: #1e1e1e;
+  border-color: #555555;
+}
+
+.dark .markdown-table.ap-table thead {
+  background-color: #2a2a2a;
+  border-bottom-color: #555555;
+}
+
+.dark .markdown-table.ap-table th {
+  color: #e0e0e0;
+  border-color: #555555;
+}
+
+.dark .markdown-table.ap-table td {
+  color: #d0d0d0;
+  border-color: #555555;
+}
+
+.dark .markdown-table.ap-table tbody tr:nth-child(even) {
+  background-color: #252525;
+}
+
+.dark .markdown-table.ap-table tbody tr:nth-child(odd) {
+  background-color: #1e1e1e;
 }

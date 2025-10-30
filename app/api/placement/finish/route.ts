@@ -138,7 +138,25 @@ export async function POST(req: Request) {
   const last = profile?.last_study_date ?? null;
   const previousStreak = profile?.streak ?? 0;
   const newStreak = computeStreakAfterActivity(previousStreak, last, now);
-  const addPts = Math.max(0, Number(correctTotal) || 0) * 10;
+
+  // Calculate points based on difficulty of placement test
+  const difficultyPoints: Record<string, number> = {
+    "intro": 10,
+    "easy": 10,
+    "medium": 20,
+    "hard": 30,
+  };
+  const pointsPerCorrect = difficulty && typeof difficulty === "string" ? (difficultyPoints[difficulty] || 10) : 10;
+  const addPts = Math.max(0, Number(correctTotal) || 0) * pointsPerCorrect;
+
+  console.log("[placement-finish] Awarding points:", {
+    correctTotal,
+    difficulty,
+    pointsPerCorrect,
+    addPts,
+    currentPoints,
+    newTotal: currentPoints + addPts,
+  });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: updatedProfile, error: updateError } = await (sb as any)
     .from("profiles")

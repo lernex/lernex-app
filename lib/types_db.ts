@@ -21,8 +21,7 @@ export interface Database {
           // New / extended fields:
           full_name: string | null;
           avatar_url: string | null;
-          plus: boolean | null;
-          premium: boolean | null;
+          subscription_tier: "free" | "plus" | "premium";
           is_premium: boolean | null;
           interests: string[] | null;
           level_map: Json | null;           // e.g., {"Math":"Algebra 1"}
@@ -41,8 +40,7 @@ export interface Database {
           last_study_date?: string | null;
           full_name?: string | null;
           avatar_url?: string | null;
-          plus?: boolean | null;
-          premium?: boolean | null;
+          subscription_tier?: "free" | "plus" | "premium";
           is_premium?: boolean | null;
           interests?: string[] | null;
           level_map?: Json | null;
@@ -61,8 +59,7 @@ export interface Database {
           last_study_date?: string | null;
           full_name?: string | null;
           avatar_url?: string | null;
-          plus?: boolean | null;
-          premium?: boolean | null;
+          subscription_tier?: "free" | "plus" | "premium";
           is_premium?: boolean | null;
           interests?: string[] | null;
           level_map?: Json | null;

@@ -225,6 +225,15 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
       setQ(qIndex + 1);
       setSel(null);
     } else {
+      // Calculate points based on difficulty
+      const difficultyPoints: Record<string, number> = {
+        "intro": 10,
+        "easy": 10,
+        "medium": 20,
+        "hard": 30,
+      };
+      const pointsPerCorrect = lesson.difficulty ? (difficultyPoints[lesson.difficulty] || 10) : 10;
+
       const attemptPayload = {
         lesson_id: lesson.id,
         subject: lesson.subject,
@@ -232,7 +241,8 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
         correct_count: correctCount,
         total: questions.length,
         event: "lesson-finish",
-        points_per_correct: 10,
+        points_per_correct: pointsPerCorrect,
+        difficulty: lesson.difficulty,
       };
       void (async () => {
         try {
