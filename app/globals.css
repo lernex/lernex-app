@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
-:root,
-html {
+:root {
+  /* Light mode variables (default) */
   --background: #ffffff;
   --foreground: #171717;
   --primary: #2F80ED;
@@ -27,8 +27,9 @@ html {
   --font-mono: var(--font-geist-mono);
 }
 
-html.dark,
-.dark {
+/* Dark mode variables - target html element with dark class */
+:root.dark,
+html.dark {
   --background: #1C1C1E;
   --foreground: #f2f2f2;
   --surface-page: #05070d;

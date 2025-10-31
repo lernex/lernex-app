@@ -61,8 +61,11 @@ function persistPreference(value: ThemePreference) {
 }
 
 function SyncThemeFromProfile({ initialPreference }: { initialPreference?: ThemePreference | null }) {
-  const { setTheme } = useTheme();
+  const { setTheme, theme: currentTheme } = useTheme();
   const themeSetterRef = useRef(setTheme);
+  const [currentPreference, setCurrentPreference] = useState<ThemePreference | null>(null);
+  const mediaQueryRef = useRef<MediaQueryList | null>(null);
+  const handlerRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     themeSetterRef.current = setTheme;
@@ -72,82 +75,89 @@ function SyncThemeFromProfile({ initialPreference }: { initialPreference?: Theme
     migrateLegacyStorage();
   }, []);
 
+  // Listen for localStorage changes (from other tabs or profile page updates)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        const newPref = sanitizeThemePreference(e.newValue);
+        if (newPref) {
+          setCurrentPreference(newPref);
+          themeSetterRef.current(resolveTheme(newPref));
+        }
+      }
+    };
+
+    // Also listen for custom events (for same-tab updates)
+    const handleCustomThemeChange = ((e: CustomEvent) => {
+      const newPref = sanitizeThemePreference(e.detail?.preference);
+      if (newPref) {
+        setCurrentPreference(newPref);
+        themeSetterRef.current(resolveTheme(newPref));
+      }
+    }) as EventListener;
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("theme-preference-changed", handleCustomThemeChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("theme-preference-changed", handleCustomThemeChange);
+    };
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     let cancelled = false;
 
+    // Clean up previous media query listener
+    if (mediaQueryRef.current && handlerRef.current) {
+      mediaQueryRef.current.removeEventListener("change", handlerRef.current);
+      mediaQueryRef.current = null;
+      handlerRef.current = null;
+    }
+
     const applyPreference = (preference: ThemePreference) => {
       if (cancelled) return;
+      setCurrentPreference(preference);
       const resolvedTheme = resolveTheme(preference);
       themeSetterRef.current(resolvedTheme);
       persistPreference(preference);
     };
 
-    // Always apply initialPreference immediately if provided (from server-side user profile)
-    if (initialPreference) {
-      applyPreference(initialPreference);
-
-      // If preference is "auto", listen for system theme changes
-      if (initialPreference === "auto") {
-        const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-        const handleChange = () => {
-          if (!cancelled) {
-            themeSetterRef.current(getBrowserPreference());
-          }
-        };
-        mediaQuery.addEventListener("change", handleChange);
-        return () => {
-          cancelled = true;
-          mediaQuery.removeEventListener("change", handleChange);
-        };
-      }
-
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    // If no initialPreference (user not logged in), check localStorage
+    // Priority: localStorage > initialPreference > auto
     const stored = getStoredPreference();
-    if (stored) {
-      applyPreference(stored);
+    const preference = stored ?? initialPreference ?? "auto";
 
-      // If stored preference is "auto", listen for system theme changes
-      if (stored === "auto") {
-        const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-        const handleChange = () => {
-          if (!cancelled) {
-            themeSetterRef.current(getBrowserPreference());
-          }
-        };
-        mediaQuery.addEventListener("change", handleChange);
-        return () => {
-          cancelled = true;
-          mediaQuery.removeEventListener("change", handleChange);
-        };
-      }
-    } else {
-      // No stored preference and no user preference - default to auto
-      applyPreference("auto");
+    applyPreference(preference);
 
-      // Listen for system theme changes
+    // If preference is "auto", listen for system theme changes
+    if (preference === "auto") {
       const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      mediaQueryRef.current = mediaQuery;
+
       const handleChange = () => {
-        if (!cancelled) {
+        if (!cancelled && currentPreference === "auto") {
           themeSetterRef.current(getBrowserPreference());
         }
       };
+      handlerRef.current = handleChange;
+
       mediaQuery.addEventListener("change", handleChange);
+
       return () => {
         cancelled = true;
-        mediaQuery.removeEventListener("change", handleChange);
+        if (mediaQueryRef.current && handlerRef.current) {
+          mediaQueryRef.current.removeEventListener("change", handlerRef.current);
+        }
       };
     }
 
     return () => {
       cancelled = true;
     };
-  }, [initialPreference]);
+  }, [initialPreference, currentPreference]);
 
   return null;
 }
@@ -160,6 +170,7 @@ export default function ThemeProvider({
   initialPreference?: ThemePreference | null;
 }) {
   const sanitizedInitial = initialPreference ? sanitizeThemePreference(initialPreference) : null;
+
   // Determine the theme to use on mount (avoids browser preference override)
   const [mountTheme] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") {
@@ -167,7 +178,7 @@ export default function ThemeProvider({
       return resolveTheme(sanitizedInitial ?? "auto");
     }
     const stored = getStoredPreference();
-    const preference = sanitizedInitial ?? stored ?? "auto";
+    const preference = stored ?? sanitizedInitial ?? "auto";
     return resolveTheme(preference);
   });
 
@@ -176,7 +187,9 @@ export default function ThemeProvider({
       attribute="class"
       defaultTheme={mountTheme}
       enableSystem={false}
+      enableColorScheme
       themes={["light", "dark"]}
+      storageKey={STORAGE_KEY}
       disableTransitionOnChange
     >
       <SyncThemeFromProfile initialPreference={sanitizedInitial} />
@@ -184,3 +197,6 @@ export default function ThemeProvider({
     </NextThemes>
   );
 }
+
+// Export utility for components to use
+export { STORAGE_KEY, resolveTheme, type ThemePreference };

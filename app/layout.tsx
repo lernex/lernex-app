@@ -45,14 +45,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     initialPreference = null;
   }
 
-  // Generate inline script to set theme BEFORE first paint
+  // Generate inline script to set theme BEFORE first paint to prevent flash
   const themeScript = `
     (function() {
       try {
         var STORAGE_KEY = 'lernex-theme';
-        var serverPreference = ${JSON.stringify(initialPreference)};
         var stored = localStorage.getItem(STORAGE_KEY);
-        var preference = serverPreference || stored || 'auto';
+        var serverPreference = ${JSON.stringify(initialPreference)};
+        // Priority: localStorage > serverPreference > 'auto'
+        var preference = stored || serverPreference || 'auto';
 
         // Resolve preference to actual theme
         var theme;
@@ -65,14 +66,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
 
-        // Apply theme class to match what next-themes expects
-        // Tailwind only uses 'dark' class, but next-themes adds 'light' class too
-        document.documentElement.classList.remove('light', 'dark');
-        document.documentElement.classList.add(theme);
+        // Apply theme class to html element
+        var root = document.documentElement;
+        root.classList.remove('light', 'dark');
+        root.classList.add(theme);
+
+        // Set color-scheme for browser chrome
+        root.style.colorScheme = theme;
       } catch (e) {
-        // Fallback to dark mode on error
+        // Fallback to light mode on error for better visibility
         document.documentElement.classList.remove('light', 'dark');
-        document.documentElement.classList.add('dark');
+        document.documentElement.classList.add('light');
+        document.documentElement.style.colorScheme = 'light';
       }
     })();
   `;

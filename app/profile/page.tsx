@@ -523,21 +523,17 @@ export default function SettingsPage() {
           : trimmedFirst
         : null;
 
-    // Save the preference to localStorage and apply it immediately
+    // Save the preference to localStorage
     try {
       window.localStorage.setItem('lernex-theme', themePreference);
+      // Dispatch custom event to notify ThemeProvider
+      window.dispatchEvent(new CustomEvent('theme-preference-changed', {
+        detail: { preference: themePreference }
+      }));
     } catch {
       // ignore
     }
 
-    // Apply theme based on preference for instant visual feedback
-    const resolveTheme = (pref: ThemePreference): "light" | "dark" => {
-      if (pref === "light") return "light";
-      if (pref === "dark") return "dark";
-      // auto - use browser preference
-      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    };
-    setTheme(resolveTheme(themePreference));
     setSavedThemePreference(themePreference);
 
     setPreferencesSaving(true);
@@ -586,7 +582,6 @@ export default function SettingsPage() {
     firstName,
     lastName,
     setSavedThemePreference,
-    setTheme,
     showRealName,
     supabase.auth,
     themePreference,

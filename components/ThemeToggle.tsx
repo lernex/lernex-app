@@ -6,7 +6,7 @@ type ThemeMode = "light" | "dark";
 type ThemePreference = "auto" | "light" | "dark";
 
 export default function ThemeToggle({ className = "" }: { className?: string }) {
-  const { resolvedTheme, setTheme } = useTheme();
+  const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [pending, setPending] = useState(false);
   const [currentPreference, setCurrentPreference] = useState<ThemePreference>("auto");
@@ -39,22 +39,12 @@ export default function ThemeToggle({ className = "" }: { className?: string }) 
     const next = getNextPreference(currentPreference);
     setCurrentPreference(next);
 
-    // Resolve the preference to an actual theme
-    let resolvedNext: ThemeMode;
-    if (next === "light") {
-      resolvedNext = "light";
-    } else if (next === "dark") {
-      resolvedNext = "dark";
-    } else {
-      // auto - use browser preference
-      resolvedNext = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    }
-
-    setTheme(resolvedNext);
-
-    // Save preference to localStorage
+    // Save preference to localStorage and dispatch event to notify ThemeProvider
     try {
       window.localStorage.setItem("lernex-theme", next);
+      window.dispatchEvent(new CustomEvent('theme-preference-changed', {
+        detail: { preference: next }
+      }));
     } catch {
       // ignore
     }

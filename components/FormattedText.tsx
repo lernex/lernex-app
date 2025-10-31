@@ -77,7 +77,8 @@ const RE_ORDERED_LIST = /^[ \t]*(\d+)\.\s+(.+)$/gm;
 // LaTeX table pattern - matches tabular environment
 const RE_LATEX_TABLE = /\\begin\{tabular\}\{[^}]*\}([\s\S]*?)\\end\{tabular\}/g;
 // Markdown table pattern - matches pipe-delimited tables with header separator
-const RE_MARKDOWN_TABLE = /^\|.+\|[ \t]*\n\|[-:\s|]+\|[ \t]*\n(?:\|.+\|[ \t]*\n?)+/gm;
+// Improved to handle empty cells, various spacing, and tables at end of text
+const RE_MARKDOWN_TABLE = /^\|.*\|[ \t]*\r?\n\|[-:\s|]+\|[ \t]*\r?\n(?:\|.*\|[ \t]*(?:\r?\n|$))+/gm;
 
 const SINGLE_DOLLAR_MAX_DISTANCE = 240;
 const SYMBOL_MACRO_SET = new Set<string>(Array.from(LATEX_TEXT_SYMBOL_MACROS));
@@ -492,22 +493,29 @@ function parseLatexTable(match: string, content: string): string {
   // Helper to process cell content (wrap in math mode for LaTeX rendering)
   const processCell = (cell: string): string => {
     const trimmed = cell.trim();
-    // Check if already wrapped in math delimiters
-    const hasDelimiters =
-      (trimmed.startsWith('\\(') && trimmed.endsWith('\\)')) ||
-      (trimmed.startsWith('\\[') && trimmed.endsWith('\\]')) ||
-      (trimmed.startsWith('$$') && trimmed.endsWith('$$')) ||
-      (trimmed.startsWith('$') && trimmed.endsWith('$') && trimmed.length > 2);
 
-    if (hasDelimiters) {
-      // Already has math delimiters, just escape HTML entities but preserve the math
-      return escapeHtml(trimmed);
+    if (!trimmed) return ''; // Handle empty cells
+
+    // Check if cell contains ANY math delimiters (not just fully wrapped)
+    // This handles mixed content like "slope \(m\), intercept \(b\)"
+    const hasMathDelimiters =
+      trimmed.includes('\\(') || trimmed.includes('\\)') ||
+      trimmed.includes('\\[') || trimmed.includes('\\]') ||
+      trimmed.includes('$$') ||
+      /(?<!\$)\$(?!\$)/.test(trimmed); // single $ but not $$
+
+    if (hasMathDelimiters) {
+      // Already has math delimiters - return as-is for MathJax to process
+      // Don't wrap or escape - MathJax needs to see the raw delimiters
+      return trimmed;
     }
 
-    // If cell contains LaTeX commands or symbols, wrap for MathJax
+    // If cell contains LaTeX commands or symbols but no delimiters, wrap it
     if (trimmed.includes('\\') || /[\^_{}]/.test(trimmed)) {
-      return `\\(${escapeHtml(trimmed)}\\)`;
+      return `\\(${trimmed}\\)`;
     }
+
+    // Plain text - escape HTML for safety
     return escapeHtml(trimmed);
   };
 
@@ -547,15 +555,110 @@ function parseLatexTable(match: string, content: string): string {
   return html;
 }
 
+// Helper to split table row by pipes while respecting math delimiters
+function splitTableRow(row: string): string[] {
+  const cells: string[] = [];
+  let currentCell = '';
+  let inMath = false;
+  let mathDelimiter: string | null = null;
+
+  for (let i = 0; i < row.length; i++) {
+    const char = row[i];
+    const next = row[i + 1];
+    const prev = row[i - 1];
+
+    // Check for math delimiter starts
+    if (!inMath) {
+      if (char === '\\' && next === '(') {
+        inMath = true;
+        mathDelimiter = '\\(';
+        currentCell += char + next;
+        i++; // Skip next char
+        continue;
+      }
+      if (char === '\\' && next === '[') {
+        inMath = true;
+        mathDelimiter = '\\[';
+        currentCell += char + next;
+        i++; // Skip next char
+        continue;
+      }
+      if (char === '$' && next === '$') {
+        inMath = true;
+        mathDelimiter = '$$';
+        currentCell += char + next;
+        i++; // Skip next char
+        continue;
+      }
+      if (char === '$' && next !== '$' && prev !== '$') {
+        inMath = true;
+        mathDelimiter = '$';
+        currentCell += char;
+        continue;
+      }
+    } else {
+      // Check for math delimiter ends
+      if (mathDelimiter === '\\(' && char === '\\' && next === ')') {
+        inMath = false;
+        mathDelimiter = null;
+        currentCell += char + next;
+        i++; // Skip next char
+        continue;
+      }
+      if (mathDelimiter === '\\[' && char === '\\' && next === ']') {
+        inMath = false;
+        mathDelimiter = null;
+        currentCell += char + next;
+        i++; // Skip next char
+        continue;
+      }
+      if (mathDelimiter === '$$' && char === '$' && next === '$') {
+        inMath = false;
+        mathDelimiter = null;
+        currentCell += char + next;
+        i++; // Skip next char
+        continue;
+      }
+      if (mathDelimiter === '$' && char === '$' && prev !== '$' && next !== '$') {
+        inMath = false;
+        mathDelimiter = null;
+        currentCell += char;
+        continue;
+      }
+    }
+
+    // Split on pipe only if not in math
+    if (char === '|' && !inMath) {
+      cells.push(currentCell);
+      currentCell = '';
+    } else {
+      currentCell += char;
+    }
+  }
+
+  // Add the last cell
+  if (currentCell || cells.length > 0) {
+    cells.push(currentCell);
+  }
+
+  return cells.map(c => c.trim()).filter((c, i, arr) => {
+    // Remove empty cells at start/end (from leading/trailing pipes)
+    // but keep empty cells in the middle
+    if (i === 0 && !c) return false;
+    if (i === arr.length - 1 && !c) return false;
+    return true;
+  });
+}
+
 function parseMarkdownTable(match: string): string {
   const lines = match.trim().split('\n').map(l => l.trim());
   if (lines.length < 3) return match; // Need at least header, separator, and one data row
 
-  // Parse header row
-  const headerCells = lines[0]!.split('|').map(c => c.trim()).filter(c => c);
+  // Parse header row using smart split
+  const headerCells = splitTableRow(lines[0]!);
 
-  // Parse alignment from separator row
-  const separatorCells = lines[1]!.split('|').map(c => c.trim()).filter(c => c);
+  // Parse alignment from separator row using smart split
+  const separatorCells = splitTableRow(lines[1]!);
   const alignments = separatorCells.map(cell => {
     const left = cell.startsWith(':');
     const right = cell.endsWith(':');
@@ -567,22 +670,29 @@ function parseMarkdownTable(match: string): string {
   // Helper to process cell content (wrap in math mode for LaTeX rendering if needed)
   const processCell = (cell: string): string => {
     const trimmed = cell.trim();
-    // Check if already wrapped in math delimiters
-    const hasDelimiters =
-      (trimmed.startsWith('\\(') && trimmed.endsWith('\\)')) ||
-      (trimmed.startsWith('\\[') && trimmed.endsWith('\\]')) ||
-      (trimmed.startsWith('$$') && trimmed.endsWith('$$')) ||
-      (trimmed.startsWith('$') && trimmed.endsWith('$') && trimmed.length > 2);
 
-    if (hasDelimiters) {
-      // Already has math delimiters, just escape HTML entities but preserve the math
-      return escapeHtml(trimmed);
+    if (!trimmed) return ''; // Handle empty cells
+
+    // Check if cell contains ANY math delimiters (not just fully wrapped)
+    // This handles mixed content like "slope \(m\), intercept \(b\)"
+    const hasMathDelimiters =
+      trimmed.includes('\\(') || trimmed.includes('\\)') ||
+      trimmed.includes('\\[') || trimmed.includes('\\]') ||
+      trimmed.includes('$$') ||
+      /(?<!\$)\$(?!\$)/.test(trimmed); // single $ but not $$
+
+    if (hasMathDelimiters) {
+      // Already has math delimiters - return as-is for MathJax to process
+      // Don't wrap or escape - MathJax needs to see the raw delimiters
+      return trimmed;
     }
 
-    // If cell contains LaTeX commands or symbols, wrap for MathJax
+    // If cell contains LaTeX commands or symbols but no delimiters, wrap it
     if (trimmed.includes('\\') || /[\^_{}]/.test(trimmed)) {
-      return `\\(${escapeHtml(trimmed)}\\)`;
+      return `\\(${trimmed}\\)`;
     }
+
+    // Plain text - escape HTML for safety
     return escapeHtml(trimmed);
   };
 
@@ -599,10 +709,23 @@ function parseMarkdownTable(match: string): string {
 
   // Build body rows
   html += '<tbody>';
+  const expectedColumnCount = headerCells.length;
   for (let i = 2; i < lines.length; i++) {
     const row = lines[i]!;
     if (!row) continue;
-    const cells = row.split('|').map(c => c.trim()).filter(c => c);
+    let cells = splitTableRow(row);
+
+    // Handle inconsistent column counts
+    if (cells.length < expectedColumnCount) {
+      // Pad with empty cells
+      while (cells.length < expectedColumnCount) {
+        cells.push('');
+      }
+    } else if (cells.length > expectedColumnCount) {
+      // Truncate extra cells
+      cells = cells.slice(0, expectedColumnCount);
+    }
+
     if (cells.length > 0) {
       html += '<tr>';
       cells.forEach((cell, j) => {
