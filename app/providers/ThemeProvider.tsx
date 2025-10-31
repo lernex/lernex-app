@@ -2,7 +2,9 @@
 import { ThemeProvider as NextThemes, useTheme } from "next-themes";
 import { useEffect, useRef, useState } from "react";
 
-const STORAGE_KEY = "lernex-theme";
+// Separate keys to avoid conflicts between preference and resolved theme
+const PREFERENCE_KEY = "lernex-theme-preference";  // Stores: "auto" | "light" | "dark"
+const THEME_KEY = "lernex-theme";  // Used by next-themes for resolved theme: "light" | "dark"
 const LEGACY_STORAGE_KEY = "theme";
 type ThemeMode = "light" | "dark";
 type ThemePreference = "auto" | "light" | "dark";
@@ -30,13 +32,23 @@ const resolveTheme = (preference: ThemePreference | null): ThemeMode => {
 function migrateLegacyStorage() {
   if (typeof window === "undefined") return;
   try {
+    // Migrate from old "theme" key to new "lernex-theme-preference" key
     const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (legacy == null) return;
-    const next = sanitizeTheme(legacy);
-    if (next) {
-      window.localStorage.setItem(STORAGE_KEY, next);
+    if (legacy != null) {
+      const pref = sanitizeThemePreference(legacy);
+      if (pref) {
+        window.localStorage.setItem(PREFERENCE_KEY, pref);
+      }
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
     }
-    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+
+    // Migrate from old unified "lernex-theme" key (if it exists and looks like a preference)
+    const oldUnified = window.localStorage.getItem(THEME_KEY);
+    if (oldUnified === "auto") {
+      // This was a preference, not a resolved theme
+      window.localStorage.setItem(PREFERENCE_KEY, "auto");
+      window.localStorage.removeItem(THEME_KEY); // Clear it so next-themes can set it fresh
+    }
   } catch {
     /* no-op */
   }
@@ -45,7 +57,7 @@ function migrateLegacyStorage() {
 function getStoredPreference(): ThemePreference | null {
   if (typeof window === "undefined") return null;
   try {
-    return sanitizeThemePreference(window.localStorage.getItem(STORAGE_KEY));
+    return sanitizeThemePreference(window.localStorage.getItem(PREFERENCE_KEY));
   } catch {
     return null;
   }
@@ -54,7 +66,7 @@ function getStoredPreference(): ThemePreference | null {
 function persistPreference(value: ThemePreference) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, value);
+    window.localStorage.setItem(PREFERENCE_KEY, value);
   } catch {
     /* ignore */
   }
@@ -80,11 +92,15 @@ function SyncThemeFromProfile({ initialPreference }: { initialPreference?: Theme
     if (typeof window === "undefined") return;
 
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY && e.newValue) {
+      // Listen for changes to the PREFERENCE key, not the theme key
+      if (e.key === PREFERENCE_KEY && e.newValue) {
         const newPref = sanitizeThemePreference(e.newValue);
         if (newPref) {
           setCurrentPreference(newPref);
-          themeSetterRef.current(resolveTheme(newPref));
+          const resolvedTheme = resolveTheme(newPref);
+          themeSetterRef.current(resolvedTheme);
+          // Also persist the preference locally to stay in sync
+          persistPreference(newPref);
         }
       }
     };
@@ -94,7 +110,9 @@ function SyncThemeFromProfile({ initialPreference }: { initialPreference?: Theme
       const newPref = sanitizeThemePreference(e.detail?.preference);
       if (newPref) {
         setCurrentPreference(newPref);
-        themeSetterRef.current(resolveTheme(newPref));
+        const resolvedTheme = resolveTheme(newPref);
+        themeSetterRef.current(resolvedTheme);
+        // Preference will be persisted by the caller
       }
     }) as EventListener;
 
@@ -189,7 +207,7 @@ export default function ThemeProvider({
       enableSystem={false}
       enableColorScheme
       themes={["light", "dark"]}
-      storageKey={STORAGE_KEY}
+      storageKey={THEME_KEY}
       disableTransitionOnChange
     >
       <SyncThemeFromProfile initialPreference={sanitizedInitial} />
@@ -199,4 +217,4 @@ export default function ThemeProvider({
 }
 
 // Export utility for components to use
-export { STORAGE_KEY, resolveTheme, type ThemePreference };
+export { PREFERENCE_KEY, THEME_KEY, resolveTheme, type ThemePreference };

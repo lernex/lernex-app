@@ -49,10 +49,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const themeScript = `
     (function() {
       try {
-        var STORAGE_KEY = 'lernex-theme';
-        var stored = localStorage.getItem(STORAGE_KEY);
+        var PREFERENCE_KEY = 'lernex-theme-preference';
+        var THEME_KEY = 'lernex-theme';
+
+        // Get preference from localStorage or server
+        var stored = localStorage.getItem(PREFERENCE_KEY);
         var serverPreference = ${JSON.stringify(initialPreference)};
-        // Priority: localStorage > serverPreference > 'auto'
         var preference = stored || serverPreference || 'auto';
 
         // Resolve preference to actual theme
@@ -66,13 +68,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
 
-        // Apply theme class to html element
+        // Apply theme class to html element (only dark/light, never auto)
         var root = document.documentElement;
         root.classList.remove('light', 'dark');
         root.classList.add(theme);
 
         // Set color-scheme for browser chrome
         root.style.colorScheme = theme;
+
+        // Pre-populate next-themes storage with resolved theme to avoid conflicts
+        localStorage.setItem(THEME_KEY, theme);
       } catch (e) {
         // Fallback to light mode on error for better visibility
         document.documentElement.classList.remove('light', 'dark');

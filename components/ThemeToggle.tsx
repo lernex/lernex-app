@@ -13,9 +13,9 @@ export default function ThemeToggle({ className = "" }: { className?: string }) 
 
   useEffect(() => {
     setMounted(true);
-    // Get the current preference from localStorage
+    // Get the current preference from localStorage (using the new preference key)
     try {
-      const stored = window.localStorage.getItem("lernex-theme");
+      const stored = window.localStorage.getItem("lernex-theme-preference");
       if (stored === "auto" || stored === "light" || stored === "dark") {
         setCurrentPreference(stored);
       }
@@ -39,9 +39,9 @@ export default function ThemeToggle({ className = "" }: { className?: string }) 
     const next = getNextPreference(currentPreference);
     setCurrentPreference(next);
 
-    // Save preference to localStorage and dispatch event to notify ThemeProvider
+    // Save preference to localStorage (using the new preference key) and dispatch event
     try {
-      window.localStorage.setItem("lernex-theme", next);
+      window.localStorage.setItem("lernex-theme-preference", next);
       window.dispatchEvent(new CustomEvent('theme-preference-changed', {
         detail: { preference: next }
       }));

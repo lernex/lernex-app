@@ -523,9 +523,9 @@ export default function SettingsPage() {
           : trimmedFirst
         : null;
 
-    // Save the preference to localStorage
+    // Save the preference to localStorage using the correct key
     try {
-      window.localStorage.setItem('lernex-theme', themePreference);
+      window.localStorage.setItem('lernex-theme-preference', themePreference);
       // Dispatch custom event to notify ThemeProvider
       window.dispatchEvent(new CustomEvent('theme-preference-changed', {
         detail: { preference: themePreference }
