@@ -21,7 +21,8 @@ const config: Config = {
     },
   },
   plugins: [],
-  darkMode: "class",
+  // Note: In Tailwind v4, dark mode is configured in CSS using @custom-variant
+  // The darkMode config option is no longer used
 };
 export default config;
 
