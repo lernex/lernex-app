@@ -61,9 +61,64 @@ After: "To solve 3 over 5 plus 2 over 5, add the numerators: 3 plus 2 equals 5, 
 Now transform the following lesson text:`;
 
 /**
+ * Strips markdown formatting from text for TTS
+ * Aligned with FormattedText.tsx rendering patterns
+ */
+function stripMarkdown(text: string): string {
+  let result = text;
+
+  // 1. Code blocks first (preserve content, remove backticks)
+  result = result.replace(/```[\s\S]*?```/g, (match) => {
+    return match.slice(3, -3).trim();
+  });
+
+  // 2. Inline code (preserve content, remove backticks)
+  result = result.replace(/`([^`]+)`/g, '$1');
+
+  // 3. Headers (remove # markers but keep text)
+  result = result.replace(/^#{1,6}\s+/gm, '');
+
+  // 4. Bold - double asterisk/underscore (FormattedText treats these as <strong>)
+  result = result.replace(/\*\*([\s\S]+?)\*\*/g, '$1');
+  result = result.replace(/__([\s\S]+?)__/g, '$1');
+
+  // 5. Single asterisk (FormattedText treats as bold, not italic)
+  // More conservative pattern without lookbehind for compatibility
+  result = result.replace(/\*([^\s*][^*]*?)\*/g, '$1');
+
+  // 6. Single underscore (FormattedText treats as <em>)
+  result = result.replace(/_([^\s_][^_]*?)_/g, '$1');
+
+  // 7. Strikethrough
+  result = result.replace(/~~([\s\S]+?)~~/g, '$1');
+
+  // 8. Links [text](url) - keep only text
+  result = result.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+
+  // 9. Unordered list markers (-, *, +)
+  result = result.replace(/^[\s]*[-*+]\s+/gm, '');
+
+  // 10. Ordered list markers (1. 2. etc)
+  result = result.replace(/^[\s]*\d+\.\s+/gm, '');
+
+  // 11. Blockquotes
+  result = result.replace(/^>\s*/gm, '');
+
+  // 12. Horizontal rules (remove entirely as they're not speech)
+  result = result.replace(/^[\s]*[-*_]{3,}[\s]*$/gm, '');
+
+  // 13. Clean up extra whitespace
+  result = result.replace(/\n{3,}/g, '\n\n').trim();
+
+  return result;
+}
+
+/**
  * Translates lesson text into natural, expressive speech
  */
 export async function translateLessonForTTS(lessonText: string): Promise<{ translatedText: string; inputTokens: number; outputTokens: number }> {
+  // Strip markdown formatting before translation
+  const cleanedText = stripMarkdown(lessonText);
   // Use DeepInfra GPT-OSS-20B for translation (for both free and paid tiers as per requirements)
   const client = new OpenAI({
     apiKey: process.env.DEEPINFRA_API_KEY,
@@ -80,14 +135,14 @@ export async function translateLessonForTTS(lessonText: string): Promise<{ trans
         },
         {
           role: 'user',
-          content: lessonText
+          content: cleanedText
         }
       ],
       temperature: 0.8, // Higher temperature for more creative, natural variations
       max_tokens: 4000,
     });
 
-    const translatedText = completion.choices[0]?.message?.content || lessonText;
+    const translatedText = completion.choices[0]?.message?.content || cleanedText;
     const inputTokens = completion.usage?.prompt_tokens || 0;
     const outputTokens = completion.usage?.completion_tokens || 0;
 
@@ -98,9 +153,9 @@ export async function translateLessonForTTS(lessonText: string): Promise<{ trans
     };
   } catch (error) {
     console.error('[tts-translation] Translation failed:', error);
-    // Fallback to original text if translation fails
+    // Fallback to cleaned text if translation fails
     return {
-      translatedText: lessonText,
+      translatedText: cleanedText,
       inputTokens: 0,
       outputTokens: 0
     };

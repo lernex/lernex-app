@@ -492,9 +492,21 @@ function parseLatexTable(match: string, content: string): string {
   // Helper to process cell content (wrap in math mode for LaTeX rendering)
   const processCell = (cell: string): string => {
     const trimmed = cell.trim();
+    // Check if already wrapped in math delimiters
+    const hasDelimiters =
+      (trimmed.startsWith('\\(') && trimmed.endsWith('\\)')) ||
+      (trimmed.startsWith('\\[') && trimmed.endsWith('\\]')) ||
+      (trimmed.startsWith('$$') && trimmed.endsWith('$$')) ||
+      (trimmed.startsWith('$') && trimmed.endsWith('$') && trimmed.length > 2);
+
+    if (hasDelimiters) {
+      // Already has math delimiters, just escape HTML entities but preserve the math
+      return escapeHtml(trimmed);
+    }
+
     // If cell contains LaTeX commands or symbols, wrap for MathJax
     if (trimmed.includes('\\') || /[\^_{}]/.test(trimmed)) {
-      return `\\(${trimmed}\\)`;
+      return `\\(${escapeHtml(trimmed)}\\)`;
     }
     return escapeHtml(trimmed);
   };
@@ -555,9 +567,21 @@ function parseMarkdownTable(match: string): string {
   // Helper to process cell content (wrap in math mode for LaTeX rendering if needed)
   const processCell = (cell: string): string => {
     const trimmed = cell.trim();
+    // Check if already wrapped in math delimiters
+    const hasDelimiters =
+      (trimmed.startsWith('\\(') && trimmed.endsWith('\\)')) ||
+      (trimmed.startsWith('\\[') && trimmed.endsWith('\\]')) ||
+      (trimmed.startsWith('$$') && trimmed.endsWith('$$')) ||
+      (trimmed.startsWith('$') && trimmed.endsWith('$') && trimmed.length > 2);
+
+    if (hasDelimiters) {
+      // Already has math delimiters, just escape HTML entities but preserve the math
+      return escapeHtml(trimmed);
+    }
+
     // If cell contains LaTeX commands or symbols, wrap for MathJax
     if (trimmed.includes('\\') || /[\^_{}]/.test(trimmed)) {
-      return `\\(${trimmed}\\)`;
+      return `\\(${escapeHtml(trimmed)}\\)`;
     }
     return escapeHtml(trimmed);
   };
@@ -593,36 +617,39 @@ function parseMarkdownTable(match: string): string {
   return html;
 }
 
-function formatNonMath(s: string) {
+function formatNonMath(s: string, existingReplacements?: Map<string, string>, placeholderCounter?: { value: number }) {
   const wrap = (tex: string) => `\\(${tex}\\)`;
-  const replacements = new Map<string, string>();
-  let placeholderIndex = 0;
+  const replacements = existingReplacements || new Map<string, string>();
+  const counter = placeholderCounter || { value: 0 };
 
-  // First, protect markdown tables from all processing
-  const withMarkdownTablePlaceholders = s.replace(RE_MARKDOWN_TABLE, (match) => {
-    const key = `\u{FFFC}PLACEHOLDER${placeholderIndex++}\u{FFFC}`;
-    replacements.set(key, parseMarkdownTable(match));
-    return key;
-  });
+  // First, protect markdown tables from all processing (skip if already extracted)
+  const withMarkdownTablePlaceholders = existingReplacements
+    ? s
+    : s.replace(RE_MARKDOWN_TABLE, (match) => {
+        const key = `\u{FFFC}PLACEHOLDER${counter.value++}\u{FFFC}`;
+        replacements.set(key, parseMarkdownTable(match));
+        return key;
+      });
 
-  // Second, protect LaTeX tables from all processing
-  // Use a placeholder format that won't be caught by markdown regexes
-  const withTablePlaceholders = withMarkdownTablePlaceholders.replace(RE_LATEX_TABLE, (match, content) => {
-    const key = `\u{FFFC}PLACEHOLDER${placeholderIndex++}\u{FFFC}`;
-    replacements.set(key, parseLatexTable(match, content));
-    return key;
-  });
+  // Second, protect LaTeX tables from all processing (skip if already extracted)
+  const withTablePlaceholders = existingReplacements
+    ? withMarkdownTablePlaceholders
+    : withMarkdownTablePlaceholders.replace(RE_LATEX_TABLE, (match, content) => {
+        const key = `\u{FFFC}PLACEHOLDER${counter.value++}\u{FFFC}`;
+        replacements.set(key, parseLatexTable(match, content));
+        return key;
+      });
 
   // Then protect code blocks from all processing
   const withCodeBlockPlaceholders = withTablePlaceholders.replace(RE_CODE_BLOCK, (match) => {
-    const key = `\u{FFFC}PLACEHOLDER${placeholderIndex++}\u{FFFC}`;
+    const key = `\u{FFFC}PLACEHOLDER${counter.value++}\u{FFFC}`;
     replacements.set(key, `<pre><code>${escapeHtml(match.slice(3, -3))}</code></pre>`);
     return key;
   });
 
   // Then protect inline code spans
   const withPlaceholders = withCodeBlockPlaceholders.replace(RE_CODE, (_match, inner: string) => {
-    const key = `\u{FFFC}PLACEHOLDER${placeholderIndex++}\u{FFFC}`;
+    const key = `\u{FFFC}PLACEHOLDER${counter.value++}\u{FFFC}`;
     replacements.set(key, `<code>${escapeHtml(inner)}</code>`);
     return key;
   });
@@ -922,8 +949,31 @@ function FormattedText({
     src = normalizeBackslashes(src);
     devLog("html-build", { len: src.length, preview: src.slice(0, 60) });
     src = balanceDelimiters(src);
+
+    // IMPORTANT: Extract tables BEFORE splitting math segments to prevent
+    // LaTeX delimiters inside table cells from breaking the table structure
+    const tableReplacements = new Map<string, string>();
+    const placeholderCounter = { value: 0 }; // Use object for mutable reference
+
+    // Extract markdown tables
+    src = src.replace(RE_MARKDOWN_TABLE, (match) => {
+      const key = `\u{FFFC}PLACEHOLDER${placeholderCounter.value++}\u{FFFC}`;
+      tableReplacements.set(key, parseMarkdownTable(match));
+      return key;
+    });
+
+    // Extract LaTeX tables
+    src = src.replace(RE_LATEX_TABLE, (match, content) => {
+      const key = `\u{FFFC}PLACEHOLDER${placeholderCounter.value++}\u{FFFC}`;
+      tableReplacements.set(key, parseLatexTable(match, content));
+      return key;
+    });
+
+    // Now split math segments (tables are protected as placeholders)
     const segs = splitMathSegments(src);
-    const out = segs.map(({ math, t }) => (math ? escapeHtml(fixMacrosInMath(t)) : formatNonMath(t))).join("");
+    const out = segs.map(({ math, t }) =>
+      math ? escapeHtml(fixMacrosInMath(t)) : formatNonMath(t, tableReplacements, placeholderCounter)
+    ).join("");
     devLog("html-ready", { len: out.length });
     return out;
   }, [text]);

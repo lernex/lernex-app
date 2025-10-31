@@ -20,6 +20,7 @@ import { ProfileBasicsProvider } from "@/app/providers/ProfileBasicsProvider";
 import { useLernexStore } from "@/lib/store";
 import type { Lesson } from "@/types";
 import type { ProfileBasics } from "@/lib/profile-basics";
+import { convertPdfToImages, convertImageToBase64 } from "@/lib/pdf-to-images";
 
 type UploadLessonsClientProps = {
   initialProfile?: ProfileBasics | null;
@@ -40,22 +41,65 @@ const MAX_FILE_SIZE_BYTES = 18 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 24_000;
 const MIN_CHARS_REQUIRED = 220;
 
-async function parseFileWithLlamaParse(file: File): Promise<string> {
+async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
   if (file.size > MAX_FILE_SIZE_BYTES) {
     throw new Error(`"${file.name}" is larger than ${(MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0)}MB.`);
   }
 
-  const formData = new FormData();
-  formData.append('file', file);
+  const fileType = file.type.toLowerCase();
+  const fileName = file.name.toLowerCase();
+
+  let images: string[] = [];
+
+  // Check if it's a PDF
+  if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
+    console.log('[deepseek-ocr] Converting PDF to images...');
+    images = await convertPdfToImages(file);
+  }
+  // Check if it's an image
+  else if (fileType.startsWith('image/') || fileName.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/i)) {
+    console.log('[deepseek-ocr] Converting image to base64...');
+    const base64 = await convertImageToBase64(file);
+    images = [base64];
+  }
+  // For other file types (DOCX, PPTX, etc.), send as FormData
+  else {
+    console.log('[deepseek-ocr] Uploading file for server-side processing...');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch('/api/upload/parse', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to parse file' }));
+      throw new Error(error.error || 'Failed to parse file');
+    }
+
+    const result = await response.json();
+    return result.text || '';
+  }
+
+  // Send images to OCR API
+  console.log(`[deepseek-ocr] Sending ${images.length} images to OCR API...`);
 
   const response = await fetch('/api/upload/parse', {
     method: 'POST',
-    body: formData,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      images,
+      fileName: file.name,
+      fileSize: file.size,
+    }),
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to parse file' }));
-    throw new Error(error.error || 'Failed to parse file');
+    const error = await response.json().catch(() => ({ error: 'Failed to process with OCR' }));
+    throw new Error(error.error || 'Failed to process with OCR');
   }
 
   const result = await response.json();
@@ -248,10 +292,10 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
           if (!file) continue;
           previews.push({ name: file.name, sizeLabel: formatBytes(file.size) });
 
-          setStatusDetail(`Parsing ${file.name} with LlamaParse…`);
+          setStatusDetail(`Parsing ${file.name} with DeepSeek OCR…`);
           setProgress(8 + Math.round((index / files.length) * 12));
 
-          const extracted = await parseFileWithLlamaParse(file);
+          const extracted = await parseFileWithDeepSeekOCR(file);
           if (extracted && extracted.trim().length) {
             textFragments.push(extracted);
           }
@@ -434,8 +478,8 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                   </span>
                 </h1>
                 <p className="max-w-2xl text-sm text-neutral-600 dark:text-neutral-300 sm:text-base">
-                  Drop in PDFs, PowerPoints, Word docs, or lecture notes. Our LlamaParse AI intelligently extracts the
-                  content and crafts a personalized flow of micro-lessons - complete with adaptive quizzes - based on what
+                  Drop in PDFs, images, PowerPoints, Word docs, or lecture notes. Our DeepSeek OCR AI intelligently extracts the
+                  content using advanced vision technology and crafts a personalized flow of micro-lessons - complete with adaptive quizzes - based on what
                   you uploaded.
                 </p>
               </div>
@@ -475,15 +519,15 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
               <ul className="mt-4 space-y-3 text-xs text-neutral-600 dark:text-neutral-300">
                 <li className="flex gap-2">
                   <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lernex-blue" />
-                  Upload PowerPoint, Word, or PDF files directly - LlamaParse extracts everything intelligently.
+                  Upload PDFs, images, PowerPoint, or Word files - DeepSeek OCR uses advanced vision AI to extract everything with 97% accuracy.
                 </li>
                 <li className="flex gap-2">
                   <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lernex-purple" />
-                  Longer documents create 5-6 lessons, shorter ones create 2-3 - perfectly sized for learning.
+                  Longer documents create 5-10 lessons, shorter ones create 2-3 - perfectly sized for your learning speed.
                 </li>
                 <li className="flex gap-2">
                   <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                  Drop multiple files at once; we automatically merge and create a cohesive lesson sequence.
+                  Drop multiple files at once; we automatically merge and create a cohesive lesson sequence optimized for retention.
                 </li>
               </ul>
             </motion.div>
@@ -576,7 +620,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.docx,.pptx,.txt,.md,.markdown,.csv,.json,.rtf,.html,.htm"
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,.docx,.pptx,.txt,.md,.markdown,.csv,.json,.rtf,.html,.htm"
                 multiple
                 hidden
                 onChange={handleFileInputChange}
@@ -620,13 +664,13 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                   <p className="text-sm text-neutral-500 dark:text-neutral-400">
                     {stage === "parsing" || stage === "generating" ? (
                       <>
-                        Using LlamaParse AI to intelligently extract and structure your content into personalized
-                        mini-lessons.
+                        Using DeepSeek OCR vision AI to intelligently extract and structure your content into personalized
+                        mini-lessons with 97% accuracy.
                       </>
                     ) : (
                       <>
-                        Accepts PDFs, DOCX, PPTX, and text files up to 18MB combined. We use LlamaParse AI to extract
-                        content, then craft mini-lessons with quizzes tuned to <span className="font-medium">{subject}</span>
+                        Accepts PDFs, images, DOCX, PPTX, and text files up to 18MB combined. We use DeepSeek OCR vision AI to extract
+                        content with high accuracy, then craft mini-lessons with quizzes tuned to <span className="font-medium">{subject}</span>
                         .
                       </>
                     )}
@@ -635,11 +679,11 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                 <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-neutral-500 dark:text-neutral-400">
                   <span className="inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/70 px-3 py-1 dark:border-white/10 dark:bg-white/10">
                     <FileText className="h-3.5 w-3.5 text-lernex-blue" />
-                    PDF, DOCX, PPTX, TXT
+                    PDF, Images, DOCX, PPTX
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/70 px-3 py-1 dark:border-white/10 dark:bg-white/10">
                     <Sparkles className="h-3.5 w-3.5 text-lernex-purple" />
-                    LlamaParse AI Parsing
+                    DeepSeek OCR Vision AI
                   </span>
                 </div>
                 <button
@@ -850,8 +894,8 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
               <h2 className="text-sm font-semibold text-neutral-800 dark:text-white">Why it works</h2>
               <ul className="mt-4 space-y-3 text-neutral-600 dark:text-neutral-300">
                 <li>
-                  <span className="font-semibold text-neutral-700 dark:text-white">Smart parsing:</span> LlamaParse AI
-                  extracts text, tables, and structure from any document format.
+                  <span className="font-semibold text-neutral-700 dark:text-white">Vision OCR:</span> DeepSeek OCR uses advanced
+                  vision-text compression to extract content with 97% accuracy at 8-9x compression ratio.
                 </li>
                 <li>
                   <span className="font-semibold text-neutral-700 dark:text-white">Tier-based AI:</span> free users get
@@ -859,7 +903,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                 </li>
                 <li>
                   <span className="font-semibold text-neutral-700 dark:text-white">Quiz-first design:</span> every lesson
-                  comes with comprehension checks to lock in understanding.
+                  comes with 3 comprehension checks to lock in understanding and track progress.
                 </li>
               </ul>
             </motion.div>

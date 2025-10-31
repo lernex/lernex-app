@@ -13,6 +13,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *
  * TTS Models:
  * - hexgrad/Kokoro-82M: $0.62 per 1M input tokens (via DeepInfra)
+ *
+ * OCR Models:
+ * - DeepSeek-OCR: $0.03 input / $0.1 output per 1M tokens (via DeepInfra)
  */
 const PRICES: Record<string, { input: number; output: number }> = {
   // Legacy models (for backwards compatibility)
@@ -44,6 +47,11 @@ const PRICES: Record<string, { input: number; output: number }> = {
   // We use "input" field to represent tokens (approximating 1 char ≈ 1 token)
   "kokoro-tts": { input: 0.62 / 1_000_000, output: 0 },
   "deepinfra/kokoro-82m": { input: 0.62 / 1_000_000, output: 0 },
+
+  // OCR models
+  // DeepSeek-OCR via DeepInfra: $0.03 per 1M input, $0.1 per 1M output tokens
+  "deepseek-ocr": { input: 0.03 / 1_000_000, output: 0.1 / 1_000_000 },
+  "deepseek-ai/DeepSeek-OCR": { input: 0.03 / 1_000_000, output: 0.1 / 1_000_000 },
 };
 
 export function calcCost(model: string, inputTokens = 0, outputTokens = 0) {

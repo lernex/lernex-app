@@ -171,6 +171,12 @@ BEGIN
       v_input_cost := 0.1 / 1000000.0;
       v_output_cost := 0.4 / 1000000.0;
 
+    -- OCR models
+    -- DeepSeek-OCR via DeepInfra
+    WHEN 'deepseek-ocr', 'deepseek-ai/DeepSeek-OCR' THEN
+      v_input_cost := 0.03 / 1000000.0;
+      v_output_cost := 0.1 / 1000000.0;
+
     ELSE
       -- Unknown model, return 0
       RETURN 0;

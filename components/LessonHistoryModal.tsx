@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X, Clock, Trash2, Loader2, ChevronRight } from "lucide-react";
 import LessonCard from "./LessonCard";
 import QuizBlock from "./QuizBlock";
+import DeleteConfirmModal from "./DeleteConfirmModal";
 import type { Lesson } from "@/types";
 
 interface HistoryLesson {
@@ -27,6 +28,7 @@ export default function LessonHistoryModal({ isOpen, onClose }: LessonHistoryMod
   const [loading, setLoading] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState<HistoryLesson | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [lessonToDelete, setLessonToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -49,19 +51,17 @@ export default function LessonHistoryModal({ isOpen, onClose }: LessonHistoryMod
     }
   };
 
-  const deleteLesson = async (lessonId: string) => {
-    if (!confirm("Are you sure you want to delete this lesson from history?")) {
-      return;
-    }
+  const confirmDelete = async () => {
+    if (!lessonToDelete) return;
 
-    setDeleting(lessonId);
+    setDeleting(lessonToDelete);
     try {
-      const response = await fetch(`/api/lesson-history?id=${lessonId}`, {
+      const response = await fetch(`/api/lesson-history?id=${lessonToDelete}`, {
         method: "DELETE",
       });
       if (response.ok) {
-        setHistory((prev) => prev.filter((l) => l.id !== lessonId));
-        if (selectedLesson?.id === lessonId) {
+        setHistory((prev) => prev.filter((l) => l.id !== lessonToDelete));
+        if (selectedLesson?.id === lessonToDelete) {
           setSelectedLesson(null);
         }
       }
@@ -69,6 +69,7 @@ export default function LessonHistoryModal({ isOpen, onClose }: LessonHistoryMod
       console.error("[history] Error deleting lesson:", error);
     } finally {
       setDeleting(null);
+      setLessonToDelete(null);
     }
   };
 
@@ -182,7 +183,7 @@ export default function LessonHistoryModal({ isOpen, onClose }: LessonHistoryMod
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              deleteLesson(item.id);
+                              setLessonToDelete(item.id);
                             }}
                             disabled={deleting === item.id}
                             className="flex-shrink-0 rounded-full p-1.5 text-neutral-500 transition-colors hover:bg-red-500/10 hover:text-red-600 disabled:opacity-50"
@@ -246,6 +247,17 @@ export default function LessonHistoryModal({ isOpen, onClose }: LessonHistoryMod
             </div>
           </div>
         </motion.div>
+
+        {/* Delete Confirmation Modal */}
+        <DeleteConfirmModal
+          isOpen={lessonToDelete !== null}
+          onClose={() => setLessonToDelete(null)}
+          onConfirm={confirmDelete}
+          title="Delete Lesson"
+          message="Are you sure you want to delete this lesson from history? This action cannot be undone."
+          confirmText="Delete"
+          cancelText="Cancel"
+        />
       </div>
     </AnimatePresence>
   );

@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
 /**
  * DELETE /api/lesson-history?id=<lesson_id>
  *
- * Deletes a lesson from history
+ * Deletes a lesson from history and its associated audio file from storage
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -148,7 +148,54 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Delete lesson from history
+    // First, fetch the lesson to get the audio_url before deletion
+    const { data: lesson, error: fetchError } = await supabase
+      .from("lesson_history")
+      .select("audio_url")
+      .eq("id", lessonId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (fetchError || !lesson) {
+      console.error("[lesson-history] Error fetching lesson:", fetchError);
+      return NextResponse.json(
+        { error: fetchError ? "Failed to fetch lesson" : "Lesson not found or unauthorized" },
+        { status: fetchError ? 500 : 404 }
+      );
+    }
+
+    // Delete the audio file from storage if it exists
+    const audioUrl = (lesson as { audio_url?: string | null })?.audio_url;
+    if (audioUrl) {
+      try {
+        // Extract the file path from the URL
+        // Expected format: https://<project>.supabase.co/storage/v1/object/public/tts-audio/<user_id>/<filename>
+        const url = new URL(audioUrl);
+        const pathParts = url.pathname.split('/');
+        const bucketIndex = pathParts.indexOf('tts-audio');
+
+        if (bucketIndex !== -1 && bucketIndex < pathParts.length - 1) {
+          // Reconstruct the storage path: <user_id>/<filename>
+          const storagePath = pathParts.slice(bucketIndex + 1).join('/');
+
+          const { error: storageError } = await supabase.storage
+            .from("tts-audio")
+            .remove([storagePath]);
+
+          if (storageError) {
+            console.error("[lesson-history] Error deleting audio file:", storageError);
+            // Continue with lesson deletion even if audio deletion fails
+          } else {
+            console.log("[lesson-history] Successfully deleted audio file:", storagePath);
+          }
+        }
+      } catch (urlError) {
+        console.error("[lesson-history] Error parsing audio URL:", urlError);
+        // Continue with lesson deletion even if audio deletion fails
+      }
+    }
+
+    // Delete lesson from history database
     const { error } = await supabase
       .from("lesson_history")
       .delete()
