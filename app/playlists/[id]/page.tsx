@@ -164,6 +164,7 @@ export default function PlaylistDetail() {
     setLoadingMeta(true);
     setLoadingItems(true);
     try {
+      // Fetch playlist metadata and items separately
       const [playlistRes, itemsRes] = await Promise.all([
         supabaseClient
           .from("playlists")
@@ -172,16 +173,10 @@ export default function PlaylistDetail() {
           .maybeSingle(),
         supabaseClient
           .from("playlist_items")
-          .select("id, position, lessons(id, title, subject)")
+          .select("id, position, lesson_id")
           .eq("playlist_id", id)
           .order("position", { ascending: true }),
       ]);
-      console.debug("[playlist-detail] loadAll:responses", {
-        playlistError: playlistRes.error?.message ?? null,
-        playlistFound: Boolean(playlistRes.data),
-        itemsError: itemsRes.error?.message ?? null,
-        itemCount: Array.isArray(itemsRes.data) ? itemsRes.data.length : null,
-      });
 
       if (playlistRes.error) {
         throw playlistRes.error;
@@ -214,11 +209,51 @@ export default function PlaylistDetail() {
         throw itemsRes.error;
       }
 
-      const raw = (itemsRes.data ?? []) as RawItem[];
-      setItems(raw.map(parseItem));
+      const rawItems = (itemsRes.data ?? []) as Array<{ id: unknown; position: unknown; lesson_id: string }>;
+
+      // If no items, just set empty array
+      if (rawItems.length === 0) {
+        setItems([]);
+        console.debug("[playlist-detail] loadAll:success", { playlistId: id, itemCount: 0 });
+        return;
+      }
+
+      // Get all lesson IDs and fetch lesson data from saved_lessons
+      const lessonIds = rawItems.map(item => item.lesson_id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: lessonsData, error: lessonsError } = await (supabaseClient as any)
+        .from("saved_lessons")
+        .select("lesson_id, title, subject")
+        .in("lesson_id", lessonIds);
+
+      if (lessonsError) {
+        console.error("Failed to fetch lesson data:", lessonsError);
+        // Continue with empty lesson data rather than failing entirely
+      }
+
+      // Create a map for fast lookup
+      const lessonMap = new Map<string, LessonLite>();
+      if (lessonsData) {
+        for (const lesson of lessonsData) {
+          lessonMap.set(lesson.lesson_id, {
+            id: lesson.lesson_id,
+            title: lesson.title || "Untitled Lesson",
+            subject: lesson.subject || null,
+          });
+        }
+      }
+
+      // Join the data manually
+      const joinedItems: RawItem[] = rawItems.map(item => ({
+        id: item.id,
+        position: item.position,
+        lessons: lessonMap.get(item.lesson_id) || null,
+      }));
+
+      setItems(joinedItems.map(parseItem));
       console.debug("[playlist-detail] loadAll:success", {
         playlistId: id,
-        itemCount: raw.length,
+        itemCount: rawItems.length,
       });
     } catch (err) {
       console.error("Failed to load playlist", err);

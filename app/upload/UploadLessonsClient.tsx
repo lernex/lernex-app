@@ -73,12 +73,23 @@ async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
       body: formData,
     });
 
+    console.log('[deepseek-ocr] FormData response received:', {
+      status: response.status,
+      ok: response.ok,
+    });
+
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Failed to parse file' }));
+      console.error('[deepseek-ocr] FormData response not OK');
+      const error = await response.json().catch((parseError) => {
+        console.error('[deepseek-ocr] Failed to parse error response:', parseError);
+        return { error: `Server returned ${response.status}: ${response.statusText}` };
+      });
       throw new Error(error.error || 'Failed to parse file');
     }
 
+    console.log('[deepseek-ocr] Parsing FormData response...');
     const result = await response.json();
+    console.log('[deepseek-ocr] FormData result parsed successfully');
     return result.text || '';
   }
 
@@ -97,12 +108,36 @@ async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
     }),
   });
 
+  console.log('[deepseek-ocr] Response received:', {
+    status: response.status,
+    statusText: response.statusText,
+    ok: response.ok,
+    headers: Object.fromEntries(response.headers.entries()),
+  });
+
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to process with OCR' }));
+    console.error('[deepseek-ocr] Response not OK, attempting to parse error...');
+    const error = await response.json().catch((parseError) => {
+      console.error('[deepseek-ocr] Failed to parse error response:', parseError);
+      return { error: `Server returned ${response.status}: ${response.statusText}` };
+    });
     throw new Error(error.error || 'Failed to process with OCR');
   }
 
-  const result = await response.json();
+  console.log('[deepseek-ocr] Parsing successful response...');
+  let result;
+  try {
+    const responseText = await response.text();
+    console.log('[deepseek-ocr] Response body length:', responseText.length);
+    console.log('[deepseek-ocr] Response body preview:', responseText.substring(0, 200));
+
+    result = JSON.parse(responseText);
+    console.log('[deepseek-ocr] Successfully parsed JSON result');
+  } catch (parseError) {
+    console.error('[deepseek-ocr] Failed to parse response JSON:', parseError);
+    throw new Error('Server returned invalid JSON response');
+  }
+
   return result.text || '';
 }
 

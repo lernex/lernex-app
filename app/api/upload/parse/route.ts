@@ -177,8 +177,10 @@ async function processWithDeepSeekOCR(
           },
         }
       );
+      console.log('[deepseek-ocr] Usage logged successfully');
     } catch (logError) {
       console.error('[deepseek-ocr] Error logging usage:', logError);
+      console.error('[deepseek-ocr] Log error stack:', logError instanceof Error ? logError.stack : 'No stack');
       // Don't fail the request if logging fails
     }
   }
@@ -187,11 +189,14 @@ async function processWithDeepSeekOCR(
     `[deepseek-ocr] Complete! Total: ${totalInputTokens} input tokens, ${totalOutputTokens} output tokens, ${fullText.length} characters extracted`
   );
 
+  console.log('[deepseek-ocr] Returning text, first 100 chars:', fullText.substring(0, 100));
   return fullText;
 }
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[deepseek-ocr] POST request received');
+
     // Get user ID from Supabase session
     const authCookie = request.cookies.get('sb-wdoxbjhsiakjzebabpwm-auth-token');
     let userId: string | null = null;
@@ -200,16 +205,22 @@ export async function POST(request: NextRequest) {
       try {
         const { data: { user } } = await supabase.auth.getUser(authCookie.value);
         userId = user?.id || null;
-      } catch (error) {
-        console.log('[deepseek-ocr] Could not get user from session');
+        console.log('[deepseek-ocr] User authenticated:', userId ? 'yes' : 'no');
+      } catch (authError) {
+        console.log('[deepseek-ocr] Could not get user from session:', authError instanceof Error ? authError.message : 'Unknown error');
       }
+    } else {
+      console.log('[deepseek-ocr] No auth cookie found');
     }
 
     const ip = request.headers.get('x-forwarded-for') ||
                request.headers.get('x-real-ip') ||
                null;
 
+    console.log('[deepseek-ocr] Client IP:', ip || 'unknown');
+
     const contentType = request.headers.get('content-type') || '';
+    console.log('[deepseek-ocr] Content-Type:', contentType);
 
     // Handle two formats: FormData (with file) or JSON (with base64 images array)
     let images: string[] = [];
@@ -217,6 +228,7 @@ export async function POST(request: NextRequest) {
     let fileSize = 0;
 
     if (contentType.includes('application/json')) {
+      console.log('[deepseek-ocr] Processing JSON request');
       // JSON format: array of base64 images (for PDF pages converted client-side)
       const body = await request.json();
       images = body.images || [];
@@ -236,7 +248,11 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+
+      console.log('[deepseek-ocr] JSON request parsed:', images.length, 'images');
     } else {
+      console.log('[deepseek-ocr] Processing FormData request');
+
       // FormData format: single image file
       const formData = await request.formData();
       const file = formData.get('file') as File;
@@ -282,7 +298,9 @@ export async function POST(request: NextRequest) {
     console.log('[deepseek-ocr] Parsing:', fileName, 'Size:', fileSize, 'bytes', 'Images:', images.length);
 
     // Process with DeepSeek OCR
+    console.log('[deepseek-ocr] Starting OCR processing...');
     const extractedText = await processWithDeepSeekOCR(images, userId, ip);
+    console.log('[deepseek-ocr] OCR processing complete, got text:', extractedText ? 'yes' : 'no', 'length:', extractedText?.length || 0);
 
     if (!extractedText || extractedText.trim().length === 0) {
       return NextResponse.json(
@@ -301,15 +319,69 @@ export async function POST(request: NextRequest) {
       'pages'
     );
 
-    return NextResponse.json({
+    // Sanitize extracted text to remove any problematic characters
+    // that might cause JSON serialization issues
+    let sanitizedText = extractedText;
+    try {
+      // Remove null bytes and other control characters that might break JSON
+      sanitizedText = extractedText.replace(/\0/g, '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+      console.log('[deepseek-ocr] Text sanitized, length after sanitization:', sanitizedText.length);
+    } catch (sanitizeError) {
+      console.error('[deepseek-ocr] Error sanitizing text:', sanitizeError);
+      // Continue with original text if sanitization fails
+      sanitizedText = extractedText;
+    }
+
+    // Prepare response
+    const responseData = {
       success: true,
-      text: extractedText,
+      text: sanitizedText,
       fileName: fileName,
       fileSize: fileSize,
       numPages: images.length,
+    };
+
+    console.log('[deepseek-ocr] Preparing response:', {
+      fileName: responseData.fileName,
+      textLength: responseData.text.length,
+      numPages: responseData.numPages,
     });
+
+    try {
+      // Test JSON serialization first
+      const testJson = JSON.stringify(responseData);
+      console.log('[deepseek-ocr] JSON serialization test successful, size:', testJson.length, 'bytes');
+      console.log('[deepseek-ocr] First 200 chars of JSON:', testJson.substring(0, 200));
+
+      // Create response with explicit headers
+      const response = NextResponse.json(responseData, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('[deepseek-ocr] NextResponse created successfully');
+      console.log('[deepseek-ocr] Response status:', response.status);
+      console.log('[deepseek-ocr] Response headers:', Object.fromEntries(response.headers.entries()));
+
+      return response;
+    } catch (serializationError) {
+      console.error('[deepseek-ocr] JSON serialization error:', serializationError);
+      console.error('[deepseek-ocr] Error details:', serializationError instanceof Error ? serializationError.stack : 'No stack');
+
+      // Return a safe error response
+      return NextResponse.json(
+        {
+          error: 'Failed to serialize response',
+          details: serializationError instanceof Error ? serializationError.message : 'Unknown error'
+        },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error('[deepseek-ocr] Error parsing file:', error);
+    console.error('[deepseek-ocr] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
 
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to parse document';

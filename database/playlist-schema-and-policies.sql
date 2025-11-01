@@ -66,6 +66,33 @@ CREATE TABLE IF NOT EXISTS playlist_items (
   UNIQUE(playlist_id, lesson_id) -- Prevent duplicate lessons in same playlist
 );
 
+-- FIX: If the table already exists with lesson_id as UUID, convert it to TEXT
+-- This is safe because TEXT can store any UUID value as a string
+DO $$
+BEGIN
+  -- Check if lesson_id column exists and is UUID type
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'playlist_items'
+      AND column_name = 'lesson_id'
+      AND data_type = 'uuid'
+  ) THEN
+    -- Drop any foreign key constraints on lesson_id
+    ALTER TABLE playlist_items DROP CONSTRAINT IF EXISTS playlist_items_lesson_id_fkey;
+
+    -- Drop the unique constraint temporarily
+    ALTER TABLE playlist_items DROP CONSTRAINT IF EXISTS playlist_items_playlist_id_lesson_id_key;
+
+    -- Change column type from UUID to TEXT
+    ALTER TABLE playlist_items ALTER COLUMN lesson_id TYPE TEXT USING lesson_id::TEXT;
+
+    -- Recreate the unique constraint
+    ALTER TABLE playlist_items ADD CONSTRAINT playlist_items_playlist_id_lesson_id_key UNIQUE(playlist_id, lesson_id);
+
+    RAISE NOTICE 'Converted playlist_items.lesson_id from UUID to TEXT';
+  END IF;
+END $$;
+
 -- Indexes for ordering and lookups
 CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_id ON playlist_items(playlist_id);
 CREATE INDEX IF NOT EXISTS idx_playlist_items_position ON playlist_items(playlist_id, position);
@@ -135,6 +162,23 @@ CREATE INDEX IF NOT EXISTS idx_lesson_history_created_at ON lesson_history(user_
 -- }
 
 -- =====================================================
+-- HELPER FUNCTION - Check Playlist Membership (No RLS)
+-- =====================================================
+-- This function bypasses RLS to prevent infinite recursion
+CREATE OR REPLACE FUNCTION is_playlist_member(p_playlist_id UUID, p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM playlist_memberships
+    WHERE playlist_id = p_playlist_id
+      AND profile_id = p_user_id
+  );
+$$;
+
+-- =====================================================
 -- RLS POLICIES - playlists
 -- =====================================================
 
@@ -159,16 +203,10 @@ CREATE POLICY "Users can view public playlists"
   ON playlists FOR SELECT
   USING (is_public = true);
 
--- Users can view playlists they're members of
+-- Users can view playlists they're members of (using SECURITY DEFINER function to avoid recursion)
 CREATE POLICY "Users can view playlists they're members of"
   ON playlists FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM playlist_memberships
-      WHERE playlist_memberships.playlist_id = playlists.id
-        AND playlist_memberships.profile_id = auth.uid()
-    )
-  );
+  USING (is_playlist_member(id, auth.uid()));
 
 -- Users can create their own playlists
 CREATE POLICY "Users can create playlists"
@@ -186,6 +224,23 @@ CREATE POLICY "Users can delete their own playlists"
   USING (auth.uid() = user_id);
 
 -- =====================================================
+-- HELPER FUNCTION - Check Playlist Ownership (No RLS)
+-- =====================================================
+-- This function bypasses RLS to prevent infinite recursion
+CREATE OR REPLACE FUNCTION is_playlist_owner(p_playlist_id UUID, p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM playlists
+    WHERE id = p_playlist_id
+      AND user_id = p_user_id
+  );
+$$;
+
+-- =====================================================
 -- RLS POLICIES - playlist_memberships
 -- =====================================================
 
@@ -199,54 +254,63 @@ DROP POLICY IF EXISTS "Playlist owners can create memberships" ON playlist_membe
 DROP POLICY IF EXISTS "Playlist owners can update memberships" ON playlist_memberships;
 DROP POLICY IF EXISTS "Playlist owners can delete memberships" ON playlist_memberships;
 
--- Playlist owners can view all memberships
+-- Playlist owners can view all memberships (using SECURITY DEFINER function to avoid recursion)
 CREATE POLICY "Playlist owners can view memberships"
   ON playlist_memberships FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM playlists
-      WHERE playlists.id = playlist_memberships.playlist_id
-        AND playlists.user_id = auth.uid()
-    )
-  );
+  USING (is_playlist_owner(playlist_id, auth.uid()));
 
 -- Users can view their own memberships
 CREATE POLICY "Users can view their own memberships"
   ON playlist_memberships FOR SELECT
   USING (auth.uid() = profile_id);
 
--- Playlist owners can create memberships
+-- Playlist owners can create memberships (using SECURITY DEFINER function to avoid recursion)
 CREATE POLICY "Playlist owners can create memberships"
   ON playlist_memberships FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM playlists
-      WHERE playlists.id = playlist_memberships.playlist_id
-        AND playlists.user_id = auth.uid()
-    )
-  );
+  WITH CHECK (is_playlist_owner(playlist_id, auth.uid()));
 
--- Playlist owners can update memberships
+-- Playlist owners can update memberships (using SECURITY DEFINER function to avoid recursion)
 CREATE POLICY "Playlist owners can update memberships"
   ON playlist_memberships FOR UPDATE
-  USING (
-    EXISTS (
-      SELECT 1 FROM playlists
-      WHERE playlists.id = playlist_memberships.playlist_id
-        AND playlists.user_id = auth.uid()
-    )
-  );
+  USING (is_playlist_owner(playlist_id, auth.uid()));
 
--- Playlist owners can delete memberships
+-- Playlist owners can delete memberships (using SECURITY DEFINER function to avoid recursion)
 CREATE POLICY "Playlist owners can delete memberships"
   ON playlist_memberships FOR DELETE
-  USING (
-    EXISTS (
-      SELECT 1 FROM playlists
-      WHERE playlists.id = playlist_memberships.playlist_id
-        AND playlists.user_id = auth.uid()
-    )
+  USING (is_playlist_owner(playlist_id, auth.uid()));
+
+-- =====================================================
+-- HELPER FUNCTION - Check if Playlist is Public (No RLS)
+-- =====================================================
+CREATE OR REPLACE FUNCTION is_playlist_public(p_playlist_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM playlists
+    WHERE id = p_playlist_id
+      AND is_public = true
   );
+$$;
+
+-- =====================================================
+-- HELPER FUNCTION - Check if User is Moderator (No RLS)
+-- =====================================================
+CREATE OR REPLACE FUNCTION is_playlist_moderator(p_playlist_id UUID, p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM playlist_memberships
+    WHERE playlist_id = p_playlist_id
+      AND profile_id = p_user_id
+      AND role = 'moderator'
+  );
+$$;
 
 -- =====================================================
 -- RLS POLICIES - playlist_items
@@ -266,107 +330,50 @@ DROP POLICY IF EXISTS "Playlist moderators can update items" ON playlist_items;
 DROP POLICY IF EXISTS "Playlist owners can delete items" ON playlist_items;
 DROP POLICY IF EXISTS "Playlist moderators can delete items" ON playlist_items;
 
--- Users can view items in their own playlists
+-- Users can view items in their own playlists (using SECURITY DEFINER function)
 CREATE POLICY "Users can view their own playlist items"
   ON playlist_items FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM playlists
-      WHERE playlists.id = playlist_items.playlist_id
-        AND playlists.user_id = auth.uid()
-    )
-  );
+  USING (is_playlist_owner(playlist_id, auth.uid()));
 
--- Users can view items in public playlists
+-- Users can view items in public playlists (using SECURITY DEFINER function)
 CREATE POLICY "Users can view public playlist items"
   ON playlist_items FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM playlists
-      WHERE playlists.id = playlist_items.playlist_id
-        AND playlists.is_public = true
-    )
-  );
+  USING (is_playlist_public(playlist_id));
 
--- Users can view items in playlists they're members of
+-- Users can view items in playlists they're members of (using SECURITY DEFINER function)
 CREATE POLICY "Users can view playlist items they have access to"
   ON playlist_items FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM playlist_memberships
-      WHERE playlist_memberships.playlist_id = playlist_items.playlist_id
-        AND playlist_memberships.profile_id = auth.uid()
-    )
-  );
+  USING (is_playlist_member(playlist_id, auth.uid()));
 
--- Owners can insert items
+-- Owners can insert items (using SECURITY DEFINER function)
 CREATE POLICY "Playlist owners can insert items"
   ON playlist_items FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM playlists
-      WHERE playlists.id = playlist_items.playlist_id
-        AND playlists.user_id = auth.uid()
-    )
-  );
+  WITH CHECK (is_playlist_owner(playlist_id, auth.uid()));
 
--- Moderators can insert items
+-- Moderators can insert items (using SECURITY DEFINER function)
 CREATE POLICY "Playlist moderators can insert items"
   ON playlist_items FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM playlist_memberships
-      WHERE playlist_memberships.playlist_id = playlist_items.playlist_id
-        AND playlist_memberships.profile_id = auth.uid()
-        AND playlist_memberships.role = 'moderator'
-    )
-  );
+  WITH CHECK (is_playlist_moderator(playlist_id, auth.uid()));
 
--- Owners can update items
+-- Owners can update items (using SECURITY DEFINER function)
 CREATE POLICY "Playlist owners can update items"
   ON playlist_items FOR UPDATE
-  USING (
-    EXISTS (
-      SELECT 1 FROM playlists
-      WHERE playlists.id = playlist_items.playlist_id
-        AND playlists.user_id = auth.uid()
-    )
-  );
+  USING (is_playlist_owner(playlist_id, auth.uid()));
 
--- Moderators can update items
+-- Moderators can update items (using SECURITY DEFINER function)
 CREATE POLICY "Playlist moderators can update items"
   ON playlist_items FOR UPDATE
-  USING (
-    EXISTS (
-      SELECT 1 FROM playlist_memberships
-      WHERE playlist_memberships.playlist_id = playlist_items.playlist_id
-        AND playlist_memberships.profile_id = auth.uid()
-        AND playlist_memberships.role = 'moderator'
-    )
-  );
+  USING (is_playlist_moderator(playlist_id, auth.uid()));
 
--- Owners can delete items
+-- Owners can delete items (using SECURITY DEFINER function)
 CREATE POLICY "Playlist owners can delete items"
   ON playlist_items FOR DELETE
-  USING (
-    EXISTS (
-      SELECT 1 FROM playlists
-      WHERE playlists.id = playlist_items.playlist_id
-        AND playlists.user_id = auth.uid()
-    )
-  );
+  USING (is_playlist_owner(playlist_id, auth.uid()));
 
--- Moderators can delete items
+-- Moderators can delete items (using SECURITY DEFINER function)
 CREATE POLICY "Playlist moderators can delete items"
   ON playlist_items FOR DELETE
-  USING (
-    EXISTS (
-      SELECT 1 FROM playlist_memberships
-      WHERE playlist_memberships.playlist_id = playlist_items.playlist_id
-        AND playlist_memberships.profile_id = auth.uid()
-        AND playlist_memberships.role = 'moderator'
-    )
-  );
+  USING (is_playlist_moderator(playlist_id, auth.uid()));
 
 -- =====================================================
 -- FOREIGN KEY FOR REFERENCE (Optional Enhancement)
@@ -447,56 +454,37 @@ CREATE POLICY "Users can delete lesson history"
 -- HELPER FUNCTIONS (Optional)
 -- =====================================================
 
--- Function to check if user has access to playlist
+-- Function to check if user has access to playlist (uses existing helper functions)
 CREATE OR REPLACE FUNCTION user_can_access_playlist(
   p_playlist_id UUID,
   p_user_id UUID
 )
 RETURNS BOOLEAN
-LANGUAGE plpgsql
+LANGUAGE sql
 SECURITY DEFINER
+STABLE
 AS $$
-BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM playlists
-    WHERE id = p_playlist_id
-      AND (
-        user_id = p_user_id  -- Owner
-        OR is_public = true  -- Public
-        OR EXISTS (          -- Member
-          SELECT 1 FROM playlist_memberships
-          WHERE playlist_id = p_playlist_id
-            AND profile_id = p_user_id
-        )
-      )
+  SELECT (
+    is_playlist_owner(p_playlist_id, p_user_id)
+    OR is_playlist_public(p_playlist_id)
+    OR is_playlist_member(p_playlist_id, p_user_id)
   );
-END;
 $$;
 
--- Function to check if user can modify playlist
+-- Function to check if user can modify playlist (uses existing helper functions)
 CREATE OR REPLACE FUNCTION user_can_modify_playlist(
   p_playlist_id UUID,
   p_user_id UUID
 )
 RETURNS BOOLEAN
-LANGUAGE plpgsql
+LANGUAGE sql
 SECURITY DEFINER
+STABLE
 AS $$
-BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM playlists
-    WHERE id = p_playlist_id
-      AND (
-        user_id = p_user_id  -- Owner
-        OR EXISTS (          -- Moderator
-          SELECT 1 FROM playlist_memberships
-          WHERE playlist_id = p_playlist_id
-            AND profile_id = p_user_id
-            AND role = 'moderator'
-        )
-      )
+  SELECT (
+    is_playlist_owner(p_playlist_id, p_user_id)
+    OR is_playlist_moderator(p_playlist_id, p_user_id)
   );
-END;
 $$;
 
 -- =====================================================
