@@ -1,0 +1,377 @@
+import { NextRequest } from "next/server";
+import { supabaseServer } from "@/lib/supabase-server";
+import Anthropic from "@anthropic-ai/sdk";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+// Token-optimized lesson summary for efficient AI processing
+type LessonSummary = {
+  subject: string;
+  topic: string;
+  difficulty: "intro" | "easy" | "medium" | "hard";
+  concepts: string[]; // Key concepts extracted from content
+  questionTypes: string[]; // Types of questions (e.g., "multiple choice", "problem solving")
+};
+
+// Extract key concepts from lesson content using advanced NLP heuristics
+function extractConcepts(content: string, title: string, maxConcepts = 3): string[] {
+  // Split into sentences and clean
+  const sentences = content
+    .split(/[.!?]+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 15 && s.length < 200); // Filter out too short/long
+
+  // Multi-factor scoring algorithm
+  const scoreSentence = (sentence: string, index: number): number => {
+    let score = 0;
+    const lower = sentence.toLowerCase();
+
+    // 1. Academic keywords (high value)
+    const academicKeywords = [
+      'theorem', 'formula', 'law', 'principle', 'concept', 'definition',
+      'equation', 'rule', 'property', 'method', 'theory', 'model',
+      'hypothesis', 'postulate', 'axiom', 'corollary', 'lemma'
+    ];
+    score += academicKeywords.filter(k => lower.includes(k)).length * 3;
+
+    // 2. Explanatory phrases (medium value)
+    const explanatory = [
+      'this means', 'in other words', 'for example', 'specifically',
+      'that is', 'such as', 'which means', 'defined as', 'refers to'
+    ];
+    score += explanatory.filter(p => lower.includes(p)).length * 2;
+
+    // 3. Numeric/mathematical content (high value for STEM)
+    if (/\d+/.test(sentence) || /[=+\-*/^()]/.test(sentence)) {
+      score += 2;
+    }
+
+    // 4. Title overlap (concepts mentioned in title are key)
+    const titleWords = title.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    score += titleWords.filter(w => lower.includes(w)).length * 2;
+
+    // 5. Position bonus (earlier sentences often introduce key concepts)
+    if (index < 3) score += 1;
+
+    // 6. Length sweet spot (not too short, not too long)
+    const wordCount = sentence.split(/\s+/).length;
+    if (wordCount >= 8 && wordCount <= 20) score += 1;
+
+    // 7. Contains capitalized terms (proper nouns, important concepts)
+    const capitalizedTerms = sentence.match(/[A-Z][a-z]+/g) || [];
+    score += Math.min(capitalizedTerms.length, 3);
+
+    return score;
+  };
+
+  // Score all sentences
+  const scored = sentences.map((text, index) => ({
+    text,
+    score: scoreSentence(text, index)
+  }));
+
+  // Sort by score descending
+  scored.sort((a, b) => b.score - a.score);
+
+  // Take top concepts and compress intelligently
+  return scored
+    .slice(0, maxConcepts)
+    .map(s => {
+      // Compress while preserving meaning
+      let compressed = s.text;
+
+      // Remove filler words
+      compressed = compressed.replace(/\b(very|really|actually|basically|simply|just|quite|rather)\b/gi, '');
+
+      // Compact whitespace
+      compressed = compressed.replace(/\s+/g, ' ').trim();
+
+      // Truncate if still too long, but preserve complete thought
+      if (compressed.length > 120) {
+        const truncated = compressed.substring(0, 120);
+        const lastSpace = truncated.lastIndexOf(' ');
+        compressed = lastSpace > 80 ? truncated.substring(0, lastSpace) + '...' : truncated + '...';
+      }
+
+      return compressed;
+    })
+    .filter(s => s.length > 20);
+}
+
+// Compress playlist lessons to minimize tokens
+function compressPlaylistLessons(lessons: Array<{
+  subject: string;
+  topic: string;
+  title: string;
+  content: string;
+  difficulty: string | null;
+  questions: unknown;
+}>): LessonSummary[] {
+  const summaries: LessonSummary[] = [];
+
+  for (const lesson of lessons) {
+    const concepts = extractConcepts(lesson.content, lesson.title, 3);
+
+    // Determine question types from questions array
+    const questionTypes: string[] = [];
+    if (Array.isArray(lesson.questions) && lesson.questions.length > 0) {
+      const hasMultipleChoice = lesson.questions.some((q: { choices?: unknown }) =>
+        Array.isArray(q.choices) && q.choices.length > 0
+      );
+      if (hasMultipleChoice) questionTypes.push("multiple-choice");
+    }
+
+    summaries.push({
+      subject: lesson.subject,
+      topic: lesson.topic || "General",
+      difficulty: (lesson.difficulty as "intro" | "easy" | "medium" | "hard") || "medium",
+      concepts,
+      questionTypes: questionTypes.length > 0 ? questionTypes : ["conceptual"],
+    });
+  }
+
+  return summaries;
+}
+
+// Analyze summaries to extract common patterns
+function analyzePlaylistPatterns(summaries: LessonSummary[]): {
+  subjects: string[];
+  topics: string[];
+  difficultyRange: string[];
+  conceptThemes: string[];
+} {
+  const subjects = [...new Set(summaries.map(s => s.subject))];
+  const topics = [...new Set(summaries.map(s => s.topic))];
+  const difficulties = [...new Set(summaries.map(s => s.difficulty))];
+
+  // Extract common concept themes (words that appear in multiple lessons)
+  const conceptWords = new Map<string, number>();
+  summaries.forEach(s => {
+    s.concepts.forEach(concept => {
+      const words = concept.toLowerCase().split(/\s+/).filter(w => w.length > 4);
+      words.forEach(word => {
+        conceptWords.set(word, (conceptWords.get(word) || 0) + 1);
+      });
+    });
+  });
+
+  // Get words that appear in at least 2 lessons
+  const conceptThemes = Array.from(conceptWords.entries())
+    .filter(([_, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([word]) => word);
+
+  return {
+    subjects,
+    topics,
+    difficultyRange: difficulties,
+    conceptThemes,
+  };
+}
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const sb = await supabaseServer();
+  const { data: { user } } = await sb.auth.getUser();
+
+  if (!user) {
+    return new Response(JSON.stringify({ error: "Not authenticated" }), {
+      status: 401,
+      headers: { "content-type": "application/json" }
+    });
+  }
+
+  const playlistId = params.id;
+  const url = new URL(req.url);
+  const count = Math.min(Math.max(parseInt(url.searchParams.get("count") || "10"), 1), 20);
+
+  console.log("[remix] Starting remix generation", { playlistId, count, userId: user.id });
+
+  try {
+    // 1. Get playlist and verify access
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: playlist, error: playlistError } = await (sb as any)
+      .from("playlists")
+      .select("id, user_id, name")
+      .eq("id", playlistId)
+      .maybeSingle();
+
+    if (playlistError) throw playlistError;
+    if (!playlist) {
+      return new Response(JSON.stringify({ error: "Playlist not found" }), {
+        status: 404,
+        headers: { "content-type": "application/json" }
+      });
+    }
+
+    // Check access (owner or member)
+    const isOwner = playlist.user_id === user.id;
+    if (!isOwner) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: membership } = await (sb as any)
+        .from("playlist_memberships")
+        .select("role")
+        .eq("playlist_id", playlistId)
+        .eq("profile_id", user.id)
+        .maybeSingle();
+
+      if (!membership) {
+        return new Response(JSON.stringify({ error: "Access denied" }), {
+          status: 403,
+          headers: { "content-type": "application/json" }
+        });
+      }
+    }
+
+    // 2. Get playlist items
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: items, error: itemsError } = await (sb as any)
+      .from("playlist_items")
+      .select("lesson_id")
+      .eq("playlist_id", playlistId)
+      .order("position", { ascending: true });
+
+    if (itemsError) throw itemsError;
+    if (!items || items.length === 0) {
+      return new Response(JSON.stringify({
+        error: "Playlist has no lessons. Add some lessons first."
+      }), {
+        status: 400,
+        headers: { "content-type": "application/json" }
+      });
+    }
+
+    const lessonIds = (items as Array<{ lesson_id: string }>).map(item => item.lesson_id);
+
+    // 3. Get lesson data from saved_lessons
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: savedLessons, error: lessonsError } = await (sb as any)
+      .from("saved_lessons")
+      .select("lesson_id, subject, topic, title, content, difficulty, questions")
+      .eq("user_id", user.id)
+      .in("lesson_id", lessonIds);
+
+    if (lessonsError) throw lessonsError;
+    if (!savedLessons || savedLessons.length === 0) {
+      return new Response(JSON.stringify({
+        error: "No saved lesson data found"
+      }), {
+        status: 404,
+        headers: { "content-type": "application/json" }
+      });
+    }
+
+    console.log("[remix] Found lessons to analyze", { count: savedLessons.length });
+
+    // 4. Compress lessons to minimize tokens
+    const summaries = compressPlaylistLessons(savedLessons);
+    const patterns = analyzePlaylistPatterns(summaries);
+
+    console.log("[remix] Analyzed patterns", patterns);
+
+    // 5. Generate remix lessons using Anthropic API with token-optimized prompt
+    const anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    });
+
+    const systemPrompt = `You are an expert educational content generator. Your task is to create ${count} new lessons that follow similar patterns to an existing playlist, but with fresh content and variations.
+
+PLAYLIST ANALYSIS:
+- Subjects: ${patterns.subjects.join(", ")}
+- Topics: ${patterns.topics.join(", ")}
+- Difficulty Range: ${patterns.difficultyRange.join(", ")}
+- Common Themes: ${patterns.conceptThemes.join(", ")}
+
+SAMPLE LESSONS (compressed for efficiency):
+${summaries.slice(0, 3).map((s, i) => `
+${i + 1}. ${s.subject} - ${s.topic} (${s.difficulty})
+   Key Concepts: ${s.concepts.join(" | ")}
+`).join("")}
+
+INSTRUCTIONS:
+1. Generate ${count} NEW lessons that maintain similar subject matter, difficulty, and conceptual depth
+2. Each lesson should be DIFFERENT from the originals but follow similar patterns
+3. Mix up the topics and concepts while staying in the same subject areas
+4. Include 3-5 meaningful multiple-choice questions per lesson
+
+OUTPUT FORMAT (JSON array):
+[
+  {
+    "id": "unique-id",
+    "subject": "subject name",
+    "topic": "specific topic",
+    "title": "engaging lesson title",
+    "content": "detailed explanation (200-400 words)",
+    "difficulty": "intro|easy|medium|hard",
+    "questions": [
+      {
+        "prompt": "question text",
+        "choices": ["option A", "option B", "option C", "option D"],
+        "correctIndex": 0,
+        "explanation": "why this is correct"
+      }
+    ]
+  }
+]
+
+Generate the lessons now as a valid JSON array.`;
+
+    console.log("[remix] Calling Anthropic API...");
+
+    const message = await anthropic.messages.create({
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: 16000,
+      temperature: 0.8, // Higher temperature for more creative variations
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: "Generate the remix lessons as a JSON array following the instructions."
+        }
+      ],
+    });
+
+    const responseText = message.content[0].type === "text"
+      ? message.content[0].text
+      : "";
+
+    console.log("[remix] Received response from API");
+
+    // Parse JSON response
+    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      console.error("[remix] Could not extract JSON from response");
+      throw new Error("Failed to parse AI response");
+    }
+
+    const lessons = JSON.parse(jsonMatch[0]);
+
+    console.log("[remix] Successfully generated lessons", { count: lessons.length });
+
+    return new Response(JSON.stringify({
+      ok: true,
+      lessons,
+      playlistName: playlist.name,
+      tokensUsed: message.usage.input_tokens,
+    }), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    });
+
+  } catch (error) {
+    console.error("[remix] Failed", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return new Response(JSON.stringify({
+      error: "Failed to generate remix lessons",
+      details: errorMessage
+    }), {
+      status: 500,
+      headers: { "content-type": "application/json" }
+    });
+  }
+}

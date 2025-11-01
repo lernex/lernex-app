@@ -122,8 +122,41 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Add lessons to playlist
-    const itemsToInsert = newLessonIds.map((lessonId, index) => ({
+    // Validate that all lessons exist in saved_lessons before inserting
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: validLessons, error: validationError } = await (sb as any)
+      .from("saved_lessons")
+      .select("lesson_id")
+      .eq("user_id", user.id)
+      .in("lesson_id", newLessonIds);
+
+    if (validationError) {
+      console.error("[add-saved-lessons] Validation error:", validationError);
+      return new Response(JSON.stringify({
+        error: "Failed to validate lessons",
+        details: validationError.message
+      }), {
+        status: 500,
+        headers: { "content-type": "application/json" }
+      });
+    }
+
+    const validLessonIds = new Set((validLessons ?? []).map((l: { lesson_id: string }) => l.lesson_id));
+    const invalidLessons = newLessonIds.filter(id => !validLessonIds.has(id));
+
+    if (invalidLessons.length > 0) {
+      console.log("[add-saved-lessons] Some lessons not found in saved_lessons:", invalidLessons);
+      return new Response(JSON.stringify({
+        error: "Some lessons are not in your saved lessons",
+        details: `${invalidLessons.length} lesson(s) not found. Please save them first.`
+      }), {
+        status: 404,
+        headers: { "content-type": "application/json" }
+      });
+    }
+
+    // Add lessons to playlist - only include valid lesson IDs
+    const itemsToInsert = Array.from(validLessonIds).map((lessonId, index) => ({
       playlist_id,
       lesson_id: lessonId,
       position: nextPosition + index
@@ -141,6 +174,28 @@ export async function POST(req: NextRequest) {
 
     if (insertError) {
       console.error("[add-saved-lessons] Insert error:", insertError);
+
+      // Check for specific error types
+      if (insertError.code === "23505") {
+        return new Response(JSON.stringify({
+          error: "Duplicate lesson in playlist",
+          details: "One or more lessons are already in the playlist"
+        }), {
+          status: 409,
+          headers: { "content-type": "application/json" }
+        });
+      }
+
+      if (insertError.code === "23503") {
+        return new Response(JSON.stringify({
+          error: "Invalid reference",
+          details: "The playlist or lesson reference is invalid"
+        }), {
+          status: 400,
+          headers: { "content-type": "application/json" }
+        });
+      }
+
       throw insertError;
     }
 
@@ -148,8 +203,8 @@ export async function POST(req: NextRequest) {
 
     return new Response(JSON.stringify({
       ok: true,
-      added: newLessonIds.length,
-      message: `Added ${newLessonIds.length} lesson${newLessonIds.length === 1 ? '' : 's'} to playlist`
+      added: validLessonIds.size,
+      message: `Added ${validLessonIds.size} lesson${validLessonIds.size === 1 ? '' : 's'} to playlist`
     }), {
       status: 200,
       headers: { "content-type": "application/json" }

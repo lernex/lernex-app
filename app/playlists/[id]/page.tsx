@@ -285,17 +285,54 @@ export default function PlaylistDetail() {
     let active = true;
     const timer = window.setTimeout(async () => {
       try {
-        const { data, error } = await supabaseClient
-          .from("lessons")
-          .select("id, title, subject")
-          .or(`title.ilike.%${sanitized}%,subject.ilike.%${sanitized}%`)
-          .order("title", { ascending: true })
-          .limit(12);
+        // Search from lesson_history - get all user's lesson history
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabaseClient as any)
+          .from("lesson_history")
+          .select("id, lesson_data, subject")
+          .or(`subject.ilike.%${sanitized}%`)
+          .order("created_at", { ascending: false })
+          .limit(50);
+
         if (error) {
           throw error;
         }
         if (!active) return;
-        setResults((data as LessonLite[]) ?? []);
+
+        // Parse lesson_data JSON and filter by title or subject
+        const parsedResults: LessonLite[] = [];
+        const searchLower = sanitized.toLowerCase();
+
+        for (const row of (data ?? [])) {
+          try {
+            const lessonData = typeof row.lesson_data === 'string'
+              ? JSON.parse(row.lesson_data)
+              : row.lesson_data;
+
+            const title = lessonData?.title ?? "Untitled Lesson";
+            const subject = row.subject ?? lessonData?.subject ?? "General";
+            const lessonId = lessonData?.id ?? row.id;
+
+            // Filter by search query
+            if (
+              title.toLowerCase().includes(searchLower) ||
+              subject.toLowerCase().includes(searchLower)
+            ) {
+              parsedResults.push({
+                id: lessonId,
+                title,
+                subject,
+              });
+            }
+
+            // Limit to 12 results
+            if (parsedResults.length >= 12) break;
+          } catch (parseError) {
+            console.error("Failed to parse lesson_data:", parseError);
+          }
+        }
+
+        setResults(parsedResults);
       } catch (err) {
         if (!active) return;
         console.error("Search failed", err);
@@ -495,6 +532,48 @@ export default function PlaylistDetail() {
     }
     setAddingId(lesson.id);
     try {
+      // When adding from "All Lessons" (lesson_history), we need to ensure it's saved first
+      // Check if lesson is in saved_lessons, if not, fetch full lesson data and save it
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: savedCheck } = await (supabaseClient as any)
+        .from("saved_lessons")
+        .select("lesson_id")
+        .eq("lesson_id", lesson.id)
+        .maybeSingle();
+
+      if (!savedCheck) {
+        // Lesson not in saved_lessons, need to fetch full data from lesson_history and save
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: historyData } = await (supabaseClient as any)
+          .from("lesson_history")
+          .select("lesson_data, subject")
+          .eq("id", lesson.id)
+          .maybeSingle();
+
+        if (historyData) {
+          const lessonData = typeof historyData.lesson_data === 'string'
+            ? JSON.parse(historyData.lesson_data)
+            : historyData.lesson_data;
+
+          // Save to saved_lessons
+          await fetch("/api/saved-lessons", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              lesson_id: lesson.id,
+              subject: historyData.subject || lesson.subject,
+              topic: lessonData?.topic || "",
+              title: lessonData?.title || lesson.title,
+              content: lessonData?.content || "",
+              difficulty: lessonData?.difficulty || "medium",
+              questions: lessonData?.questions || [],
+              context: lessonData?.context || null,
+              knowledge: lessonData?.knowledge || null,
+            }),
+          });
+        }
+      }
+
       const nextPosition = computeNextPosition(items);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabaseClient as any)
@@ -897,13 +976,59 @@ export default function PlaylistDetail() {
 
                       <div className="flex flex-wrap items-center gap-3">
                         {items.length > 0 && (
-                          <Link
-                            href={`/playlists/${id}/learn`}
-                            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:scale-105 hover:shadow-lg"
-                          >
-                            <Sparkles className="h-4 w-4" />
-                            Start Learning
-                          </Link>
+                          <>
+                            <motion.div
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.98 }}
+                              transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
+                              <Link
+                                href={`/playlists/${id}/learn?mode=play`}
+                                className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-500/40"
+                              >
+                                <motion.span
+                                  className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/30 to-white/0"
+                                  initial={{ x: "-100%", opacity: 0 }}
+                                  whileHover={{ x: "100%", opacity: 1 }}
+                                  transition={{ duration: 0.8, ease: "easeInOut" }}
+                                />
+                                <motion.div
+                                  animate={{ rotate: [0, 10, -10, 0] }}
+                                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                                >
+                                  <Sparkles className="relative h-4 w-4" />
+                                </motion.div>
+                                <span className="relative bg-gradient-to-r from-white to-white/90 bg-clip-text">Play Playlist</span>
+                              </Link>
+                            </motion.div>
+                            <motion.div
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.98 }}
+                              transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
+                              <Link
+                                href={`/playlists/${id}/learn?mode=remix`}
+                                className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-lernex-blue via-purple-500 to-lernex-purple px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-lernex-purple/30 transition-all duration-300 hover:shadow-xl hover:shadow-lernex-purple/40"
+                              >
+                                <motion.span
+                                  className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/30 to-white/0"
+                                  initial={{ x: "-100%", opacity: 0 }}
+                                  whileHover={{ x: "100%", opacity: 1 }}
+                                  transition={{ duration: 0.8, ease: "easeInOut" }}
+                                />
+                                <motion.div
+                                  animate={{
+                                    scale: [1, 1.2, 1],
+                                    rotate: [0, 180, 360]
+                                  }}
+                                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                                >
+                                  <Sparkles className="relative h-4 w-4" />
+                                </motion.div>
+                                <span className="relative bg-gradient-to-r from-white to-white/90 bg-clip-text">Remix Playlist</span>
+                              </Link>
+                            </motion.div>
+                          </>
                         )}
                         <button
                           onClick={() => void toggleVisibility()}
