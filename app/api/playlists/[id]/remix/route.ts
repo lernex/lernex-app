@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
-import Anthropic from "@anthropic-ai/sdk";
+import { createModelClient, fetchUserTier } from "@/lib/model-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -274,10 +274,11 @@ export async function GET(
 
     console.log("[remix] Analyzed patterns", patterns);
 
-    // 5. Generate remix lessons using Anthropic API with token-optimized prompt
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
+    // 5. Get user tier for model selection
+    const userTier = await fetchUserTier(sb, user.id);
+
+    // 6. Generate remix lessons using OpenAI with token-optimized prompt
+    const { client: openai, model: modelName } = createModelClient(userTier, "slow"); // Use slow for quality generation
 
     const systemPrompt = `You are an expert educational content generator. Your task is to create ${count} new lessons that follow similar patterns to an existing playlist, but with fresh content and variations.
 
@@ -297,59 +298,75 @@ INSTRUCTIONS:
 1. Generate ${count} NEW lessons that maintain similar subject matter, difficulty, and conceptual depth
 2. Each lesson should be DIFFERENT from the originals but follow similar patterns
 3. Mix up the topics and concepts while staying in the same subject areas
-4. Include 3-5 meaningful multiple-choice questions per lesson
+4. Include exactly 3 multiple-choice questions per lesson (4 choices each)
+5. Content should be 80-105 words (max 900 chars)
 
-OUTPUT FORMAT (JSON array):
-[
-  {
-    "id": "unique-id",
-    "subject": "subject name",
-    "topic": "specific topic",
-    "title": "engaging lesson title",
-    "content": "detailed explanation (200-400 words)",
-    "difficulty": "intro|easy|medium|hard",
-    "questions": [
-      {
-        "prompt": "question text",
-        "choices": ["option A", "option B", "option C", "option D"],
-        "correctIndex": 0,
-        "explanation": "why this is correct"
-      }
-    ]
-  }
-]
+CRITICAL: You MUST respond with ONLY a valid JSON object with a "lessons" array. No markdown, no code blocks, just pure JSON.
 
-Generate the lessons now as a valid JSON array.`;
+FORMAT:
+{
+  "lessons": [
+    {
+      "id": "unique-slug-id",
+      "subject": "subject name",
+      "topic": "specific topic",
+      "title": "engaging lesson title (3-7 words)",
+      "content": "detailed explanation (80-105 words, max 900 chars)",
+      "difficulty": "intro|easy|medium|hard",
+      "questions": [
+        {
+          "prompt": "question text",
+          "choices": ["option A", "option B", "option C", "option D"],
+          "correctIndex": 0,
+          "explanation": "why correct (max 15 words)"
+        }
+      ]
+    }
+  ]
+}`;
 
-    console.log("[remix] Calling Anthropic API...");
+    console.log("[remix] Calling OpenAI API...");
 
-    const message = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 16000,
-      temperature: 0.8, // Higher temperature for more creative variations
-      system: systemPrompt,
+    const completion = await openai.chat.completions.create({
+      model: modelName,
       messages: [
         {
+          role: "system",
+          content: systemPrompt
+        },
+        {
           role: "user",
-          content: "Generate the remix lessons as a JSON array following the instructions."
+          content: "Generate the remix lessons as a JSON array. Output ONLY the JSON array, nothing else."
         }
       ],
+      temperature: 0.8, // Higher temperature for creative variations
+      max_tokens: 16000,
+      response_format: { type: "json_object" }
     });
 
-    const responseText = message.content[0].type === "text"
-      ? message.content[0].text
-      : "";
+    const responseText = completion.choices[0]?.message?.content || "";
 
     console.log("[remix] Received response from API");
 
     // Parse JSON response
-    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      console.error("[remix] Could not extract JSON from response");
-      throw new Error("Failed to parse AI response");
+    let lessons;
+    try {
+      const parsed = JSON.parse(responseText);
+      // Handle both direct array and object with lessons key
+      lessons = Array.isArray(parsed) ? parsed : (parsed.lessons || []);
+    } catch (parseError) {
+      console.error("[remix] Failed to parse JSON:", parseError);
+      // Try to extract JSON array from text
+      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        throw new Error("Failed to parse AI response as JSON");
+      }
+      lessons = JSON.parse(jsonMatch[0]);
     }
 
-    const lessons = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(lessons) || lessons.length === 0) {
+      throw new Error("No lessons generated");
+    }
 
     console.log("[remix] Successfully generated lessons", { count: lessons.length });
 
@@ -357,7 +374,7 @@ Generate the lessons now as a valid JSON array.`;
       ok: true,
       lessons,
       playlistName: playlist.name,
-      tokensUsed: message.usage.input_tokens,
+      tokensUsed: completion.usage?.prompt_tokens || null,
     }), {
       status: 200,
       headers: { "content-type": "application/json" }

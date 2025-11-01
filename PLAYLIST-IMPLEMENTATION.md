@@ -80,7 +80,9 @@ This document provides a comprehensive guide to the fully implemented playlist s
   - Finds question types (multiple-choice, conceptual, problem-solving)
 
   **AI Generation**:
-  - Uses Claude 3.5 Sonnet
+  - Uses OpenAI-compatible models (Groq, Deepinfra, Cerebras, LightningAI)
+  - Respects user tier (free/plus/premium) for model selection
+  - Uses "slow" model for quality generation
   - Temperature 0.8 for creative variations
   - Generates 1-20 fresh lessons (default 10)
   - Returns full lessons with content and quizzes
