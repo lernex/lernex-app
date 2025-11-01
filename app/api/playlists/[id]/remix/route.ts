@@ -174,8 +174,9 @@ function analyzePlaylistPatterns(summaries: LessonSummary[]): {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
+  const params = await props.params;
   const sb = await supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
 
