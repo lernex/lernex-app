@@ -58,14 +58,14 @@ export default function Navbar() {
 
   const avatarBackground =
     membership === "premium" || membership === "plus"
-      ? "bg-white/95 dark:bg-neutral-900/70"
-      : "bg-neutral-100 dark:bg-white/5";
+      ? "bg-white/95 shadow-md dark:bg-neutral-900/70"
+      : "bg-gradient-to-br from-slate-50 to-slate-100 shadow-sm dark:bg-white/5";
   const avatarRing =
     membership === "premium"
-      ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-white dark:ring-amber-300 dark:ring-offset-lernex-charcoal"
+      ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-50 shadow-glow dark:ring-amber-300 dark:ring-offset-lernex-charcoal"
       : membership === "plus"
-        ? "ring-2 ring-indigo-400 ring-offset-2 ring-offset-white dark:ring-indigo-300 dark:ring-offset-lernex-charcoal"
-        : "border border-neutral-200 dark:border-white/10";
+        ? "ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-50 shadow-glow dark:ring-indigo-300 dark:ring-offset-lernex-charcoal"
+        : "border border-slate-300/60 dark:border-white/10";
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -181,18 +181,18 @@ export default function Navbar() {
     };
 
     const tileBase =
-      "relative flex w-full min-h-[2.75rem] items-center rounded-2xl border border-surface bg-surface-card px-3 text-sm font-medium text-foreground shadow-sm backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg dark:shadow-[0_20px_40px_-28px_rgba(0,0,0,0.6)]";
+      "relative flex w-full min-h-[2.75rem] items-center rounded-2xl border border-surface bg-surface-card px-3 text-sm font-medium text-foreground shadow-card backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated dark:shadow-[0_20px_40px_-28px_rgba(0,0,0,0.6)]";
     const tilePaddingExpanded = "pl-3 pr-3.5";
     const tilePaddingCollapsed = "pl-2.5 pr-1.5";
     const tilePadding = navExpanded ? tilePaddingExpanded : tilePaddingCollapsed;
     const listPadding = navExpanded ? "px-5" : "pl-4 pr-3";
 
     const activeClasses =
-      "border-lernex-blue/60 bg-gradient-to-br from-lernex-blue/15 via-lernex-blue/10 to-lernex-purple/15 text-lernex-blue dark:border-lernex-blue/50 dark:from-lernex-blue/25 dark:via-lernex-blue/20 dark:to-lernex-purple/25 dark:text-lernex-blue/90";
+      "border-lernex-blue/70 bg-gradient-to-br from-lernex-blue/20 via-lernex-blue/12 to-lernex-purple/18 text-lernex-blue shadow-elevated dark:border-lernex-blue/50 dark:from-lernex-blue/25 dark:via-lernex-blue/20 dark:to-lernex-purple/25 dark:text-lernex-blue/90";
     const iconShell =
-      "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-surface bg-surface-muted text-neutral-600 shadow-inner transition-colors dark:text-neutral-200";
+      "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-slate-100/90 text-slate-700 shadow-sm transition-colors dark:border-surface dark:from-transparent dark:to-transparent dark:bg-surface-muted dark:text-neutral-200";
     const activeIconShell =
-      "border-lernex-blue/50 bg-gradient-to-br from-lernex-blue/15 via-lernex-blue/10 to-lernex-purple/20 text-lernex-blue dark:from-lernex-blue/25 dark:via-lernex-blue/20 dark:to-lernex-purple/30 dark:text-lernex-blue/90";
+      "border-lernex-blue/60 bg-gradient-to-br from-lernex-blue/18 via-lernex-blue/12 to-lernex-purple/20 text-lernex-blue shadow-sm dark:border-lernex-blue/50 dark:from-lernex-blue/25 dark:via-lernex-blue/20 dark:to-lernex-purple/30 dark:text-lernex-blue/90";
     const badgeBase =
       "absolute -bottom-1 -right-1 min-w-[1.75rem] rounded-full px-1.5 py-0.5 text-center text-[11px] font-semibold shadow-sm";
 
@@ -255,7 +255,7 @@ export default function Navbar() {
             width: navExpanded ? NAV_WIDTH_EXPANDED : NAV_WIDTH_COLLAPSED,
           }}
           transition={{ type: "spring", stiffness: 210, damping: 28 }}
-          className="fixed left-0 top-0 z-[22] flex h-[100dvh] max-h-screen flex-col overflow-hidden border-r border-surface bg-surface-panel text-foreground shadow-xl shadow-neutral-900/5 backdrop-blur-xl transition-colors duration-300 dark:shadow-black/30"
+          className="fixed left-0 top-0 z-[22] flex h-[100dvh] max-h-screen flex-col overflow-hidden border-r border-slate-200/60 bg-white/95 text-foreground shadow-xl shadow-slate-900/8 backdrop-blur-xl transition-colors duration-300 dark:border-surface dark:bg-surface-panel dark:shadow-black/30"
           onMouseEnter={handleNavEnter}
           onMouseLeave={handleNavLeave}
           onFocusCapture={handleNavEnter}

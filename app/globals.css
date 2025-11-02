@@ -4,15 +4,20 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* Light mode variables (default) */
+  /* Light mode variables (default) - Enhanced for better depth and visual appeal */
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0f172a;
   --primary: #2F80ED;
-  --surface-page: #f6f8fb;
-  --surface-panel: rgba(255, 255, 255, 0.94);
-  --surface-card: rgba(255, 255, 255, 0.9);
-  --surface-muted: rgba(255, 255, 255, 0.8);
-  --surface-border: rgba(203, 213, 225, 0.55);
+  /* Subtle gradient backgrounds with blue/purple tints for depth */
+  --surface-page: #f8fafc;
+  --surface-panel: rgba(248, 250, 252, 0.98);
+  --surface-card: rgba(255, 255, 255, 0.95);
+  --surface-muted: rgba(241, 245, 249, 0.92);
+  /* Stronger borders for better definition */
+  --surface-border: rgba(148, 163, 184, 0.35);
+  /* Light mode accent colors with subtle tints */
+  --surface-highlight: rgba(59, 130, 246, 0.08);
+  --surface-glow: rgba(139, 92, 246, 0.06);
   color-scheme: light;
 }
 
@@ -180,18 +185,127 @@ html {
     color: var(--foreground);
   }
 
-  /* Enhanced shadow utilities */
+  .bg-surface-highlight {
+    background-color: var(--surface-highlight);
+  }
+
+  .bg-surface-glow {
+    background-color: var(--surface-glow);
+  }
+
+  /* Enhanced shadow utilities with colored tints for light mode */
   .shadow-3xl {
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    box-shadow:
+      0 25px 50px -12px rgba(59, 130, 246, 0.12),
+      0 10px 25px -5px rgba(139, 92, 246, 0.08),
+      0 2px 8px -2px rgba(0, 0, 0, 0.06);
   }
 
   .dark .shadow-3xl {
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 10px 25px -5px rgba(0, 0, 0, 0.3);
   }
 
+  /* Premium card shadows for light mode */
+  .shadow-card {
+    box-shadow:
+      0 4px 6px -1px rgba(59, 130, 246, 0.08),
+      0 2px 4px -2px rgba(139, 92, 246, 0.06),
+      0 0 0 1px rgba(148, 163, 184, 0.12);
+  }
+
+  .dark .shadow-card {
+    box-shadow:
+      0 4px 6px -1px rgba(0, 0, 0, 0.2),
+      0 2px 4px -2px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Elevated shadow for hover states */
+  .shadow-elevated {
+    box-shadow:
+      0 10px 15px -3px rgba(59, 130, 246, 0.14),
+      0 4px 6px -4px rgba(139, 92, 246, 0.1),
+      0 0 0 1px rgba(148, 163, 184, 0.15);
+  }
+
+  .dark .shadow-elevated {
+    box-shadow:
+      0 10px 15px -3px rgba(0, 0, 0, 0.3),
+      0 4px 6px -4px rgba(0, 0, 0, 0.25);
+  }
+
+  /* Glow effect for interactive elements in light mode */
+  .shadow-glow {
+    box-shadow:
+      0 0 20px rgba(59, 130, 246, 0.15),
+      0 0 40px rgba(139, 92, 246, 0.08);
+  }
+
+  .dark .shadow-glow {
+    box-shadow:
+      0 0 20px rgba(59, 130, 246, 0.25),
+      0 0 40px rgba(139, 92, 246, 0.15);
+  }
+
   /* Smooth transitions for all interactive elements */
   input, select, textarea, button {
     @apply transition-all duration-300;
+  }
+
+  /* Enhanced hover effects for light mode */
+  .hover-lift {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .hover-lift:hover {
+    @apply -translate-y-1 shadow-elevated;
+  }
+
+  /* Gradient border effect for premium elements */
+  .border-gradient {
+    position: relative;
+    background: linear-gradient(var(--background), var(--background)) padding-box,
+      linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(139, 92, 246, 0.4)) border-box;
+    border: 1px solid transparent;
+  }
+
+  .dark .border-gradient {
+    background: linear-gradient(var(--background), var(--background)) padding-box,
+      linear-gradient(135deg, rgba(59, 130, 246, 0.6), rgba(139, 92, 246, 0.6)) border-box;
+  }
+
+  /* Glass morphism effect for light mode */
+  .glass-light {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+  }
+
+  .dark .glass-light {
+    background: rgba(12, 16, 26, 0.82);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(71, 85, 105, 0.45);
+  }
+
+  /* Shimmer effect for light mode loading states */
+  .shimmer-light {
+    background: linear-gradient(
+      90deg,
+      rgba(241, 245, 249, 0) 0%,
+      rgba(226, 232, 240, 0.8) 50%,
+      rgba(241, 245, 249, 0) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s ease-in-out infinite;
+  }
+
+  .dark .shimmer-light {
+    background: linear-gradient(
+      90deg,
+      rgba(15, 23, 42, 0) 0%,
+      rgba(30, 41, 59, 0.8) 50%,
+      rgba(15, 23, 42, 0) 100%
+    );
+    background-size: 200% 100%;
   }
 }
 
@@ -236,6 +350,39 @@ html {
   }
   50% {
     box-shadow: 0 0 20px rgba(47, 128, 237, 0.6);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 15px rgba(59, 130, 246, 0.15),
+      0 0 30px rgba(139, 92, 246, 0.1);
+  }
+  50% {
+    box-shadow:
+      0 0 25px rgba(59, 130, 246, 0.25),
+      0 0 50px rgba(139, 92, 246, 0.15);
+  }
+}
+
+@keyframes scale-in {
+  0% {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
   }
 }
 
@@ -330,6 +477,15 @@ html {
   }
 }
 
+@keyframes carousel-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(-396px * 12));
+  }
+}
+
 .animate-slide-down {
   animation: slide-down 0.6s ease-out forwards;
 }
@@ -347,6 +503,14 @@ html {
 .animate-fade-in-item {
   opacity: 0;
   animation: fade-in-item 0.4s ease-out forwards;
+}
+
+.animate-carousel-scroll {
+  animation: carousel-scroll 60s linear infinite;
+}
+
+.animate-carousel-scroll:hover {
+  animation-play-state: paused;
 }
 
 /* Formatted text styling - make headers visually distinct */

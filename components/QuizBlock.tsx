@@ -138,6 +138,8 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [answers, setAnswers] = useState<(number | null)[]>(() => Array(questions.length).fill(null));
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [animatedScore, setAnimatedScore] = useState(0);
   const q = hasQuestions ? questions[qIndex] : undefined;
   const needsMathTypeset = useMemo(() => {
     if (!q) return false;
@@ -154,7 +156,29 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
     setShowWarningModal(false);
     setAnswers(Array(questions.length).fill(null));
     setHasSubmitted(false);
+    setShowBreakdown(false);
+    setAnimatedScore(0);
   }, [lesson.id, questions.length]);
+
+  // Animate score counter when modal appears
+  useEffect(() => {
+    if (!showSummaryOverlay) return;
+    setAnimatedScore(0);
+    const duration = 1500; // 1.5 seconds
+    const steps = 60;
+    const increment = correctCount / steps;
+    let current = 0;
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= correctCount) {
+        setAnimatedScore(correctCount);
+        clearInterval(timer);
+      } else {
+        setAnimatedScore(Math.floor(current));
+      }
+    }, duration / steps);
+    return () => clearInterval(timer);
+  }, [showSummaryOverlay, correctCount]);
 
 
   const syncStatsFromPayload = useCallback((payload?: Record<string, unknown>) => {
@@ -317,23 +341,23 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
   };
 
   const btnClass = (idx: number) => {
-    const base = "text-left px-3 py-2 rounded-xl border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40";
+    const base = "text-left px-3 py-2 rounded-xl border transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40";
     if (selected === null) {
-      return `${base} border-surface bg-surface-muted hover:bg-surface-card`;
+      return `${base} border-slate-300/70 bg-gradient-to-br from-white to-slate-50/80 hover:from-slate-50 hover:to-slate-100/90 hover:border-slate-400/80 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 dark:border-surface dark:bg-surface-muted dark:hover:bg-surface-card`;
     }
     const correctIdx = q?.correctIndex ?? -1;
     if (idx === correctIdx) {
-      return `${base} border-green-500 bg-green-600/80 text-white shadow-sm`;
+      return `${base} border-green-500 bg-green-600/90 text-white shadow-md hover:shadow-lg dark:bg-green-600/80`;
     }
     if (idx === selected) {
-      return `${base} border-red-500 bg-red-600/80 text-white shadow-sm`;
+      return `${base} border-red-500 bg-red-600/90 text-white shadow-md hover:shadow-lg dark:bg-red-600/80`;
     }
-    return `${base} border-surface bg-surface-muted`;
+    return `${base} border-slate-200/60 bg-slate-50/40 dark:border-surface dark:bg-surface-muted`;
   };
 
   return hasQuestions && q ? (
     <>
-      <div ref={rootRef} className="rounded-[24px] border border-surface bg-surface-card px-5 py-6 shadow-lg backdrop-blur transition-shadow duration-200">
+      <div ref={rootRef} className="rounded-[24px] border border-slate-200/70 bg-white/95 px-5 py-6 shadow-elevated backdrop-blur transition-shadow duration-200 hover:shadow-3xl dark:border-surface dark:bg-surface-card dark:shadow-lg">
         <div className="mb-3 text-sm text-neutral-700 dark:text-neutral-300 transition-colors">
           <FormattedText text={q.prompt} />
         </div>
@@ -346,71 +370,273 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
         </div>
         {/* Question progress indicators */}
         <div className="mt-4 flex items-center justify-center gap-1.5">
-          {questions.map((_, idx) => (
-            <div
-              key={idx}
-              className={`h-2 w-2 rounded-full transition-all ${
-                idx === qIndex
-                  ? "bg-lernex-blue scale-125"
-                  : answers[idx] !== null
-                  ? "bg-green-500"
-                  : "bg-neutral-300 dark:bg-neutral-600"
-              }`}
-              title={`Question ${idx + 1}${answers[idx] !== null ? " (answered)" : ""}`}
-            />
-          ))}
+          {questions.map((_, idx) => {
+            const isAnswered = answers[idx] !== null;
+            const isCorrect = isAnswered && answers[idx] === questions[idx].correctIndex;
+            const isIncorrect = isAnswered && answers[idx] !== questions[idx].correctIndex;
+
+            return (
+              <div
+                key={idx}
+                className={`h-2 w-2 rounded-full transition-all ${
+                  idx === qIndex
+                    ? "bg-lernex-blue scale-125 shadow-sm"
+                    : isCorrect
+                    ? "bg-green-500 shadow-sm"
+                    : isIncorrect
+                    ? "bg-red-500 shadow-sm"
+                    : "bg-slate-300 shadow-sm dark:bg-neutral-600"
+                }`}
+                title={`Question ${idx + 1}${isCorrect ? " (correct)" : isIncorrect ? " (incorrect)" : isAnswered ? " (answered)" : ""}`}
+              />
+            );
+          })}
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-2">
           <button
             onClick={back}
             disabled={qIndex === 0}
-            className="rounded-xl border border-surface bg-surface-muted px-4 py-2 transition hover:bg-surface-card disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded-xl border border-slate-300/70 bg-gradient-to-br from-white to-slate-50 px-4 py-2 transition-all hover:from-slate-50 hover:to-slate-100 hover:border-slate-400/80 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed dark:border-surface dark:bg-surface-muted dark:hover:bg-surface-card"
           >
             Back
           </button>
           <div className="text-xs text-neutral-500 dark:text-neutral-400 transition-colors">
             {qIndex + 1} / {questions.length}
           </div>
-          <button onClick={next} className="rounded-xl bg-lernex-blue px-4 py-2 text-white transition hover:bg-blue-500">
+          <button onClick={next} className="rounded-xl bg-lernex-blue px-4 py-2 text-white transition-all hover:bg-blue-500 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0">
             {qIndex < questions.length - 1 ? "Next" : "Finish"}
           </button>
         </div>
       </div>
 
-      {showSummary && showSummaryOverlay && (
-        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl border border-surface bg-surface-panel p-5 text-foreground shadow-xl transition-colors">
-            <div className="text-sm uppercase tracking-wide text-neutral-500 dark:text-neutral-400 transition-colors">Lesson Complete</div>
-            <h3 className="mt-1 text-xl font-semibold">Great job!</h3>
-            <div className="mt-3 text-sm">
-              You answered <span className="font-semibold">{correctCount}</span> out of <span className="font-semibold">{questions.length}</span> correctly
-              ({Math.round((correctCount / Math.max(1, questions.length)) * 100)}%).
-            </div>
-            <div className="mt-4 flex items-center gap-2">
-              <button
-                onClick={() => { setShowSummaryOverlay(false); }}
-                className="rounded-xl border border-surface bg-surface-muted px-4 py-2 transition hover:bg-surface-card"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => {
-                  setShowSummaryOverlay(false);
-                  setQ(0);
-                  setSel(null);
-                  setCorrectCount(0);
-                  setAnswers(Array(questions.length).fill(null));
-                  setHasSubmitted(false);
-                }}
-                className="ml-auto rounded-xl bg-lernex-blue px-4 py-2 text-white transition hover:bg-blue-500"
-              >
-                Retry Quiz
-              </button>
+      {showSummary && showSummaryOverlay && (() => {
+        const percentage = Math.round((correctCount / Math.max(1, questions.length)) * 100);
+        const incorrectCount = questions.length - correctCount;
+        const isPerfect = percentage === 100;
+        const isExcellent = percentage >= 80;
+        const isGood = percentage >= 60;
+        const isOkay = percentage >= 40;
+
+        // Score-based messaging and styling
+        const getMessage = () => {
+          if (isPerfect) return "Perfect Score!";
+          if (isExcellent) return "Excellent Work!";
+          if (isGood) return "Good Job!";
+          if (isOkay) return "Nice Try!";
+          return "Keep Practicing!";
+        };
+
+        const getGradient = () => {
+          if (isPerfect) return "from-yellow-500/20 via-orange-500/20 to-pink-500/20";
+          if (isExcellent) return "from-green-500/20 via-emerald-500/20 to-teal-500/20";
+          if (isGood) return "from-blue-500/20 via-cyan-500/20 to-sky-500/20";
+          if (isOkay) return "from-purple-500/20 via-violet-500/20 to-indigo-500/20";
+          return "from-neutral-500/20 via-slate-500/20 to-gray-500/20";
+        };
+
+        const getAccentColor = () => {
+          if (isPerfect) return "text-yellow-500";
+          if (isExcellent) return "text-green-500";
+          if (isGood) return "text-blue-500";
+          if (isOkay) return "text-purple-500";
+          return "text-neutral-500";
+        };
+
+        const getProgressColor = () => {
+          if (isPerfect) return "#eab308"; // yellow-500
+          if (isExcellent) return "#10b981"; // green-500
+          if (isGood) return "#3b82f6"; // blue-500
+          if (isOkay) return "#a855f7"; // purple-500
+          return "#737373"; // neutral-500
+        };
+
+        // Circular progress SVG
+        const radius = 70;
+        const circumference = 2 * Math.PI * radius;
+        const offset = circumference - (percentage / 100) * circumference;
+
+        return (
+          <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+            <div className={`w-full max-w-lg mx-4 rounded-3xl border border-surface bg-gradient-to-br ${getGradient()} bg-surface-panel p-6 text-foreground shadow-2xl transition-all animate-in zoom-in-95 duration-500`}>
+              {/* Header */}
+              <div className="text-center">
+                <div className="text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-400 font-semibold">
+                  Lesson Complete
+                </div>
+                <h3 className={`mt-2 text-3xl font-bold ${getAccentColor()} transition-colors`}>
+                  {getMessage()}
+                </h3>
+              </div>
+
+              {/* Circular Progress Indicator */}
+              <div className="relative mt-6 flex items-center justify-center">
+                <svg className="transform -rotate-90" width="180" height="180">
+                  {/* Background circle */}
+                  <circle
+                    cx="90"
+                    cy="90"
+                    r={radius}
+                    stroke="currentColor"
+                    strokeWidth="12"
+                    fill="none"
+                    className="text-neutral-200 dark:text-neutral-700"
+                  />
+                  {/* Progress circle */}
+                  <circle
+                    cx="90"
+                    cy="90"
+                    r={radius}
+                    stroke={getProgressColor()}
+                    strokeWidth="12"
+                    fill="none"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={offset}
+                    strokeLinecap="round"
+                    className="transition-all duration-1000 ease-out"
+                  />
+                </svg>
+                {/* Score in center */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <div className={`text-5xl font-bold ${getAccentColor()}`}>
+                    {animatedScore}
+                  </div>
+                  <div className="text-sm text-neutral-600 dark:text-neutral-400">
+                    out of {questions.length}
+                  </div>
+                  <div className={`mt-1 text-2xl font-semibold ${getAccentColor()}`}>
+                    {percentage}%
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats Summary */}
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-green-500/10 border border-green-500/20 px-4 py-3 text-center">
+                  <div className="text-2xl font-bold text-green-500">{correctCount}</div>
+                  <div className="text-xs text-neutral-600 dark:text-neutral-400">Correct</div>
+                </div>
+                <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-center">
+                  <div className="text-2xl font-bold text-red-500">{incorrectCount}</div>
+                  <div className="text-xs text-neutral-600 dark:text-neutral-400">Incorrect</div>
+                </div>
+              </div>
+
+              {/* Question Breakdown Toggle */}
+              {incorrectCount > 0 && (
+                <button
+                  onClick={() => setShowBreakdown(!showBreakdown)}
+                  className="mt-4 w-full flex items-center justify-between rounded-xl bg-surface-muted hover:bg-surface-card border border-surface px-4 py-3 transition-all"
+                >
+                  <span className="text-sm font-medium">Question Breakdown</span>
+                  <svg
+                    className={`h-5 w-5 transition-transform ${showBreakdown ? "rotate-180" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Question Breakdown List */}
+              {showBreakdown && (
+                <div className="mt-3 max-h-48 overflow-y-auto rounded-xl bg-surface-muted border border-surface p-3 space-y-2">
+                  {questions.map((question, idx) => {
+                    const isCorrect = answers[idx] === question.correctIndex;
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors ${
+                          isCorrect ? "bg-green-500/10" : "bg-red-500/10"
+                        }`}
+                      >
+                        <div className={`flex-shrink-0 ${isCorrect ? "text-green-500" : "text-red-500"}`}>
+                          {isCorrect ? (
+                            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          ) : (
+                            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="flex-1 text-sm">
+                          <span className="font-medium">Question {idx + 1}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="mt-6 flex flex-col gap-2">
+                {/* Primary: Continue */}
+                <button
+                  onClick={() => {
+                    setShowSummaryOverlay(false);
+                    setShowBreakdown(false);
+                  }}
+                  className="w-full rounded-xl bg-lernex-blue px-4 py-3 text-white font-medium transition-all hover:bg-blue-500 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl"
+                >
+                  Continue
+                </button>
+
+                <div className="flex gap-2">
+                  {/* Review Mistakes - only show if there are mistakes */}
+                  {incorrectCount > 0 && (
+                    <button
+                      onClick={() => {
+                        setShowSummaryOverlay(false);
+                        setShowBreakdown(false);
+                        // Find first incorrect answer
+                        const firstIncorrect = answers.findIndex((ans, idx) => ans !== questions[idx].correctIndex);
+                        if (firstIncorrect !== -1) {
+                          setQ(firstIncorrect);
+                          setSel(answers[firstIncorrect]);
+                        }
+                      }}
+                      className="flex-1 rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2.5 text-sm font-medium text-orange-600 dark:text-orange-400 transition-all hover:bg-orange-500/20 hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      Review Mistakes
+                    </button>
+                  )}
+
+                  {/* Retry Quiz */}
+                  <button
+                    onClick={() => {
+                      setShowSummaryOverlay(false);
+                      setShowBreakdown(false);
+                      setQ(0);
+                      setSel(null);
+                      setCorrectCount(0);
+                      setAnswers(Array(questions.length).fill(null));
+                      setHasSubmitted(false);
+                    }}
+                    className="flex-1 rounded-xl border border-surface bg-surface-muted px-4 py-2.5 text-sm font-medium transition-all hover:bg-surface-card hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    Retry Quiz
+                  </button>
+                </div>
+              </div>
+
+              {/* Perfect score confetti indicator */}
+              {isPerfect && (
+                <div className="mt-4 text-center">
+                  <div className="inline-flex items-center gap-2 text-sm text-yellow-600 dark:text-yellow-400">
+                    <span>🎉</span>
+                    <span className="font-medium">You're on fire!</span>
+                    <span>🎉</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Warning modal for unanswered questions */}
       {showWarningModal && (

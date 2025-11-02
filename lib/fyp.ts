@@ -214,8 +214,8 @@ function clampTemperature(value: number) {
 
 const DEFAULT_TEMPERATURE = clampTemperature(resolveNumericEnv(process.env.CEREBRAS_LESSON_TEMPERATURE, FALLBACK_TEMPERATURE));
 
-const JSON_RESPONSE_DENYLIST = [/gpt-oss/i];
-const FUNCTION_CALLING_DENYLIST = [/gpt-oss/i];
+const JSON_RESPONSE_DENYLIST: RegExp[] = [];
+const FUNCTION_CALLING_DENYLIST: RegExp[] = [];
 
 function normalizeBooleanEnv(value: string | undefined): boolean | null {
   if (!value) return null;
@@ -537,17 +537,83 @@ function tryParseJson(text: string): unknown | null {
   return null;
 }
 
-function resolveLessonCandidate(raw: string): Lesson | null {
-  const parsed = tryParseJson(raw);
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    console.warn("[fyp] resolveLessonCandidate: JSON parse failed or invalid type", {
-      parsed: typeof parsed,
-      isArray: Array.isArray(parsed),
-    });
+function parseMarkdownLesson(raw: string): Record<string, unknown> | null {
+  // Parse markdown format like:
+  // **id**: vec-ops-intro
+  // **title**: Vector Operations Basics
+  // **content**: ...
+  const lines = raw.trim().split('\n');
+  const result: Record<string, unknown> = {};
+  let currentField: string | null = null;
+  let currentValue = '';
+
+  for (const line of lines) {
+    // Check for field start: **fieldName**: value
+    const fieldMatch = line.match(/^\*\*(\w+)\*\*:\s*(.*)$/);
+    if (fieldMatch) {
+      // Save previous field if any
+      if (currentField && currentValue.trim()) {
+        result[currentField] = currentValue.trim();
+      }
+      currentField = fieldMatch[1];
+      currentValue = fieldMatch[2] || '';
+    } else if (currentField) {
+      // Continue multiline value
+      currentValue += '\n' + line;
+    }
+  }
+
+  // Save last field
+  if (currentField && currentValue.trim()) {
+    result[currentField] = currentValue.trim();
+  }
+
+  // Parse questions if present (they might be in markdown format too)
+  if (result.questions && typeof result.questions === 'string') {
+    // Try to parse as JSON first
+    try {
+      const parsed = JSON.parse(result.questions as string);
+      if (Array.isArray(parsed)) {
+        result.questions = parsed;
+      }
+    } catch {
+      // If not JSON, questions field needs to be an array - can't parse markdown questions easily
+      // Return null to trigger fallback
+      return null;
+    }
+  }
+
+  // Must have at least id, title, content to be valid
+  if (!result.id || !result.title || !result.content) {
     return null;
   }
 
-  const obj = parsed as Record<string, unknown>;
+  return result;
+}
+
+function resolveLessonCandidate(raw: string): Lesson | null {
+  // First try JSON parsing
+  const parsed = tryParseJson(raw);
+
+  // If JSON parsing failed, try markdown parsing
+  let obj: Record<string, unknown>;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    console.warn("[fyp] resolveLessonCandidate: JSON parse failed, trying markdown format", {
+      parsed: typeof parsed,
+      isArray: Array.isArray(parsed),
+    });
+
+    // Try markdown format
+    const markdownObj = parseMarkdownLesson(raw);
+    if (!markdownObj) {
+      console.warn("[fyp] resolveLessonCandidate: Markdown parse also failed");
+      return null;
+    }
+    obj = markdownObj;
+  } else {
+    obj = parsed as Record<string, unknown>;
+  }
+
   const possible = [obj];
 
   if (obj.lesson && typeof obj.lesson === "object" && !Array.isArray(obj.lesson)) {

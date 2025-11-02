@@ -89,10 +89,11 @@ export default function ExpandedLessonModal({
         ref={modalRef}
         className={cn(
           "relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl",
-          "border border-neutral-200/70 dark:border-neutral-700/70",
-          "bg-gradient-to-br from-white via-neutral-50/95 to-white",
+          "border border-slate-200/80 dark:border-neutral-700/70",
+          "bg-gradient-to-br from-white via-slate-50/95 to-white",
           "dark:from-neutral-900 dark:via-neutral-900/95 dark:to-neutral-900",
-          "shadow-[0_24px_60px_-12px_rgba(0,0,0,0.4)]",
+          "shadow-3xl",
+          "dark:shadow-[0_24px_60px_-12px_rgba(0,0,0,0.4)]",
           "transition-all duration-500",
           "animate-in slide-in-from-bottom-8 zoom-in-95 duration-400"
         )}

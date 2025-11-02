@@ -873,7 +873,7 @@ export default function FypFeed() {
                 <button
                   type="button"
                   onClick={() => setClassPickerOpen(true)}
-                  className="rounded-full border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
+                  className="rounded-full border border-slate-300/80 bg-gradient-to-br from-white to-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-all hover:from-slate-50 hover:to-slate-100 hover:text-slate-900 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-800 dark:from-transparent dark:to-transparent dark:text-neutral-200 dark:shadow-none"
                 >
                   Open class picker
                 </button>
@@ -887,7 +887,7 @@ export default function FypFeed() {
           <div>{error}</div>
           <button
             onClick={() => { setError(null); setLoadingInfo(null); setInitialized(false); void ensureBuffer(0); }}
-            className="rounded-full border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-600 transition-colors hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
+            className="rounded-full border border-slate-300/80 bg-gradient-to-br from-white to-slate-50 px-3 py-1.5 text-sm text-slate-700 shadow-sm transition-all hover:from-slate-50 hover:to-slate-100 hover:text-slate-900 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-800 dark:from-transparent dark:to-transparent dark:text-neutral-200 dark:shadow-none"
           >
             Retry
           </button>
@@ -932,7 +932,7 @@ export default function FypFeed() {
                     {skipLoading ? "Skipping..." : "Skip"}
                   </button>
                   {skipReasonMenu === cur.id && (
-                    <div className="absolute right-0 z-20 mt-2 w-56 rounded-2xl border border-neutral-200 bg-white p-3 shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+                    <div className="absolute right-0 z-20 mt-2 w-56 rounded-2xl border border-slate-200/80 bg-white/98 p-3 shadow-elevated backdrop-blur-sm dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-lg">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400 dark:text-neutral-500">
                         Why skip?
                       </div>
@@ -968,7 +968,7 @@ export default function FypFeed() {
                     onDone={() => handleLessonComplete(cur)}
                   />
                   {!currentCompleted && (
-                    <div className="rounded-xl border border-dashed border-amber-300/60 bg-amber-50/70 px-4 py-2 text-sm text-amber-700 shadow-sm dark:border-amber-400/50 dark:bg-amber-500/10 dark:text-amber-200">
+                    <div className="rounded-xl border border-dashed border-amber-300/70 bg-gradient-to-br from-amber-50 to-amber-100/80 px-4 py-2 text-sm text-amber-700 shadow-sm dark:border-amber-400/50 dark:bg-amber-500/10 dark:from-transparent dark:to-transparent dark:text-amber-200">
                       Finish the quiz to unlock the next mini-lesson.
                     </div>
                   )}
@@ -976,7 +976,7 @@ export default function FypFeed() {
               )}
             </div>
             {!requiresQuiz && (
-              <div className="rounded-xl border border-lime-300/60 bg-lime-50/70 px-4 py-2 text-sm text-lime-700 shadow-sm dark:border-lime-400/50 dark:bg-lime-500/10 dark:text-lime-200">
+              <div className="rounded-xl border border-lime-300/70 bg-gradient-to-br from-lime-50 to-lime-100/80 px-4 py-2 text-sm text-lime-700 shadow-sm dark:border-lime-400/50 dark:bg-lime-500/10 dark:from-transparent dark:to-transparent dark:text-lime-200">
                 No quiz for this one - enjoy the lesson!
               </div>
             )}

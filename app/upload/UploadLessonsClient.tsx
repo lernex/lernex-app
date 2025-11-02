@@ -39,17 +39,18 @@ type PendingLesson = Lesson & {
 };
 
 const MAX_FILE_SIZE_BYTES = 18 * 1024 * 1024;
-const MAX_AUDIO_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25MB for audio
+const MAX_AUDIO_FILE_SIZE_BYTES = 250 * 1024 * 1024; // 250MB for audio - supports ~2 hours at high quality
 const MAX_TEXT_LENGTH = 24_000;
 const MIN_CHARS_REQUIRED = 220;
 
-// Process audio files with Whisper transcription
+// Process audio files with Whisper transcription + AI shortening
 async function parseAudioFile(file: File): Promise<string> {
   if (file.size > MAX_AUDIO_FILE_SIZE_BYTES) {
     throw new Error(`"${file.name}" exceeds ${(MAX_AUDIO_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0)}MB audio limit.`);
   }
 
-  console.log('[audio-transcribe] Transcribing audio file...');
+  // Step 1: Transcribe audio with Whisper
+  console.log('[audio] Step 1/2: Transcribing audio with Whisper...');
   const formData = new FormData();
   formData.append('audio', file);
 
@@ -57,19 +58,50 @@ async function parseAudioFile(file: File): Promise<string> {
   const estimatedDuration = Math.round((file.size / (1024 * 1024)) * 60);
   formData.append('duration', estimatedDuration.toString());
 
-  const response = await fetch('/api/transcribe', {
+  const transcribeResponse = await fetch('/api/transcribe', {
     method: 'POST',
     body: formData,
   });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Transcription failed' }));
+  if (!transcribeResponse.ok) {
+    const error = await transcribeResponse.json().catch(() => ({ error: 'Transcription failed' }));
     throw new Error(error.error || 'Failed to transcribe audio');
   }
 
-  const result = await response.json();
-  console.log('[audio-transcribe] Transcription complete:', result.text.length, 'characters');
-  return result.text || '';
+  const transcribeResult = await transcribeResponse.json();
+  const fullTranscript = transcribeResult.text || '';
+  console.log('[audio] Transcription complete:', fullTranscript.length, 'characters');
+
+  // Step 2: Shorten the transcript using gpt-oss-20b
+  // This removes filler words, repetitions, and extracts key educational content
+  console.log('[audio] Step 2/2: Condensing transcript with AI...');
+  const shortenResponse = await fetch('/api/shorten', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      text: fullTranscript,
+      context: `Audio lecture recording from file: ${file.name}`,
+    }),
+  });
+
+  if (!shortenResponse.ok) {
+    // If shortening fails, use original transcript as fallback
+    console.warn('[audio] Shortening failed, using original transcript');
+    return fullTranscript;
+  }
+
+  const shortenResult = await shortenResponse.json();
+  const shortenedText = shortenResult.shortenedText || fullTranscript;
+
+  console.log('[audio] Content condensed:', {
+    original: shortenResult.originalLength,
+    shortened: shortenResult.shortenedLength,
+    reduction: `${shortenResult.reductionPercent}%`,
+  });
+
+  return shortenedText;
 }
 
 async function parseFileWithDeepSeekOCR(file: File): Promise<string> {

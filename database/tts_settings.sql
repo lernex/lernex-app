@@ -38,6 +38,14 @@ CREATE POLICY "Authenticated users can insert voice previews"
   TO authenticated
   WITH CHECK (true);
 
+-- RLS Policy: Authenticated users can update voice previews (to set audio_url after generation)
+CREATE POLICY "Authenticated users can update voice previews"
+  ON tts_voice_previews
+  FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
 -- Create index for fast voice lookups
 CREATE INDEX IF NOT EXISTS idx_tts_voice_previews_voice ON tts_voice_previews(voice_name);
 

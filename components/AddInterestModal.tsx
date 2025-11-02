@@ -80,7 +80,7 @@ export default function AddInterestModal({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              className="relative w-full max-w-md rounded-3xl border border-white/20 bg-white/95 p-6 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-neutral-900/95"
+              className="relative w-full max-w-md rounded-3xl border border-slate-200/80 bg-white/98 p-6 shadow-3xl backdrop-blur-xl dark:border-white/10 dark:bg-neutral-900/95 dark:shadow-2xl"
             >
               {/* Close Button */}
               <button

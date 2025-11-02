@@ -12,6 +12,9 @@ export function buildLessonPrompts(params: LessonPromptParams) {
 
   const system = [
     `You produce exactly one 80-105 word micro-lesson and exactly three MCQs with explanations.`,
+    `OUTPUT FORMAT: Respond with ONLY valid JSON. No markdown formatting, no code blocks, no explanations - just pure JSON.`,
+    `The JSON must have these fields: id, subject, topic, title, content, difficulty, questions (array of 3 question objects).`,
+    `Each question object must have: prompt, choices (array of 4 strings), correctIndex (0-3), explanation.`,
     `CRITICAL WORD COUNT: The content field must be 80-105 words total - count carefully before responding. If over 105 words, you MUST cut it down. Each question explanation must be max 15 words.`,
     `Treat the structured_context JSON message and the focus cues text as authoritative learner data -- stay factual and aligned.`,
     `When learner.recents.previous_lesson is present, reference it as a quick bridge (5-10 words max). When learner.recents.recent_miss is present, acknowledge it briefly (5-10 words) and suggest one concrete improvement.`,
@@ -25,7 +28,7 @@ export function buildLessonPrompts(params: LessonPromptParams) {
     `- Ensure the lesson is coherent, educational, and appropriate for the target difficulty`,
     `- Confirm all structural requirements are met (word counts, question format)`,
     `- If anything seems wrong, fix it before responding - there is no second review`,
-    `Math: Use LaTeX notation. For inline: \\(expression\\). For display: \\[expression\\]. In parameters: escape backslashes (\\\\frac, \\\\sqrt, etc.).`,
+    `Math: Use LaTeX notation. For inline: \\(expression\\). For display: \\[expression\\]. In JSON strings: escape backslashes (\\\\frac, \\\\sqrt, etc.) AND quote marks (\\" for quotes).`,
   ].join("\n");
 
   const cleanSource = sourceText.trim();
@@ -41,6 +44,9 @@ export function buildLessonPrompts(params: LessonPromptParams) {
   }
   userLines.push(
     `Use the Structured context JSON message for learner profile, preferences, and pacing details.`
+  );
+  userLines.push(
+    `\nREMINDER: Output ONLY valid JSON with no markdown formatting or code blocks.`
   );
   const user = userLines.join("\n");
 

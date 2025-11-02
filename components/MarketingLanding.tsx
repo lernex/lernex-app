@@ -405,7 +405,7 @@ function LiveUserMeter({
           : '0 20px 40px rgba(15,23,42,0.14)',
       }}
       transition={{ duration: 0.5, ease: 'easeOut' }}
-      className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/80 p-7 text-center shadow-lg backdrop-blur dark:border-white/5 dark:bg-white/10"
+      className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/95 p-7 text-center shadow-elevated backdrop-blur dark:border-white/5 dark:bg-white/10 dark:shadow-lg"
     >
       <motion.div
         className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-r from-lernex-purple/10 via-lernex-blue/20 to-transparent"
@@ -638,7 +638,7 @@ export default function MarketingLanding() {
             </Link>
             <Link
               href="#how"
-              className="rounded-full border border-white/10 bg-white/40 px-8 py-3 font-medium backdrop-blur hover:bg-white/60 dark:bg-white/5 dark:hover:bg-white/10"
+              className="rounded-full border border-slate-200/70 bg-white/90 px-8 py-3 font-medium backdrop-blur hover:bg-white/60 dark:bg-white/5 dark:hover:bg-white/10"
             >
               See how it works
             </Link>
@@ -647,7 +647,7 @@ export default function MarketingLanding() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.6 }}
-            className="mt-10 inline-flex flex-wrap items-center justify-center gap-4 rounded-full border border-white/10 bg-white/60 px-6 py-2 text-xs uppercase tracking-[0.4em] backdrop-blur dark:bg-white/10"
+            className="mt-10 inline-flex flex-wrap items-center justify-center gap-4 rounded-full border border-slate-200/70 bg-white/95 px-6 py-2 text-xs uppercase tracking-[0.4em] backdrop-blur dark:bg-white/10"
           >
             Loved by students everywhere
           </motion.div>
@@ -667,15 +667,15 @@ export default function MarketingLanding() {
             ))}
           </motion.div>
           <div className="mt-10 grid w-full max-w-4xl grid-cols-1 gap-3 text-left text-sm text-neutral-600 dark:text-neutral-300 md:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-white/70 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
+            <div className="rounded-2xl border border-slate-200/70 bg-white/95 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
               <div className="text-2xl font-bold text-neutral-900 dark:text-white">2 min</div>
               <div>From upload to your first curated Lernex path.</div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/70 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
+            <div className="rounded-2xl border border-slate-200/70 bg-white/95 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
               <div className="text-2xl font-bold text-neutral-900 dark:text-white">7 min</div>
               <div>The average daily session to stay on track.</div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/70 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
+            <div className="rounded-2xl border border-slate-200/70 bg-white/95 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
               <div className="text-2xl font-bold text-neutral-900 dark:text-white">92%</div>
               <div>Report remembering critical details a week later.</div>
             </div>
@@ -699,11 +699,11 @@ export default function MarketingLanding() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
-              className="group relative overflow-hidden rounded-3xl border border-neutral-200/60 bg-white/80 p-8 shadow-lg shadow-black/10 backdrop-blur transition hover:-translate-y-1 hover:shadow-2xl dark:border-white/5 dark:bg-white/10"
+              className="group relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/95 p-8 shadow-card backdrop-blur transition-all hover:-translate-y-1 hover:shadow-3xl dark:border-white/5 dark:bg-white/10 dark:shadow-lg dark:hover:shadow-2xl"
               style={{ zIndex: learningFlow.length - idx }}
             >
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-lernex-blue/0 via-lernex-purple/5 to-lernex-blue/0 opacity-0 transition group-hover:opacity-100" />
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/40 bg-white/70 text-sm font-semibold text-lernex-purple shadow dark:bg-white/10">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300/60 bg-gradient-to-br from-white to-slate-50 text-sm font-semibold text-lernex-purple shadow-sm dark:border-white/40 dark:bg-white/10 dark:from-transparent dark:to-transparent">
                 {item.step}
               </span>
               <div className="mt-6 text-xl font-semibold text-neutral-900 dark:text-white">{item.title}</div>
@@ -714,7 +714,7 @@ export default function MarketingLanding() {
       </section>
 
       <section className="mx-auto mt-28 max-w-6xl px-6">
-        <div className="rounded-3xl border border-white/10 bg-white/70 p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:bg-white/5">
+        <div className="rounded-3xl border border-slate-200/70 bg-white/95 p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:bg-white/5">
           <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="text-left">
               <h2 className="text-3xl font-bold">Your personal AI learning coach</h2>
@@ -722,9 +722,9 @@ export default function MarketingLanding() {
                 Each lesson card explains exactly why you&apos;re seeing it. Get instant green/red feedback on quiz questions, celebrate correct answers with confetti, and watch the AI adjust difficulty in real-time based on your performance. Learn complex topics without the overwhelm.
               </p>
               <div className="mt-8 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-400">
-                <span className="rounded-full border border-white/10 bg-white/70 px-4 py-1 backdrop-blur dark:bg-white/10">Swipe to learn</span>
-                <span className="rounded-full border border-white/10 bg-white/70 px-4 py-1 backdrop-blur dark:bg-white/10">Instant feedback</span>
-                <span className="rounded-full border border-white/10 bg-white/70 px-4 py-1 backdrop-blur dark:bg-white/10">Adapts to you</span>
+                <span className="rounded-full border border-slate-200/70 bg-white/95 px-4 py-1 backdrop-blur dark:bg-white/10">Swipe to learn</span>
+                <span className="rounded-full border border-slate-200/70 bg-white/95 px-4 py-1 backdrop-blur dark:bg-white/10">Instant feedback</span>
+                <span className="rounded-full border border-slate-200/70 bg-white/95 px-4 py-1 backdrop-blur dark:bg-white/10">Adapts to you</span>
               </div>
             </div>
             <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-br from-lernex-blue/20 via-lernex-purple/30 to-lernex-blue/10 p-8 text-left shadow-lg shadow-lernex-purple/30">
@@ -856,21 +856,8 @@ export default function MarketingLanding() {
           <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-20 bg-gradient-to-r from-neutral-50 to-transparent dark:from-neutral-900" />
           <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-20 bg-gradient-to-l from-neutral-50 to-transparent dark:from-neutral-900" />
 
-          <motion.div
-            className="flex gap-4"
-            animate={{
-              x: [`0px`, `-${(testimonials.length * 396)}px`],
-            }}
-            transition={{
-              x: {
-                repeat: Infinity,
-                repeatType: "loop",
-                duration: 40,
-                ease: "linear",
-              },
-            }}
-          >
-            {[...testimonials, ...testimonials].map((item, index) => (
+          <div className="flex gap-4 animate-carousel-scroll">
+            {[...testimonials, ...testimonials, ...testimonials].map((item, index) => (
               <div
                 key={`${item.name}-${index}`}
                 className="group relative flex-shrink-0 w-[380px] overflow-hidden rounded-3xl border border-neutral-200/60 bg-white/80 p-6 text-left shadow-lg shadow-black/10 backdrop-blur transition hover:-translate-y-1 hover:shadow-2xl dark:border-white/10 dark:bg-white/10"
@@ -883,12 +870,12 @@ export default function MarketingLanding() {
                 </footer>
               </div>
             ))}
-          </motion.div>
+          </div>
         </div>
       </section>
 
       <section className="mx-auto mt-28 max-w-5xl px-6">
-        <div className="rounded-3xl border border-white/10 bg-white/70 p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:bg-white/5">
+        <div className="rounded-3xl border border-slate-200/70 bg-white/95 p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:bg-white/5">
           <h2 className="text-center text-3xl font-bold">FAQs</h2>
           <div className="mt-8 space-y-4">
             {faqs.map((item) => (
@@ -943,7 +930,7 @@ export default function MarketingLanding() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.5, ease: 'easeOut' }}
-              className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/70 p-6 text-center shadow-md shadow-black/10 backdrop-blur dark:bg-white/5"
+              className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white/95 p-6 text-center shadow-md shadow-black/10 backdrop-blur dark:bg-white/5"
             >
               <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-r from-lernex-blue/20 via-lernex-purple/20 to-transparent" />
               <h3 className="text-xl font-semibold tracking-wide text-neutral-800 dark:text-white">

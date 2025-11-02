@@ -206,7 +206,7 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
   };
 
   const baseClass =
-    "relative flex flex-col overflow-hidden rounded-[28px] border border-surface bg-surface-card shadow-xl ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-2xl backdrop-blur-xl";
+    "relative flex flex-col overflow-hidden rounded-[28px] border border-slate-200/70 bg-white/95 shadow-card ring-1 ring-slate-900/5 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-3xl backdrop-blur-xl dark:border-surface dark:bg-surface-card dark:ring-black/5 dark:shadow-xl dark:hover:shadow-2xl";
   const rootClass = className ? baseClass + " " + className : baseClass;
 
   const actionBase =
@@ -282,7 +282,7 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
             <span className="text-neutral-400 dark:text-neutral-500">/ {lesson.topic}</span>
           )}
           {lesson.difficulty && (
-            <span className="ml-auto rounded-full border border-neutral-300 px-2 py-0.5 text-[10px] font-semibold capitalize text-neutral-600 dark:border-neutral-600 dark:text-neutral-200">
+            <span className="ml-auto rounded-full border border-slate-300/80 bg-gradient-to-br from-white to-slate-50 px-2 py-0.5 text-[10px] font-semibold capitalize text-slate-700 shadow-sm dark:border-neutral-600 dark:bg-transparent dark:from-transparent dark:to-transparent dark:text-neutral-200 dark:shadow-none">
               {lesson.difficulty}
             </span>
           )}
@@ -292,7 +292,7 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
           <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{lesson.nextTopicHint}</div>
         )}
         {contextEntries.length > 0 && (
-          <div className="mt-3 rounded-2xl border border-neutral-200 bg-white/70 px-4 py-3 text-[12px] leading-relaxed text-neutral-600 shadow-sm dark:border-neutral-700 dark:bg-white/5 dark:text-neutral-300">
+          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/60 px-4 py-3 text-[12px] leading-relaxed text-neutral-700 shadow-sm dark:border-neutral-700 dark:bg-white/5 dark:from-transparent dark:to-transparent dark:text-neutral-300">
             <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
               Why you&apos;re seeing this
             </div>
@@ -307,7 +307,7 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
           </div>
         )}
         {knowledgeDetails && (
-          <div className="mt-3 rounded-2xl border border-neutral-200 bg-white/80 px-4 py-3 text-sm text-neutral-700 shadow-sm dark:border-neutral-700 dark:bg-white/10 dark:text-neutral-200">
+          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/70 px-4 py-3 text-sm text-neutral-700 shadow-sm dark:border-neutral-700 dark:bg-white/10 dark:from-transparent dark:to-transparent dark:text-neutral-200">
             <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
               Anchors
             </div>

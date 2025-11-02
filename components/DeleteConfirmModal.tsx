@@ -70,7 +70,7 @@ export default function DeleteConfirmModal({
             <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-red-500/20 via-orange-500/20 to-pink-500/20 blur-xl" />
 
             {/* Main modal content */}
-            <div className="relative rounded-3xl border border-red-500/20 bg-surface-card shadow-2xl overflow-hidden">
+            <div className="relative rounded-3xl border border-red-400/30 bg-white/98 shadow-3xl overflow-hidden dark:border-red-500/20 dark:bg-surface-card dark:shadow-2xl">
               {/* Header with gradient */}
               <div className="relative overflow-hidden bg-gradient-to-r from-red-500/10 via-orange-500/10 to-pink-500/10 px-6 py-5 border-b border-red-500/20">
                 <div className="flex items-start justify-between gap-4">
@@ -139,7 +139,7 @@ export default function DeleteConfirmModal({
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={onClose}
-                  className="px-5 py-2.5 rounded-xl font-medium transition-all duration-200 bg-surface-muted hover:bg-surface text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500/40"
+                  className="px-5 py-2.5 rounded-xl font-medium transition-all duration-200 bg-gradient-to-br from-white to-slate-50 border border-slate-300/80 hover:from-slate-50 hover:to-slate-100 hover:shadow-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500/40 dark:bg-surface-muted dark:hover:bg-surface dark:border-transparent dark:from-transparent dark:to-transparent"
                 >
                   {cancelText}
                 </motion.button>
