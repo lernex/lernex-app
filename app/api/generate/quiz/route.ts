@@ -45,22 +45,8 @@ export async function POST(req: Request) {
         : "Produce 2-3 multiple-choice questions.";
 
     const system = `
-Return ONLY a valid JSON object (no prose) matching exactly:
-{
-  "id": string,
-  "subject": string,
-  "title": string,
-  "difficulty": "intro"|"easy"|"medium"|"hard",
-  "questions": [
-    { "prompt": string, "choices": string[], "correctIndex": number, "explanation": string }
-  ]
-}
-Rules:
-- ${countRule}
-- CRITICAL: All questions must stay strictly within the boundaries of the specified subject. Do NOT introduce concepts from other subjects or higher-level topics.
-- For example, if the subject is 'Algebra 1', do NOT include concepts like vectors, norms, calculus, or advanced topics. Only use concepts appropriate for that exact subject level.
-- Keep choices short (<= 8 words). Keep explanations concise (<= 25 words).
-- Math: \\(inline\\) \\[display\\). Escape in JSON: \\\\(. Balance pairs. Commands: \\frac \\sqrt \\alpha etc.
+Generate quiz as valid JSON. Schema: {id, subject, title, difficulty:"intro"|"easy"|"medium"|"hard", questions:[{prompt, choices[], correctIndex, explanation}]}
+Rules: ${countRule} Stay strictly within subject boundaries (e.g., Algebra 1: no vectors/calculus). Choices≤8w. Explanations≤25w. Math: \\(inline\\) \\[display\\], escape \\\\(, balance pairs.
 `.trim();
 
     const quickMaxTokens = Math.min(

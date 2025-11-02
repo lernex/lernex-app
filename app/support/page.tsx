@@ -131,7 +131,7 @@ const knowledgeArticles: KnowledgeArticle[] = [
   },
   {
     title: 'Generate lessons with the AI tutor',
-    summary: 'Turn study text into lessons, quizzes, and practice plans with the Cerebras GPT-OSS-120B powered generator.',
+    summary: 'Turn study text into lessons, quizzes, and practice plans with our AI-powered generator.',
     category: 'AI Assistant',
     href: '/generate',
   },
@@ -146,24 +146,24 @@ const knowledgeArticles: KnowledgeArticle[] = [
 const quickActions: QuickAction[] = [
   {
     title: 'Search the help centre',
-    description: 'Browse setup guides, walkthroughs, and video tutorials in one place.',
+    description: 'Browse setup guides and tutorials to get the most out of Lernex.',
     icon: BookOpen,
     href: '/docs',
     meta: 'Fresh articles every week',
   },
   {
     title: 'Review analytics',
-    description: 'Check streaks, accuracy trends, and AI usage for the last 30 days.',
+    description: 'Check your streaks, accuracy trends, and progress over time.',
     icon: Target,
     href: '/analytics',
     meta: 'Updated in real time',
   },
   {
-    title: 'Join onboarding clinic',
-    description: 'Thursday sessions where we co-create lesson plans and playlists with you.',
+    title: 'Connect with friends',
+    description: 'Add classmates, share playlists, and compete on the leaderboard.',
     icon: Users,
-    href: '/welcome',
-    meta: '25 minute group call',
+    href: '/friends',
+    meta: 'Study together, stay motivated',
   },
 ];
 
@@ -171,7 +171,7 @@ const supportChannels: SupportChannel[] = [
   {
     id: 'live-chat',
     name: 'Live chat',
-    description: 'Chat with a Lernex specialist and our AI co-pilot for quick workflow fixes or product questions.',
+    description: 'Get quick help from our AI assistant and support team for any questions about lessons or features.',
     icon: MessageCircle,
     response: 'Replies in 1-2 minutes',
     availability: 'Mon-Fri 8am-6pm MT',
@@ -180,61 +180,41 @@ const supportChannels: SupportChannel[] = [
   },
   {
     id: 'email-desk',
-    name: 'Email desk',
-    description: 'Share details, screenshots, or CSVs and we will reply with steps, docs, or a short Loom video.',
+    name: 'Email support',
+    description: 'Send us detailed questions, screenshots, or bug reports and we\'ll get back to you with solutions.',
     icon: Mail,
     response: 'Under 4 hours',
     availability: 'Every day 7am-10pm MT',
     actionLabel: `Email ${SUPPORT_EMAIL}`,
     href: `mailto:${SUPPORT_EMAIL}`,
   },
-  {
-    id: 'book-session',
-    name: 'Schedule a walkthrough',
-    description: 'Perfect for teams. We tailor a 25 minute call to help map analytics, playlists, and cohort pacing.',
-    icon: CalendarClock,
-    response: 'Pick a slot that works',
-    availability: 'Rolling availability across time zones',
-    actionLabel: 'Book a session',
-    href: '#book-session',
-  },
-  {
-    id: 'voice-line',
-    name: 'Voice line',
-    description: 'Escalate urgent access or outage issues that need human attention right away.',
-    icon: Headphones,
-    response: 'Direct escalation',
-    availability: 'Mon-Fri 9am-5pm MT',
-    actionLabel: 'Call +1 (866) 555-LEARN',
-    href: 'tel:+18665555327',
-  },
 ];
 
 const faqs = [
   {
-    question: 'How do I migrate my existing study notes into Lernex?',
+    question: 'How do I turn my study notes into lessons?',
     answer:
-      'Navigate to the Generate page and paste up to two short paragraphs at a time. The AI tutor converts them into structured lessons and quizzes, so you can rebuild your library rapidly.',
+      'Go to the Generate page and paste your notes (up to two paragraphs at a time). Our AI converts them into bite-sized lessons with quizzes to help you study smarter.',
   },
   {
-    question: 'Where can I check detailed quiz analytics?',
+    question: 'Where can I track my progress and stats?',
     answer:
-      'Head to Analytics for accuracy, streak, and token insights. Achievements highlights badge progress and perfect streaks, while Playlists shows subject-level mastery.',
+      'Check out Analytics to see your accuracy, streaks, and study patterns. Achievements shows your badges and milestones, and Playlists helps you organize lessons by topic.',
   },
   {
-    question: 'Can I collaborate with friends or classmates?',
+    question: 'Can I study with my friends or classmates?',
     answer:
-      'Yes. Use the Friends page to connect, share playlists, and track leaderboard standings. Support can add cohort templates or bulk import contacts if you need it.',
+      'Absolutely! Use the Friends page to connect with classmates, share playlists, and compete on the leaderboard. It\'s a great way to stay motivated together.',
   },
   {
-    question: 'What models power the AI tutor?',
+    question: 'How does the AI tutor work?',
     answer:
-      'Lernex uses Cerebras GPT-OSS-120B for lesson and chat generation. Check the Generate page for modes and token usage; the Support team can advise on optimisation.',
+      'Lernex uses advanced AI to generate personalized lessons based on your study materials. Just paste your notes or textbook content, and we\'ll create custom lessons and quizzes for you.',
   },
   {
-    question: 'Do you support educators and teams?',
+    question: 'What if I need help or have a problem?',
     answer:
-      'Absolutely. Email support or book a walkthrough to configure analytics exports, advanced permissions, and shared playlists for your organisation.',
+      'You can use the live chat for quick questions or email us at support@lernex.net. We\'re here to help you get the most out of Lernex!',
   },
 ];
 
@@ -437,7 +417,7 @@ function SupportChat({ context }: { context: string }) {
         <div>
           <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Live support chat</h3>
           <p className="text-sm text-neutral-600 dark:text-neutral-300">
-            Powered by Cerebras GPT-OSS-120B. We hand off to a human whenever you ask.
+            Get instant help from our AI assistant. We&apos;ll connect you with a real person whenever needed.
           </p>
         </div>
         <span className="inline-flex items-center gap-1 rounded-full bg-lernex-blue/15 px-3 py-1 text-xs font-semibold text-lernex-blue dark:bg-lernex-blue/25">
@@ -770,11 +750,10 @@ export default function SupportPage() {
                 <ArrowUpRight className="h-4 w-4" />
               </span>
               <h1 className="mt-6 text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
-                Support that keeps pace with your learning.
+                We&apos;re here to help you succeed.
               </h1>
               <p className="mt-4 max-w-2xl text-lg text-neutral-600 dark:text-neutral-300">
-                Find answers instantly, connect with a human, or co-create a plan for your team. Lernex support combines
-                rich analytics, personalised achievements, and the Cerebras-powered AI tutor so you never lose momentum.
+                Got questions? Need help? Whether it&apos;s about lessons, streaks, or anything else, we&apos;ve got your back. Find answers fast or reach out anytime.
               </p>
               <div className="mt-6 flex flex-wrap gap-4">
                 <Link
@@ -848,10 +827,9 @@ export default function SupportPage() {
         <section className="mt-12 rounded-3xl border border-neutral-200 bg-white/95 p-8 shadow-sm dark:border-white/10 dark:bg-white/5">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-2xl font-semibold">Support insights</h2>
+              <h2 className="text-2xl font-semibold">Your learning snapshot</h2>
               <p className="mt-2 max-w-2xl text-neutral-600 dark:text-neutral-300">
-                We pull real data from your recent lessons, streaks, and achievements. Use it to decide whether to reach
-                for analytics, achievements, or the live chat.
+                Here&apos;s a quick look at your recent activity. Check your streaks, accuracy, and progress to see how you&apos;re doing.
               </p>
             </div>
             <Link
@@ -890,10 +868,9 @@ export default function SupportPage() {
         <section id="contact" className="mt-12 grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
           <div className="rounded-3xl border border-neutral-200 bg-white/95 p-8 shadow-sm dark:border-white/10 dark:bg-white/5">
             <div className="flex flex-col gap-2">
-              <h2 className="text-2xl font-semibold">Connect with the support team</h2>
+              <h2 className="text-2xl font-semibold">Get in touch</h2>
               <p className="text-neutral-600 dark:text-neutral-300">
-                We aim to respond fast and bring the right context. Pick the option that matches your question and we will
-                take it from there.
+                Pick the option that works best for you, and we&apos;ll help you out as quickly as possible.
               </p>
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -932,11 +909,10 @@ export default function SupportPage() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 id="knowledge-heading" className="text-2xl font-semibold">
-                Search the knowledge base
+                Find answers
               </h2>
               <p className="mt-2 max-w-2xl text-neutral-600 dark:text-neutral-300">
-                Filter by topic or type what you are trying to solve. Results update instantly so you can keep learning
-                without losing momentum.
+                Search for help articles or browse by topic. Everything you need to know about using Lernex is right here.
               </p>
             </div>
             <div className="w-full max-w-md">
@@ -1010,9 +986,9 @@ export default function SupportPage() {
         </section>
         <section className="mt-14 grid gap-6 lg:grid-cols-[2fr,1fr]">
           <div className="rounded-3xl border border-neutral-200 bg-white/95 p-8 shadow-sm dark:border-white/10 dark:bg-white/5">
-            <h2 className="text-2xl font-semibold">Popular questions</h2>
+            <h2 className="text-2xl font-semibold">Common questions</h2>
             <p className="mt-2 text-neutral-600 dark:text-neutral-300">
-              Still exploring? These answers cover the moments most learners ask about.
+              Quick answers to the questions we get asked most often.
             </p>
             <div className="mt-6 space-y-4">
               {faqs.map((faq) => (
@@ -1030,7 +1006,7 @@ export default function SupportPage() {
             </div>
           </div>
           <div className="flex flex-col gap-4 rounded-3xl border border-neutral-200 bg-white/95 p-6 shadow-sm dark:border-white/10 dark:bg-white/5">
-            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">More ways to level up</h3>
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">More resources</h3>
             {additionalResources.map((resource) => (
               <Link
                 key={resource.title}
@@ -1048,21 +1024,20 @@ export default function SupportPage() {
               </Link>
             ))}
             <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-white/10 dark:bg-white/10 dark:text-neutral-300">
-              Cannot find what you need? Drop a note to{' '}
+              Can&apos;t find what you&apos;re looking for? Email{' '}
               <a href={`mailto:${SUPPORT_EMAIL}`} className="font-semibold text-lernex-purple hover:underline">
                 {SUPPORT_EMAIL}
               </a>{' '}
-              and we will add a guide within two days.
+              and we&apos;ll help you out!
             </div>
           </div>
         </section>
         <section className="mt-14 rounded-3xl border border-neutral-200 bg-white/95 p-8 shadow-sm dark:border-white/10 dark:bg-white/5">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-2xl font-semibold">Share feedback</h2>
+              <h2 className="text-2xl font-semibold">Send us feedback</h2>
               <p className="mt-2 max-w-2xl text-neutral-600 dark:text-neutral-300">
-                Every idea helps shape Lernex. Send a quick note, request a feature, or report a bug - the product team
-                reads everything.
+                Have an idea to make Lernex better? Found a bug? We&apos;d love to hear from you! Your feedback helps us improve the platform for everyone.
               </p>
             </div>
             <a
@@ -1079,7 +1054,7 @@ export default function SupportPage() {
               <div>
                 <p className="font-semibold text-neutral-900 dark:text-white">Report a bug</p>
                 <p className="text-sm text-neutral-600 dark:text-neutral-300">
-                  Include steps and screenshots if you can, and we will triage immediately.
+                  Something not working? Let us know with screenshots if possible, and we&apos;ll fix it ASAP.
                 </p>
               </div>
             </div>
@@ -1088,16 +1063,16 @@ export default function SupportPage() {
               <div>
                 <p className="font-semibold text-neutral-900 dark:text-white">Request a feature</p>
                 <p className="text-sm text-neutral-600 dark:text-neutral-300">
-                  Tell us the outcome you are chasing - we will reply with ideas or workarounds.
+                  Have an idea for a cool new feature? Let us know what you&apos;d like to see!
                 </p>
               </div>
             </div>
             <div className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-white/90 p-5 dark:border-white/10 dark:bg-white/10">
               <ShieldCheck className="mt-1 h-5 w-5 text-lernex-green" />
               <div>
-                <p className="font-semibold text-neutral-900 dark:text-white">Security hotline</p>
+                <p className="font-semibold text-neutral-900 dark:text-white">Security concerns</p>
                 <p className="text-sm text-neutral-600 dark:text-neutral-300">
-                  Spot something suspicious? Email security@lernex.app for a priority review.
+                  Notice something suspicious? Email security@lernex.app and we&apos;ll look into it right away.
                 </p>
               </div>
             </div>

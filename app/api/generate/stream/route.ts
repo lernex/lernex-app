@@ -81,7 +81,7 @@ export async function POST(req: Request) {
 
     // Common rules extracted to reduce duplication
     const SUBJECT_BOUNDARY_RULE = "CRITICAL: Stay strictly within the boundaries of the specified subject. Do NOT introduce concepts from other subjects or higher-level topics. For example, if the subject is 'Algebra 1', do NOT include concepts like vectors, norms, calculus, or advanced topics. Only use concepts appropriate for that exact subject level.";
-    const MATH_FORMATTING_RULES = "Math: \\(inline\\) \\[display\\]. Escape in JSON: \\\\(. Balance pairs. Commands: \\frac \\sqrt \\alpha etc.";
+    const MATH_FORMATTING_RULES = "Math: Use LaTeX with single backslash delimiters: \\(inline\\) \\[display\\]. Example: \\(x^2 + 1\\) or \\[\\frac{a}{b}\\]. In JSON strings, escape backslashes: \"\\\\(\" becomes \\( when parsed. Commands: \\frac \\sqrt \\alpha etc.";
     const TABLE_FORMATTING_RULE = "Tables: Use markdown format | Header 1 | Header 2 | with separator |----|----| and data rows.";
     const FORMAT_RESTRICTION = "Do not use JSON or code fences; avoid HTML tags.";
 

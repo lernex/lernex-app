@@ -9,6 +9,7 @@ import { buildLessonPrompts } from "./lesson-prompts";
 import { createModelClient, type UserTier, type ModelSpeed } from "./model-config";
 import { compressContext } from "./semantic-compression";
 import { shuffleQuizQuestions } from "./quiz-shuffle";
+import { normalizeLatex } from "./latex";
 
 type Pace = "slow" | "normal" | "fast";
 
@@ -104,7 +105,9 @@ type LessonOptions = {
   pace?: Pace;
   accuracyPct?: number;
   difficultyPref?: Difficulty;
+  /** @deprecated No longer sent to AI prompt (filtered locally). Kept for logging/telemetry only. */
   avoidIds?: string[];
+  /** @deprecated No longer sent to AI prompt (filtered locally). Kept for logging/telemetry only. */
   avoidTitles?: string[];
   mapSummary?: string;
   structuredContext?: Record<string, unknown>;
@@ -868,33 +871,34 @@ function collectKnowledgeEntries(knowledge: LessonOptions["knowledge"] | undefin
   const entries: string[] = [];
   const definition = typeof knowledge.definition === "string" ? knowledge.definition.trim() : "";
   if (definition) {
-    entries.push(`definition: ${truncateText(definition, 240)}`);
+    // OPTIMIZED: Abbreviated labels save ~6 tokens per field
+    entries.push(`def: ${truncateText(definition, 180)}`);  // definition -> def, 180 chars (down from 240)
   }
   if (Array.isArray(knowledge.applications)) {
     const apps = dedupeStrings(
       knowledge.applications.filter((entry): entry is string => typeof entry === "string"),
-      3,
-    ).map((entry) => truncateText(entry, 110));
+      2,  // Reduced from 3 to 2
+    ).map((entry) => truncateText(entry, 80));  // Reduced from 110 to 80
     if (apps.length) {
-      entries.push(`applications: ${apps.join(" | ")}`);
+      entries.push(`apps: ${apps.join(" | ")}`);  // applications -> apps
     }
   }
   if (Array.isArray(knowledge.prerequisites)) {
     const prereqs = dedupeStrings(
       knowledge.prerequisites.filter((entry): entry is string => typeof entry === "string"),
-      4,
-    ).map((entry) => truncateText(entry, 100));
+      3,  // Reduced from 4 to 3
+    ).map((entry) => truncateText(entry, 80));  // Reduced from 100 to 80
     if (prereqs.length) {
-      entries.push(`prerequisites: ${prereqs.join(" | ")}`);
+      entries.push(`prereqs: ${prereqs.join(" | ")}`);  // prerequisites -> prereqs
     }
   }
   if (Array.isArray(knowledge.reminders)) {
     const reminders = dedupeStrings(
       knowledge.reminders.filter((entry): entry is string => typeof entry === "string"),
-      3,
-    ).map((entry) => truncateText(entry, 100));
+      2,  // Reduced from 3 to 2
+    ).map((entry) => truncateText(entry, 80));  // Reduced from 100 to 80
     if (reminders.length) {
-      entries.push(`reminders: ${reminders.join(" | ")}`);
+      entries.push(`rem: ${reminders.join(" | ")}`);  // reminders -> rem
     }
   }
   return entries;
@@ -928,29 +932,9 @@ function buildSourceText(
     }
   }
 
-  const trimmedTitleGuards = Array.isArray(opts.avoidTitles)
-    ? dedupeStrings(
-        opts.avoidTitles
-          .map((value) => (typeof value === "string" ? value.trim() : ""))
-          .filter((value) => value.length > 0),
-        4,
-      )
-    : [];
-  if (trimmedTitleGuards.length) {
-    lines.push(`Avoid reusing titles: ${trimmedTitleGuards.join(" | ")}`);
-  }
-
-  const trimmedIdGuards = Array.isArray(opts.avoidIds)
-    ? dedupeStrings(
-        opts.avoidIds
-          .map((value) => (typeof value === "string" ? value.trim() : ""))
-          .filter((value) => value.length > 0),
-        4,
-      )
-    : [];
-  if (trimmedIdGuards.length) {
-    lines.push(`Avoid lessons with ID prefixes: ${trimmedIdGuards.join(" | ")}`);
-  }
+  // OPTIMIZATION: avoidIds and avoidTitles removed from AI prompt
+  // These are now filtered locally after generation, saving 50-150 tokens per request
+  // The filtering logic is in fyp/route.ts after lesson generation
 
   if (opts.nextTopicHint && opts.nextTopicHint.trim()) {
     lines.push(`Upcoming: ${truncateText(opts.nextTopicHint.trim(), 120)}`);
@@ -1008,7 +992,8 @@ export async function generateLessonForTopic(
 
   // Apply semantic compression to sourceText if enabled
   const enableCompression = process.env.ENABLE_SEMANTIC_COMPRESSION === 'true';
-  const compressionRate = Number(process.env.SEMANTIC_COMPRESSION_RATE ?? '0.3');
+  // OPTIMIZED: Use 0.65 default compression rate (was 0.3) for better token savings
+  const compressionRate = Number(process.env.SEMANTIC_COMPRESSION_RATE ?? '0.65');
 
   if (enableCompression && sourceText.length > 500) {
     try {
@@ -1016,7 +1001,7 @@ export async function generateLessonForTopic(
         rate: compressionRate,
         preserve: [subject, topic, difficulty],
         useCache: true,
-        temperature: 0.2,
+        temperature: 0.1,  // OPTIMIZED: Lower temperature (was 0.2) for faster, more deterministic compression
       });
       sourceText = compressionResult.compressed;
       console.log('[fyp] sourceText-compression', {
@@ -1041,10 +1026,11 @@ export async function generateLessonForTopic(
     : null;
 
   // Compress structured context if enabled and large
-  if (enableCompression && structuredContextJson && structuredContextJson.length > 800) {
+  // OPTIMIZED: Lower threshold from 800 to 600 chars to compress more aggressively
+  if (enableCompression && structuredContextJson && structuredContextJson.length > 600) {
     try {
       const compressionResult = await compressContext(structuredContextJson, {
-        rate: compressionRate,
+        rate: compressionRate,  // Now uses 0.65 default (was 0.3)
         useCache: true,
         temperature: 0.1, // Very deterministic for JSON-like content
       });
@@ -1294,10 +1280,33 @@ export async function generateLessonForTopic(
 
   const validateLessonCandidate = async (candidate: Lesson | null) => {
     // Deterministic validation only - schema validation already happened in resolveLessonCandidate
-    if (candidate && Array.isArray(candidate.questions)) {
+    if (!candidate) return null;
+
+    // Normalize LaTeX delimiters in lesson content
+    if (typeof candidate.content === "string") {
+      candidate.content = normalizeLatex(candidate.content);
+    }
+    if (typeof candidate.title === "string") {
+      candidate.title = normalizeLatex(candidate.title);
+    }
+    if (typeof candidate.topic === "string") {
+      candidate.topic = normalizeLatex(candidate.topic);
+    }
+
+    // Normalize LaTeX in questions and shuffle answer choices
+    if (Array.isArray(candidate.questions)) {
+      candidate.questions = candidate.questions.map((q) => ({
+        ...q,
+        prompt: typeof q.prompt === "string" ? normalizeLatex(q.prompt) : q.prompt,
+        explanation: typeof q.explanation === "string" ? normalizeLatex(q.explanation) : q.explanation,
+        choices: Array.isArray(q.choices)
+          ? q.choices.map((c) => (typeof c === "string" ? normalizeLatex(c) : c))
+          : q.choices,
+      }));
       // Shuffle answer choices to prevent AI bias toward position A
       candidate.questions = shuffleQuizQuestions(candidate.questions);
     }
+
     return candidate;
   };
 

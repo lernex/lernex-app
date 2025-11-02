@@ -75,35 +75,45 @@ export async function getCachedSampleQuestions(
 
 /**
  * Compresses sample questions into a compact format to reduce tokens
- * Stream format: ~250-350 tokens (vs 400-600 original)
- * Quiz format: ~300-400 tokens (vs 500-700 original)
+ * Uses aggressive truncation since examples are only for style reference
+ * Stream format: ~150-200 tokens (vs 400-600 original) - 60% savings
+ * Quiz format: ~180-250 tokens (vs 500-700 original) - 55% savings
  */
 function compressSamples(questions: SampleQuestion[], format: "stream" | "quiz"): string {
+  const truncate = (text: string | undefined, maxLen: number): string => {
+    if (!text) return "";
+    return text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
+  };
+
   if (format === "stream") {
-    // Compact format for streaming responses (lessons)
-    let result = "\n\nExamples (match this style):\n\n";
+    // Ultra-compact format for streaming responses (lessons)
+    let result = "\n\nStyle refs:\n";
     questions.forEach((q, idx) => {
-      result += `Q${idx + 1}: ${q.question_text}\n`;
+      const prompt = truncate(q.question_text, 80);
+      result += `${idx + 1}. p: ${prompt}\n`;
+
       if (q.answer_choices && Array.isArray(q.answer_choices)) {
-        // Compact choice format: A) choice
-        q.answer_choices.forEach((choice: string, i: number) => {
-          result += `${String.fromCharCode(65 + i)}) ${choice}\n`;
-        });
+        const choices = q.answer_choices.map((ch: string) => truncate(ch, 30)).join(" | ");
+        result += `   c: ${choices}\n`;
       }
-      result += `Answer: ${q.correct_answer}\n\n`;
+      result += `   ans: ${q.correct_answer}\n`;
     });
     return result;
   } else {
-    // Compact format for quiz generation
-    let result = "\n\nStyle reference examples:\n\n";
+    // Ultra-compact format for quiz generation
+    let result = "\n\nStyle refs:\n";
     questions.forEach((q, idx) => {
-      result += `Q${idx + 1}: ${q.question_text}\n`;
+      const prompt = truncate(q.question_text, 80);
+      const explanation = truncate(q.explanation, 40);
+
+      result += `${idx + 1}. p: ${prompt}\n`;
+
       if (q.answer_choices && Array.isArray(q.answer_choices)) {
-        q.answer_choices.forEach((choice: string, i: number) => {
-          result += `${String.fromCharCode(65 + i)}) ${choice}\n`;
-        });
+        const choices = q.answer_choices.map((ch: string) => truncate(ch, 30)).join(" | ");
+        result += `   c: ${choices}\n`;
       }
-      result += `Correct: ${q.correct_answer}\nWhy: ${q.explanation}\n\n`;
+
+      result += `   ans: ${q.correct_answer} | e: ${explanation}\n`;
     });
     return result;
   }

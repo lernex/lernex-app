@@ -703,7 +703,7 @@ export default function MarketingLanding() {
               style={{ zIndex: learningFlow.length - idx }}
             >
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-lernex-blue/0 via-lernex-purple/5 to-lernex-blue/0 opacity-0 transition group-hover:opacity-100" />
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300/60 bg-gradient-to-br from-white to-slate-50 text-sm font-semibold text-lernex-purple shadow-sm dark:border-white/40 dark:bg-white/10 dark:from-transparent dark:to-transparent">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300/60 bg-surface-muted text-sm font-semibold text-lernex-purple shadow-sm dark:border-white/40">
                 {item.step}
               </span>
               <div className="mt-6 text-xl font-semibold text-neutral-900 dark:text-white">{item.title}</div>
@@ -745,7 +745,7 @@ export default function MarketingLanding() {
                     <p className="text-sm leading-relaxed text-neutral-700">
                       Instead of assuming everything inside your network is safe, zero trust treats every request as if it came from an untrusted source—verifying identity and context at each step. This means checking user credentials, device health, and access context before granting permissions, even for internal users...
                     </p>
-                    <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white/95 to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background to-transparent" />
                   </div>
                   <div className="mt-4 flex items-center gap-2 text-xs text-neutral-500">
                     <span className="flex items-center gap-1">

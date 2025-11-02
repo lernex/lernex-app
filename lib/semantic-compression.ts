@@ -13,7 +13,7 @@ import Groq from "groq-sdk";
 
 // Cache compressed results to avoid re-compression
 const compressionCache = new Map<string, { compressed: string; timestamp: number }>();
-const CACHE_TTL = 1000 * 60 * 15; // 15 minutes
+const CACHE_TTL = 1000 * 60 * 60; // 60 minutes (increased from 15 for better cache hit rate)
 
 interface CompressionOptions {
   /** Target compression rate (0-1). 0.5 = 50% reduction */
@@ -91,12 +91,12 @@ export async function compressContext(
   options: CompressionOptions = {}
 ): Promise<CompressionResult> {
   const {
-    rate = 0.5,
+    rate = 0.65,  // Increased from 0.5 for more aggressive compression (65% reduction)
     maxTokens,
     preserve = [],
     useCache = true,
     model = "openai/gpt-oss-20b",
-    temperature = 0.3,
+    temperature = 0.1,  // Lowered from 0.3 for more deterministic output and faster processing
     provider = 'groq',
   } = options;
 

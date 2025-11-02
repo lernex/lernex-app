@@ -73,7 +73,8 @@ export async function POST(req: NextRequest) {
     });
 
     // Get user context for lesson generation
-    const [stateResponse, progressResponse, preferenceResponse] = await Promise.all([
+    // OPTIMIZATION: No longer fetching delivered_ids/titles since they're not sent to AI
+    const [stateResponse, preferenceResponse] = await Promise.all([
       sb
         .from("user_subject_state")
         .select("difficulty")
@@ -81,27 +82,16 @@ export async function POST(req: NextRequest) {
         .eq("subject", subject)
         .maybeSingle(),
       sb
-        .from("user_subject_progress")
-        .select("delivered_ids_by_topic, delivered_titles_by_topic")
-        .eq("user_id", uid)
-        .eq("subject", subject)
-        .maybeSingle(),
-      sb
         .from("user_subject_preferences")
-        .select("liked_ids, disliked_ids, saved_ids, tone_tags")
+        .select("liked_ids, saved_ids, tone_tags")
         .eq("user_id", uid)
         .eq("subject", subject)
         .maybeSingle(),
     ]);
 
     const state = stateResponse.data as { difficulty?: string } | null;
-    const progressRow = progressResponse.data as {
-      delivered_ids_by_topic?: unknown;
-      delivered_titles_by_topic?: unknown;
-    } | null;
     const preferenceRow = preferenceResponse.data as {
       liked_ids?: unknown;
-      disliked_ids?: unknown;
       saved_ids?: unknown;
       tone_tags?: unknown;
     } | null;
@@ -114,10 +104,8 @@ export async function POST(req: NextRequest) {
         .filter((entry) => entry.length > 0);
     };
 
-    const deliveredIdsByTopic = progressRow?.delivered_ids_by_topic as Record<string, string[]> | undefined;
-    const deliveredTitlesByTopic = progressRow?.delivered_titles_by_topic as Record<string, string[]> | undefined;
-    const avoidIds = toStringArray(deliveredIdsByTopic?.[topicLabel]);
-    const avoidTitles = toStringArray(deliveredTitlesByTopic?.[topicLabel]);
+    // OPTIMIZATION: avoidIds/avoidTitles no longer sent to AI (saves 50-150 tokens per request)
+    // Removed delivered ID/title tracking as it's no longer needed for AI prompt
     const likedIds = toStringArray(preferenceRow?.liked_ids);
     const savedIds = toStringArray(preferenceRow?.saved_ids);
     const toneTags = toStringArray(preferenceRow?.tone_tags);
@@ -130,8 +118,8 @@ export async function POST(req: NextRequest) {
         // Use SLOW model for background generation (cheaper, more cost-effective)
         const generatorOptions: Parameters<typeof generateLessonForTopic>[5] = {
           difficultyPref: (state?.difficulty as Difficulty | undefined) ?? undefined,
-          avoidIds: [...avoidIds, ...generatedLessons], // Avoid already generated lessons
-          avoidTitles,
+          // avoidIds/avoidTitles removed from AI prompt (saves 50-150 tokens per request)
+          // Diversity is natural when AI has creative freedom
           likedIds,
           savedIds,
           toneTags,

@@ -71,12 +71,12 @@ export async function POST(req: Request) {
       "",
       "CRITICAL: Your lesson must emulate the exact style, difficulty, and format of real SAT questions.",
       hasExamples
-        ? "Use the provided real SAT question examples as a reference for style, difficulty, and formatting. Match their tone and complexity."
+        ? "Style reference examples provided below (truncated for brevity). Use them to match the format, tone, difficulty, and complexity of real SAT questions."
         : "Model your content after official SAT question patterns and difficulty levels.",
       "",
       "Use ## for sections if needed.",
       "Do not use JSON or code fences; avoid HTML tags.",
-      "Math: \\( ... \\) for inline and \\[ ... \\] for display. Balance pairs. Commands: \\frac \\sqrt \\alpha etc.",
+      "Math: Use LaTeX with single backslash delimiters: \\(inline\\) \\[display\\]. Example: \\(x^2 + 1\\) or \\[\\frac{a}{b}\\]. Commands: \\frac \\sqrt \\alpha etc.",
       "Tables: Use markdown format | Header 1 | Header 2 | with separator |----|----| and data rows.",
       "Make the content practical and test-focused.",
     ].join(" ");

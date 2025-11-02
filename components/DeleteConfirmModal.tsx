@@ -139,7 +139,7 @@ export default function DeleteConfirmModal({
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={onClose}
-                  className="px-5 py-2.5 rounded-xl font-medium transition-all duration-200 bg-gradient-to-br from-white to-slate-50 border border-slate-300/80 hover:from-slate-50 hover:to-slate-100 hover:shadow-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500/40 dark:bg-surface-muted dark:hover:bg-surface dark:border-transparent dark:from-transparent dark:to-transparent"
+                  className="px-5 py-2.5 rounded-xl font-medium transition-all duration-200 bg-surface-muted border border-slate-300/80 hover:bg-surface-card hover:shadow-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500/40 dark:border-transparent"
                 >
                   {cancelText}
                 </motion.button>

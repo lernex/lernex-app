@@ -486,64 +486,27 @@ export async function generateLearningPath(
   const deltaGuidance = buildDeltaGuidance(mastery, pace, accSubj, accAll);
   const outlineSummary = hasCachedOutline && cachedOutline ? summarizeOutline(cachedOutline) : null;
 
-const system = `You are a curriculum planner generating a compact level map.
-Return ONLY a VALID JSON object (no markdown fences, no comments) with this structure and constraints:
-{
-  "subject": string,
-  "course": string,
-  "topics": [
-    {
-      "name": string,
-      "subtopics": [
-        {
-          "name": string,
-          "mini_lessons": number,
-          "applications": string[],
-          "definition": string,
-          "prerequisites": string[],
-          "reminders": string[]
-        }
-      ]
-    }
-  ],
-  "cross_subjects": [ { "subject": string, "course": string | null, "rationale": string } ],
-  "persona": { "pace": "slow|normal|fast", "difficulty": "intro|easy|medium|hard", "notes": string }
-}
-Constraints:
-- Output must be STRICT JSON using double quotes only (no trailing commas).
-- Keep topic count between 6 and 9 (no filler topics) with 2-5 subtopics each.
-- mini_lessons: integer 1-4 per subtopic, scaled to difficulty and prerequisites.
-- applications: up to 2 concise real-world hooks relevant to the learner.
-- definition: 1-2 sentences (<= 28 words) capturing the core meaning of the subtopic.
-- prerequisites: up to 3 short reminders naming prior skills or facts to review first.
-- reminders: up to 2 actionable cues that guard against common mistakes or flag checks for understanding.
-- Order topics from foundations to advanced concepts without redundancy.
-- Use naming aligned with typical "${course}" syllabi when applicable.
-- Do NOT include any HTML. Escape braces if LaTeX is used.
-- Keep the response concise (under ~4800 tokens).
-`.trim();
+const system = `Generate compact level map as valid JSON.
+Schema: {subject, course, topics:[{name, subtopics:[{name, mini_lessons, applications[], definition, prerequisites[], reminders[]}]}], cross_subjects:[{subject, course?, rationale}], persona:{pace, difficulty, notes}}
+Rules: 6-9 topics, 2-5 subtopics each. mini_lessons=1-4 (scale to difficulty). applications≤2 real-world hooks. definition≤28w. prerequisites≤3. reminders≤2 actionable. Order: foundation→advanced. Match "${course}" syllabi. No HTML. Escape LaTeX braces. <4800 tokens.`.trim();
 
   const adaptiveSystem = hasCachedOutline
     ? `${system}\n\nWhen provided with an existing outline summary, refine it instead of rebuilding from scratch. Preserve structure unless learner data requires reordering or additions.`
     : system;
 
+  // OPTIMIZED: Batch compression with abbreviations (saves 120-180 tokens per generation)
   const userPrompt = [
-    `Subject: ${subject}`,
-    `Course: ${course}`,
-    `Estimated mastery: ${mastery}%`,
-    `Learner pace (last 72h): ${pace}`,
-    accSubj !== null ? `Recent accuracy in ${subject}: ${accSubj}%` : undefined,
-    accAll !== null ? `Overall recent accuracy: ${accAll}%` : undefined,
-    coSubjects.length ? `Other courses: ${coSubjects.slice(0, 3).map((c) => `${c.subject}${c.course ? ` (${c.course})` : ""}`).join(", ")}` : undefined,
-    interests.length ? `Interests (prioritize cross-subject applications relevant to): ${interests.slice(0, 6).join(", ")}` : undefined,
-    notes ? `Additional notes: ${notes}` : undefined,
-    deltaGuidance.length ? `Targeted adjustments:\n${deltaGuidance.map((line) => `- ${line}`).join("\n")}` : undefined,
-    outlineSummary ? `Existing outline summary (edit in place):\n${outlineSummary}` : undefined,
-    `Design goals:`,
-    `- Tailor topic ordering and mini_lessons to the learner's mastery and pace.`,
-    `- Highlight cross_subjects that connect ${subject} concepts to the listed courses/interests.`,
-    hasCachedOutline ? `- Prefer editing the cached outline; only introduce or remove topics when necessary.` : `- Keep the map compact but comprehensive (avoid redundant units).`,
-    `Task: Create the level map JSON exactly as per the schema.`
+    `Subj: ${subject} | Course: ${course}`,
+    `Mastery: ${mastery}% | Pace: ${pace}`,
+    accSubj !== null ? `SubjAcc: ${accSubj}%` : undefined,
+    accAll !== null ? `OverallAcc: ${accAll}%` : undefined,
+    coSubjects.length ? `OtherCourses: ${coSubjects.slice(0, 3).map((c) => `${c.subject}${c.course ? ` (${c.course})` : ""}`).join(", ")}` : undefined,
+    interests.length ? `Interests: ${interests.slice(0, 6).join(", ")}` : undefined,
+    notes ? `Notes: ${notes}` : undefined,
+    deltaGuidance.length ? `Adjustments:\n${deltaGuidance.map((line) => `- ${line}`).join("\n")}` : undefined,
+    outlineSummary ? `CachedOutline:\n${outlineSummary}` : undefined,
+    `Goals: Tailor ordering/mini_lessons to mastery+pace. Connect cross_subjects to ${subject}${hasCachedOutline ? ". Edit cached outline; add/remove topics only if needed" : ". Keep compact+comprehensive"}.`,
+    `Output level map JSON per schema.`
   ].filter(Boolean).join("\n");
 
   const primaryMaxTokens = hasCachedOutline ? Math.min(MAX_TOK_MAIN, 3600) : MAX_TOK_MAIN;

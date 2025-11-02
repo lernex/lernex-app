@@ -90,8 +90,7 @@ export default function ExpandedLessonModal({
         className={cn(
           "relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl",
           "border border-slate-200/80 dark:border-neutral-700/70",
-          "bg-gradient-to-br from-white via-slate-50/95 to-white",
-          "dark:from-neutral-900 dark:via-neutral-900/95 dark:to-neutral-900",
+          "bg-surface-card",
           "shadow-3xl",
           "dark:shadow-[0_24px_60px_-12px_rgba(0,0,0,0.4)]",
           "transition-all duration-500",
@@ -158,7 +157,7 @@ export default function ExpandedLessonModal({
         </div>
 
         {/* Footer gradient to indicate end of content */}
-        <div className="pointer-events-none absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-white via-white/60 to-transparent dark:from-neutral-900 dark:via-neutral-900/60" />
+        <div className="pointer-events-none absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-background via-background/60 to-transparent" />
       </div>
     </div>
   );

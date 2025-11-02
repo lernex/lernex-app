@@ -86,6 +86,75 @@ type LoadingState = {
   updatedAt: number;
 };
 
+/**
+ * Builds a weighted rotation array for Mix-subjects mode.
+ * Subjects with lower accuracy appear more frequently in the rotation.
+ *
+ * @param subjects - Array of subject names
+ * @param accuracyMap - Map of subject accuracy data
+ * @returns Weighted rotation array
+ */
+function buildWeightedRotation(
+  subjects: string[],
+  accuracyMap: Record<string, { correct: number; total: number }>
+): string[] {
+  if (subjects.length === 0) return [];
+  if (subjects.length === 1) return subjects;
+
+  // Calculate weights based on inverse accuracy
+  const subjectWeights = subjects.map(subject => {
+    const acc = accuracyMap[subject];
+
+    // If no data exists, give it medium-high weight (assume needs practice)
+    if (!acc || acc.total === 0) {
+      return { subject, weight: 0.6, accuracy: null };
+    }
+
+    const accuracy = acc.correct / acc.total;
+
+    // Inverse weight: lower accuracy = higher weight
+    // 50% accuracy → 0.5 weight → appears most
+    // 80% accuracy → 0.2 weight → appears less
+    // 95% accuracy → 0.05 weight → appears rarely
+    // Add minimum weight of 0.1 so no subject is completely excluded
+    const weight = Math.max(0.1, 1 - accuracy);
+
+    return { subject, weight, accuracy };
+  });
+
+  // Normalize weights to integers (multiply by 10 and round)
+  // This gives us nice whole numbers for repetition
+  const totalWeight = subjectWeights.reduce((sum, sw) => sum + sw.weight, 0);
+  const normalizedWeights = subjectWeights.map(sw => ({
+    subject: sw.subject,
+    count: Math.max(1, Math.round((sw.weight / totalWeight) * 20)) // Scale to ~20 total items
+  }));
+
+  // Build rotation array with subjects repeated based on their weights
+  const rotation: string[] = [];
+  normalizedWeights.forEach(({ subject, count }) => {
+    for (let i = 0; i < count; i++) {
+      rotation.push(subject);
+    }
+  });
+
+  // Interleave subjects to avoid long runs of the same subject
+  // Sort by count descending, then interleave
+  const sorted = [...normalizedWeights].sort((a, b) => b.count - a.count);
+  const interleaved: string[] = [];
+  const maxRounds = Math.max(...sorted.map(s => s.count));
+
+  for (let round = 0; round < maxRounds; round++) {
+    for (const { subject, count } of sorted) {
+      if (round < count) {
+        interleaved.push(subject);
+      }
+    }
+  }
+
+  return interleaved;
+}
+
 const CACHE_MAX_AGE_MS = 15 * 60 * 1000;
 const SKIP_REASON_OPTIONS = [
   { id: "not-ready", label: "Need more background" },
@@ -265,8 +334,19 @@ export default function FypFeed() {
   const rotation = useMemo<(string | null)[]>(() => {
     // Prefer explicit selections; otherwise fall back to interests; if empty, use [null] to indicate default subject
     const list = selectedSubjects.length ? selectedSubjects : interests;
-    return list.length ? list : [null];
-  }, [selectedSubjects, interests]);
+    if (!list.length) return [null];
+
+    // Check if we're in "Mix" mode (multiple subjects selected)
+    const isMixMode = selectedSubjects.length > 1;
+
+    if (isMixMode) {
+      // Smart algorithm: weight subjects by inverse accuracy
+      return buildWeightedRotation(list, accuracyBySubject);
+    }
+
+    // Default: even distribution for "All" mode or single subject
+    return list;
+  }, [selectedSubjects, interests, accuracyBySubject]);
 
   const subjectsKey = useMemo(() => JSON.stringify(selectedSubjects), [selectedSubjects]);
 
@@ -873,7 +953,7 @@ export default function FypFeed() {
                 <button
                   type="button"
                   onClick={() => setClassPickerOpen(true)}
-                  className="rounded-full border border-slate-300/80 bg-gradient-to-br from-white to-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-all hover:from-slate-50 hover:to-slate-100 hover:text-slate-900 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-800 dark:from-transparent dark:to-transparent dark:text-neutral-200 dark:shadow-none"
+                  className="rounded-full border border-slate-300/80 bg-surface-muted px-3 py-1.5 text-xs font-medium text-foreground shadow-sm transition-all hover:bg-surface-card hover:shadow-md dark:border-neutral-700"
                 >
                   Open class picker
                 </button>
@@ -887,7 +967,7 @@ export default function FypFeed() {
           <div>{error}</div>
           <button
             onClick={() => { setError(null); setLoadingInfo(null); setInitialized(false); void ensureBuffer(0); }}
-            className="rounded-full border border-slate-300/80 bg-gradient-to-br from-white to-slate-50 px-3 py-1.5 text-sm text-slate-700 shadow-sm transition-all hover:from-slate-50 hover:to-slate-100 hover:text-slate-900 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-800 dark:from-transparent dark:to-transparent dark:text-neutral-200 dark:shadow-none"
+            className="rounded-full border border-slate-300/80 bg-surface-muted px-3 py-1.5 text-sm text-foreground shadow-sm transition-all hover:bg-surface-card hover:shadow-md dark:border-neutral-700"
           >
             Retry
           </button>

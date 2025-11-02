@@ -39,8 +39,8 @@ export default function ClassPicker() {
   }, [isAllMode, isMixMode, currentPair, normalizedSelection]);
 
   const subLabel = useMemo(() => {
-    if (isAllMode) return "Lernex picks for you";
-    if (isMixMode) return "Mixing your saved classes";
+    if (isAllMode) return "Even rotation through all subjects";
+    if (isMixMode) return "Prioritizes subjects needing practice";
     if (currentPair && currentPair.course && currentPair.course !== currentPair.subject) {
       return currentPair.subject;
     }
@@ -120,7 +120,7 @@ export default function ClassPicker() {
                 <span className="text-sm font-semibold">Mix subjects</span>
                 {isMixMode && <span className="inline-block h-2.5 w-2.5 rounded-full bg-lernex-blue" aria-hidden="true" />}
               </div>
-              <div className="text-xs text-neutral-500 dark:text-neutral-400">Rotate through every class</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400">Smart focus on subjects needing practice</div>
             </button>
             <button
               onClick={() => choose("all")}
@@ -130,7 +130,7 @@ export default function ClassPicker() {
                 <span className="text-sm font-semibold">All</span>
                 {isAllMode && <span className="inline-block h-2.5 w-2.5 rounded-full bg-lernex-blue" aria-hidden="true" />}
               </div>
-              <div className="text-xs text-neutral-500 dark:text-neutral-400">Let Lernex pick for you</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400">Even rotation through all subjects</div>
             </button>
           </div>
         </div>

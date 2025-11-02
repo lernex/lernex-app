@@ -27,7 +27,6 @@ export const supportKnowledgeBase: SupportKnowledgeEntry[] = [
       "overview",
       "lessons",
       "generate",
-      "cerebras",
       "analytics",
       "achievements",
       "playlists",
@@ -120,12 +119,12 @@ export const supportKnowledgeBase: SupportKnowledgeEntry[] = [
   },
   {
     id: "support-channels",
-    title: "Support channels - Multiple ways to get help",
+    title: "Support channels - How to get help",
     summary:
-      "Lernex offers live chat (1-2 min response), email (4-hour response), onboarding walkthroughs (25-min sessions), and a phone line for urgent issues.",
+      "Lernex offers live chat (1-2 min response) and email support (4-hour response) to help with any questions or issues.",
     details:
-      "Access support at /support. Live chat available Monday-Friday 8am-6pm Mountain Time (MT) with 1-2 minute response times—fastest for immediate questions. Email support@lernex.net for non-urgent help; responses within ~4 hours daily (7 days/week). Book a 25-minute onboarding walkthrough session (available Thursdays, rolling availability) to import notes, set up analytics, and configure playlists for your team/cohort. Call +1 (866) 555-LEARN for urgent access issues (account lockouts, payment problems). Support handles: troubleshooting, billing questions, plan changes, technical issues, onboarding guidance, feature requests, and general platform questions. Paid plans (Plus/Premium) receive priority concierge support with faster response times.",
-    tags: ["support", "live chat", "email", "walkthrough", "voice", "contact", "help", "phone", "response time"],
+      "Access support at /support. Live chat available Monday-Friday 8am-6pm Mountain Time (MT) with 1-2 minute response times—fastest for immediate questions. Email support@lernex.net for help; responses within ~4 hours daily (7 days/week). Support handles: troubleshooting, billing questions, plan changes, technical issues, feature requests, and general platform questions. Paid plans (Plus/Premium) receive priority support with faster response times.",
+    tags: ["support", "live chat", "email", "contact", "help", "response time"],
     priority: 0,
   },
   {
@@ -137,16 +136,6 @@ export const supportKnowledgeBase: SupportKnowledgeEntry[] = [
       "Three specialized email channels: (1) support@lernex.net - troubleshooting, billing, account issues, onboarding help, plan changes (responds within ~4 hours daily); (2) feedback@lernex.app - product ideas, feature requests, usability suggestions, general feedback (reviewed by product team weekly); (3) security@lernex.app - urgent security vulnerabilities, suspicious activity, data concerns (pings engineering on-call immediately for urgent issues). For fastest support, use live chat during business hours (Mon-Fri 8am-6pm MT) via /support. Always include your account email and detailed description when emailing support.",
     tags: ["support", "feedback", "security", "email", "contact", "billing", "help", "vulnerability"],
     priority: 8,
-  },
-  {
-    id: "onboarding-clinic",
-    title: "Onboarding clinics - Thursday group sessions for new users",
-    summary:
-      "Weekly 25-minute Thursday onboarding clinics help new users, teams, and cohorts set up playlists, import notes, and optimize analytics.",
-    details:
-      "Book onboarding clinics at /welcome or /support. Sessions run every Thursday with rolling availability slots. Each 25-minute group call covers: importing study notes/PDFs via /generate, setting up collaborative playlists for teams, configuring analytics dashboards to track team progress, aligning difficulty levels and subject preferences, and best practices for streak maintenance. Ideal for: cohorts starting together, teams onboarding new hires, educators setting up classroom playlists, study groups coordinating shared content. Clinics are guided by Lernex success team members. Available to all users; Plus/Premium users can request private 1-on-1 sessions. To book, visit /welcome and select an available Thursday slot.",
-    tags: ["onboarding", "clinic", "playlists", "lessons", "teams", "walkthrough", "thursday", "group", "setup"],
-    priority: 9,
   },
   {
     id: "subject-mastery",
@@ -194,7 +183,7 @@ export const supportKnowledgeBase: SupportKnowledgeEntry[] = [
     summary:
       "New users go through: Login → Select interests (6 domains) → Choose proficiency levels → Placement test (7 questions) → Auto-generated level map → Start learning on FYP.",
     details:
-      "ONBOARDING STEPS: (1) Create account at /login via email or OAuth; (2) Navigate to /onboarding to select learning interests from 6 domains: Math, Science, Computer Science, History, English, Languages—choose as many subjects as you want; (3) At /onboarding/levels, select proficiency for each chosen subject (beginner, intermediate, advanced); (4) Take placement test at /placement - 7 adaptive multiple-choice questions that assess your actual knowledge level across chosen courses; (5) System generates personalized level map (hierarchical structure: Topics → Subtopics → Mini-lessons with prerequisites and applications); (6) Redirected to /post-auth which routes you to /fyp to start learning; (7) Your FYP feed is immediately populated with micro-lessons tailored to your interests, placement results, and proficiency selections. Onboarding takes ~2 minutes total. You can modify interests and levels later in /settings or /profile. Optional: Book Thursday onboarding clinic at /welcome for guided setup with Lernex team.",
+      "ONBOARDING STEPS: (1) Create account at /login via email or OAuth; (2) Navigate to /onboarding to select learning interests from 6 domains: Math, Science, Computer Science, History, English, Languages—choose as many subjects as you want; (3) At /onboarding/levels, select proficiency for each chosen subject (beginner, intermediate, advanced); (4) Take placement test at /placement - 7 adaptive multiple-choice questions that assess your actual knowledge level across chosen courses; (5) System generates personalized level map (hierarchical structure: Topics → Subtopics → Mini-lessons with prerequisites and applications); (6) Redirected to /post-auth which routes you to /fyp to start learning; (7) Your FYP feed is immediately populated with micro-lessons tailored to your interests, placement results, and proficiency selections. Onboarding takes ~2 minutes total. You can modify interests and levels later in /settings or /profile. Need help? Email support@lernex.net.",
     tags: ["onboarding", "getting started", "new user", "setup", "interests", "placement", "test", "level map", "flow"],
     priority: 2,
   },
@@ -220,12 +209,12 @@ export const supportKnowledgeBase: SupportKnowledgeEntry[] = [
   },
   {
     id: "ai-technology",
-    title: "AI technology - Advanced machine learning for lesson generation",
+    title: "AI technology - How lesson generation works",
     summary:
-      "Lernex uses state-of-the-art AI with ultra-fast inference for real-time lesson creation with intelligent content structuring.",
+      "Lernex uses advanced AI to create personalized lessons from your study materials with intelligent content structuring.",
     details:
-      "AI INFRASTRUCTURE: Lernex leverages cutting-edge AI models optimized for educational content generation with sub-second response times. Our AI infrastructure includes redundancy and failover systems to ensure consistent availability. GENERATION PROCESS: Input text → AI chunks content into digestible segments → Generates 80-105 word micro-lesson with structure (definition + example + pitfall + next step) → Creates 3 multiple-choice questions with 4 options each → Writes max 15 word explanations for each answer → Returns formatted lesson with LaTeX math support. STREAMING: Uses streaming responses so users see lesson generation in real-time (progressive loading). USAGE TRACKING: All AI calls are metered (input/output tokens) for rate limiting and billing. Free tier has daily limits, Plus gets 3x capacity, Premium is unlimited. Token usage visible at /analytics. PRIVACY: User data is never used to train models. All AI calls are ephemeral and processed in real-time. See privacy policy at /privacy for full details.",
-    tags: ["ai", "model", "technology", "generation", "inference", "machine learning"],
+      "AI INFRASTRUCTURE: Lernex uses cutting-edge AI models optimized for educational content generation with fast response times. GENERATION PROCESS: Input text → AI breaks content into digestible segments → Generates 80-105 word micro-lesson with structure (definition + example + pitfall + next step) → Creates 3 multiple-choice questions with 4 options each → Writes explanations for each answer → Returns formatted lesson with LaTeX math support. STREAMING: Uses streaming responses so you see lesson generation in real-time (progressive loading). USAGE TRACKING: All AI calls are tracked for daily limits. Free tier has standard limits, Plus gets 3x capacity, Premium is unlimited. Token usage visible at /analytics. PRIVACY: Your data is never used to train models. All AI calls are ephemeral and processed in real-time. See privacy policy at /privacy for full details.",
+    tags: ["ai", "model", "technology", "generation", "machine learning"],
     priority: 13,
   },
   {
@@ -259,13 +248,13 @@ export const supportKnowledgeBase: SupportKnowledgeEntry[] = [
     priority: 10,
   },
   {
-    id: "educator-teams-use",
-    title: "Using Lernex for teams, educators, and classroom settings",
+    id: "study-groups-collaboration",
+    title: "Using Lernex with study groups and classmates",
     summary:
-      "Educators and teams can create shared playlists, track cohort analytics, assign lessons, and manage collaborative workspaces. Contact support for educator features.",
+      "Create shared playlists, study with friends, and track progress together. Perfect for group projects and exam prep.",
     details:
-      "TEAM/EDUCATOR FEATURES: Create collaborative playlists at /playlists with Viewer or Moderator permissions for students/team members. Share playlist links directly or invite via email. COHORT ANALYTICS: Premium plans include team analytics—view aggregated metrics for all collaborators (completion rates, accuracy by subject, engagement trends). Track which lessons are working and where students struggle. CONTENT CREATION: Use /generate to convert lecture notes, textbooks, syllabi into micro-lessons. Organize into playlists by week/topic. Students access via shared links. CLASSROOM WORKFLOW: (1) Educator creates playlists for each course module; (2) Imports content via /generate; (3) Shares playlist links with class; (4) Students study lessons and complete quizzes; (5) Educator reviews team analytics to identify struggling students; (6) Adjusts difficulty/content based on data. ONBOARDING SUPPORT: Book Thursday onboarding clinic at /welcome for guided setup. Lernex success team helps configure playlists, import content, set up analytics. CUSTOM PLANS: Schools, universities, bootcamps, corporate training teams can request custom pricing with: unlimited seats, SSO integration, LMS connectors (Canvas, Blackboard, Moodle), white-label options, dedicated account manager. Contact support@lernex.net with 'Educator' or 'Teams' in subject line. EXPORT CAPABILITIES: Premium users can export student data, generate progress reports (PDF/CSV), and access API for custom integrations.",
-    tags: ["educators", "teams", "classroom", "schools", "cohort", "teaching", "corporate", "training", "workplace", "collaboration"],
+      "COLLABORATION FEATURES: Create shared playlists at /playlists with Viewer or Moderator permissions for your study group. Share playlist links directly or invite via email. STUDY GROUP WORKFLOW: (1) Create playlists for each exam or topic; (2) Add lessons from /generate or your FYP; (3) Share playlist links with your group; (4) Study together and complete quizzes; (5) Track progress and compete on the leaderboard. FRIENDS FEATURE: Use /friends to connect with classmates, see their activity, and stay motivated together. PLAYLISTS: Organize lessons by subject, exam, or week. Great for coordinating study sessions and making sure everyone's on the same page. Need help setting up? Email support@lernex.net and we'll help you get started.",
+    tags: ["study groups", "friends", "collaboration", "classmates", "playlists", "sharing"],
     priority: 7,
   },
   {
@@ -284,7 +273,7 @@ export const supportKnowledgeBase: SupportKnowledgeEntry[] = [
     summary:
       "Quick fixes for frequent issues: login problems (clear cookies, try OAuth), generation failures (check limits, refresh), sync delays (check internet), payment errors (verify card, contact support).",
     details:
-      "COMMON ISSUES & SOLUTIONS: LOGIN/AUTH: Can't log in → Clear browser cookies/cache, try incognito mode, use OAuth (Google) if email/password fails. Forgot password → Use 'Forgot Password' link at /login. Account locked → Email support@lernex.net or call +1 (866) 555-LEARN. LESSON GENERATION: Generation fails or times out → Check if you've hit daily limits (Free tier), refresh page and retry, try shorter text input (max 2 paragraphs), ensure text is in supported language. Slow generation → Cerebras may be busy, wait 10-15 seconds, fallback to OpenAI may activate automatically. SYNC ISSUES: Changes not appearing on other devices → Check internet connection, hard refresh browser (Ctrl+F5 / Cmd+Shift+R), log out and back in. Streak not updating → Must complete at least 1 full lesson (lesson + quiz) for streak to count, check timezone (streak resets at midnight local time). PAYMENT/BILLING: Card declined → Verify card details, try different card, ensure billing address matches card, contact bank to allow international charges (Stripe processes payments). Charged incorrectly → Email support@lernex.net with invoice number for immediate review. Subscription not activating after payment → Can take 1-2 minutes, refresh page, log out/in, contact support if >10 minutes. GENERAL: Page not loading → Clear cache, disable browser extensions, try different browser. Contact support@lernex.net or use live chat at /support (Mon-Fri 8am-6pm MT) for any unresolved issues. Include: account email, description of problem, error messages, screenshots if possible.",
+      "COMMON ISSUES & SOLUTIONS: LOGIN/AUTH: Can't log in → Clear browser cookies/cache, try incognito mode, use OAuth (Google) if email/password fails. Forgot password → Use 'Forgot Password' link at /login. Account locked → Email support@lernex.net. LESSON GENERATION: Generation fails or times out → Check if you've hit daily limits (Free tier), refresh page and retry, try shorter text input (max 2 paragraphs), ensure text is in supported language. Slow generation → AI may be busy, wait 10-15 seconds and retry. SYNC ISSUES: Changes not appearing on other devices → Check internet connection, hard refresh browser (Ctrl+F5 / Cmd+Shift+R), log out and back in. Streak not updating → Must complete at least 1 full lesson (lesson + quiz) for streak to count, check timezone (streak resets at midnight local time). PAYMENT/BILLING: Card declined → Verify card details, try different card, ensure billing address matches card. Charged incorrectly → Email support@lernex.net with invoice number for immediate review. Subscription not activating after payment → Can take 1-2 minutes, refresh page, log out/in, contact support if >10 minutes. GENERAL: Page not loading → Clear cache, disable browser extensions, try different browser. Contact support@lernex.net or use live chat at /support (Mon-Fri 8am-6pm MT) for any unresolved issues. Include: account email, description of problem, error messages, screenshots if possible.",
     tags: ["troubleshooting", "issues", "problems", "login", "generation", "sync", "payment", "errors", "fixes", "help"],
     priority: 1,
   },

@@ -155,7 +155,8 @@ export async function GET(
           primaryTopic || `${primarySubject} Concepts`,
           {
             difficultyPref: primaryDifficulty,
-            avoidTitles: [...allTitles, ...generatedLessons.map(l => l.title).filter((t): t is string => Boolean(t))],
+            // avoidTitles removed - AI prompt optimization (saves 50-150 tokens)
+            // Natural diversity without explicit avoidance
             savedLessonDescriptors: lessonDescriptors,
             structuredContext: {
               focus: "reinforcement",

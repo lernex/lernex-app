@@ -343,7 +343,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
   const btnClass = (idx: number) => {
     const base = "text-left px-3 py-2 rounded-xl border transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40";
     if (selected === null) {
-      return `${base} border-slate-300/70 bg-gradient-to-br from-white to-slate-50/80 hover:from-slate-50 hover:to-slate-100/90 hover:border-slate-400/80 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 dark:border-surface dark:bg-surface-muted dark:hover:bg-surface-card`;
+      return `${base} border-slate-300/70 bg-surface-muted hover:bg-surface-card hover:border-slate-400/80 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 dark:border-surface`;
     }
     const correctIdx = q?.correctIndex ?? -1;
     if (idx === correctIdx) {
@@ -397,7 +397,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
           <button
             onClick={back}
             disabled={qIndex === 0}
-            className="rounded-xl border border-slate-300/70 bg-gradient-to-br from-white to-slate-50 px-4 py-2 transition-all hover:from-slate-50 hover:to-slate-100 hover:border-slate-400/80 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed dark:border-surface dark:bg-surface-muted dark:hover:bg-surface-card"
+            className="rounded-xl border border-slate-300/70 bg-surface-muted px-4 py-2 transition-all hover:bg-surface-card hover:border-slate-400/80 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed dark:border-surface"
           >
             Back
           </button>

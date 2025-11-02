@@ -282,7 +282,7 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
             <span className="text-neutral-400 dark:text-neutral-500">/ {lesson.topic}</span>
           )}
           {lesson.difficulty && (
-            <span className="ml-auto rounded-full border border-slate-300/80 bg-gradient-to-br from-white to-slate-50 px-2 py-0.5 text-[10px] font-semibold capitalize text-slate-700 shadow-sm dark:border-neutral-600 dark:bg-transparent dark:from-transparent dark:to-transparent dark:text-neutral-200 dark:shadow-none">
+            <span className="ml-auto rounded-full border border-slate-300/80 bg-surface-muted px-2 py-0.5 text-[10px] font-semibold capitalize text-slate-700 shadow-sm dark:border-neutral-600 dark:text-neutral-200 dark:shadow-none">
               {lesson.difficulty}
             </span>
           )}
@@ -292,7 +292,7 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
           <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{lesson.nextTopicHint}</div>
         )}
         {contextEntries.length > 0 && (
-          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/60 px-4 py-3 text-[12px] leading-relaxed text-neutral-700 shadow-sm dark:border-neutral-700 dark:bg-white/5 dark:from-transparent dark:to-transparent dark:text-neutral-300">
+          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-surface-muted px-4 py-3 text-[12px] leading-relaxed text-neutral-700 shadow-sm dark:border-neutral-700 dark:text-neutral-300">
             <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
               Why you&apos;re seeing this
             </div>
@@ -307,7 +307,7 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
           </div>
         )}
         {knowledgeDetails && (
-          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/70 px-4 py-3 text-sm text-neutral-700 shadow-sm dark:border-neutral-700 dark:bg-white/10 dark:from-transparent dark:to-transparent dark:text-neutral-200">
+          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-surface-muted px-4 py-3 text-sm text-neutral-700 shadow-sm dark:border-neutral-700 dark:text-neutral-200">
             <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
               Anchors
             </div>

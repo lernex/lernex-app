@@ -59,7 +59,7 @@ export default function Navbar() {
   const avatarBackground =
     membership === "premium" || membership === "plus"
       ? "bg-white/95 shadow-md dark:bg-neutral-900/70"
-      : "bg-gradient-to-br from-slate-50 to-slate-100 shadow-sm dark:bg-white/5";
+      : "bg-surface-muted shadow-sm";
   const avatarRing =
     membership === "premium"
       ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-50 shadow-glow dark:ring-amber-300 dark:ring-offset-lernex-charcoal"
@@ -190,7 +190,7 @@ export default function Navbar() {
     const activeClasses =
       "border-lernex-blue/70 bg-gradient-to-br from-lernex-blue/20 via-lernex-blue/12 to-lernex-purple/18 text-lernex-blue shadow-elevated dark:border-lernex-blue/50 dark:from-lernex-blue/25 dark:via-lernex-blue/20 dark:to-lernex-purple/25 dark:text-lernex-blue/90";
     const iconShell =
-      "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-slate-100/90 text-slate-700 shadow-sm transition-colors dark:border-surface dark:from-transparent dark:to-transparent dark:bg-surface-muted dark:text-neutral-200";
+      "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-surface-muted text-foreground shadow-sm transition-colors dark:border-surface";
     const activeIconShell =
       "border-lernex-blue/60 bg-gradient-to-br from-lernex-blue/18 via-lernex-blue/12 to-lernex-purple/20 text-lernex-blue shadow-sm dark:border-lernex-blue/50 dark:from-lernex-blue/25 dark:via-lernex-blue/20 dark:to-lernex-purple/30 dark:text-lernex-blue/90";
     const badgeBase =
@@ -479,7 +479,7 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-20 w-full border-b border-white/10 bg-gradient-to-r from-white/80 to-white/60 text-neutral-900 shadow-sm backdrop-blur-md transition-colors dark:from-lernex-charcoal/80 dark:to-lernex-charcoal/60 dark:text-white">
+    <nav className="sticky top-0 z-20 w-full border-b border-slate-200/60 bg-surface-panel text-foreground shadow-sm backdrop-blur-md transition-colors dark:border-surface">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 text-sm">
         <Link
           href={user ? "/fyp" : "/"}
@@ -548,7 +548,7 @@ export default function Navbar() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-44 rounded-md border border-white/10 bg-gradient-to-br from-white to-neutral-100 py-2 text-neutral-900 shadow-lg dark:from-lernex-charcoal dark:to-neutral-900 dark:text-white"
+                    className="absolute right-0 mt-2 w-44 rounded-md border border-slate-200/60 bg-surface-card py-2 text-foreground shadow-lg dark:border-surface"
                   >
                     <Link
                       href="/public-profile"
@@ -614,7 +614,7 @@ export default function Navbar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="md:hidden fixed inset-x-0 top-[56px] z-20 border-b border-white/10 bg-gradient-to-b from-white/90 to-white/70 p-4 backdrop-blur dark:from-lernex-charcoal/90 dark:to-lernex-charcoal/70"
+            className="md:hidden fixed inset-x-0 top-[56px] z-20 border-b border-slate-200/60 bg-surface-panel p-4 backdrop-blur dark:border-surface"
           >
             <div className="grid gap-2 text-sm">
               <Link href="/pricing" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40">Pricing</Link>

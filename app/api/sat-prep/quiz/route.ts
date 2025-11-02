@@ -7,6 +7,7 @@ import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { getCachedSampleQuestions } from "@/lib/sat-sample-cache";
 import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
+import { normalizeLatex } from "@/lib/latex";
 
 export async function POST(req: Request) {
   const t0 = Date.now();
@@ -58,39 +59,9 @@ export async function POST(req: Request) {
       : "- Format: Each question should include a passage excerpt followed by a comprehension question with 4 answer choices.";
 
     const systemPrompt = [
-      `You are an SAT question generator. Create exactly 3 multiple-choice questions for SAT ${section} on the topic of ${topicLabel}.`,
-      "",
-      "CRITICAL: You MUST return ONLY valid JSON with no extra text, no markdown, no code fences.",
-      "The JSON must match this exact schema:",
-      JSON.stringify({
-        id: "sat-math-algebra",
-        subject: `SAT ${section.charAt(0).toUpperCase() + section.slice(1)}`,
-        topic: topicLabel,
-        title: `SAT ${topicLabel} Practice`,
-        difficulty: "medium",
-        questions: [
-          {
-            prompt: "Question text here...",
-            choices: ["Choice A", "Choice B", "Choice C", "Choice D"],
-            correctIndex: 0,
-            explanation: "Explanation text here...",
-          },
-        ],
-      }),
-      "",
-      "IMPORTANT REQUIREMENTS:",
-      "- Each question must emulate real SAT style and difficulty",
-      hasExamples
-        ? "- Use the provided real SAT examples to match style, tone, and complexity"
-        : "- Match official SAT question patterns",
-      formatGuidance,
-      "- Each question has exactly 4 choices",
-      "- Explanations should be 15-40 words",
-      "- For math: use \\( ... \\) for inline, \\[ ... \\] for display",
-      "- Questions should test understanding, not just memorization",
-      "- Vary difficulty across the 3 questions",
-      "",
-      "Return ONLY the JSON object, nothing else.",
+      `Generate 3 SAT ${section} MCQs on ${topicLabel} as valid JSON.`,
+      `Schema: {id:"sat-${section}-${topic}", subject:"SAT ${section.charAt(0).toUpperCase() + section.slice(1)}", topic:"${topicLabel}", title:"SAT ${topicLabel} Practice", difficulty:"medium", questions:[{prompt, choices[4], correctIndex, explanation}]}`,
+      `Rules: Emulate real SAT style${hasExamples ? '. Style reference examples provided (truncated for brevity - match their format/tone/difficulty)' : ''}. ${formatGuidance.replace('- Format: ', '').replace('- NOTE: ', '')} 4 choices, 15-40w explanations. Math: Use LaTeX with single backslash delimiters: \\(inline\\) \\[display\\]. Example: \\(x^2 + 1\\) or \\[\\frac{a}{b}\\]. In JSON strings, escape backslashes: "\\\\(" becomes \\( when parsed. Test understanding, vary difficulty.`,
     ].join("\n");
 
     const userPrompt = [
@@ -132,9 +103,25 @@ export async function POST(req: Request) {
       throw new Error("Failed to parse AI response as JSON");
     }
 
-    // Shuffle answer choices to prevent AI bias toward position A
+    // Normalize LaTeX delimiters and shuffle answer choices
     if (parsed && Array.isArray(parsed.questions)) {
+      // Normalize LaTeX in all text fields
+      parsed.questions = parsed.questions.map((q: Record<string, unknown>) => ({
+        ...q,
+        prompt: typeof q.prompt === "string" ? normalizeLatex(q.prompt) : q.prompt,
+        explanation: typeof q.explanation === "string" ? normalizeLatex(q.explanation) : q.explanation,
+        choices: Array.isArray(q.choices)
+          ? q.choices.map((c: unknown) => (typeof c === "string" ? normalizeLatex(c) : c))
+          : q.choices,
+      }));
+      // Shuffle answer choices to prevent AI bias toward position A
       parsed.questions = shuffleQuizQuestions(parsed.questions);
+    }
+    if (parsed && typeof parsed.title === "string") {
+      parsed.title = normalizeLatex(parsed.title);
+    }
+    if (parsed && typeof parsed.topic === "string") {
+      parsed.topic = normalizeLatex(parsed.topic);
     }
 
     // Log usage

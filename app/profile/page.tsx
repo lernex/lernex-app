@@ -910,7 +910,7 @@ export default function SettingsPage() {
             )}
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <motion.button
-                onClick={() => router.push("/onboarding")}
+                onClick={() => setShowAddModal(true)}
                 className="group relative overflow-hidden rounded-2xl border border-lernex-blue/50 bg-gradient-to-r from-lernex-blue to-sky-500 px-4 py-3 text-center text-sm font-semibold text-white shadow-lg shadow-lernex-blue/25 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-lernex-blue/30"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
