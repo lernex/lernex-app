@@ -255,7 +255,7 @@ export default function Navbar() {
             width: navExpanded ? NAV_WIDTH_EXPANDED : NAV_WIDTH_COLLAPSED,
           }}
           transition={{ type: "spring", stiffness: 210, damping: 28 }}
-          className="fixed left-0 top-0 z-[22] flex h-[100dvh] max-h-screen flex-col overflow-hidden border-r border-slate-200/60 bg-white/95 text-foreground shadow-xl shadow-slate-900/8 backdrop-blur-xl transition-colors duration-300 dark:border-surface dark:bg-surface-panel dark:shadow-black/30"
+          className="fixed left-0 top-0 z-[22] flex h-[100dvh] max-h-screen flex-col overflow-hidden border-r border-slate-200/60 bg-surface-panel text-foreground shadow-xl shadow-slate-900/8 backdrop-blur-xl transition-colors duration-300 dark:border-surface dark:shadow-black/30"
           onMouseEnter={handleNavEnter}
           onMouseLeave={handleNavLeave}
           onFocusCapture={handleNavEnter}

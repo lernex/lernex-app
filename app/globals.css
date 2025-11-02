@@ -516,7 +516,7 @@ html {
 }
 
 .animate-carousel-scroll {
-  animation: carousel-scroll 60s linear infinite;
+  animation: carousel-scroll 90s linear infinite;
 }
 
 .animate-carousel-scroll:hover {
