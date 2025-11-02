@@ -253,11 +253,21 @@ html {
 
   /* Enhanced hover effects for light mode */
   .hover-lift {
-    @apply transition-all duration-200 ease-out;
+    transition: all 0.2s ease-out;
   }
 
   .hover-lift:hover {
-    @apply -translate-y-1 shadow-elevated;
+    transform: translateY(-0.25rem);
+    box-shadow:
+      0 10px 15px -3px rgba(59, 130, 246, 0.14),
+      0 4px 6px -4px rgba(139, 92, 246, 0.1),
+      0 0 0 1px rgba(148, 163, 184, 0.15);
+  }
+
+  .dark .hover-lift:hover {
+    box-shadow:
+      0 10px 15px -3px rgba(0, 0, 0, 0.3),
+      0 4px 6px -4px rgba(0, 0, 0, 0.25);
   }
 
   /* Gradient border effect for premium elements */

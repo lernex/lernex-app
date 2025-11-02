@@ -628,7 +628,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
                 <div className="mt-4 text-center">
                   <div className="inline-flex items-center gap-2 text-sm text-yellow-600 dark:text-yellow-400">
                     <span>🎉</span>
-                    <span className="font-medium">You're on fire!</span>
+                    <span className="font-medium">You&apos;re on fire!</span>
                     <span>🎉</span>
                   </div>
                 </div>
