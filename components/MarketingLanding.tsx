@@ -51,10 +51,10 @@ const benefits = [
 ];
 
 const trustedByLabels = [
-  'YC founders',
-  'Top bootcamps',
-  'Intense ops teams',
-  'University study clubs',
+  'High school students',
+  'College students',
+  'SAT/ACT prep',
+  'Study groups',
 ];
 
 const learningFlow = [
@@ -84,17 +84,17 @@ const outcomes = [
   {
     stat: '92%',
     label: 'improved recall',
-    detail: 'Beta learners reported retaining new frameworks after one week.',
+    detail: 'Students reported retaining key concepts after one week.',
   },
   {
     stat: '7 min',
     label: 'daily average',
-    detail: 'Purpose-built for focused bursts that fit between meetings.',
+    detail: 'Perfect for quick study sessions between classes or during breaks.',
   },
   {
     stat: '3×',
-    label: 'faster ramp',
-    detail: 'Teams shipping in regulated industries cut onboarding time dramatically.',
+    label: 'faster learning',
+    detail: 'Students master new topics 3x faster compared to traditional studying.',
   },
 ];
 
@@ -649,7 +649,7 @@ export default function MarketingLanding() {
             transition={{ delay: 0.3, duration: 0.6 }}
             className="mt-10 inline-flex flex-wrap items-center justify-center gap-4 rounded-full border border-white/10 bg-white/60 px-6 py-2 text-xs uppercase tracking-[0.4em] backdrop-blur dark:bg-white/10"
           >
-            Loved by curious operators everywhere
+            Loved by students everywhere
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -865,12 +865,12 @@ export default function MarketingLanding() {
               x: {
                 repeat: Infinity,
                 repeatType: "loop",
-                duration: testimonials.length * 5,
+                duration: 40,
                 ease: "linear",
               },
             }}
           >
-            {[...testimonials, ...testimonials, ...testimonials].map((item, index) => (
+            {[...testimonials, ...testimonials].map((item, index) => (
               <div
                 key={`${item.name}-${index}`}
                 className="group relative flex-shrink-0 w-[380px] overflow-hidden rounded-3xl border border-neutral-200/60 bg-white/80 p-6 text-left shadow-lg shadow-black/10 backdrop-blur transition hover:-translate-y-1 hover:shadow-2xl dark:border-white/10 dark:bg-white/10"

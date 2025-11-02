@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   FileText,
   Loader2,
+  Mic,
   NotebookPen,
   Sparkles,
   UploadCloud,
@@ -38,27 +39,66 @@ type PendingLesson = Lesson & {
 };
 
 const MAX_FILE_SIZE_BYTES = 18 * 1024 * 1024;
+const MAX_AUDIO_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25MB for audio
 const MAX_TEXT_LENGTH = 24_000;
 const MIN_CHARS_REQUIRED = 220;
 
+// Process audio files with Whisper transcription
+async function parseAudioFile(file: File): Promise<string> {
+  if (file.size > MAX_AUDIO_FILE_SIZE_BYTES) {
+    throw new Error(`"${file.name}" exceeds ${(MAX_AUDIO_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0)}MB audio limit.`);
+  }
+
+  console.log('[audio-transcribe] Transcribing audio file...');
+  const formData = new FormData();
+  formData.append('audio', file);
+
+  // Estimate duration based on file size (rough estimate: 1MB ≈ 1 minute for compressed audio)
+  const estimatedDuration = Math.round((file.size / (1024 * 1024)) * 60);
+  formData.append('duration', estimatedDuration.toString());
+
+  const response = await fetch('/api/transcribe', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Transcription failed' }));
+    throw new Error(error.error || 'Failed to transcribe audio');
+  }
+
+  const result = await response.json();
+  console.log('[audio-transcribe] Transcription complete:', result.text.length, 'characters');
+  return result.text || '';
+}
+
 async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
+  const fileType = file.type.toLowerCase();
+  const fileName = file.name.toLowerCase();
+
+  // Check if it's an audio file first
+  if (
+    fileType.startsWith('audio/') ||
+    fileName.match(/\.(mp3|wav|m4a|ogg|webm|flac|aac|wma)$/i)
+  ) {
+    console.log('[audio] Processing audio file...');
+    return await parseAudioFile(file);
+  }
+
   if (file.size > MAX_FILE_SIZE_BYTES) {
     throw new Error(`"${file.name}" is larger than ${(MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0)}MB.`);
   }
-
-  const fileType = file.type.toLowerCase();
-  const fileName = file.name.toLowerCase();
 
   let images: string[] = [];
 
   // Check if it's a PDF
   if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
-    console.log('[deepseek-ocr] Converting PDF to images...');
+    console.log('[document-ocr] Converting PDF to images...');
     images = await convertPdfToImages(file);
   }
   // Check if it's an image
   else if (fileType.startsWith('image/') || fileName.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/i)) {
-    console.log('[deepseek-ocr] Converting image to base64...');
+    console.log('[document-ocr] Converting image to base64...');
     const base64 = await convertImageToBase64(file);
     images = [base64];
   }
@@ -313,7 +353,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
       if (!files || files.length === 0) return;
       setError(null);
       setStage("parsing");
-      setStatusDetail("Parsing your documents with AI…");
+      setStatusDetail("Processing your content with AI…");
       setProgress(8);
       setLessons([]);
       setInsights([]);
@@ -327,7 +367,11 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
           if (!file) continue;
           previews.push({ name: file.name, sizeLabel: formatBytes(file.size) });
 
-          setStatusDetail(`Parsing ${file.name} with DeepSeek OCR…`);
+          // Determine if it's an audio file for appropriate status message
+          const isAudio = file.type.toLowerCase().startsWith('audio/') ||
+                          file.name.toLowerCase().match(/\.(mp3|wav|m4a|ogg|webm|flac|aac|wma)$/i);
+
+          setStatusDetail(isAudio ? `Transcribing ${file.name}…` : `Processing ${file.name}…`);
           setProgress(8 + Math.round((index / files.length) * 12));
 
           const extracted = await parseFileWithDeepSeekOCR(file);
@@ -523,36 +567,43 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
           <div className="pointer-events-none absolute inset-0 -z-10 rounded-[32px] bg-[linear-gradient(135deg,rgba(59,130,246,0.12),rgba(129,140,248,0.08),transparent)] dark:bg-[linear-gradient(135deg,rgba(47,128,237,0.3),rgba(129,140,248,0.15),transparent)]" />
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-4">
-              <span className="inline-flex items-center gap-2 rounded-full bg-lernex-blue/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-lernex-blue/80 dark:bg-lernex-blue/15 dark:text-lernex-blue/60">
+              <span className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-lernex-blue/10 to-lernex-purple/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-lernex-blue/80 dark:bg-gradient-to-r dark:from-lernex-blue/15 dark:to-lernex-purple/15 dark:text-lernex-blue/60 shadow-sm">
                 Upload to learn
                 <UploadCloud className="h-3.5 w-3.5" />
               </span>
               <div className="space-y-3">
                 <h1 className="text-3xl font-semibold leading-tight text-neutral-900 dark:text-white sm:text-4xl">
-                  Turn your notes into{" "}
+                  Turn your notes & lectures into{" "}
                   <span className="bg-gradient-to-r from-lernex-blue via-indigo-500 to-lernex-purple bg-clip-text text-transparent">
-                    swipeable mini-lessons
+                    personalized mini-lessons
                   </span>
                 </h1>
                 <p className="max-w-2xl text-sm text-neutral-600 dark:text-neutral-300 sm:text-base">
-                  Drop in PDFs, images, PowerPoints, Word docs, or lecture notes. Our DeepSeek OCR AI intelligently extracts the
-                  content using advanced vision technology and crafts a personalized flow of micro-lessons - complete with adaptive quizzes - based on what
-                  you uploaded.
+                  Upload anything - lecture recordings, PDFs, slides, images, Word docs, or notes. Our advanced AI extracts and transforms your content into bite-sized, interactive lessons complete with adaptive quizzes. Perfect for busy students who learn on the go.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.28em] text-neutral-400 dark:text-neutral-500">
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/80 px-3 py-1 dark:border-white/10 dark:bg-white/10">
+                <motion.span
+                  whileHover={{ scale: 1.05 }}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/80 px-3 py-1 dark:border-white/10 dark:bg-white/10 hover:border-lernex-blue/40 hover:bg-lernex-blue/5 transition-all cursor-default"
+                >
+                  <Mic className="h-3 w-3 text-rose-500" />
+                  Audio transcription
+                </motion.span>
+                <motion.span
+                  whileHover={{ scale: 1.05 }}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/80 px-3 py-1 dark:border-white/10 dark:bg-white/10 hover:border-lernex-blue/40 hover:bg-lernex-blue/5 transition-all cursor-default"
+                >
                   <Wand2 className="h-3 w-3 text-lernex-blue" />
                   Adaptive sequencing
-                </span>
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/80 px-3 py-1 dark:border-white/10 dark:bg-white/10">
+                </motion.span>
+                <motion.span
+                  whileHover={{ scale: 1.05 }}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/80 px-3 py-1 dark:border-white/10 dark:bg-white/10 hover:border-lernex-blue/40 hover:bg-lernex-blue/5 transition-all cursor-default"
+                >
                   <Sparkles className="h-3 w-3 text-lernex-purple" />
                   Quiz-ready outputs
-                </span>
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/80 px-3 py-1 dark:border-white/10 dark:bg-white/10">
-                  <NotebookPen className="h-3 w-3 text-emerald-500" />
-                  Works across subjects
-                </span>
+                </motion.span>
               </div>
             </div>
             <motion.div
@@ -576,11 +627,11 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
               <ul className="mt-4 space-y-3 text-xs text-neutral-600 dark:text-neutral-300">
                 <li className="flex gap-2">
                   <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lernex-blue" />
-                  Upload PDFs, images, PowerPoint, or Word files - DeepSeek OCR uses advanced vision AI to extract everything with 97% accuracy.
+                  Upload lecture recordings, PDFs, slides, images, or documents - our AI extracts content with industry-leading accuracy.
                 </li>
                 <li className="flex gap-2">
                   <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lernex-purple" />
-                  Longer documents create 5-10 lessons, shorter ones create 2-3 - perfectly sized for your learning speed.
+                  Audio recordings get transcribed instantly, then transformed into structured lessons - perfect for recorded lectures.
                 </li>
                 <li className="flex gap-2">
                   <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
@@ -677,7 +728,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,.docx,.pptx,.txt,.md,.markdown,.csv,.json,.rtf,.html,.htm"
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,.docx,.pptx,.txt,.md,.markdown,.csv,.json,.rtf,.html,.htm,.mp3,.wav,.m4a,.ogg,.webm,.flac,.aac,.wma"
                 multiple
                 hidden
                 onChange={handleFileInputChange}
@@ -713,22 +764,19 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                 <div className="space-y-3 text-neutral-700 dark:text-neutral-200">
                   <p className="text-xl font-semibold">
                     {stage === "parsing"
-                      ? "Parsing your documents..."
+                      ? "Processing your content..."
                       : stage === "generating"
-                      ? "Generating your lessons..."
+                      ? "Crafting your lessons..."
                       : "Drop files or click to upload"}
                   </p>
                   <p className="text-sm text-neutral-500 dark:text-neutral-400">
                     {stage === "parsing" || stage === "generating" ? (
                       <>
-                        Using DeepSeek OCR vision AI to intelligently extract and structure your content into personalized
-                        mini-lessons with 97% accuracy.
+                        Our advanced AI is extracting and structuring your content into personalized, bite-sized mini-lessons tailored to your learning style.
                       </>
                     ) : (
                       <>
-                        Accepts PDFs, images, DOCX, PPTX, and text files up to 18MB combined. We use DeepSeek OCR vision AI to extract
-                        content with high accuracy, then craft mini-lessons with quizzes tuned to <span className="font-medium">{subject}</span>
-                        .
+                        Upload lecture audio (MP3, WAV), PDFs, images, DOCX, PPTX, and more. We intelligently process your content and create interactive mini-lessons with quizzes for <span className="font-medium">{subject}</span>.
                       </>
                     )}
                   </p>
@@ -736,11 +784,11 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                 <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-neutral-500 dark:text-neutral-400">
                   <span className="inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/70 px-3 py-1 dark:border-white/10 dark:bg-white/10">
                     <FileText className="h-3.5 w-3.5 text-lernex-blue" />
-                    PDF, Images, DOCX, PPTX
+                    Audio, PDFs, Images, Docs
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/70 px-3 py-1 dark:border-white/10 dark:bg-white/10">
                     <Sparkles className="h-3.5 w-3.5 text-lernex-purple" />
-                    DeepSeek OCR Vision AI
+                    AI-Powered Learning
                   </span>
                 </div>
                 <button
@@ -951,16 +999,13 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
               <h2 className="text-sm font-semibold text-neutral-800 dark:text-white">Why it works</h2>
               <ul className="mt-4 space-y-3 text-neutral-600 dark:text-neutral-300">
                 <li>
-                  <span className="font-semibold text-neutral-700 dark:text-white">Vision OCR:</span> DeepSeek OCR uses advanced
-                  vision-text compression to extract content with 97% accuracy at 8-9x compression ratio.
+                  <span className="font-semibold text-neutral-700 dark:text-white">Multi-format processing:</span> advanced AI handles audio transcription, optical character recognition, and document parsing to extract content with industry-leading accuracy.
                 </li>
                 <li>
-                  <span className="font-semibold text-neutral-700 dark:text-white">Tier-based AI:</span> free users get
-                  fast lessons with Groq, paid users get enhanced quality with Cerebras.
+                  <span className="font-semibold text-neutral-700 dark:text-white">Smart adaptation:</span> our intelligent system creates personalized lessons tailored to your learning pace and subject matter.
                 </li>
                 <li>
-                  <span className="font-semibold text-neutral-700 dark:text-white">Quiz-first design:</span> every lesson
-                  comes with 3 comprehension checks to lock in understanding and track progress.
+                  <span className="font-semibold text-neutral-700 dark:text-white">Interactive learning:</span> every lesson includes comprehension quizzes to reinforce understanding and track your progress.
                 </li>
               </ul>
             </motion.div>

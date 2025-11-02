@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Mic, Square, Loader2 } from "lucide-react";
+import { WebAPIFeatures } from "@/lib/browser-detection";
 
 interface VoiceInputProps {
   onTranscription: (text: string) => void;
@@ -21,10 +22,21 @@ export default function VoiceInput({
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const [recordingTime, setRecordingTime] = useState(0);
   const [error, setError] = useState<string>("");
+  const [isSupported, setIsSupported] = useState<boolean>(true);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Check browser support for MediaRecorder API
+  useEffect(() => {
+    const supported = WebAPIFeatures.supportsMediaRecorder();
+    setIsSupported(supported);
+
+    if (!supported) {
+      setError("Voice input is not supported in your browser. Please use a modern browser like Chrome, Edge, or Safari.");
+    }
+  }, []);
 
   // Get available audio devices
   const getAudioDevices = async () => {
@@ -203,7 +215,7 @@ export default function VoiceInput({
         <button
           type="button"
           onClick={handleMicClick}
-          disabled={isProcessing}
+          disabled={isProcessing || !isSupported}
           className={`
             ${sizeClasses[size]}
             rounded-full transition-all duration-300
@@ -213,13 +225,21 @@ export default function VoiceInput({
                 ? "bg-red-500 hover:bg-red-600 animate-pulse"
                 : isProcessing
                 ? "bg-surface-card border border-surface"
+                : !isSupported
+                ? "bg-gray-400 cursor-not-allowed"
                 : "bg-lernex-blue hover:bg-lernex-blue/80"
             }
             disabled:opacity-50 disabled:cursor-not-allowed
             shadow-lg hover:shadow-xl
             group relative
           `}
-          aria-label={isRecording ? "Stop recording" : "Start voice input"}
+          aria-label={
+            !isSupported
+              ? "Voice input not supported"
+              : isRecording
+                ? "Stop recording"
+                : "Start voice input"
+          }
         >
           {isProcessing ? (
             <Loader2 size={iconSizes[size]} className="text-foreground animate-spin" />

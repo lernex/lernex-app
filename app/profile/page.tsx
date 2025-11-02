@@ -815,10 +815,10 @@ export default function SettingsPage() {
             >
               <motion.div variants={fadeInUp}>
                 <Link
-                  href="/settings"
+                  href="/"
                   className="group relative block overflow-hidden rounded-xl bg-gradient-to-r from-lernex-blue to-sky-500 px-4 py-2.5 text-center text-white shadow-lg shadow-lernex-blue/25 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-lernex-blue/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/50"
                 >
-                  <span className="relative z-10">Settings</span>
+                  <span className="relative z-10">Dashboard</span>
                   <div className="absolute inset-0 bg-gradient-to-r from-sky-500 to-lernex-blue opacity-0 transition-opacity group-hover:opacity-100" />
                 </Link>
               </motion.div>

@@ -116,8 +116,13 @@ type CachedLesson = Lesson & { cachedAt?: string };
 
 
 export async function POST(req: NextRequest) {
+  console.log('[generate] POST request received');
+
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+  console.log('[generate] Client IP:', ip);
+
   if (!take(ip)) {
+    console.log('[generate] Rate limit exceeded for IP:', ip);
     return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429 });
   }
 
@@ -135,24 +140,31 @@ export async function POST(req: NextRequest) {
   try {
     const { data: auth } = await sb.auth.getUser();
     uid = auth?.user?.id ?? null;
-  } catch {
+    console.log('[generate] User authenticated:', uid ? 'yes' : 'no');
+  } catch (authError) {
+    console.log('[generate] Auth error:', authError instanceof Error ? authError.message : 'Unknown');
     uid = null;
   }
 
   if (uid) {
     const ok = await checkUsageLimit(sb, uid);
     if (!ok) {
+      console.log('[generate] Usage limit exceeded for user:', uid);
       return new Response(JSON.stringify({ error: "Usage limit exceeded" }), { status: 403 });
     }
+    console.log('[generate] Usage limit check passed');
   }
 
   // Fetch user tier with cache-busting (always fresh, no stale data)
   const userTier = uid ? await fetchUserTier(sb, uid) : 'free';
+  console.log('[generate] User tier:', userTier);
 
   // Use FAST model for immediate lesson generation
   const { client, model, modelIdentifier, provider } = createModelClient(userTier, 'fast');
+  console.log('[generate] Model selected:', { model, provider, tier: userTier });
 
   try {
+    console.log('[generate] Parsing request body...');
     const body = await req.json().catch(() => ({}));
     const {
       text,
@@ -160,13 +172,22 @@ export async function POST(req: NextRequest) {
       difficulty: difficultyOverride,
     } = body ?? {};
 
+    console.log('[generate] Request params:', {
+      textLength: text?.length || 0,
+      subject,
+      difficulty: difficultyOverride || 'auto',
+    });
+
     // -------- Safety gates --------
     if (!text || typeof text !== "string" || normalize(text).length < 20) {
+      console.log('[generate] Insufficient text length:', text?.length || 0);
       return new Response(JSON.stringify({ error: "Provide at least ~20 characters of study text." }), { status: 400 });
     }
     if (BLOCKLIST.some((re) => re.test(text))) {
+      console.log('[generate] Blocked content detected');
       return new Response(JSON.stringify({ error: "Input contains unsafe content. Try a different passage." }), { status: 400 });
     }
+    console.log('[generate] Safety checks passed');
     // ------------------------------
 
     // -------- Cache check ----------
@@ -285,6 +306,7 @@ export async function POST(req: NextRequest) {
 
     console.log("[generate] request-start", { subject, difficulty, tier: userTier, provider, model });
 
+    console.log('[generate] Creating chat completion stream...');
     // Create chat completion with tiered model
     const stream = await client.chat.completions.create({
       model,
@@ -296,16 +318,25 @@ export async function POST(req: NextRequest) {
         { role: "user", content: userPrompt },
       ],
     });
+    console.log('[generate] Stream created successfully');
 
+    console.log('[generate] Creating response stream...');
     return new Response(
       new ReadableStream<Uint8Array>({
         async start(controller) {
+          console.log('[generate] Stream started');
           const encoder = new TextEncoder();
           let full = "";
           let wrote = false;
+          let chunkCount = 0;
           let usageSummary: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
           try {
+            console.log('[generate] Beginning to process chunks...');
             for await (const chunk of stream) {
+              chunkCount++;
+              if (chunkCount <= 3) {
+                console.log(`[generate] Processing chunk ${chunkCount}`);
+              }
               const choice = chunk?.choices?.[0];
               const delta = choice?.delta ?? {};
               const content = typeof (delta as { content?: unknown }).content === "string"
@@ -397,17 +428,22 @@ export async function POST(req: NextRequest) {
               }
             }
           } catch (err) {
+            console.error('[generate] Error in stream processing:', err);
+            console.error('[generate] Stream error stack:', err instanceof Error ? err.stack : 'No stack');
             controller.error(err as Error);
           } finally {
+            console.log('[generate] Stream processing complete. Chunks processed:', chunkCount, 'Total chars:', full.length);
             if (usageSummary && (uid || ip)) {
               try {
                 await logUsage(sb, uid, ip, modelIdentifier, usageSummary, {
                   metadata: { route: "lesson-stream", subject, difficulty, provider, tier: userTier },
                 });
+                console.log('[generate] Usage logged successfully');
               } catch (logErr) {
                 console.warn("[gen/lesson] usage-log-error", logErr);
               }
             }
+            console.log('[generate] Closing stream controller');
             controller.close();
           }
         },
@@ -418,6 +454,8 @@ export async function POST(req: NextRequest) {
       }
     );
   } catch (err) {
+    console.error('[generate] Error in POST handler:', err);
+    console.error('[generate] Error stack:', err instanceof Error ? err.stack : 'No stack');
     const msg = err instanceof Error ? err.message : "Server error";
     // Log error usage if we have user context
     try {
@@ -441,9 +479,10 @@ export async function POST(req: NextRequest) {
           }
         });
       }
-    } catch {
-      /* ignore logging errors */
+    } catch (logError) {
+      console.error('[generate] Error logging usage:', logError);
     }
+    console.log('[generate] Returning error response:', msg);
     return new Response(JSON.stringify({ error: msg }), { status: 500 });
   }
 }

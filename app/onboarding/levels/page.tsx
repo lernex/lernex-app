@@ -31,10 +31,10 @@ export default async function LevelsPage() {
       >
         <div className="space-y-2 text-center">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent animate-slide-down">
-            Choose Your Level
+            Choose Your Class
           </h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400 animate-slide-up">
-            Select the level that best matches your current knowledge
+            Select the class you want to take
           </p>
         </div>
 

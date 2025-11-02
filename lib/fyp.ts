@@ -215,6 +215,7 @@ function clampTemperature(value: number) {
 const DEFAULT_TEMPERATURE = clampTemperature(resolveNumericEnv(process.env.CEREBRAS_LESSON_TEMPERATURE, FALLBACK_TEMPERATURE));
 
 const JSON_RESPONSE_DENYLIST = [/gpt-oss/i];
+const FUNCTION_CALLING_DENYLIST = [/gpt-oss/i];
 
 function normalizeBooleanEnv(value: string | undefined): boolean | null {
   if (!value) return null;
@@ -229,6 +230,12 @@ function modelSupportsJsonResponseFormat(model: string): boolean {
   const override = normalizeBooleanEnv(process.env.FYP_ALLOW_JSON_RESPONSE);
   if (override != null) return override;
   return !JSON_RESPONSE_DENYLIST.some((pattern) => pattern.test(model));
+}
+
+function modelSupportsFunctionCalling(model: string): boolean {
+  const override = normalizeBooleanEnv(process.env.FYP_ALLOW_FUNCTION_CALLING);
+  if (override != null) return override;
+  return !FUNCTION_CALLING_DENYLIST.some((pattern) => pattern.test(model));
 }
 
 const supportsBuffer =
@@ -1010,9 +1017,12 @@ export async function generateLessonForTopic(
       : messagesWithContext;
 
   const jsonResponseSupported = modelSupportsJsonResponseFormat(model);
+  const functionCallingSupported = modelSupportsFunctionCalling(model);
   const requestVariants: Array<{ useFunctionCall: boolean; usePlainResponse: boolean; dropStructured: boolean }> = [];
-  // Prefer function calling (most reliable and saves tokens)
-  requestVariants.push({ useFunctionCall: true, usePlainResponse: false, dropStructured: false });
+  // Prefer function calling (most reliable and saves tokens) if supported
+  if (functionCallingSupported) {
+    requestVariants.push({ useFunctionCall: true, usePlainResponse: false, dropStructured: false });
+  }
   // Fallback to JSON mode if supported
   if (jsonResponseSupported) {
     requestVariants.push({ useFunctionCall: false, usePlainResponse: false, dropStructured: false });
