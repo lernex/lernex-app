@@ -9,7 +9,7 @@
  *
  * Plus/Premium Tiers:
  * - Fast model: Cerebras gpt-oss-120b (higher intelligence, faster response)
- * - Slow model: LightningAI gpt-oss-120b (higher intelligence, cost-optimized)
+ * - Slow model: Deepinfra gpt-oss-120b (higher intelligence, cost-optimized)
  */
 
 import OpenAI from 'openai';
@@ -42,12 +42,12 @@ export function getModelConfig(tier: UserTier, speed: ModelSpeed): ModelConfig {
         provider: 'cerebras'
       };
     } else {
-      // LightningAI for slower, cost-optimized high-intelligence generation
+      // Deepinfra for slower, cost-optimized high-intelligence generation
       return {
-        apiKey: process.env.LIGHTNINGAI_API_KEY || '',
-        baseURL: 'https://lightning.ai/api/v1',
-        model: 'lightning-ai/gpt-oss-120b', // LightningAI uses lightning-ai/ prefix
-        provider: 'lightningai'
+        apiKey: process.env.DEEPINFRA_API_KEY || '',
+        baseURL: 'https://api.deepinfra.com/v1/openai',
+        model: 'openai/gpt-oss-120b', // Deepinfra uses openai/ prefix
+        provider: 'deepinfra'
       };
     }
   } else {
@@ -82,10 +82,12 @@ export function getModelIdentifier(provider: ModelConfig['provider'], model: str
     case 'groq':
       return 'groq/gpt-oss-20b';
     case 'deepinfra':
-      return 'deepinfra/gpt-oss-20b';
+      // Deepinfra is used for both free (20b) and paid (120b) slow models
+      return model.includes('120b') ? 'deepinfra/gpt-oss-120b' : 'deepinfra/gpt-oss-20b';
     case 'cerebras':
       return 'cerebras/gpt-oss-120b';
     case 'lightningai':
+      // Keep for backwards compatibility with old usage logs
       return 'lightningai/gpt-oss-120b';
     default:
       return model;

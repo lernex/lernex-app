@@ -135,6 +135,9 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
   const [selected, setSel] = useState<number | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [showSummaryOverlay, setShowSummaryOverlay] = useState(false);
+  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [answers, setAnswers] = useState<(number | null)[]>(() => Array(questions.length).fill(null));
+  const [hasSubmitted, setHasSubmitted] = useState(false);
   const q = hasQuestions ? questions[qIndex] : undefined;
   const needsMathTypeset = useMemo(() => {
     if (!q) return false;
@@ -148,7 +151,10 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
     setSel(null);
     setCorrectCount(0);
     setShowSummaryOverlay(false);
-  }, [lesson.id]);
+    setShowWarningModal(false);
+    setAnswers(Array(questions.length).fill(null));
+    setHasSubmitted(false);
+  }, [lesson.id, questions.length]);
 
 
   const syncStatsFromPayload = useCallback((payload?: Record<string, unknown>) => {
@@ -193,10 +199,23 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
     if (selected !== null) return;
     if (!hasQuestions || !q) return;
     setSel(idx);
+
+    // Save answer in answers array
+    const newAnswers = [...answers];
+    newAnswers[qIndex] = idx;
+    setAnswers(newAnswers);
+
     const isCorrect = idx === q.correctIndex;
     recordAnswer(lesson.subject, isCorrect);
+
+    // Update correct count - recalculate from all answers to handle answer changes
+    const newCorrectCount = newAnswers.reduce<number>((count, answerIdx, i) => {
+      if (answerIdx === null) return count;
+      return count + (answerIdx === questions[i].correctIndex ? 1 : 0);
+    }, 0);
+    setCorrectCount(newCorrectCount);
+
     if (isCorrect) {
-      setCorrectCount((c) => c + 1);
       // SFX + confetti near the clicked button
       try {
         const btn = ev?.currentTarget as HTMLElement | undefined;
@@ -219,55 +238,82 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
     }
   };
 
+  const back = () => {
+    if (qIndex > 0) {
+      const prevIndex = qIndex - 1;
+      setQ(prevIndex);
+      setSel(answers[prevIndex]);
+    }
+  };
+
   const next = () => {
     if (!hasQuestions) return;
     if (qIndex < questions.length - 1) {
-      setQ(qIndex + 1);
-      setSel(null);
+      const nextIndex = qIndex + 1;
+      setQ(nextIndex);
+      setSel(answers[nextIndex]);
     } else {
-      // Calculate points based on difficulty
-      const difficultyPoints: Record<string, number> = {
-        "intro": 10,
-        "easy": 10,
-        "medium": 20,
-        "hard": 30,
-      };
-      const pointsPerCorrect = lesson.difficulty ? (difficultyPoints[lesson.difficulty] || 10) : 10;
-
-      const attemptPayload = {
-        lesson_id: lesson.id,
-        subject: lesson.subject,
-        topic: lesson.topic ?? undefined,
-        correct_count: correctCount,
-        total: questions.length,
-        event: "lesson-finish",
-        points_per_correct: pointsPerCorrect,
-        difficulty: lesson.difficulty,
-      };
-      void (async () => {
-        try {
-          const res = await fetch("/api/attempt", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(attemptPayload),
-          });
-          const payload = (await res.json().catch(() => ({}))) as Record<string, unknown> | undefined;
-          if (!res.ok) {
-            console.warn("[quiz-block] attempt failed", { status: res.status, payload });
-            return;
-          }
-          syncStatsFromPayload(payload);
-          await refresh().catch(() => {});
-        } catch (err) {
-          console.warn("[quiz-block] attempt request error", err);
-        }
-      })();
-      // Completion effects + summary
-      try { playFanfare(); } catch {}
-      try { confettiBurst(window.innerWidth / 2, window.innerHeight * 0.25, { count: 80, spread: 120, power: 12 }); } catch {}
-      if (showSummary) setShowSummaryOverlay(true);
-      onDone(correctCount);
+      handleFinish();
     }
+  };
+
+  const handleFinish = () => {
+    // Check for unanswered questions
+    const unansweredCount = answers.filter(a => a === null).length;
+    if (unansweredCount > 0) {
+      setShowWarningModal(true);
+      return;
+    }
+    finishQuiz();
+  };
+
+  const finishQuiz = () => {
+    // Prevent multiple submissions (point stacking exploit fix)
+    if (hasSubmitted) return;
+    setHasSubmitted(true);
+
+    // Calculate points based on difficulty
+    const difficultyPoints: Record<string, number> = {
+      "intro": 10,
+      "easy": 10,
+      "medium": 20,
+      "hard": 30,
+    };
+    const pointsPerCorrect = lesson.difficulty ? (difficultyPoints[lesson.difficulty] || 10) : 10;
+
+    const attemptPayload = {
+      lesson_id: lesson.id,
+      subject: lesson.subject,
+      topic: lesson.topic ?? undefined,
+      correct_count: correctCount,
+      total: questions.length,
+      event: "lesson-finish",
+      points_per_correct: pointsPerCorrect,
+      difficulty: lesson.difficulty,
+    };
+    void (async () => {
+      try {
+        const res = await fetch("/api/attempt", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(attemptPayload),
+        });
+        const payload = (await res.json().catch(() => ({}))) as Record<string, unknown> | undefined;
+        if (!res.ok) {
+          console.warn("[quiz-block] attempt failed", { status: res.status, payload });
+          return;
+        }
+        syncStatsFromPayload(payload);
+        await refresh().catch(() => {});
+      } catch (err) {
+        console.warn("[quiz-block] attempt request error", err);
+      }
+    })();
+    // Completion effects + summary
+    try { playFanfare(); } catch {}
+    try { confettiBurst(window.innerWidth / 2, window.innerHeight * 0.25, { count: 80, spread: 120, power: 12 }); } catch {}
+    if (showSummary) setShowSummaryOverlay(true);
+    onDone(correctCount);
   };
 
   const btnClass = (idx: number) => {
@@ -298,9 +344,33 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
             </button>
           ))}
         </div>
-        <div className="mt-4 flex items-center justify-between">
+        {/* Question progress indicators */}
+        <div className="mt-4 flex items-center justify-center gap-1.5">
+          {questions.map((_, idx) => (
+            <div
+              key={idx}
+              className={`h-2 w-2 rounded-full transition-all ${
+                idx === qIndex
+                  ? "bg-lernex-blue scale-125"
+                  : answers[idx] !== null
+                  ? "bg-green-500"
+                  : "bg-neutral-300 dark:bg-neutral-600"
+              }`}
+              title={`Question ${idx + 1}${answers[idx] !== null ? " (answered)" : ""}`}
+            />
+          ))}
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <button
+            onClick={back}
+            disabled={qIndex === 0}
+            className="rounded-xl border border-surface bg-surface-muted px-4 py-2 transition hover:bg-surface-card disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Back
+          </button>
           <div className="text-xs text-neutral-500 dark:text-neutral-400 transition-colors">
-            Question {qIndex + 1} / {questions.length}
+            {qIndex + 1} / {questions.length}
           </div>
           <button onClick={next} className="rounded-xl bg-lernex-blue px-4 py-2 text-white transition hover:bg-blue-500">
             {qIndex < questions.length - 1 ? "Next" : "Finish"}
@@ -325,11 +395,57 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
                 Close
               </button>
               <button
-                onClick={() => { setShowSummaryOverlay(false); setQ(0); setSel(null); setCorrectCount(0); }}
+                onClick={() => {
+                  setShowSummaryOverlay(false);
+                  setQ(0);
+                  setSel(null);
+                  setCorrectCount(0);
+                  setAnswers(Array(questions.length).fill(null));
+                  setHasSubmitted(false);
+                }}
                 className="ml-auto rounded-xl bg-lernex-blue px-4 py-2 text-white transition hover:bg-blue-500"
               >
                 Retry Quiz
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Warning modal for unanswered questions */}
+      {showWarningModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-surface bg-surface-panel p-6 text-foreground shadow-2xl transition-colors">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 rounded-full bg-yellow-500/20 p-2">
+                <svg className="h-6 w-6 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-foreground">Unanswered Questions</h3>
+                <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+                  You have {answers.filter(a => a === null).length} unanswered question{answers.filter(a => a === null).length > 1 ? 's' : ''}.
+                  Would you like to go back and answer them, or finish anyway?
+                </p>
+                <div className="mt-4 flex items-center gap-2">
+                  <button
+                    onClick={() => setShowWarningModal(false)}
+                    className="flex-1 rounded-xl border border-surface bg-surface-muted px-4 py-2.5 text-sm font-medium transition hover:bg-surface-card"
+                  >
+                    Go Back
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowWarningModal(false);
+                      finishQuiz();
+                    }}
+                    className="flex-1 rounded-xl bg-lernex-blue px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500"
+                  >
+                    Finish Anyway
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

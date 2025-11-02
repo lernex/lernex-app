@@ -236,7 +236,12 @@ BEGIN
       v_input_cost := 0.35 / 1000000.0;
       v_output_cost := 0.75 / 1000000.0;
 
-    -- LightningAI (SLOW)
+    -- Deepinfra (SLOW)
+    WHEN 'deepinfra/gpt-oss-120b' THEN
+      v_input_cost := 0.1 / 1000000.0;
+      v_output_cost := 0.4 / 1000000.0;
+
+    -- LightningAI (legacy - kept for backwards compatibility)
     WHEN 'lightningai/gpt-oss-120b' THEN
       v_input_cost := 0.1 / 1000000.0;
       v_output_cost := 0.4 / 1000000.0;

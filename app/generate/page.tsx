@@ -7,6 +7,7 @@ import LessonCard from "@/components/LessonCard";
 import QuizBlock from "@/components/QuizBlock";
 import FormattedText from "@/components/FormattedText";
 import LessonHistoryModal from "@/components/LessonHistoryModal";
+import VoiceInput from "@/components/VoiceInput";
 
 export default function Generate() {
   const [text, setText] = useState("");
@@ -339,13 +340,23 @@ Current Question: ${followUpQuestion}
             placeholder="Subject (e.g., Algebra 1)"
             className="w-full rounded-xl border border-surface bg-surface-card px-3 py-2 text-foreground outline-none transition focus:ring-2 focus:ring-lernex-blue/40 placeholder:text-neutral-500 dark:placeholder:text-neutral-400"
           />
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={6}
-            placeholder="Paste study text here... (>= 20 chars)"
-            className="w-full rounded-xl border border-surface bg-surface-card px-3 py-2 text-foreground outline-none transition focus:ring-2 focus:ring-lernex-blue/40 placeholder:text-neutral-500 dark:placeholder:text-neutral-400"
-          />
+          <div className="relative">
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={6}
+              placeholder="Paste study text here... (>= 20 chars)"
+              className="w-full rounded-xl border border-surface bg-surface-card px-3 py-2 pr-14 text-foreground outline-none transition focus:ring-2 focus:ring-lernex-blue/40 placeholder:text-neutral-500 dark:placeholder:text-neutral-400"
+            />
+            <div className="absolute bottom-2 right-2">
+              <VoiceInput
+                onTranscription={(transcribedText) => {
+                  setText((prev) => (prev ? prev + " " + transcribedText : transcribedText));
+                }}
+                size="md"
+              />
+            </div>
+          </div>
           <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
             <span>Tip: Keep it 2 short paragraphs for best results.</span>
             <span>{text.length} chars</span>
@@ -441,20 +452,30 @@ Current Question: ${followUpQuestion}
                     </p>
 
                     <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={followUpQuestion}
-                        onChange={(e) => setFollowUpQuestion(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey && !followUpLoading) {
-                            e.preventDefault();
-                            handleFollowUp();
-                          }
-                        }}
-                        placeholder="e.g., Can you explain that example in more detail?"
-                        disabled={followUpLoading}
-                        className="flex-1 rounded-xl border border-surface bg-surface-muted px-4 py-2.5 text-foreground outline-none transition-all focus:ring-2 focus:ring-lernex-blue/40 focus:border-lernex-blue placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:opacity-60"
-                      />
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={followUpQuestion}
+                          onChange={(e) => setFollowUpQuestion(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey && !followUpLoading) {
+                              e.preventDefault();
+                              handleFollowUp();
+                            }
+                          }}
+                          placeholder="e.g., Can you explain that example in more detail?"
+                          disabled={followUpLoading}
+                          className="w-full rounded-xl border border-surface bg-surface-muted pl-4 pr-12 py-2.5 text-foreground outline-none transition-all focus:ring-2 focus:ring-lernex-blue/40 focus:border-lernex-blue placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:opacity-60"
+                        />
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                          <VoiceInput
+                            onTranscription={(transcribedText) => {
+                              setFollowUpQuestion((prev) => (prev ? prev + " " + transcribedText : transcribedText));
+                            }}
+                            size="sm"
+                          />
+                        </div>
+                      </div>
                       <button
                         onClick={handleFollowUp}
                         disabled={followUpLoading || !followUpQuestion.trim()}

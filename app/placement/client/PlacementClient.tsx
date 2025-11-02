@@ -311,56 +311,100 @@ export default function PlacementClient() {
   };
 
   if (loading && !item) {
-    return <div className="min-h-screen grid place-items-center text-neutral-900 dark:text-white">Loading placement...</div>;
+    return (
+      <div className="min-h-screen grid place-items-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900 text-neutral-900 dark:text-white">
+        <div className="flex flex-col items-center gap-4 animate-fade-in">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-lg font-medium bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Loading placement...
+          </p>
+        </div>
+      </div>
+    );
   }
   if (err) {
     return (
-      <main className="min-h-screen grid place-items-center text-neutral-900 dark:text-white">
-        <div className="text-red-500 dark:text-red-400">{err}</div>
-        <button
-          onClick={() => {
-            // Retry by re-calling the prime flow
-            setErr(null);
-            setLoading(true);
-            // mimic initial effect
-            fetch("/api/placement/next", { method: "POST" })
-              .then(async (r) => {
-                dlog("retry: res", { status: r.status });
-                const data: PlacementNextResponse | { error?: string } = await r.json();
-                if (!r.ok) throw new Error((("error" in data) && data.error) || `HTTP ${r.status}`);
-                if (!("state" in data)) throw new Error("Invalid response");
-                setState(data.state);
-                setItem(data.item);
-                setBranches(data.branches ?? null);
-              })
-              .catch((e) => setErr(e instanceof Error ? e.message : "Unknown error"))
-              .finally(() => setLoading(false));
-          }}
-          className="mt-3 rounded-xl border border-neutral-300 bg-white px-4 py-2 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700"
-        >
-          Retry
-        </button>
+      <main className="min-h-screen grid place-items-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900 text-neutral-900 dark:text-white">
+        <div className="flex flex-col items-center gap-4 animate-fade-in">
+          <div className="text-red-500 dark:text-red-400 text-lg font-medium">{err}</div>
+          <button
+            onClick={() => {
+              // Retry by re-calling the prime flow
+              setErr(null);
+              setLoading(true);
+              // mimic initial effect
+              fetch("/api/placement/next", { method: "POST" })
+                .then(async (r) => {
+                  dlog("retry: res", { status: r.status });
+                  const data: PlacementNextResponse | { error?: string } = await r.json();
+                  if (!r.ok) throw new Error((("error" in data) && data.error) || `HTTP ${r.status}`);
+                  if (!("state" in data)) throw new Error("Invalid response");
+                  setState(data.state);
+                  setItem(data.item);
+                  setBranches(data.branches ?? null);
+                })
+                .catch((e) => setErr(e instanceof Error ? e.message : "Unknown error"))
+                .finally(() => setLoading(false));
+            }}
+            className="rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 font-semibold text-white transition-all duration-300 transform hover:scale-105 hover:shadow-xl"
+          >
+            Retry
+          </button>
+        </div>
       </main>
     );
   }
   if (!state || !item) return null;
 
   return (
-    <main className="min-h-screen grid place-items-center text-neutral-900 dark:text-white bg-gradient-to-br from-blue-50 to-purple-50 dark:from-neutral-900 dark:to-neutral-800">
-      <div className="w-full max-w-md px-4 py-6 space-y-4 rounded-2xl bg-white border border-neutral-200 shadow-lg dark:bg-neutral-900 dark:border-neutral-800">
-        <div className="flex items-center justify-between text-sm text-neutral-500 dark:text-neutral-400">
-          <div>{state.subject} - {state.course}</div>
-          <div>Step {state.step} / {state.maxSteps}</div>
+    <main className="min-h-screen grid place-items-center text-neutral-900 dark:text-white bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900 transition-all duration-500">
+      <div className="w-full max-w-md px-6 py-8 space-y-5 rounded-2xl bg-white/80 backdrop-blur-sm border border-neutral-200 shadow-2xl dark:bg-neutral-900/80 dark:border-neutral-700 animate-fade-in">
+        {/* Header with subject and progress */}
+        <div className="flex items-center justify-between text-sm font-medium text-neutral-600 dark:text-neutral-400 animate-slide-down">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xs font-bold">
+              {state.subject.charAt(0)}
+            </span>
+            <span>{state.subject} - {state.course}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-xs px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+              {state.step} / {state.maxSteps}
+            </div>
+          </div>
         </div>
-        <div className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Difficulty: {state.difficulty}</div>
+
+        {/* Progress bar */}
+        <div className="space-y-2 animate-slide-up">
+          <div className="w-full h-2 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+            <div
+              className="h-full bg-gradient-to-r from-blue-600 to-purple-600 transition-all duration-500 ease-out"
+              style={{ width: `${(state.step / state.maxSteps) * 100}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
+              {state.difficulty}
+            </span>
+            <span className="text-neutral-600 dark:text-neutral-300 font-medium">
+              {correctTotal} / {questionTotal} correct
+            </span>
+          </div>
+        </div>
+
         {nextLoading && (
           <div className="w-full h-1 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
-            <div className="h-full w-full bg-gradient-to-r from-lernex-blue to-lernex-purple animate-pulse" />
+            <div className="h-full w-full bg-gradient-to-r from-blue-600 to-purple-600 animate-pulse" />
           </div>
         )}
 
-        <div className="text-lg font-semibold"><FormattedText text={item.prompt} /></div>
-        <div className="grid gap-2">
+        {/* Question */}
+        <div className="text-lg font-semibold text-neutral-900 dark:text-white animate-fade-in-item pt-2">
+          <FormattedText text={item.prompt} />
+        </div>
+
+        {/* Answer choices */}
+        <div className="grid gap-3 pt-2">
           {item.choices.map((c, i) => {
             const isCorrect = i === item.correctIndex;
             const isSel = selected === i;
@@ -369,9 +413,13 @@ export default function PlacementClient() {
                 key={i}
                 onClick={() => answer(i)}
                 disabled={selected !== null}
-                className={`text-left px-3 py-2 rounded-xl border transition-transform
-                  ${isSel ? (isCorrect ? "bg-green-600 border-green-500 text-white" : "bg-red-600 border-red-500 text-white")
-                          : "bg-neutral-100 border-neutral-300 hover:bg-neutral-200 dark:bg-neutral-800 dark:border-neutral-700 dark:hover:bg-neutral-700 hover:scale-[1.02]"}`}
+                style={{ animationDelay: `${i * 50}ms` }}
+                className={`text-left px-4 py-3 rounded-xl border font-medium transition-all duration-300 transform animate-fade-in-item
+                  ${isSel
+                    ? (isCorrect
+                      ? "bg-gradient-to-r from-green-600 to-green-500 border-green-400 text-white shadow-lg scale-[1.02]"
+                      : "bg-gradient-to-r from-red-600 to-red-500 border-red-400 text-white shadow-lg scale-[1.02]")
+                    : "bg-white border-neutral-300 hover:bg-neutral-50 hover:border-blue-400 dark:bg-neutral-800 dark:border-neutral-600 dark:text-white dark:hover:bg-neutral-700 dark:hover:border-purple-400 hover:scale-[1.02] hover:shadow-md disabled:hover:scale-100 disabled:hover:shadow-none"}`}
               >
                 <FormattedText text={c} />
               </button>
@@ -379,22 +427,37 @@ export default function PlacementClient() {
           })}
         </div>
 
-        <div className="text-xs text-neutral-500 dark:text-neutral-400">
-          Correct so far: {correctTotal} / {questionTotal}
-        </div>
+        {/* Explanation */}
         {selected !== null && item.explanation && (
-          <div className="text-sm text-neutral-600 dark:text-neutral-300 pt-1">
+          <div className="text-sm text-neutral-600 dark:text-neutral-300 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 animate-slide-up">
+            <div className="font-semibold text-blue-600 dark:text-blue-400 mb-1">Explanation:</div>
             <FormattedText text={item.explanation} />
           </div>
         )}
+
+        {/* Next button */}
         {selected !== null && (
-          <div className="pt-3 flex justify-end">
+          <div className="pt-3 flex justify-end animate-slide-up">
             <button
               onClick={nextQuestion}
               disabled={nextLoading}
-              className={"px-4 py-2 rounded-xl bg-lernex-blue text-white transition-transform transform animate-fade-in " + (nextLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-lernex-blue/90 hover:scale-105") }
+              className={`px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold transition-all duration-300 transform ${
+                nextLoading
+                  ? "opacity-50 cursor-not-allowed"
+                  : "hover:scale-105 hover:shadow-xl"
+              }`}
             >
-              {nextLoading ? "Loading..." : "Next"}
+              {nextLoading ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Loading...
+                </span>
+              ) : (
+                "Next Question →"
+              )}
             </button>
           </div>
         )}

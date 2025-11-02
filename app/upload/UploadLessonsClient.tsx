@@ -407,7 +407,29 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
             throw new Error(message || `Generation failed (lesson ${index + 1}).`);
           }
 
-          const payload = (await response.json()) as Lesson;
+          console.log(`[upload] Parsing lesson ${index + 1} response...`);
+          let payload: Lesson;
+          try {
+            const responseText = await response.text();
+            console.log(`[upload] Lesson ${index + 1} response length:`, responseText.length);
+            console.log(`[upload] Lesson ${index + 1} response preview:`, responseText.substring(0, 200));
+
+            // Try to parse, handling potential markdown code fences
+            let jsonText = responseText.trim();
+            if (jsonText.startsWith('```json')) {
+              jsonText = jsonText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+              console.log(`[upload] Removed markdown code fences from lesson ${index + 1}`);
+            } else if (jsonText.startsWith('```')) {
+              jsonText = jsonText.replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+              console.log(`[upload] Removed generic code fences from lesson ${index + 1}`);
+            }
+
+            payload = JSON.parse(jsonText) as Lesson;
+            console.log(`[upload] Successfully parsed lesson ${index + 1}`);
+          } catch (parseError) {
+            console.error(`[upload] Failed to parse lesson ${index + 1}:`, parseError);
+            throw new Error(`Failed to parse lesson ${index + 1}: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`);
+          }
           generatedLessons.push({
             ...payload,
             id: payload.id ?? crypto.randomUUID(),

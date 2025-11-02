@@ -6,6 +6,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { normalizeLatex, scanLatex, hasLatexIssues } from "@/lib/latex";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
+import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
 
 const MAX_CHARS = 4300;
 
@@ -251,7 +252,7 @@ Create fair multiple-choice questions based on the source, following the rules.`
     const sanitizeQuestion = (
       rawQuestion: { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown } | null | undefined,
       idx: number,
-    ) => {
+    ): { prompt: string; choices: string[]; correctIndex: number; explanation: string } => {
       const question = (rawQuestion ?? {}) as {
         prompt?: unknown;
         choices?: unknown;
@@ -272,6 +273,8 @@ Create fair multiple-choice questions based on the source, following the rules.`
 
     if (Array.isArray(obj.questions)) {
       obj.questions = obj.questions.map((q, idx) => sanitizeQuestion(q, idx));
+      // Shuffle answer choices to prevent AI bias toward position A
+      obj.questions = shuffleQuizQuestions(obj.questions as { prompt: string; choices: string[]; correctIndex: number; explanation: string; }[]);
     } else {
       obj.questions = [];
     }

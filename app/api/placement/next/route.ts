@@ -9,6 +9,7 @@ import type { PlacementState, PlacementItem, Difficulty, PlacementNextResponse }
 import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
+import { shuffleQuestionChoices } from "@/lib/quiz-shuffle";
 const MAX_TOKENS = Math.min(
   1800,
   Math.max(
@@ -87,7 +88,6 @@ Return ONLY a valid JSON object (no prose) matching exactly:
   "difficulty": "intro"|"easy"|"medium"|"hard"
 }
 Rules:
-- Place the correct answer as the FIRST element in choices and set correctIndex to 0.
 - For intro/easy use 2–3 choices; for medium/hard use 3–4 choices.
 - Keep choices concise (<= 8 words each). Keep explanation concise (<= 25 words).
 - Only standard curriculum content for the course; avoid more advanced classes.
@@ -108,7 +108,6 @@ Return ONLY a valid JSON object (no prose) matching exactly:
 Rules:
 - Produce a very short prompt and choices.
 - EXACTLY 2 choices for intro/easy; EXACTLY 3 choices for medium/hard.
-- Place the correct answer first and set correctIndex to 0.
 - Explanation must be <= 15 words.
 - No HTML; inline LaTeX (\\( ... \\)) allowed if needed. JSON must be valid.
 `.trim();
@@ -296,15 +295,10 @@ Create exactly one discriminative multiple-choice question from the course's app
   const rawIdx = (item as unknown as { correctIndex: unknown }).correctIndex;
   let idx = typeof rawIdx === "number" ? rawIdx : Number(rawIdx);
   if (!Number.isFinite(idx) || idx < 0 || idx >= item.choices.length) { idx = 0; }
-  idx = Math.floor(idx);
-  const decoratedChoices = item.choices.map((choice, i) => ({ choice, originalIndex: i }));
-  for (let i = decoratedChoices.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [decoratedChoices[i], decoratedChoices[j]] = [decoratedChoices[j], decoratedChoices[i]];
-  }
-  item.choices = decoratedChoices.map((entry) => entry.choice);
-  const newIndex = decoratedChoices.findIndex((entry) => entry.originalIndex === idx);
-  item.correctIndex = newIndex >= 0 ? newIndex : 0;
+  item.correctIndex = Math.floor(idx);
+
+  // Shuffle answer choices using utility function to prevent AI bias toward position A
+  shuffleQuestionChoices(item);
 
   // If model ignored instructions, retry a couple times
   if (avoid.some((a) => a.trim() === item.prompt.trim()) && depth < 2) {

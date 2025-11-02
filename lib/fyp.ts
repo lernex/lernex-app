@@ -8,6 +8,7 @@ import { checkUsageLimit, logUsage } from "./usage";
 import { buildLessonPrompts } from "./lesson-prompts";
 import { createModelClient, type UserTier, type ModelSpeed } from "./model-config";
 import { compressContext } from "./semantic-compression";
+import { shuffleQuizQuestions } from "./quiz-shuffle";
 
 type Pace = "slow" | "normal" | "fast";
 
@@ -1217,6 +1218,10 @@ export async function generateLessonForTopic(
 
   const validateLessonCandidate = async (candidate: Lesson | null) => {
     // Deterministic validation only - schema validation already happened in resolveLessonCandidate
+    if (candidate && Array.isArray(candidate.questions)) {
+      // Shuffle answer choices to prevent AI bias toward position A
+      candidate.questions = shuffleQuizQuestions(candidate.questions);
+    }
     return candidate;
   };
 

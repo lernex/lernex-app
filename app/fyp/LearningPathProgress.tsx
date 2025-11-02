@@ -56,22 +56,33 @@ export default function LearningPathProgress() {
   if (!subject) {
     return (
       <motion.div
-        whileHover={{ y: -4 }}
-        transition={{ type: "spring", stiffness: 260, damping: 22 }}
-        className="rounded-3xl border border-white/60 bg-white/80 p-6 shadow-[0_32px_90px_-64px_rgba(47,128,237,0.45)] backdrop-blur-lg dark:border-white/10 dark:bg-white/5"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        whileHover={{ y: -6, scale: 1.02 }}
+        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        className="group rounded-3xl border border-white/40 bg-gradient-to-br from-white/90 to-white/70 p-6 shadow-xl backdrop-blur-xl dark:border-white/10 dark:from-white/10 dark:to-white/5"
       >
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-lernex-green/15 text-lernex-green dark:bg-lernex-green/20 dark:text-lernex-green/70">
-            <Map className="h-5 w-5" />
-          </div>
+          <motion.div
+            whileHover={{ rotate: 360 }}
+            transition={{ duration: 0.6 }}
+            className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-lernex-green to-emerald-400 text-white shadow-lg dark:from-lernex-green/80 dark:to-emerald-400/80"
+          >
+            <Map className="h-6 w-6" />
+          </motion.div>
           <div>
-            <h2 className="text-sm font-semibold text-neutral-800 dark:text-white">Learning Path</h2>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">Track your journey</p>
+            <h2 className="text-base font-bold text-neutral-900 dark:text-white">Learning Path</h2>
+            <p className="text-xs text-neutral-600 dark:text-neutral-400">Track your journey</p>
           </div>
         </div>
-        <div className="mt-5 rounded-2xl border border-dashed border-white/60 bg-white/40 px-4 py-6 text-center text-sm text-neutral-500 dark:border-white/15 dark:bg-white/5 dark:text-neutral-400">
-          Select a single class to view your learning path progress.
-        </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="mt-5 rounded-2xl border border-dashed border-neutral-300/60 bg-neutral-50/60 px-4 py-6 text-center text-sm text-neutral-600 dark:border-white/15 dark:bg-white/5 dark:text-neutral-400"
+        >
+          Select a class above to view your progress
+        </motion.div>
       </motion.div>
     );
   }
@@ -79,17 +90,17 @@ export default function LearningPathProgress() {
   if (isLoading) {
     return (
       <motion.div
-        whileHover={{ y: -4 }}
-        transition={{ type: "spring", stiffness: 260, damping: 22 }}
-        className="rounded-3xl border border-white/60 bg-white/80 p-6 shadow-[0_32px_90px_-64px_rgba(47,128,237,0.45)] backdrop-blur-lg dark:border-white/10 dark:bg-white/5"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="rounded-3xl border border-white/40 bg-gradient-to-br from-white/90 to-white/70 p-6 shadow-xl backdrop-blur-xl dark:border-white/10 dark:from-white/10 dark:to-white/5"
       >
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-lernex-green/15 text-lernex-green dark:bg-lernex-green/20 dark:text-lernex-green/70">
-            <Loader2 className="h-5 w-5 animate-spin" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-lernex-green to-emerald-400 text-white shadow-lg">
+            <Loader2 className="h-6 w-6 animate-spin" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-neutral-800 dark:text-white">Learning Path</h2>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">Loading progress...</p>
+            <h2 className="text-base font-bold text-neutral-900 dark:text-white">Learning Path</h2>
+            <p className="text-xs text-neutral-600 dark:text-neutral-400">Loading progress...</p>
           </div>
         </div>
       </motion.div>
@@ -99,20 +110,26 @@ export default function LearningPathProgress() {
   if (!progressData || progressData.topicCount === 0) {
     return (
       <motion.div
-        whileHover={{ y: -4 }}
-        transition={{ type: "spring", stiffness: 260, damping: 22 }}
-        className="rounded-3xl border border-white/60 bg-white/80 p-6 shadow-[0_32px_90px_-64px_rgba(47,128,237,0.45)] backdrop-blur-lg dark:border-white/10 dark:bg-white/5"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        whileHover={{ y: -6, scale: 1.02 }}
+        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        className="rounded-3xl border border-white/40 bg-gradient-to-br from-white/90 to-white/70 p-6 shadow-xl backdrop-blur-xl dark:border-white/10 dark:from-white/10 dark:to-white/5"
       >
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-lernex-green/15 text-lernex-green dark:bg-lernex-green/20 dark:text-lernex-green/70">
-            <Map className="h-5 w-5" />
-          </div>
+          <motion.div
+            whileHover={{ rotate: 360 }}
+            transition={{ duration: 0.6 }}
+            className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-lernex-green to-emerald-400 text-white shadow-lg"
+          >
+            <Map className="h-6 w-6" />
+          </motion.div>
           <div>
-            <h2 className="text-sm font-semibold text-neutral-800 dark:text-white">Learning Path</h2>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">Track your journey</p>
+            <h2 className="text-base font-bold text-neutral-900 dark:text-white">Learning Path</h2>
+            <p className="text-xs text-neutral-600 dark:text-neutral-400">Track your journey</p>
           </div>
         </div>
-        <div className="mt-5 rounded-2xl border border-dashed border-white/60 bg-white/40 px-4 py-6 text-center text-sm text-neutral-500 dark:border-white/15 dark:bg-white/5 dark:text-neutral-400">
+        <div className="mt-5 rounded-2xl border border-dashed border-neutral-300/60 bg-neutral-50/60 px-4 py-6 text-center text-sm text-neutral-600 dark:border-white/15 dark:bg-white/5 dark:text-neutral-400">
           No learning path available yet for {subject}.
         </div>
       </motion.div>
@@ -125,102 +142,128 @@ export default function LearningPathProgress() {
   return (
     <>
       <motion.div
-        whileHover={{ y: -4 }}
-        transition={{ type: "spring", stiffness: 260, damping: 22 }}
-        className="rounded-3xl border border-white/60 bg-white/80 p-6 shadow-[0_32px_90px_-64px_rgba(39,174,96,0.55)] backdrop-blur-lg dark:border-white/10 dark:bg-white/5"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        whileHover={{ y: -6, scale: 1.01 }}
+        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        className="group rounded-3xl border border-white/40 bg-gradient-to-br from-white/90 to-white/70 p-6 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:from-white/10 dark:to-white/5"
       >
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-lernex-green/15 text-lernex-green dark:bg-lernex-green/20 dark:text-lernex-green/70">
-            <Map className="h-5 w-5" />
-          </div>
+          <motion.div
+            whileHover={{ rotate: 360, scale: 1.1 }}
+            transition={{ duration: 0.6 }}
+            className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-lernex-green to-emerald-400 text-white shadow-lg dark:from-lernex-green/80 dark:to-emerald-400/80"
+          >
+            <Map className="h-6 w-6" />
+          </motion.div>
           <div className="flex-1">
-            <h2 className="text-sm font-semibold text-neutral-800 dark:text-white">Learning Path</h2>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">{subject}</p>
+            <h2 className="text-base font-bold text-neutral-900 dark:text-white">Learning Path</h2>
+            <p className="text-xs text-neutral-600 dark:text-neutral-400">{subject}</p>
           </div>
         </div>
 
         {/* Current Unit Progress */}
-        <div className="mt-5 space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-neutral-600 dark:text-neutral-300">
-              Current Unit Progress
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.5 }}
+          className="mt-6 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+              Current Unit
             </span>
             <motion.span
               key={unitProgress}
-              initial={{ scale: 1.2, opacity: 0 }}
+              initial={{ scale: 1.3, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.3 }}
-              className="font-bold text-lernex-green dark:text-lernex-green/80"
+              transition={{ duration: 0.4, type: "spring" }}
+              className="text-sm font-bold text-lernex-green dark:text-lernex-green/90"
             >
               {unitProgress}%
             </motion.span>
           </div>
-          <div className="relative h-3 overflow-hidden rounded-full bg-neutral-200/70 dark:bg-neutral-700/50">
+          <div className="relative h-3.5 overflow-hidden rounded-full bg-neutral-200/80 shadow-inner dark:bg-neutral-700/50">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${unitProgress}%` }}
-              transition={{ duration: 0.8, ease: "easeOut", delay: 0.1 }}
-              className="h-full rounded-full bg-gradient-to-r from-lernex-green via-emerald-400 to-lernex-green shadow-[0_0_12px_rgba(39,174,96,0.4)]"
+              transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+              className="relative h-full rounded-full bg-gradient-to-r from-lernex-green via-emerald-400 to-emerald-500 shadow-[0_0_16px_rgba(39,174,96,0.5)]"
             >
-              <div className="h-full w-full animate-pulse bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+              <motion.div
+                animate={{ x: ["0%", "100%"] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+              />
             </motion.div>
           </div>
-          <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+          <p className="text-[11px] text-neutral-600 dark:text-neutral-400">
             Unit {progressData.topicIndex} of {progressData.topicCount}
             {progressData.topicName && (
-              <span className="ml-1 font-medium text-neutral-600 dark:text-neutral-300">
+              <span className="ml-1.5 font-semibold text-neutral-700 dark:text-neutral-300">
                 • {progressData.topicName}
               </span>
             )}
           </p>
-        </div>
+        </motion.div>
 
         {/* Total Class Progress */}
-        <div className="mt-5 space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-neutral-600 dark:text-neutral-300">
-              Total Class Progress
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+          className="mt-6 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+              Overall Progress
             </span>
             <motion.span
               key={totalProgress}
-              initial={{ scale: 1.2, opacity: 0 }}
+              initial={{ scale: 1.3, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.3 }}
-              className="font-bold text-lernex-blue dark:text-lernex-blue/80"
+              transition={{ duration: 0.4, type: "spring", delay: 0.1 }}
+              className="text-sm font-bold text-lernex-blue dark:text-lernex-blue/90"
             >
               {totalProgress}%
             </motion.span>
           </div>
-          <div className="relative h-3 overflow-hidden rounded-full bg-neutral-200/70 dark:bg-neutral-700/50">
+          <div className="relative h-3.5 overflow-hidden rounded-full bg-neutral-200/80 shadow-inner dark:bg-neutral-700/50">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${totalProgress}%` }}
-              transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
-              className="h-full rounded-full bg-gradient-to-r from-lernex-blue via-indigo-400 to-lernex-purple shadow-[0_0_12px_rgba(47,128,237,0.4)]"
+              transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1], delay: 0.3 }}
+              className="relative h-full rounded-full bg-gradient-to-r from-lernex-blue via-indigo-400 to-lernex-purple shadow-[0_0_16px_rgba(47,128,237,0.5)]"
             >
-              <div className="h-full w-full animate-pulse bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+              <motion.div
+                animate={{ x: ["0%", "100%"] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+              />
             </motion.div>
           </div>
-          <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+          <p className="text-[11px] text-neutral-600 dark:text-neutral-400">
             {progressData.completed} of {progressData.total} lessons completed
           </p>
-        </div>
+        </motion.div>
 
         {/* Current Position Indicator */}
         {progressData.currentLabel && (
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="mt-5 rounded-2xl border border-white/60 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-white/10"
+            transition={{ delay: 0.3, duration: 0.5 }}
+            className="mt-6 rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50/90 to-green-50/70 px-4 py-3.5 shadow-sm dark:border-emerald-400/20 dark:from-emerald-950/30 dark:to-green-950/20"
           >
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-lernex-green/70 dark:text-lernex-green/60" />
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-lernex-green to-emerald-400 text-white shadow-md">
+                <TrendingUp className="h-4 w-4" />
+              </div>
               <div className="flex-1">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                   Current Position
                 </p>
-                <p className="mt-0.5 text-xs font-semibold text-neutral-700 dark:text-neutral-200">
+                <p className="mt-0.5 text-sm font-semibold text-neutral-800 dark:text-neutral-100">
                   {progressData.currentLabel}
                 </p>
               </div>
@@ -230,13 +273,21 @@ export default function LearningPathProgress() {
 
         {/* More Details Button */}
         <motion.button
-          whileHover={{ scale: 1.02 }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+          whileHover={{ scale: 1.02, y: -2 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => setIsModalOpen(true)}
-          className="mt-5 group flex w-full items-center justify-between rounded-2xl border border-lernex-green/40 bg-gradient-to-r from-lernex-green/10 to-emerald-400/10 px-4 py-3 font-medium text-lernex-green transition-all hover:border-lernex-green/60 hover:from-lernex-green/15 hover:to-emerald-400/15 hover:shadow-lg dark:border-lernex-green/30 dark:from-lernex-green/15 dark:to-emerald-400/15 dark:text-lernex-green/90 dark:hover:border-lernex-green/50"
+          className="group mt-6 flex w-full items-center justify-between rounded-2xl border border-lernex-green/50 bg-gradient-to-r from-lernex-green/15 to-emerald-400/15 px-5 py-3.5 font-semibold text-lernex-green shadow-lg transition-all hover:border-lernex-green/70 hover:from-lernex-green/20 hover:to-emerald-400/20 hover:shadow-xl dark:border-lernex-green/40 dark:from-lernex-green/20 dark:to-emerald-400/20 dark:text-lernex-green/95 dark:hover:border-lernex-green/60"
         >
           <span className="text-sm">View Full Learning Path</span>
-          <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+          <motion.div
+            whileHover={{ x: 4 }}
+            transition={{ type: "spring", stiffness: 400, damping: 20 }}
+          >
+            <ChevronRight className="h-5 w-5" />
+          </motion.div>
         </motion.button>
       </motion.div>
 

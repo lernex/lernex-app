@@ -75,7 +75,7 @@ async function processBatchWithDeepSeekOCR(
             content: [
               {
                 type: 'text',
-                text: '<image>\n<|grounding|>Convert the document to markdown. Extract all text, headings, lists, tables, and formulas. Preserve the structure and formatting.',
+                text: '<image>\nExtract all text from this document. Return ONLY the plain text content without any bounding boxes, coordinates, or special formatting markers. Preserve paragraph structure, headings, lists, and tables using clean markdown format.',
               },
               {
                 type: 'image_url',
@@ -92,7 +92,14 @@ async function processBatchWithDeepSeekOCR(
         max_tokens: MAX_TOKENS_PER_REQUEST, // 4096 to leave room for input
       });
 
-      const pageText = completion.choices[0]?.message?.content || '';
+      let pageText = completion.choices[0]?.message?.content || '';
+
+      // Clean up bounding box annotations and other OCR artifacts
+      // Remove patterns like: text[[99, 330, 937, 380]], sub_title[[66, 522, 473, 593]]
+      pageText = pageText
+        .replace(/\w+\[\[\d+,\s*\d+,\s*\d+,\s*\d+\]\]/g, '')
+        .replace(/\[\[\d+,\s*\d+,\s*\d+,\s*\d+\]\]/g, '')
+        .trim();
 
       // Only add page headers for multi-page documents
       if (totalImages > 1) {

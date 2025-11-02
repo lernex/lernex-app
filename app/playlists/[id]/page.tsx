@@ -39,6 +39,7 @@ type LessonLite = {
   id: string;
   title: string;
   subject: string | null;
+  historyId?: string; // UUID from lesson_history table (only for "All Lessons" search results)
 };
 
 type PlaylistItemRow = {
@@ -357,6 +358,7 @@ export default function PlaylistDetail() {
                 id: lessonId,
                 title,
                 subject,
+                historyId: row.id, // Store lesson_history table UUID for fetching full data
               });
             }
 
@@ -578,12 +580,21 @@ export default function PlaylistDetail() {
 
       if (!savedCheck) {
         // Lesson not in saved_lessons, need to fetch full data from lesson_history and save
+        // If historyId is available, use it; otherwise search by lesson_data->id
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: historyData } = await (supabaseClient as any)
+        let historyQuery = (supabaseClient as any)
           .from("lesson_history")
-          .select("lesson_data, subject")
-          .eq("id", lesson.id)
-          .maybeSingle();
+          .select("lesson_data, subject");
+
+        if (lesson.historyId) {
+          // Use lesson_history table UUID if available (from "All Lessons" search)
+          historyQuery = historyQuery.eq("id", lesson.historyId);
+        } else {
+          // Fallback: search by lesson_data->id JSONB field
+          historyQuery = historyQuery.eq("lesson_data->>id", lesson.id);
+        }
+
+        const { data: historyData } = await historyQuery.maybeSingle();
 
         if (historyData) {
           const lessonData = typeof historyData.lesson_data === 'string'
@@ -618,18 +629,22 @@ export default function PlaylistDetail() {
           lesson_id: lesson.id,
           position: nextPosition,
         })
-        .select("id, position, lessons(id, title, subject)")
+        .select("id, position, lesson_id")
         .maybeSingle();
       if (error) throw error;
+
+      // Add the new item to the list with the lesson data we already have
       if (data) {
-        setItems((prev) => [...prev, parseItem(data as RawItem)]);
-      } else {
         setItems((prev) => [
           ...prev,
           {
-            id: `${lesson.id}-${nextPosition}`,
-            position: nextPosition,
-            lessons: lesson,
+            id: toStr(data.id),
+            position: typeof data.position === "number" ? data.position : nextPosition,
+            lessons: {
+              id: lesson.id,
+              title: lesson.title,
+              subject: lesson.subject,
+            },
           },
         ]);
       }

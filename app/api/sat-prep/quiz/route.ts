@@ -6,6 +6,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { getCachedSampleQuestions } from "@/lib/sat-sample-cache";
+import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
 
 export async function POST(req: Request) {
   const t0 = Date.now();
@@ -84,7 +85,6 @@ export async function POST(req: Request) {
         : "- Match official SAT question patterns",
       formatGuidance,
       "- Each question has exactly 4 choices",
-      "- correctIndex is 0-3 (A=0, B=1, C=2, D=3)",
       "- Explanations should be 15-40 words",
       "- For math: use \\( ... \\) for inline, \\[ ... \\] for display",
       "- Questions should test understanding, not just memorization",
@@ -130,6 +130,11 @@ export async function POST(req: Request) {
     } catch (parseErr) {
       console.error("[sat-prep/quiz] json-parse-error", { responseText, parseErr });
       throw new Error("Failed to parse AI response as JSON");
+    }
+
+    // Shuffle answer choices to prevent AI bias toward position A
+    if (parsed && Array.isArray(parsed.questions)) {
+      parsed.questions = shuffleQuizQuestions(parsed.questions);
     }
 
     // Log usage

@@ -9,13 +9,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *
  * Plus/Premium Tier Models (gpt-oss-120b):
  * - Cerebras: $0.35 input / $0.75 output per 1M tokens
- * - LightningAI: $0.10 input / $0.40 output per 1M tokens
+ * - Deepinfra: $0.10 input / $0.40 output per 1M tokens
+ * - LightningAI: $0.10 input / $0.40 output per 1M tokens (legacy, kept for backwards compatibility)
  *
  * TTS Models:
  * - hexgrad/Kokoro-82M: $0.62 per 1M input tokens (via DeepInfra)
  *
  * OCR Models:
  * - DeepSeek-OCR: $0.03 input / $0.1 output per 1M tokens (via DeepInfra)
+ *
+ * Speech-to-Text Models:
+ * - Whisper-large-v3-turbo: $0.0002 per minute (via DeepInfra)
+ *   Note: Stored as input_tokens = duration_minutes * 1000 for precision
  */
 const PRICES: Record<string, { input: number; output: number }> = {
   // Legacy models (for backwards compatibility)
@@ -39,7 +44,10 @@ const PRICES: Record<string, { input: number; output: number }> = {
   "gpt-oss-120b": { input: 0.35 / 1_000_000, output: 0.75 / 1_000_000 },
   "cerebras/gpt-oss-120b": { input: 0.35 / 1_000_000, output: 0.75 / 1_000_000 },
 
-  // LightningAI gpt-oss-120b (SLOW model for paid tiers)
+  // Deepinfra gpt-oss-120b (SLOW model for paid tiers)
+  "deepinfra/gpt-oss-120b": { input: 0.1 / 1_000_000, output: 0.4 / 1_000_000 },
+
+  // LightningAI gpt-oss-120b (legacy - kept for backwards compatibility with old usage logs)
   "lightningai/gpt-oss-120b": { input: 0.1 / 1_000_000, output: 0.4 / 1_000_000 },
 
   // TTS (Text-to-Speech) models
@@ -52,6 +60,13 @@ const PRICES: Record<string, { input: number; output: number }> = {
   // DeepSeek-OCR via DeepInfra: $0.03 per 1M input, $0.1 per 1M output tokens
   "deepseek-ocr": { input: 0.03 / 1_000_000, output: 0.1 / 1_000_000 },
   "deepseek-ai/DeepSeek-OCR": { input: 0.03 / 1_000_000, output: 0.1 / 1_000_000 },
+
+  // Speech-to-Text models
+  // Whisper-large-v3-turbo via DeepInfra: $0.0002 per minute
+  // Stored as: input_tokens = duration_minutes * 1000
+  // So price per token = $0.0002 / 1000 = $0.0000002
+  "whisper-large-v3-turbo": { input: 0.0002 / 1000, output: 0 },
+  "openai/whisper-large-v3-turbo": { input: 0.0002 / 1000, output: 0 },
 };
 
 export function calcCost(model: string, inputTokens = 0, outputTokens = 0) {

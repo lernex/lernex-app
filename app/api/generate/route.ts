@@ -9,6 +9,7 @@ import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { buildLessonPrompts } from "@/lib/lesson-prompts";
 import { supabaseServer } from "@/lib/supabase-server";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
+import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
 
 
 export const dynamic = "force-dynamic";
@@ -363,6 +364,11 @@ export async function POST(req: NextRequest) {
             }
             const validated = LessonSchema.safeParse(parsed);
             if (validated.success) {
+              // Shuffle answer choices to prevent AI bias toward position A
+              if (Array.isArray(validated.data.questions)) {
+                validated.data.questions = shuffleQuizQuestions(validated.data.questions);
+              }
+
               if (uid) {
                 const stampedLesson: CachedLesson = {
                   ...validated.data,

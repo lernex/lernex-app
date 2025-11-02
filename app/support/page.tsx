@@ -25,6 +25,7 @@ import {
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import { useProfileStats } from '@/app/providers/ProfileStatsProvider';
 import FormattedText from '@/components/FormattedText';
+import VoiceInput from '@/components/VoiceInput';
 
 const SUPPORT_EMAIL = 'support@lernex.net';
 
@@ -471,14 +472,24 @@ function SupportChat({ context }: { context: string }) {
       {error ? <p className="mt-3 text-xs text-red-500 dark:text-red-400">Error: {error}</p> : null}
 
       <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-        <textarea
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask about playlists, analytics, billing, or anything else..."
-          rows={3}
-          className="w-full resize-none rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-800 shadow-sm outline-none focus:border-lernex-purple focus:ring-2 focus:ring-lernex-purple/30 dark:border-white/10 dark:bg-white/10 dark:text-white"
-        />
+        <div className="relative">
+          <textarea
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask about playlists, analytics, billing, or anything else..."
+            rows={3}
+            className="w-full resize-none rounded-2xl border border-neutral-200 bg-white px-4 py-3 pr-14 text-sm text-neutral-800 shadow-sm outline-none focus:border-lernex-purple focus:ring-2 focus:ring-lernex-purple/30 dark:border-white/10 dark:bg-white/10 dark:text-white"
+          />
+          <div className="absolute bottom-2 right-2">
+            <VoiceInput
+              onTranscription={(transcribedText) => {
+                setInput((prev) => (prev ? prev + " " + transcribedText : transcribedText));
+              }}
+              size="md"
+            />
+          </div>
+        </div>
         <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
           <span>Enter to send / Shift+Enter for a new line</span>
           <button
