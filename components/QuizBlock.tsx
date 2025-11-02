@@ -357,7 +357,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
 
   return hasQuestions && q ? (
     <>
-      <div ref={rootRef} className="rounded-[24px] border border-slate-200/70 bg-white/95 px-5 py-6 shadow-elevated backdrop-blur transition-shadow duration-200 hover:shadow-3xl dark:border-surface dark:bg-surface-card dark:shadow-lg">
+      <div ref={rootRef} className="rounded-[24px] border border-slate-200/70 bg-surface-card px-5 py-6 shadow-elevated backdrop-blur transition-shadow duration-200 hover:shadow-3xl dark:border-surface dark:shadow-lg">
         <div className="mb-3 text-sm text-neutral-700 dark:text-neutral-300 transition-colors">
           <FormattedText text={q.prompt} />
         </div>

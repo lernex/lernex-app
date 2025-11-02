@@ -206,7 +206,7 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
   };
 
   const baseClass =
-    "relative flex flex-col overflow-hidden rounded-[28px] border border-slate-200/70 bg-white/95 shadow-card ring-1 ring-slate-900/5 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-3xl backdrop-blur-xl dark:border-surface dark:bg-surface-card dark:ring-black/5 dark:shadow-xl dark:hover:shadow-2xl";
+    "relative flex flex-col overflow-hidden rounded-[28px] border border-slate-200/70 bg-surface-card shadow-card ring-1 ring-slate-900/5 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-3xl backdrop-blur-xl dark:border-surface dark:ring-black/5 dark:shadow-xl dark:hover:shadow-2xl";
   const rootClass = className ? baseClass + " " + className : baseClass;
 
   const actionBase =

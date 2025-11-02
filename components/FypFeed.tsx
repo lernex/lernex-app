@@ -932,7 +932,7 @@ export default function FypFeed() {
                     {skipLoading ? "Skipping..." : "Skip"}
                   </button>
                   {skipReasonMenu === cur.id && (
-                    <div className="absolute right-0 z-20 mt-2 w-56 rounded-2xl border border-slate-200/80 bg-white/98 p-3 shadow-elevated backdrop-blur-sm dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-lg">
+                    <div className="absolute right-0 z-20 mt-2 w-56 rounded-2xl border border-slate-200/80 bg-surface-card p-3 shadow-elevated backdrop-blur-sm dark:border-neutral-700 dark:shadow-lg">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400 dark:text-neutral-500">
                         Why skip?
                       </div>

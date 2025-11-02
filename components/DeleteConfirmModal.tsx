@@ -70,7 +70,7 @@ export default function DeleteConfirmModal({
             <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-red-500/20 via-orange-500/20 to-pink-500/20 blur-xl" />
 
             {/* Main modal content */}
-            <div className="relative rounded-3xl border border-red-400/30 bg-white/98 shadow-3xl overflow-hidden dark:border-red-500/20 dark:bg-surface-card dark:shadow-2xl">
+            <div className="relative rounded-3xl border border-red-400/30 bg-surface-card shadow-3xl overflow-hidden dark:border-red-500/20 dark:shadow-2xl">
               {/* Header with gradient */}
               <div className="relative overflow-hidden bg-gradient-to-r from-red-500/10 via-orange-500/10 to-pink-500/10 px-6 py-5 border-b border-red-500/20">
                 <div className="flex items-start justify-between gap-4">

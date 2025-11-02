@@ -405,7 +405,7 @@ function LiveUserMeter({
           : '0 20px 40px rgba(15,23,42,0.14)',
       }}
       transition={{ duration: 0.5, ease: 'easeOut' }}
-      className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/95 p-7 text-center shadow-elevated backdrop-blur dark:border-white/5 dark:bg-white/10 dark:shadow-lg"
+      className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-surface-card p-7 text-center shadow-elevated backdrop-blur dark:border-white/5 dark:bg-white/10 dark:shadow-lg"
     >
       <motion.div
         className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-r from-lernex-purple/10 via-lernex-blue/20 to-transparent"
@@ -638,7 +638,7 @@ export default function MarketingLanding() {
             </Link>
             <Link
               href="#how"
-              className="rounded-full border border-slate-200/70 bg-white/90 px-8 py-3 font-medium backdrop-blur hover:bg-white/60 dark:bg-white/5 dark:hover:bg-white/10"
+              className="rounded-full border border-slate-200/70 bg-surface-card px-8 py-3 font-medium backdrop-blur hover:bg-white/60 dark:bg-white/5 dark:hover:bg-white/10"
             >
               See how it works
             </Link>
@@ -647,7 +647,7 @@ export default function MarketingLanding() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.6 }}
-            className="mt-10 inline-flex flex-wrap items-center justify-center gap-4 rounded-full border border-slate-200/70 bg-white/95 px-6 py-2 text-xs uppercase tracking-[0.4em] backdrop-blur dark:bg-white/10"
+            className="mt-10 inline-flex flex-wrap items-center justify-center gap-4 rounded-full border border-slate-200/70 bg-surface-card px-6 py-2 text-xs uppercase tracking-[0.4em] backdrop-blur dark:bg-white/10"
           >
             Loved by students everywhere
           </motion.div>
@@ -667,15 +667,15 @@ export default function MarketingLanding() {
             ))}
           </motion.div>
           <div className="mt-10 grid w-full max-w-4xl grid-cols-1 gap-3 text-left text-sm text-neutral-600 dark:text-neutral-300 md:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200/70 bg-white/95 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
+            <div className="rounded-2xl border border-slate-200/70 bg-surface-card p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
               <div className="text-2xl font-bold text-neutral-900 dark:text-white">2 min</div>
               <div>From upload to your first curated Lernex path.</div>
             </div>
-            <div className="rounded-2xl border border-slate-200/70 bg-white/95 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
+            <div className="rounded-2xl border border-slate-200/70 bg-surface-card p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
               <div className="text-2xl font-bold text-neutral-900 dark:text-white">7 min</div>
               <div>The average daily session to stay on track.</div>
             </div>
-            <div className="rounded-2xl border border-slate-200/70 bg-white/95 p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
+            <div className="rounded-2xl border border-slate-200/70 bg-surface-card p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
               <div className="text-2xl font-bold text-neutral-900 dark:text-white">92%</div>
               <div>Report remembering critical details a week later.</div>
             </div>
@@ -699,7 +699,7 @@ export default function MarketingLanding() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
-              className="group relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/95 p-8 shadow-card backdrop-blur transition-all hover:-translate-y-1 hover:shadow-3xl dark:border-white/5 dark:bg-white/10 dark:shadow-lg dark:hover:shadow-2xl"
+              className="group relative overflow-hidden rounded-3xl border border-slate-200/70 bg-surface-card p-8 shadow-card backdrop-blur transition-all hover:-translate-y-1 hover:shadow-3xl dark:border-white/5 dark:bg-white/10 dark:shadow-lg dark:hover:shadow-2xl"
               style={{ zIndex: learningFlow.length - idx }}
             >
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-lernex-blue/0 via-lernex-purple/5 to-lernex-blue/0 opacity-0 transition group-hover:opacity-100" />
@@ -714,7 +714,7 @@ export default function MarketingLanding() {
       </section>
 
       <section className="mx-auto mt-28 max-w-6xl px-6">
-        <div className="rounded-3xl border border-slate-200/70 bg-white/95 p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:bg-white/5">
+        <div className="rounded-3xl border border-slate-200/70 bg-surface-card p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:bg-white/5">
           <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="text-left">
               <h2 className="text-3xl font-bold">Your personal AI learning coach</h2>
@@ -722,16 +722,16 @@ export default function MarketingLanding() {
                 Each lesson card explains exactly why you&apos;re seeing it. Get instant green/red feedback on quiz questions, celebrate correct answers with confetti, and watch the AI adjust difficulty in real-time based on your performance. Learn complex topics without the overwhelm.
               </p>
               <div className="mt-8 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-400">
-                <span className="rounded-full border border-slate-200/70 bg-white/95 px-4 py-1 backdrop-blur dark:bg-white/10">Swipe to learn</span>
-                <span className="rounded-full border border-slate-200/70 bg-white/95 px-4 py-1 backdrop-blur dark:bg-white/10">Instant feedback</span>
-                <span className="rounded-full border border-slate-200/70 bg-white/95 px-4 py-1 backdrop-blur dark:bg-white/10">Adapts to you</span>
+                <span className="rounded-full border border-slate-200/70 bg-surface-card px-4 py-1 backdrop-blur dark:bg-white/10">Swipe to learn</span>
+                <span className="rounded-full border border-slate-200/70 bg-surface-card px-4 py-1 backdrop-blur dark:bg-white/10">Instant feedback</span>
+                <span className="rounded-full border border-slate-200/70 bg-surface-card px-4 py-1 backdrop-blur dark:bg-white/10">Adapts to you</span>
               </div>
             </div>
             <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-br from-lernex-blue/20 via-lernex-purple/30 to-lernex-blue/10 p-8 text-left shadow-lg shadow-lernex-purple/30">
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.4),transparent_65%)] opacity-60" />
               <div className="relative">
                 <p className="text-sm uppercase tracking-[0.3em] text-white/80">How it looks</p>
-                <div className="mt-4 rounded-[32px] border-2 border-white/30 bg-white/95 p-6 text-neutral-900 shadow-2xl backdrop-blur ring-1 ring-black/5">
+                <div className="mt-4 rounded-[32px] border-2 border-white/30 bg-surface-card p-6 text-neutral-900 shadow-2xl backdrop-blur ring-1 ring-black/5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-neutral-700">Cybersecurity</span>
                     <span className="rounded-full bg-lernex-blue/15 px-2.5 py-0.5 font-medium text-lernex-blue">Medium</span>
@@ -758,7 +758,7 @@ export default function MarketingLanding() {
                     <span>Watch out for</span>
                   </div>
                 </div>
-                <div className="mt-5 rounded-2xl bg-white/90 p-5 text-neutral-900 shadow-xl backdrop-blur">
+                <div className="mt-5 rounded-2xl bg-surface-card p-5 text-neutral-900 shadow-xl backdrop-blur">
                   <p className="text-xs font-bold uppercase tracking-wider text-neutral-500">Question 1 of 4</p>
                   <p className="mt-3 text-base font-semibold leading-snug text-neutral-900">
                     What is the core principle of zero trust security?
@@ -875,7 +875,7 @@ export default function MarketingLanding() {
       </section>
 
       <section className="mx-auto mt-28 max-w-5xl px-6">
-        <div className="rounded-3xl border border-slate-200/70 bg-white/95 p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:bg-white/5">
+        <div className="rounded-3xl border border-slate-200/70 bg-surface-card p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:bg-white/5">
           <h2 className="text-center text-3xl font-bold">FAQs</h2>
           <div className="mt-8 space-y-4">
             {faqs.map((item) => (
@@ -930,7 +930,7 @@ export default function MarketingLanding() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.5, ease: 'easeOut' }}
-              className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white/95 p-6 text-center shadow-md shadow-black/10 backdrop-blur dark:bg-white/5"
+              className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-surface-card p-6 text-center shadow-md shadow-black/10 backdrop-blur dark:bg-white/5"
             >
               <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-r from-lernex-blue/20 via-lernex-purple/20 to-transparent" />
               <h3 className="text-xl font-semibold tracking-wide text-neutral-800 dark:text-white">
