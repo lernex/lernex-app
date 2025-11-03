@@ -10,6 +10,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { shuffleQuestionChoices } from "@/lib/quiz-shuffle";
+import { LEVELS_BY_DOMAIN } from "@/data/domains";
 const MAX_TOKENS = Math.min(
   1800,
   Math.max(
@@ -351,7 +352,15 @@ export async function POST(req: Request) {
       const levelMap = (profile?.level_map || {}) as Record<string, string>;
       const courses = interests
         .filter((s) => levelMap[s])
-        .map((s) => ({ subject: s, course: levelMap[s]! }));
+        .map((s) => {
+          const course = levelMap[s]!;
+          // Find the domain for this course
+          const domain = Object.entries(LEVELS_BY_DOMAIN).find(([_, coursesArray]) =>
+            coursesArray.includes(course)
+          )?.[0];
+          // Use the domain if found, otherwise use the subject as-is (for backward compat)
+          return { subject: domain || s, course };
+        });
       if (!courses.length) return new Response(JSON.stringify({ error: "No course selected for any interest" }), { status: 400 });
 
       const [first, ...rest] = courses;

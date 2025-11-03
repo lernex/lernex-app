@@ -86,7 +86,7 @@ export default function ReportIssueModal({
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+        className="absolute inset-0 bg-black/70 backdrop-blur-xl transition-opacity"
         onClick={!isSubmitting ? handleClose : undefined}
       />
 
@@ -96,14 +96,14 @@ export default function ReportIssueModal({
           isClosing ? "scale-95 opacity-0" : "scale-100 opacity-100"
         }`}
       >
-        <div className="relative overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-900">
+        <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/30 to-white shadow-2xl shadow-slate-900/20 ring-1 ring-slate-900/5 dark:border-neutral-700/80 dark:from-slate-900 dark:via-slate-800/20 dark:to-slate-900 dark:shadow-black/40 dark:ring-black/10">
           {/* Gradient overlay */}
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(239,68,68,0.12),transparent_50%),radial-gradient(circle_at_80%_80%,rgba(59,130,246,0.1),transparent_50%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(239,68,68,0.15),transparent_48%),radial-gradient(circle_at_80%_80%,rgba(59,130,246,0.12),transparent_48%),radial-gradient(circle_at_50%_50%,rgba(168,85,247,0.08),transparent_55%)]" />
 
           {/* Header */}
-          <div className="relative border-b border-neutral-200 px-6 py-5 dark:border-neutral-700">
+          <div className="relative border-b border-slate-200/80 bg-gradient-to-r from-white/90 via-slate-50/60 to-white/90 backdrop-blur-xl shadow-sm px-6 py-5 dark:border-neutral-700/80 dark:from-slate-900/90 dark:via-slate-800/60 dark:to-slate-900/90">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-orange-500 shadow-lg">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-red-500 via-red-600 to-orange-500 shadow-lg shadow-red-500/30 dark:shadow-red-500/40">
                 <AlertCircle className="h-5 w-5 text-white" />
               </div>
               <div className="flex-1">
@@ -117,7 +117,7 @@ export default function ReportIssueModal({
               <button
                 onClick={handleClose}
                 disabled={isSubmitting}
-                className="group rounded-full p-2 text-neutral-400 transition-all hover:bg-neutral-100 hover:text-neutral-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 disabled:opacity-50 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+                className="group rounded-full p-2 text-neutral-400 transition-all duration-300 hover:bg-gradient-to-br hover:from-red-50 hover:to-red-100/50 hover:text-red-600 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 disabled:opacity-50 dark:hover:from-red-900/20 dark:hover:to-red-800/10 dark:hover:text-red-400"
                 aria-label="Close modal"
               >
                 <X className="h-5 w-5 transition-transform group-hover:rotate-90" />
@@ -184,14 +184,14 @@ export default function ReportIssueModal({
                 type="button"
                 onClick={handleClose}
                 disabled={isSubmitting}
-                className="flex-1 rounded-full border border-neutral-300 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 transition-all hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400/40 disabled:opacity-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                className="flex-1 rounded-full border border-slate-300/80 bg-gradient-to-br from-white to-slate-100/50 px-4 py-2.5 text-sm font-medium text-neutral-700 shadow-sm transition-all duration-200 hover:bg-gradient-to-br hover:from-slate-100 hover:to-slate-200/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400/40 disabled:opacity-50 dark:border-neutral-600 dark:from-neutral-800/80 dark:to-neutral-900/60 dark:text-neutral-200 dark:hover:from-neutral-700/80 dark:hover:to-neutral-800/60"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting || isOverLimit || reason.trim().length < 3}
-                className="group flex-1 flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-red-500 to-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                className="group flex-1 flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-red-500 via-red-600 to-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-red-500/30 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-red-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 dark:shadow-red-500/40 dark:hover:shadow-red-500/50"
               >
                 {isSubmitting ? (
                   <>

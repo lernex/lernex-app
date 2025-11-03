@@ -75,11 +75,11 @@ export default function ThemeToggle({ className = "" }: { className?: string }) 
     <button
       onClick={handleToggle}
       disabled={pending}
-      className={`relative flex items-center gap-2 rounded-md bg-lernex-blue px-3 py-1 text-sm text-white shadow-sm transition-transform hover:scale-105 hover:bg-lernex-blue/90 disabled:cursor-progress disabled:opacity-70 ${className}`}
+      className={`relative flex items-center gap-2 rounded-full bg-gradient-to-r from-lernex-blue via-blue-600 to-lernex-purple px-4 py-2 text-sm font-medium text-white shadow-md shadow-lernex-blue/25 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-lernex-blue/35 disabled:cursor-progress disabled:opacity-70 dark:shadow-lernex-blue/30 dark:hover:shadow-lernex-blue/40 ${className}`}
       title={`Theme: ${getLabel()} (click to cycle)`}
       aria-label={`Current theme: ${getLabel()}`}
     >
-      <span aria-hidden="true" className="text-lg">
+      <span aria-hidden="true" className="text-lg transition-transform duration-300 hover:rotate-12">
         {getIcon()}
       </span>
       <span>{getLabel()}</span>

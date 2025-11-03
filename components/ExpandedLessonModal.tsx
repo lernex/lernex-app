@@ -80,7 +80,7 @@ export default function ExpandedLessonModal({
     <div
       className={cn(
         "fixed inset-0 z-50 flex items-center justify-center",
-        "bg-black/60 backdrop-blur-md p-4",
+        "bg-black/70 backdrop-blur-xl p-4",
         "animate-in fade-in duration-300"
       )}
       onClick={onClose}
@@ -89,20 +89,21 @@ export default function ExpandedLessonModal({
         ref={modalRef}
         className={cn(
           "relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl",
-          "border border-slate-200/80 dark:border-neutral-700/70",
-          "bg-surface-card",
-          "shadow-3xl",
-          "dark:shadow-[0_24px_60px_-12px_rgba(0,0,0,0.4)]",
+          "border border-slate-200/90 dark:border-neutral-700/80",
+          "bg-gradient-to-br from-white via-slate-50/30 to-white",
+          "dark:from-slate-900 dark:via-slate-800/20 dark:to-slate-900",
+          "shadow-3xl ring-1 ring-slate-900/5 dark:ring-black/10",
+          "shadow-slate-900/20 dark:shadow-[0_24px_60px_-12px_rgba(0,0,0,0.5)]",
           "transition-all duration-500",
           "animate-in slide-in-from-bottom-8 zoom-in-95 duration-400"
         )}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Gradient overlay for visual appeal */}
-        <div className="pointer-events-none absolute inset-0 opacity-60 dark:opacity-30 bg-[radial-gradient(circle_at_20%_15%,rgba(59,130,246,0.15),transparent_50%),radial-gradient(circle_at_80%_85%,rgba(168,85,247,0.12),transparent_45%)]" />
+        <div className="pointer-events-none absolute inset-0 opacity-70 dark:opacity-40 bg-[radial-gradient(circle_at_20%_15%,rgba(59,130,246,0.2),transparent_48%),radial-gradient(circle_at_80%_85%,rgba(168,85,247,0.16),transparent_42%),radial-gradient(circle_at_50%_50%,rgba(236,72,153,0.08),transparent_60%)]" />
 
         {/* Header */}
-        <div className="relative z-10 flex items-start justify-between border-b border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-sm px-6 py-5">
+        <div className="relative z-10 flex items-start justify-between border-b border-slate-200/80 dark:border-neutral-700/80 bg-gradient-to-r from-white/90 via-slate-50/60 to-white/90 dark:from-slate-900/90 dark:via-slate-800/60 dark:to-slate-900/90 backdrop-blur-xl shadow-sm px-6 py-5">
           <div className="flex-1 pr-4">
             <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400 mb-2">
               <span className="font-medium text-neutral-700 dark:text-neutral-300">
@@ -114,7 +115,7 @@ export default function ExpandedLessonModal({
                 </span>
               )}
               {lesson.difficulty && (
-                <span className="ml-auto rounded-full border border-neutral-300 dark:border-neutral-600 px-2 py-0.5 text-[10px] font-semibold capitalize text-neutral-600 dark:text-neutral-300">
+                <span className="ml-auto rounded-full border border-slate-300/80 bg-gradient-to-r from-slate-100 to-slate-200/60 dark:border-neutral-600 dark:from-neutral-700/50 dark:to-neutral-800/40 px-2 py-0.5 text-[10px] font-semibold capitalize text-neutral-600 dark:text-neutral-300 shadow-sm shadow-slate-900/10 dark:shadow-none">
                   {lesson.difficulty}
                 </span>
               )}
@@ -127,13 +128,14 @@ export default function ExpandedLessonModal({
             onClick={onClose}
             className={cn(
               "flex h-10 w-10 items-center justify-center rounded-full",
-              "border border-neutral-300 dark:border-neutral-600",
-              "bg-white/80 dark:bg-neutral-800/80",
+              "border border-slate-300/80 dark:border-neutral-600",
+              "bg-gradient-to-br from-white to-slate-100/50 dark:from-neutral-800/80 dark:to-neutral-900/60",
               "text-neutral-600 dark:text-neutral-300",
-              "transition-all duration-200",
-              "hover:bg-neutral-100 dark:hover:bg-neutral-700",
-              "hover:border-neutral-400 dark:hover:border-neutral-500",
-              "hover:scale-105 hover:shadow-md",
+              "transition-all duration-300",
+              "hover:bg-gradient-to-br hover:from-red-50 hover:to-red-100/50 dark:hover:from-red-900/20 dark:hover:to-red-800/10",
+              "hover:border-red-400/60 dark:hover:border-red-500/40",
+              "hover:text-red-600 dark:hover:text-red-400",
+              "hover:scale-105 hover:shadow-md hover:shadow-red-500/20",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40"
             )}
             aria-label="Close expanded view"
@@ -157,7 +159,7 @@ export default function ExpandedLessonModal({
         </div>
 
         {/* Footer gradient to indicate end of content */}
-        <div className="pointer-events-none absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-background via-background/60 to-transparent" />
+        <div className="pointer-events-none absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-white via-white/70 to-transparent dark:from-slate-900 dark:via-slate-900/70" />
       </div>
     </div>
   );

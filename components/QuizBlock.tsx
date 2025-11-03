@@ -341,23 +341,23 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
   };
 
   const btnClass = (idx: number) => {
-    const base = "text-left px-3 py-2 rounded-xl border transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40";
+    const base = "text-left px-3 py-2 rounded-xl border transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40";
     if (selected === null) {
-      return `${base} border-slate-300/70 bg-surface-muted hover:bg-surface-card hover:border-slate-400/80 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 dark:border-surface`;
+      return `${base} border-slate-300/70 bg-gradient-to-br from-slate-50 to-slate-100/50 hover:from-white hover:to-slate-50 hover:border-lernex-blue/40 hover:shadow-md hover:shadow-lernex-blue/10 hover:-translate-y-0.5 active:translate-y-0 dark:from-slate-800/40 dark:to-slate-900/30 dark:border-surface dark:hover:from-slate-700/40 dark:hover:to-slate-800/30 dark:hover:border-lernex-blue/40`;
     }
     const correctIdx = q?.correctIndex ?? -1;
     if (idx === correctIdx) {
-      return `${base} border-green-500 bg-green-600/90 text-white shadow-md hover:shadow-lg dark:bg-green-600/80`;
+      return `${base} border-green-500/70 bg-gradient-to-r from-green-500 to-green-600 text-white shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/35 dark:from-green-600 dark:to-green-700 dark:shadow-green-500/30 dark:hover:shadow-green-500/40`;
     }
     if (idx === selected) {
-      return `${base} border-red-500 bg-red-600/90 text-white shadow-md hover:shadow-lg dark:bg-red-600/80`;
+      return `${base} border-red-500/70 bg-gradient-to-r from-red-500 to-red-600 text-white shadow-md shadow-red-500/25 hover:shadow-lg hover:shadow-red-500/35 dark:from-red-600 dark:to-red-700 dark:shadow-red-500/30 dark:hover:shadow-red-500/40`;
     }
-    return `${base} border-slate-200/60 bg-slate-50/40 dark:border-surface dark:bg-surface-muted`;
+    return `${base} border-slate-200/60 bg-gradient-to-br from-slate-50/60 to-slate-100/30 dark:from-slate-800/30 dark:to-slate-900/20 dark:border-surface`;
   };
 
   return hasQuestions && q ? (
     <>
-      <div ref={rootRef} className="rounded-[24px] border border-slate-200/70 bg-surface-card px-5 py-6 shadow-elevated backdrop-blur transition-shadow duration-200 hover:shadow-3xl dark:border-surface dark:shadow-lg">
+      <div ref={rootRef} className="rounded-[24px] border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/30 to-white px-5 py-6 shadow-elevated shadow-slate-900/5 backdrop-blur ring-1 ring-slate-900/5 transition-all duration-300 hover:shadow-3xl hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:from-slate-900/50 dark:via-slate-800/20 dark:to-slate-900/50 dark:border-surface dark:shadow-lg dark:shadow-black/20 dark:ring-black/10 dark:hover:shadow-2xl dark:hover:shadow-lernex-purple/15">
         <div className="mb-3 text-sm text-neutral-700 dark:text-neutral-300 transition-colors">
           <FormattedText text={q.prompt} />
         </div>
@@ -397,14 +397,14 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
           <button
             onClick={back}
             disabled={qIndex === 0}
-            className="rounded-xl border border-slate-300/70 bg-surface-muted px-4 py-2 transition-all hover:bg-surface-card hover:border-slate-400/80 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed dark:border-surface"
+            className="rounded-xl border border-slate-300/70 bg-gradient-to-br from-slate-50 to-slate-100/50 px-4 py-2 transition-all duration-200 hover:from-white hover:to-slate-50 hover:border-slate-400/80 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed dark:from-slate-800/40 dark:to-slate-900/30 dark:border-surface dark:hover:from-slate-700/40 dark:hover:to-slate-800/30"
           >
             Back
           </button>
-          <div className="text-xs text-neutral-500 dark:text-neutral-400 transition-colors">
+          <div className="text-xs font-medium text-neutral-500 dark:text-neutral-400 transition-colors">
             {qIndex + 1} / {questions.length}
           </div>
-          <button onClick={next} className="rounded-xl bg-lernex-blue px-4 py-2 text-white transition-all hover:bg-blue-500 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0">
+          <button onClick={next} className="rounded-xl bg-gradient-to-r from-lernex-blue via-blue-600 to-lernex-purple px-4 py-2 font-medium text-white shadow-md shadow-lernex-blue/25 transition-all duration-300 hover:shadow-lg hover:shadow-lernex-blue/35 hover:-translate-y-0.5 active:translate-y-0 dark:shadow-lernex-blue/30 dark:hover:shadow-lernex-blue/40">
             {qIndex < questions.length - 1 ? "Next" : "Finish"}
           </button>
         </div>
@@ -457,8 +457,8 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
         const offset = circumference - (percentage / 100) * circumference;
 
         return (
-          <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
-            <div className={`w-full max-w-lg mx-4 rounded-3xl border border-surface bg-gradient-to-br ${getGradient()} bg-surface-panel p-6 text-foreground shadow-2xl transition-all animate-in zoom-in-95 duration-500`}>
+          <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/70 backdrop-blur-xl animate-in fade-in duration-300">
+            <div className={`w-full max-w-lg mx-4 rounded-3xl border border-slate-200/90 bg-gradient-to-br ${getGradient()} from-white via-slate-50/30 to-white p-6 text-foreground shadow-2xl shadow-slate-900/20 ring-1 ring-slate-900/5 transition-all animate-in zoom-in-95 duration-500 dark:from-slate-900 dark:via-slate-800/20 dark:to-slate-900 dark:border-neutral-700/80 dark:shadow-black/40 dark:ring-black/10`}>
               {/* Header */}
               <div className="text-center">
                 <div className="text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-400 font-semibold">
@@ -512,12 +512,12 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
 
               {/* Stats Summary */}
               <div className="mt-6 grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-green-500/10 border border-green-500/20 px-4 py-3 text-center">
-                  <div className="text-2xl font-bold text-green-500">{correctCount}</div>
+                <div className="rounded-xl bg-gradient-to-br from-green-500/12 to-green-600/8 border border-green-500/25 px-4 py-3 text-center shadow-sm shadow-green-500/10 dark:from-green-500/20 dark:to-green-600/15 dark:border-green-500/30 dark:shadow-green-500/15">
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">{correctCount}</div>
                   <div className="text-xs text-neutral-600 dark:text-neutral-400">Correct</div>
                 </div>
-                <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-center">
-                  <div className="text-2xl font-bold text-red-500">{incorrectCount}</div>
+                <div className="rounded-xl bg-gradient-to-br from-red-500/12 to-red-600/8 border border-red-500/25 px-4 py-3 text-center shadow-sm shadow-red-500/10 dark:from-red-500/20 dark:to-red-600/15 dark:border-red-500/30 dark:shadow-red-500/15">
+                  <div className="text-2xl font-bold text-red-600 dark:text-red-400">{incorrectCount}</div>
                   <div className="text-xs text-neutral-600 dark:text-neutral-400">Incorrect</div>
                 </div>
               </div>
@@ -580,7 +580,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
                     setShowSummaryOverlay(false);
                     setShowBreakdown(false);
                   }}
-                  className="w-full rounded-xl bg-lernex-blue px-4 py-3 text-white font-medium transition-all hover:bg-blue-500 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl"
+                  className="w-full rounded-xl bg-gradient-to-r from-lernex-blue via-blue-600 to-lernex-purple px-4 py-3 text-white font-semibold shadow-lg shadow-lernex-blue/30 transition-all duration-300 hover:shadow-xl hover:shadow-lernex-blue/40 hover:scale-[1.02] active:scale-[0.98] dark:shadow-lernex-blue/40 dark:hover:shadow-lernex-blue/50"
                 >
                   Continue
                 </button>
@@ -599,7 +599,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
                           setSel(answers[firstIncorrect]);
                         }
                       }}
-                      className="flex-1 rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2.5 text-sm font-medium text-orange-600 dark:text-orange-400 transition-all hover:bg-orange-500/20 hover:scale-[1.02] active:scale-[0.98]"
+                      className="flex-1 rounded-xl border border-orange-500/30 bg-gradient-to-br from-orange-500/12 to-orange-600/8 px-4 py-2.5 text-sm font-medium text-orange-600 shadow-sm shadow-orange-500/10 transition-all duration-200 hover:from-orange-500/20 hover:to-orange-600/15 hover:shadow-md hover:shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] dark:from-orange-500/20 dark:to-orange-600/15 dark:text-orange-400 dark:shadow-orange-500/15 dark:hover:shadow-orange-500/25"
                     >
                       Review Mistakes
                     </button>
@@ -616,7 +616,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
                       setAnswers(Array(questions.length).fill(null));
                       setHasSubmitted(false);
                     }}
-                    className="flex-1 rounded-xl border border-surface bg-surface-muted px-4 py-2.5 text-sm font-medium transition-all hover:bg-surface-card hover:scale-[1.02] active:scale-[0.98]"
+                    className="flex-1 rounded-xl border border-slate-300/70 bg-gradient-to-br from-slate-50 to-slate-100/50 px-4 py-2.5 text-sm font-medium shadow-sm transition-all duration-200 hover:from-white hover:to-slate-50 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] dark:from-slate-800/40 dark:to-slate-900/30 dark:border-surface dark:hover:from-slate-700/40 dark:hover:to-slate-800/30"
                   >
                     Retry Quiz
                   </button>
@@ -640,8 +640,8 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
 
       {/* Warning modal for unanswered questions */}
       {showWarningModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-surface bg-surface-panel p-6 text-foreground shadow-2xl transition-colors">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-xl">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/30 to-white p-6 text-foreground shadow-2xl shadow-slate-900/20 ring-1 ring-slate-900/5 transition-all dark:from-slate-900 dark:via-slate-800/20 dark:to-slate-900 dark:border-neutral-700/80 dark:shadow-black/40 dark:ring-black/10">
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0 rounded-full bg-yellow-500/20 p-2">
                 <svg className="h-6 w-6 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -657,7 +657,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
                 <div className="mt-4 flex items-center gap-2">
                   <button
                     onClick={() => setShowWarningModal(false)}
-                    className="flex-1 rounded-xl border border-surface bg-surface-muted px-4 py-2.5 text-sm font-medium transition hover:bg-surface-card"
+                    className="flex-1 rounded-xl border border-slate-300/70 bg-gradient-to-br from-slate-50 to-slate-100/50 px-4 py-2.5 text-sm font-medium shadow-sm transition-all duration-200 hover:from-white hover:to-slate-50 hover:shadow-md dark:from-slate-800/40 dark:to-slate-900/30 dark:border-surface dark:hover:from-slate-700/40 dark:hover:to-slate-800/30"
                   >
                     Go Back
                   </button>
@@ -666,7 +666,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
                       setShowWarningModal(false);
                       finishQuiz();
                     }}
-                    className="flex-1 rounded-xl bg-lernex-blue px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500"
+                    className="flex-1 rounded-xl bg-gradient-to-r from-lernex-blue via-blue-600 to-lernex-purple px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-lernex-blue/25 transition-all duration-300 hover:shadow-lg hover:shadow-lernex-blue/35 dark:shadow-lernex-blue/30 dark:hover:shadow-lernex-blue/40"
                   >
                     Finish Anyway
                   </button>

@@ -632,13 +632,13 @@ export default function MarketingLanding() {
           >
             <Link
               href="/login"
-              className="group rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-8 py-3 font-medium text-white shadow-lg shadow-lernex-blue/40 transition hover:opacity-90"
+              className="group rounded-full bg-gradient-to-r from-lernex-blue via-blue-600 to-lernex-purple px-8 py-3 font-semibold text-white shadow-lg shadow-lernex-blue/30 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-lernex-blue/40 dark:shadow-lernex-blue/40 dark:hover:shadow-lernex-blue/50"
             >
               <span className="inline-block transition group-hover:scale-105">Get started</span>
             </Link>
             <Link
               href="#how"
-              className="rounded-full border border-slate-200/70 bg-surface-card px-8 py-3 font-medium backdrop-blur hover:bg-white/60 dark:bg-white/5 dark:hover:bg-white/10"
+              className="rounded-full border border-slate-200/80 bg-gradient-to-br from-white to-slate-100/50 px-8 py-3 font-medium shadow-sm backdrop-blur transition-all duration-200 hover:shadow-md hover:border-lernex-blue/30 dark:from-white/10 dark:to-white/5 dark:border-white/20 dark:hover:from-white/15 dark:hover:to-white/8"
             >
               See how it works
             </Link>
@@ -667,16 +667,16 @@ export default function MarketingLanding() {
             ))}
           </motion.div>
           <div className="mt-10 grid w-full max-w-4xl grid-cols-1 gap-3 text-left text-sm text-neutral-600 dark:text-neutral-300 md:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200/70 bg-surface-card p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
-              <div className="text-2xl font-bold text-neutral-900 dark:text-white">2 min</div>
+            <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-blue-50/30 to-white p-5 shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-blue/15 hover:border-lernex-blue/30 dark:from-white/10 dark:via-blue-900/10 dark:to-white/5 dark:bg-white/5 dark:shadow-black/20 dark:hover:shadow-lernex-blue/20">
+              <div className="text-2xl font-bold bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-transparent">2 min</div>
               <div>From upload to your first curated Lernex path.</div>
             </div>
-            <div className="rounded-2xl border border-slate-200/70 bg-surface-card p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
-              <div className="text-2xl font-bold text-neutral-900 dark:text-white">7 min</div>
+            <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-purple-50/30 to-white p-5 shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-purple/15 hover:border-lernex-purple/30 dark:from-white/10 dark:via-purple-900/10 dark:to-white/5 dark:bg-white/5 dark:shadow-black/20 dark:hover:shadow-lernex-purple/20">
+              <div className="text-2xl font-bold bg-gradient-to-r from-lernex-purple to-lernex-blue bg-clip-text text-transparent">7 min</div>
               <div>The average daily session to stay on track.</div>
             </div>
-            <div className="rounded-2xl border border-slate-200/70 bg-surface-card p-5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/5">
-              <div className="text-2xl font-bold text-neutral-900 dark:text-white">92%</div>
+            <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-green-50/30 to-white p-5 shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-green/15 hover:border-lernex-green/30 dark:from-white/10 dark:via-green-900/10 dark:to-white/5 dark:bg-white/5 dark:shadow-black/20 dark:hover:shadow-lernex-green/20">
+              <div className="text-2xl font-bold bg-gradient-to-r from-lernex-green to-lernex-blue bg-clip-text text-transparent">92%</div>
               <div>Report remembering critical details a week later.</div>
             </div>
           </div>
@@ -699,11 +699,11 @@ export default function MarketingLanding() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
-              className="group relative overflow-hidden rounded-3xl border border-slate-200/70 bg-surface-card p-8 shadow-card backdrop-blur transition-all hover:-translate-y-1 hover:shadow-3xl dark:border-white/5 dark:bg-white/10 dark:shadow-lg dark:hover:shadow-2xl"
+              className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/30 to-white p-8 shadow-card shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-3xl hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/5 dark:from-slate-900/50 dark:via-slate-800/20 dark:to-slate-900/50 dark:bg-white/10 dark:shadow-lg dark:shadow-black/20 dark:hover:shadow-2xl dark:hover:shadow-lernex-purple/15"
               style={{ zIndex: learningFlow.length - idx }}
             >
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-lernex-blue/0 via-lernex-purple/5 to-lernex-blue/0 opacity-0 transition group-hover:opacity-100" />
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300/60 bg-surface-muted text-sm font-semibold text-lernex-purple shadow-sm dark:border-white/40">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-lernex-blue/8 via-lernex-purple/12 to-lernex-blue/6 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300/60 bg-gradient-to-br from-white to-slate-100/50 text-sm font-semibold text-lernex-purple shadow-sm shadow-lernex-purple/10 dark:border-white/40 dark:from-slate-700/50 dark:to-slate-800/40 dark:shadow-lernex-purple/20">
                 {item.step}
               </span>
               <div className="mt-6 text-xl font-semibold text-neutral-900 dark:text-white">{item.title}</div>
@@ -793,7 +793,7 @@ export default function MarketingLanding() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4 }}
-                className="group relative overflow-hidden rounded-2xl border border-neutral-200/60 bg-white/80 p-6 text-left shadow-md shadow-black/10 backdrop-blur transition hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-white/10"
+                className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/30 to-white p-6 text-left shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/10 dark:from-white/12 dark:via-white/8 dark:to-white/10 dark:bg-white/10 dark:shadow-black/20 dark:hover:shadow-lernex-purple/20"
               >
                 <div className="text-4xl transition-transform group-hover:scale-110">{feature.icon}</div>
                 <div className="mt-4 text-lg font-semibold">{feature.title}</div>
@@ -839,7 +839,7 @@ export default function MarketingLanding() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
-              className="group rounded-2xl border border-neutral-200 bg-white p-6 text-center shadow-md shadow-black/20 backdrop-blur transition-transform hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-white/5"
+              className="group rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/30 to-white p-6 text-center shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/10 dark:from-white/12 dark:via-white/8 dark:to-white/10 dark:bg-white/5 dark:shadow-black/20 dark:hover:shadow-lernex-purple/20"
             >
               <div className="text-4xl transition-transform group-hover:scale-110">{b.icon}</div>
               <div className="mt-4 text-xl font-semibold">{b.title}</div>
@@ -860,9 +860,9 @@ export default function MarketingLanding() {
             {[...testimonials, ...testimonials, ...testimonials].map((item, index) => (
               <div
                 key={`${item.name}-${index}`}
-                className="group relative flex-shrink-0 w-[380px] overflow-hidden rounded-3xl border border-neutral-200/60 bg-white/80 p-6 text-left shadow-lg shadow-black/10 backdrop-blur transition hover:-translate-y-1 hover:shadow-2xl dark:border-white/10 dark:bg-white/10"
+                className="group relative flex-shrink-0 w-[380px] overflow-hidden rounded-3xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/30 to-white p-6 text-left shadow-lg shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/10 dark:from-white/12 dark:via-white/8 dark:to-white/10 dark:bg-white/10 dark:shadow-black/20 dark:hover:shadow-lernex-purple/20"
               >
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-lernex-blue/0 via-lernex-purple/10 to-lernex-blue/0 opacity-0 transition group-hover:opacity-100" />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-lernex-blue/8 via-lernex-purple/12 to-lernex-blue/6 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                 <p className="relative text-sm leading-relaxed text-neutral-700 dark:text-neutral-200">&ldquo;{item.quote}&rdquo;</p>
                 <footer className="relative mt-6 text-sm font-semibold text-neutral-900 dark:text-white">
                   {item.name}
@@ -885,7 +885,7 @@ export default function MarketingLanding() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4 }}
-                className="rounded-2xl border border-neutral-200/70 bg-white/80 px-6 py-5 shadow-md shadow-black/10 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-white/10"
+                className="rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/30 to-white px-6 py-5 shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/10 dark:from-white/12 dark:via-white/8 dark:to-white/10 dark:bg-white/10 dark:shadow-black/20 dark:hover:shadow-lernex-purple/20"
               >
                 <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">{item.question}</h3>
                 <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">{item.answer}</p>
@@ -905,13 +905,13 @@ export default function MarketingLanding() {
             <div className="mt-8 flex flex-col items-center justify-center gap-4 md:flex-row">
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center rounded-full bg-white px-8 py-3 font-semibold text-lernex-purple shadow-lg shadow-black/20 transition transform hover:-translate-y-0.5 dark:bg-white dark:text-lernex-purple"
+                className="inline-flex items-center justify-center rounded-full bg-white px-8 py-3 font-semibold text-lernex-purple shadow-lg shadow-white/25 transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.02] hover:shadow-xl hover:shadow-white/35 dark:bg-white dark:text-lernex-purple dark:shadow-white/30 dark:hover:shadow-white/40"
               >
                 Start for free
               </Link>
               <Link
                 href="#how"
-                className="inline-flex items-center justify-center rounded-full border border-white/60 px-8 py-3 font-semibold text-white transition hover:bg-white/10"
+                className="inline-flex items-center justify-center rounded-full border border-white/70 bg-white/10 px-8 py-3 font-semibold text-white backdrop-blur transition-all duration-300 hover:bg-white/20 hover:border-white/90 hover:scale-[1.02] hover:shadow-lg hover:shadow-white/20"
               >
                 Explore the flow
               </Link>

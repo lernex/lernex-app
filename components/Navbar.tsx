@@ -181,18 +181,18 @@ export default function Navbar() {
     };
 
     const tileBase =
-      "relative flex w-full min-h-[2.75rem] items-center rounded-2xl border border-surface bg-surface-card px-3 text-sm font-medium text-foreground shadow-card backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated dark:shadow-[0_20px_40px_-28px_rgba(0,0,0,0.6)]";
+      "relative flex w-full min-h-[2.75rem] items-center rounded-2xl border border-surface bg-surface-card px-3 text-sm font-medium text-foreground shadow-card backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:shadow-elevated hover:border-lernex-blue/30 dark:shadow-[0_20px_40px_-28px_rgba(0,0,0,0.6)] dark:hover:border-lernex-blue/40";
     const tilePaddingExpanded = "pl-3 pr-3.5";
     const tilePaddingCollapsed = "pl-2.5 pr-1.5";
     const tilePadding = navExpanded ? tilePaddingExpanded : tilePaddingCollapsed;
     const listPadding = navExpanded ? "px-5" : "pl-4 pr-3";
 
     const activeClasses =
-      "border-lernex-blue/70 bg-gradient-to-br from-lernex-blue/20 via-lernex-blue/12 to-lernex-purple/18 text-lernex-blue shadow-elevated dark:border-lernex-blue/50 dark:from-lernex-blue/25 dark:via-lernex-blue/20 dark:to-lernex-purple/25 dark:text-lernex-blue/90";
+      "border-lernex-blue/70 bg-gradient-to-br from-lernex-blue/20 via-lernex-blue/12 to-lernex-purple/18 text-lernex-blue shadow-elevated shadow-lernex-blue/10 dark:border-lernex-blue/60 dark:from-lernex-blue/30 dark:via-lernex-blue/22 dark:to-lernex-purple/28 dark:text-lernex-blue/95 dark:shadow-lernex-blue/20";
     const iconShell =
-      "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-surface-muted text-foreground shadow-sm transition-colors dark:border-surface";
+      "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-slate-100/50 text-foreground shadow-sm transition-all duration-300 dark:border-surface dark:from-slate-800/40 dark:to-slate-900/30";
     const activeIconShell =
-      "border-lernex-blue/60 bg-gradient-to-br from-lernex-blue/18 via-lernex-blue/12 to-lernex-purple/20 text-lernex-blue shadow-sm dark:border-lernex-blue/50 dark:from-lernex-blue/25 dark:via-lernex-blue/20 dark:to-lernex-purple/30 dark:text-lernex-blue/90";
+      "border-lernex-blue/60 bg-gradient-to-br from-lernex-blue/22 via-lernex-blue/14 to-lernex-purple/24 text-lernex-blue shadow-md shadow-lernex-blue/15 dark:border-lernex-blue/70 dark:from-lernex-blue/30 dark:via-lernex-blue/24 dark:to-lernex-purple/35 dark:text-lernex-blue/95 dark:shadow-lernex-blue/25";
     const badgeBase =
       "absolute -bottom-1 -right-1 min-w-[1.75rem] rounded-full px-1.5 py-0.5 text-center text-[11px] font-semibold shadow-sm";
 
@@ -203,8 +203,8 @@ export default function Navbar() {
         value: streak ?? 0,
         Icon: Flame,
         iconTone:
-          "from-orange-300/35 via-orange-200/20 to-transparent text-orange-500 dark:text-orange-300",
-        badgeTone: "bg-orange-500/90 text-white dark:bg-orange-400/80",
+          "from-orange-300/40 via-orange-200/25 to-orange-50/10 text-orange-500 shadow-sm shadow-orange-500/20 dark:from-orange-400/30 dark:via-orange-500/20 dark:to-transparent dark:text-orange-300 dark:shadow-orange-400/25",
+        badgeTone: "bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/30 dark:from-orange-400 dark:to-orange-500 dark:shadow-orange-400/40",
       },
       {
         key: "points",
@@ -212,8 +212,8 @@ export default function Navbar() {
         value: points ?? 0,
         Icon: Star,
         iconTone:
-          "from-amber-300/35 via-amber-200/20 to-transparent text-amber-500 dark:text-amber-300",
-        badgeTone: "bg-amber-500/90 text-white dark:bg-amber-400/80",
+          "from-amber-300/40 via-amber-200/25 to-amber-50/10 text-amber-500 shadow-sm shadow-amber-500/20 dark:from-amber-400/30 dark:via-amber-500/20 dark:to-transparent dark:text-amber-300 dark:shadow-amber-400/25",
+        badgeTone: "bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/30 dark:from-amber-400 dark:to-amber-500 dark:shadow-amber-400/40",
       },
     ] as const;
 
@@ -255,7 +255,7 @@ export default function Navbar() {
             width: navExpanded ? NAV_WIDTH_EXPANDED : NAV_WIDTH_COLLAPSED,
           }}
           transition={{ type: "spring", stiffness: 210, damping: 28 }}
-          className="fixed left-0 top-0 z-[22] flex h-[100dvh] max-h-screen flex-col overflow-hidden border-r border-slate-200/60 bg-surface-panel text-foreground shadow-xl shadow-slate-900/8 backdrop-blur-xl transition-colors duration-300 dark:border-surface dark:shadow-black/30"
+          className="fixed left-0 top-0 z-[22] flex h-[100dvh] max-h-screen flex-col overflow-hidden border-r border-slate-200/70 bg-gradient-to-b from-surface-panel via-surface-panel to-slate-50/30 text-foreground shadow-xl shadow-slate-900/10 backdrop-blur-xl transition-colors duration-300 dark:border-surface dark:from-surface-panel dark:via-surface-panel dark:to-slate-900/20 dark:shadow-black/40"
           onMouseEnter={handleNavEnter}
           onMouseLeave={handleNavLeave}
           onFocusCapture={handleNavEnter}
@@ -433,25 +433,25 @@ export default function Navbar() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 8, scale: 0.98 }}
                         transition={{ duration: 0.18 }}
-                        className="absolute right-0 bottom-full z-30 mb-3 w-56 rounded-xl border border-surface bg-surface-panel py-2 text-foreground shadow-xl shadow-neutral-900/10 dark:shadow-black/30"
+                        className="absolute right-0 bottom-full z-30 mb-3 w-56 rounded-xl border border-slate-200/70 bg-gradient-to-b from-white/98 to-slate-50/95 backdrop-blur-xl py-2 text-foreground shadow-xl shadow-slate-900/15 dark:border-surface dark:from-slate-800/95 dark:to-slate-900/90 dark:shadow-black/40"
                       >
                         <Link
                           href="/public-profile"
-                          className="block px-4 py-2 text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                          className="block px-4 py-2 text-sm rounded-md mx-1 transition-all duration-200 hover:bg-gradient-to-r hover:from-lernex-blue/12 hover:to-lernex-purple/10 hover:shadow-sm dark:hover:from-lernex-blue/25 dark:hover:to-lernex-purple/20"
                           onClick={() => setOpen(false)}
                         >
                           Profile
                         </Link>
                         <Link
                           href="/settings"
-                          className="block px-4 py-2 text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                          className="block px-4 py-2 text-sm rounded-md mx-1 transition-all duration-200 hover:bg-gradient-to-r hover:from-lernex-blue/12 hover:to-lernex-purple/10 hover:shadow-sm dark:hover:from-lernex-blue/25 dark:hover:to-lernex-purple/20"
                           onClick={() => setOpen(false)}
                         >
                           Settings
                         </Link>
                         <Link
                           href="/privacy"
-                          className="block px-4 py-2 text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                          className="block px-4 py-2 text-sm rounded-md mx-1 transition-all duration-200 hover:bg-gradient-to-r hover:from-lernex-blue/12 hover:to-lernex-purple/10 hover:shadow-sm dark:hover:from-lernex-blue/25 dark:hover:to-lernex-purple/20"
                           onClick={() => setOpen(false)}
                         >
                           Privacy
@@ -462,7 +462,7 @@ export default function Navbar() {
                             setOpen(false);
                             router.replace("/login");
                           }}
-                          className="block w-full px-4 py-2 text-left text-sm hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                          className="block w-full px-4 py-2 text-left text-sm rounded-md mx-1 transition-all duration-200 hover:bg-gradient-to-r hover:from-red-500/12 hover:to-red-600/10 hover:shadow-sm hover:text-red-600 dark:hover:from-red-500/25 dark:hover:to-red-600/20 dark:hover:text-red-400"
                         >
                           Logout
                         </button>
@@ -479,7 +479,7 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-20 w-full border-b border-slate-200/60 bg-surface-panel text-foreground shadow-sm backdrop-blur-md transition-colors dark:border-surface">
+    <nav className="sticky top-0 z-20 w-full border-b border-slate-200/70 bg-gradient-to-r from-surface-panel via-white/40 to-surface-panel text-foreground shadow-md shadow-slate-900/5 backdrop-blur-xl transition-colors dark:border-surface dark:from-surface-panel dark:via-slate-800/20 dark:to-surface-panel dark:shadow-black/20">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 text-sm">
         <Link
           href={user ? "/fyp" : "/"}
@@ -491,23 +491,23 @@ export default function Navbar() {
           <Link
             href="/pricing"
             aria-current={pathname === "/pricing" ? "page" : undefined}
-            className="px-3 py-1.5 rounded-md hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40"
+            className="px-3 py-1.5 rounded-md transition-all duration-200 hover:bg-gradient-to-r hover:from-lernex-blue/12 hover:to-lernex-purple/10 hover:shadow-sm dark:hover:from-lernex-blue/25 dark:hover:to-lernex-purple/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40"
           >
             Pricing
           </Link>
           <Link
             href="/generate"
             aria-current={pathname.startsWith("/generate") ? "page" : undefined}
-            className="ml-1 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-1.5 text-white shadow-sm transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40"
+            className="ml-1 rounded-full bg-gradient-to-r from-lernex-blue via-blue-600 to-lernex-purple px-4 py-1.5 text-white shadow-md shadow-lernex-blue/25 transition-all duration-300 hover:shadow-lg hover:shadow-lernex-blue/35 hover:scale-[1.02] dark:shadow-lernex-blue/30 dark:hover:shadow-lernex-blue/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40"
           >
             Generate
           </Link>
           {user && pathname !== "/" && (
             <>
-              <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">
+              <span className="hidden rounded-full border border-orange-200/60 bg-gradient-to-r from-orange-50 to-orange-100/50 px-3 py-1 shadow-sm shadow-orange-500/10 transition-all duration-200 hover:shadow-md hover:shadow-orange-500/20 dark:border-orange-500/20 dark:from-orange-900/20 dark:to-orange-800/10 dark:shadow-orange-400/15 md:inline">
                 🔥 {streak}
               </span>
-              <span className="hidden rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 dark:border-white/10 dark:bg-white/5 md:inline">
+              <span className="hidden rounded-full border border-amber-200/60 bg-gradient-to-r from-amber-50 to-amber-100/50 px-3 py-1 shadow-sm shadow-amber-500/10 transition-all duration-200 hover:shadow-md hover:shadow-amber-500/20 dark:border-amber-500/20 dark:from-amber-900/20 dark:to-amber-800/10 dark:shadow-amber-400/15 md:inline">
                 ⭐ {points}
               </span>
             </>
@@ -548,25 +548,25 @@ export default function Navbar() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-44 rounded-md border border-slate-200/60 bg-surface-card py-2 text-foreground shadow-lg dark:border-surface"
+                    className="absolute right-0 mt-2 w-44 rounded-xl border border-slate-200/70 bg-gradient-to-b from-white/98 to-slate-50/95 backdrop-blur-xl py-2 text-foreground shadow-xl shadow-slate-900/15 dark:border-surface dark:from-slate-800/95 dark:to-slate-900/90 dark:shadow-black/40"
                   >
                     <Link
                       href="/public-profile"
-                      className="block px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                      className="block px-4 py-2 text-left rounded-md mx-1 transition-all duration-200 hover:bg-gradient-to-r hover:from-lernex-blue/12 hover:to-lernex-purple/10 hover:shadow-sm dark:hover:from-lernex-blue/25 dark:hover:to-lernex-purple/20"
                       onClick={() => setOpen(false)}
                     >
                       Profile
                     </Link>
                     <Link
                       href="/settings"
-                      className="block px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                      className="block px-4 py-2 text-left rounded-md mx-1 transition-all duration-200 hover:bg-gradient-to-r hover:from-lernex-blue/12 hover:to-lernex-purple/10 hover:shadow-sm dark:hover:from-lernex-blue/25 dark:hover:to-lernex-purple/20"
                       onClick={() => setOpen(false)}
                     >
                       Settings
                     </Link>
                     <Link
                       href="/privacy"
-                      className="block px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                      className="block px-4 py-2 text-left rounded-md mx-1 transition-all duration-200 hover:bg-gradient-to-r hover:from-lernex-blue/12 hover:to-lernex-purple/10 hover:shadow-sm dark:hover:from-lernex-blue/25 dark:hover:to-lernex-purple/20"
                       onClick={() => setOpen(false)}
                     >
                       Privacy
@@ -577,7 +577,7 @@ export default function Navbar() {
                         setOpen(false);
                         router.replace("/login");
                       }}
-                      className="block w-full px-4 py-2 text-left hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20"
+                      className="block w-full px-4 py-2 text-left rounded-md mx-1 transition-all duration-200 hover:bg-gradient-to-r hover:from-red-500/12 hover:to-red-600/10 hover:shadow-sm hover:text-red-600 dark:hover:from-red-500/25 dark:hover:to-red-600/20 dark:hover:text-red-400"
                     >
                       Logout
                     </button>
@@ -614,11 +614,11 @@ export default function Navbar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="md:hidden fixed inset-x-0 top-[56px] z-20 border-b border-slate-200/60 bg-surface-panel p-4 backdrop-blur dark:border-surface"
+            className="md:hidden fixed inset-x-0 top-[56px] z-20 border-b border-slate-200/70 bg-gradient-to-b from-surface-panel to-slate-50/30 p-4 backdrop-blur-xl shadow-lg shadow-slate-900/10 dark:border-surface dark:from-surface-panel dark:to-slate-900/20 dark:shadow-black/30"
           >
             <div className="grid gap-2 text-sm">
-              <Link href="/pricing" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 hover:bg-lernex-blue/10 dark:hover:bg-lernex-blue/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40">Pricing</Link>
-              <Link href="/generate" onClick={() => setMobileOpen(false)} className="rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-2 text-center text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40">Generate</Link>
+              <Link href="/pricing" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 transition-all duration-200 hover:bg-gradient-to-r hover:from-lernex-blue/12 hover:to-lernex-purple/10 hover:shadow-sm dark:hover:from-lernex-blue/25 dark:hover:to-lernex-purple/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40">Pricing</Link>
+              <Link href="/generate" onClick={() => setMobileOpen(false)} className="rounded-full bg-gradient-to-r from-lernex-blue via-blue-600 to-lernex-purple px-4 py-2 text-center text-white shadow-md shadow-lernex-blue/25 transition-all duration-300 hover:shadow-lg hover:shadow-lernex-blue/35 dark:shadow-lernex-blue/30 dark:hover:shadow-lernex-blue/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40">Generate</Link>
               {user === undefined ? null : !user && (
                 <Link href="/login" onClick={() => setMobileOpen(false)} className="rounded-md border border-white/10 px-3 py-2 text-center hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40">Login</Link>
               )}

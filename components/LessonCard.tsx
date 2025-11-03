@@ -206,7 +206,7 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
   };
 
   const baseClass =
-    "relative flex flex-col overflow-hidden rounded-[28px] border border-slate-200/70 bg-surface-card shadow-card ring-1 ring-slate-900/5 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-3xl backdrop-blur-xl dark:border-surface dark:ring-black/5 dark:shadow-xl dark:hover:shadow-2xl";
+    "relative flex flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/30 to-white shadow-card ring-1 ring-slate-900/5 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-3xl hover:border-lernex-blue/30 backdrop-blur-xl dark:border-surface dark:from-slate-900/50 dark:via-slate-800/20 dark:to-slate-900/50 dark:ring-black/5 dark:shadow-xl dark:hover:shadow-2xl dark:hover:border-lernex-blue/40";
   const rootClass = className ? baseClass + " " + className : baseClass;
 
   const actionBase =
@@ -215,30 +215,30 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
   const helpfulClass = [
     actionBase,
     liked
-      ? "border-green-500/70 bg-green-500/15 text-green-700 shadow-sm dark:text-green-200"
-      : "border-surface bg-surface-muted text-neutral-600 hover:bg-surface-card dark:text-neutral-300",
+      ? "border-green-500/70 bg-gradient-to-r from-green-500/18 to-green-600/12 text-green-700 shadow-md shadow-green-500/20 dark:from-green-500/25 dark:to-green-600/18 dark:text-green-300 dark:shadow-green-400/25"
+      : "border-surface bg-gradient-to-br from-slate-50 to-slate-100/50 text-neutral-600 hover:bg-gradient-to-br hover:from-lernex-blue/12 hover:to-lernex-purple/8 hover:border-lernex-blue/40 hover:shadow-sm dark:from-slate-800/40 dark:to-slate-900/30 dark:text-neutral-300 dark:hover:from-lernex-blue/20 dark:hover:to-lernex-purple/15",
   ].join(" ");
 
   const saveClass = [
     actionBase,
     saved
-      ? "border-amber-400/70 bg-amber-400/15 text-amber-700 shadow-sm dark:text-amber-200"
-      : "border-surface bg-surface-muted text-neutral-600 hover:bg-surface-card dark:text-neutral-300",
+      ? "border-amber-400/70 bg-gradient-to-r from-amber-400/18 to-amber-500/12 text-amber-700 shadow-md shadow-amber-500/20 dark:from-amber-400/25 dark:to-amber-500/18 dark:text-amber-300 dark:shadow-amber-400/25"
+      : "border-surface bg-gradient-to-br from-slate-50 to-slate-100/50 text-neutral-600 hover:bg-gradient-to-br hover:from-amber-400/12 hover:to-amber-500/8 hover:border-amber-400/40 hover:shadow-sm dark:from-slate-800/40 dark:to-slate-900/30 dark:text-neutral-300 dark:hover:from-amber-400/20 dark:hover:to-amber-500/15",
   ].join(" ");
 
   const dislikeClass = [
     "ml-auto",
     actionBase,
     disliked
-      ? "border-red-500/70 bg-red-500/15 text-red-700 shadow-sm dark:text-red-200"
-      : "border-surface bg-surface-muted text-neutral-600 hover:bg-surface-card dark:text-neutral-300",
+      ? "border-red-500/70 bg-gradient-to-r from-red-500/18 to-red-600/12 text-red-700 shadow-md shadow-red-500/20 dark:from-red-500/25 dark:to-red-600/18 dark:text-red-300 dark:shadow-red-400/25"
+      : "border-surface bg-gradient-to-br from-slate-50 to-slate-100/50 text-neutral-600 hover:bg-gradient-to-br hover:from-red-500/12 hover:to-red-600/8 hover:border-red-500/40 hover:shadow-sm dark:from-slate-800/40 dark:to-slate-900/30 dark:text-neutral-300 dark:hover:from-red-500/20 dark:hover:to-red-600/15",
   ].join(" ");
 
   const reportClass = [
     actionBase,
     reported
-      ? "border-amber-500/70 bg-amber-400/15 text-amber-700 shadow-sm dark:text-amber-200"
-      : "border-surface bg-surface-muted text-neutral-600 hover:bg-surface-card dark:text-neutral-300",
+      ? "border-amber-500/70 bg-gradient-to-r from-amber-400/18 to-amber-500/12 text-amber-700 shadow-md shadow-amber-500/20 dark:from-amber-400/25 dark:to-amber-500/18 dark:text-amber-300 dark:shadow-amber-400/25"
+      : "border-surface bg-gradient-to-br from-slate-50 to-slate-100/50 text-neutral-600 hover:bg-gradient-to-br hover:from-amber-500/12 hover:to-orange-500/8 hover:border-amber-500/40 hover:shadow-sm dark:from-slate-800/40 dark:to-slate-900/30 dark:text-neutral-300 dark:hover:from-amber-500/20 dark:hover:to-orange-500/15",
   ].join(" ");
 
   const handleReportSubmit = async (reason: string) => {
@@ -274,7 +274,7 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
         isSubmitting={reporting}
       />
       <div ref={cardRef} className={rootClass}>
-      <div className="pointer-events-none absolute inset-0 opacity-80 dark:opacity-40 bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.2),transparent_55%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.18),transparent_48%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.08),transparent_60%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-90 dark:opacity-50 bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.25),transparent_52%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.22),transparent_45%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.12),transparent_58%)] dark:bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.35),transparent_55%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.28),transparent_48%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.18),transparent_60%)]" />
       <div className="relative flex min-h-0 flex-1 flex-col gap-4 px-5 py-6 sm:px-6 md:py-7">
         <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">
           <span className="font-medium text-neutral-600 dark:text-neutral-200">{lesson.subject}</span>
@@ -282,7 +282,7 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
             <span className="text-neutral-400 dark:text-neutral-500">/ {lesson.topic}</span>
           )}
           {lesson.difficulty && (
-            <span className="ml-auto rounded-full border border-slate-300/80 bg-surface-muted px-2 py-0.5 text-[10px] font-semibold capitalize text-slate-700 shadow-sm dark:border-neutral-600 dark:text-neutral-200 dark:shadow-none">
+            <span className="ml-auto rounded-full border border-slate-300/80 bg-gradient-to-r from-slate-100 to-slate-200/60 px-2 py-0.5 text-[10px] font-semibold capitalize text-slate-700 shadow-sm shadow-slate-900/10 dark:border-neutral-600 dark:from-neutral-700/50 dark:to-neutral-800/40 dark:text-neutral-200 dark:shadow-none">
               {lesson.difficulty}
             </span>
           )}
@@ -292,7 +292,7 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
           <div className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{lesson.nextTopicHint}</div>
         )}
         {contextEntries.length > 0 && (
-          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-surface-muted px-4 py-3 text-[12px] leading-relaxed text-neutral-700 shadow-sm dark:border-neutral-700 dark:text-neutral-300">
+          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-slate-100/30 to-slate-50 px-4 py-3 text-[12px] leading-relaxed text-neutral-700 shadow-sm shadow-slate-900/5 dark:border-neutral-700 dark:from-neutral-800/40 dark:via-neutral-700/20 dark:to-neutral-800/40 dark:text-neutral-300 dark:shadow-black/10">
             <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
               Why you&apos;re seeing this
             </div>
@@ -307,7 +307,7 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
           </div>
         )}
         {knowledgeDetails && (
-          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-surface-muted px-4 py-3 text-sm text-neutral-700 shadow-sm dark:border-neutral-700 dark:text-neutral-200">
+          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-blue-50/50 via-purple-50/30 to-blue-50/50 px-4 py-3 text-sm text-neutral-700 shadow-sm shadow-slate-900/5 dark:border-neutral-700 dark:from-blue-900/20 dark:via-purple-900/15 dark:to-blue-900/20 dark:text-neutral-200 dark:shadow-black/10">
             <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
               Anchors
             </div>
@@ -343,17 +343,17 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
           </div>
           {showFade && (
             <>
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white via-white/75 to-transparent dark:from-neutral-900 dark:via-neutral-900/70" />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white via-white/80 to-transparent dark:from-slate-900 dark:via-slate-900/75 to-transparent" />
               <div className="absolute bottom-3 right-4 flex items-center gap-2">
                 <button
                   onClick={() => setIsModalOpen(true)}
-                  className="flex items-center gap-2 rounded-full bg-lernex-blue/90 hover:bg-lernex-blue px-3 py-1.5 text-[11px] font-medium text-white shadow-lg backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40"
+                  className="flex items-center gap-2 rounded-full bg-gradient-to-r from-lernex-blue via-blue-600 to-lernex-purple px-3 py-1.5 text-[11px] font-medium text-white shadow-lg shadow-lernex-blue/30 backdrop-blur-sm transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-lernex-blue/40 dark:shadow-lernex-blue/40 dark:hover:shadow-lernex-blue/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40"
                   aria-label="Expand lesson to full screen"
                 >
                   <Maximize2 className="h-3.5 w-3.5" />
                   <span>Expand</span>
                 </button>
-                <div className="pointer-events-none flex items-center gap-2 rounded-full bg-neutral-900/75 px-3 py-1 text-[11px] font-medium text-white shadow-lg backdrop-blur-sm dark:bg-neutral-800/85">
+                <div className="pointer-events-none flex items-center gap-2 rounded-full bg-gradient-to-r from-neutral-900/80 to-neutral-800/75 px-3 py-1 text-[11px] font-medium text-white shadow-lg backdrop-blur-sm dark:from-neutral-800/90 dark:to-neutral-700/85">
                   <span>Scroll to read</span>
                   <span aria-hidden="true" className="text-base leading-none">
                     ↓
