@@ -407,6 +407,7 @@ export async function POST(req: NextRequest) {
           let full = "";
           let wrote = false;
           let chunkCount = 0;
+          let finishReason: string | null = null;
           let usageSummary: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
           try {
             console.log('[generate] Beginning to process chunks...');
@@ -417,6 +418,12 @@ export async function POST(req: NextRequest) {
               }
               const choice = chunk?.choices?.[0];
               const delta = choice?.delta ?? {};
+
+              // Track finish reason
+              if (choice?.finish_reason) {
+                finishReason = choice.finish_reason;
+                console.log('[generate] Stream finished with reason:', finishReason);
+              }
 
               // OPTIMIZED: Handle function calling tool_calls (primary path with token savings)
               // When using function calling, deltas come in delta.tool_calls[0].function.arguments
@@ -454,7 +461,16 @@ export async function POST(req: NextRequest) {
                 };
               }
             }
+
+            console.log('[generate] Stream processing complete:', {
+              wrote,
+              chunkCount,
+              fullLength: full.length,
+              finishReason
+            });
+
             if (!wrote) {
+              console.log('[generate] No data written, attempting non-streaming fallback...');
               try {
                 // OPTIMIZED: Fallback also uses function calling for consistency
                 const fallback = await client.chat.completions.create({

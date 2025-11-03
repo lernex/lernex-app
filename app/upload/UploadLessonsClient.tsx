@@ -323,12 +323,25 @@ function ensureSubjectLabel(label: string | undefined): string {
 export default function UploadLessonsClient({ initialProfile }: UploadLessonsClientProps) {
   const { selectedSubjects } = useLernexStore();
   const preferredSubject = useMemo(() => {
-    if (selectedSubjects.length > 0) return selectedSubjects[0];
-    if (initialProfile?.interests?.length) return initialProfile.interests[0];
-    return "General Studies";
+    // Default to "Auto" for even distribution across content
+    if (selectedSubjects.length > 0) {
+      const label = ensureSubjectLabel(selectedSubjects[0]);
+      // Skip overly broad subjects
+      if (!["Math", "Science", "Computer Science"].includes(label)) {
+        return label;
+      }
+    }
+    if (initialProfile?.interests?.length) {
+      const label = ensureSubjectLabel(initialProfile.interests[0]);
+      // Skip overly broad subjects
+      if (!["Math", "Science", "Computer Science"].includes(label)) {
+        return label;
+      }
+    }
+    return "Auto";
   }, [initialProfile?.interests, selectedSubjects]);
 
-  const [subject, setSubject] = useState(() => ensureSubjectLabel(preferredSubject));
+  const [subject, setSubject] = useState(() => preferredSubject);
   const [stage, setStage] = useState<Stage>("idle");
   const [statusDetail, setStatusDetail] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -342,7 +355,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    setSubject(ensureSubjectLabel(preferredSubject));
+    setSubject(preferredSubject);
   }, [preferredSubject]);
 
   useEffect(() => {
@@ -558,20 +571,38 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
 
   const subjectChips = useMemo(() => {
     const base = new Set<string>();
+
+    // Always add "Auto" as the first option (default)
+    base.add("Auto");
+
+    // Add user's interests if available
     if (initialProfile?.interests?.length) {
       for (const item of initialProfile.interests) {
-        if (typeof item === "string" && item.trim()) base.add(ensureSubjectLabel(item));
+        if (typeof item === "string" && item.trim()) {
+          const label = ensureSubjectLabel(item);
+          // Filter out overly broad subjects
+          if (!["Math", "Science", "Computer Science"].includes(label)) {
+            base.add(label);
+          }
+        }
       }
     }
     if (selectedSubjects.length) {
       for (const item of selectedSubjects) {
-        if (typeof item === "string" && item.trim()) base.add(ensureSubjectLabel(item));
+        if (typeof item === "string" && item.trim()) {
+          const label = ensureSubjectLabel(item);
+          // Filter out overly broad subjects
+          if (!["Math", "Science", "Computer Science"].includes(label)) {
+            base.add(label);
+          }
+        }
       }
     }
-    base.add("General Studies");
+
+    // Add relevant presets for high school to college students
     base.add("Exam Review");
-    base.add("Team Onboarding");
-    base.add("Certification Prep");
+    base.add("Homework Help");
+
     return Array.from(base).slice(0, 8);
   }, [initialProfile?.interests, selectedSubjects]);
 
@@ -681,44 +712,86 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
             transition={{ delay: 0.06, duration: 0.5 }}
             className="flex-1 space-y-6"
           >
-            <div className="rounded-[28px] border border-white/70 bg-white/80 p-6 shadow-[0_40px_100px_-60px_rgba(47,128,237,0.55)] backdrop-blur-xl transition-colors dark:border-white/10 dark:bg-white/5">
+            <motion.div
+              layout
+              className="rounded-[28px] border border-white/70 bg-white/80 p-6 shadow-[0_40px_100px_-60px_rgba(47,128,237,0.55)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_40px_120px_-50px_rgba(47,128,237,0.65)] dark:border-white/10 dark:bg-white/5"
+            >
               <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">Focus subject</h2>
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                    Choose where you want Lernex to aim each generated lesson.
-                  </p>
-                </div>
+                <motion.div layout="position">
+                  <h2 className="text-lg font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
+                    Focus Subject
+                    {subject === "Auto" && (
+                      <motion.span
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-lernex-blue/10 to-lernex-purple/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-lernex-blue dark:bg-gradient-to-r dark:from-lernex-blue/15 dark:to-lernex-purple/15"
+                      >
+                        <Sparkles className="h-2.5 w-2.5" />
+                        Default
+                      </motion.span>
+                    )}
+                  </h2>
+                  <motion.p
+                    key={subject}
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="text-sm text-neutral-500 dark:text-neutral-400 mt-1"
+                  >
+                    {subject === "Auto"
+                      ? "AI will evenly distribute lessons across all topics in your content."
+                      : `AI will primarily focus on ${subject}-related concepts from your content.`}
+                  </motion.p>
+                </motion.div>
                 <div className="flex flex-wrap gap-2 md:justify-end">
-                  {subjectChips.map((chip) => {
+                  {subjectChips.map((chip, index) => {
                     const active = chip === subject;
                     return (
-                      <button
+                      <motion.button
                         key={chip}
+                        initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={{
+                          duration: 0.3,
+                          delay: index * 0.05,
+                          type: "spring",
+                          stiffness: 300,
+                          damping: 20,
+                        }}
+                        whileHover={{ scale: 1.05, y: -2 }}
+                        whileTap={{ scale: 0.95 }}
                         onClick={() => setSubject(chip)}
-                        className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                        className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
                           active
-                            ? "border-lernex-blue/80 bg-lernex-blue/90 text-white shadow-sm"
-                            : "border-white/60 bg-white/70 text-neutral-600 hover:border-lernex-blue/40 hover:text-lernex-blue dark:border-white/10 dark:bg-white/10 dark:text-neutral-300 dark:hover:border-lernex-blue/50 dark:hover:text-lernex-blue/80"
+                            ? "border-lernex-blue/80 bg-gradient-to-r from-lernex-blue to-lernex-purple text-white shadow-lg shadow-lernex-blue/30"
+                            : "border-white/60 bg-white/70 text-neutral-600 hover:border-lernex-blue/40 hover:text-lernex-blue hover:shadow-md dark:border-white/10 dark:bg-white/10 dark:text-neutral-300 dark:hover:border-lernex-blue/50 dark:hover:text-lernex-blue/80"
                         }`}
                         type="button"
                       >
                         {chip}
-                      </button>
+                      </motion.button>
                     );
                   })}
                 </div>
               </div>
               <div className="mt-5 flex flex-col gap-4 md:flex-row md:items-center">
                 <label className="flex-1 text-sm text-neutral-600 dark:text-neutral-300">
-                  <span className="mb-1 inline-block text-xs uppercase tracking-[0.25em] text-neutral-400 dark:text-neutral-500">
-                    Custom subject
-                  </span>
-                  <input
+                  <motion.span
+                    key={subject}
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="mb-1 inline-block text-xs uppercase tracking-[0.25em] text-neutral-400 dark:text-neutral-500"
+                  >
+                    {subject === "Auto" ? "Auto Focus - Even distribution" : "Custom Focus"}
+                  </motion.span>
+                  <motion.input
+                    whileFocus={{ scale: 1.01 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
                     value={subject}
                     onChange={(event) => setSubject(event.target.value)}
-                    placeholder="e.g. AP Biology, Cybersecurity, Sales onboarding"
-                    className="w-full rounded-2xl border border-white/70 bg-white/90 px-4 py-3 text-sm font-medium text-neutral-800 shadow-inner outline-none transition focus:border-lernex-blue/60 focus:ring-2 focus:ring-lernex-blue/30 dark:border-white/10 dark:bg-white/10 dark:text-white"
+                    placeholder="e.g., L'Hopital's Rule, Organic Chemistry, Linear Algebra"
+                    className="w-full rounded-2xl border border-white/70 bg-white/90 px-4 py-3 text-sm font-medium text-neutral-800 shadow-inner outline-none transition-all duration-200 focus:border-lernex-blue/60 focus:ring-2 focus:ring-lernex-blue/30 focus:shadow-lg dark:border-white/10 dark:bg-white/10 dark:text-white"
                   />
                 </label>
                 <button
@@ -730,7 +803,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                   Reset
                 </button>
               </div>
-            </div>
+            </motion.div>
 
             <div
               onDragEnter={(event) => {
@@ -801,17 +874,28 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                       ? "Crafting your lessons..."
                       : "Drop files or click to upload"}
                   </p>
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                  <motion.p
+                    key={`${stage}-${subject}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.4 }}
+                    className="text-sm text-neutral-500 dark:text-neutral-400"
+                  >
                     {stage === "parsing" || stage === "generating" ? (
                       <>
                         Our advanced AI is extracting and structuring your content into personalized, bite-sized mini-lessons tailored to your learning style.
                       </>
                     ) : (
                       <>
-                        Upload lecture audio (MP3, WAV), PDFs, images, DOCX, PPTX, and more. We intelligently process your content and create interactive mini-lessons with quizzes for <span className="font-medium">{subject}</span>.
+                        Upload lecture audio (MP3, WAV), PDFs, images, DOCX, PPTX, and more. We intelligently process your content and create interactive mini-lessons with quizzes
+                        {subject === "Auto" ? (
+                          <> evenly distributed across all topics in your content.</>
+                        ) : (
+                          <> focused on <span className="font-semibold text-lernex-blue dark:text-lernex-blue/80">{subject}</span>.</>
+                        )}
                       </>
                     )}
-                  </p>
+                  </motion.p>
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-neutral-500 dark:text-neutral-400">
                   <span className="inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/70 px-3 py-1 dark:border-white/10 dark:bg-white/10">

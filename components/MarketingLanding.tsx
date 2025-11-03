@@ -101,63 +101,21 @@ const outcomes = [
 const testimonials = [
   {
     quote:
-      'I was skeptical at first—seemed like another flashcard app. But when I saw the "Why you\'re seeing this" box on each lesson? That changed everything. It literally knows exactly where I\'m struggling.',
-    name: 'Alex Chen',
-    role: 'Software Engineering Student',
+      'I was drowning in AP Bio notes. Uploaded my study guide and it made quizzes that actually helped me understand instead of just memorize. Got a 5 on the exam.',
+    name: 'Maya Patel',
+    role: 'High School Senior',
   },
   {
     quote:
-      'Ten minutes on the train and I\'m actually learning. The questions aren\'t just recall—they make you apply what you read. Been using it for my AWS certs and it\'s night and day compared to reading docs.',
-    name: 'Marcus Thompson',
-    role: 'Cloud Security Professional',
-  },
-  {
-    quote:
-      'Our compliance onboarding went from 6 weeks to 2. I can see who\'s completed what, who needs help, and where people are getting stuck. The analytics dashboard is exactly what we needed.',
-    name: 'Sarah Patel',
-    role: 'Operations Manager',
+      'College hit different. Four classes, all with massive reading assignments. This app lets me turn any PDF into bite-sized lessons I can actually get through. Game changer for my commute.',
+    name: 'Jordan Lee',
+    role: 'College Freshman',
   },
   {
     quote:
       'I drag-and-drop my lecture PDFs and two minutes later I have quiz questions ready. Saves me hours of trying to figure out what to study. Actually passed my anatomy exam because of this.',
     name: 'Jake Morrison',
-    role: 'Med School Pre-Clinical',
-  },
-  {
-    quote:
-      'Day 52 of my streak. I know it sounds dumb but I genuinely look forward to opening the app now. Seven minutes while my coffee brews and I feel like I accomplished something before 9am.',
-    name: 'Emily Rodriguez',
-    role: 'Data Analytics Bootcamp',
-  },
-  {
-    quote:
-      'The adaptive difficulty is legit. When I ace three lessons in a row, the next one is noticeably harder. When I miss questions, it backs up and fills the gaps. Feels like it\'s actually paying attention.',
-    name: 'David Kim',
-    role: 'AWS Solutions Architect',
-  },
-  {
-    quote:
-      'We tried three different platforms before this. What sold my team was uploading our internal runbook and watching it generate lessons in 90 seconds. No more manually creating training materials.',
-    name: 'Rachel Foster',
-    role: 'Head of L&D, Fintech',
-  },
-  {
-    quote:
-      'Failed CISSP the first time after months of reading. Switched to Lernex for three weeks and passed. The spaced repetition kept bringing back topics I kept forgetting. Finally stuck.',
-    name: 'Chris Nguyen',
-    role: 'Security Analyst',
-  },
-  {
-    quote:
-      'The confetti animation when you get an answer right shouldn\'t matter this much but honestly? It does. Makes studying feel way less painful than staring at textbooks.',
-    name: 'Olivia Martinez',
-    role: 'UX Designer Learning Code',
-  },
-  {
-    quote:
-      'I can finally see my weak spots clearly. The dashboard shows me I\'m at 85% on networking but only 60% on databases, so it queues up more database lessons. That kind of targeting is exactly what I needed.',
-    name: 'James Wilson',
-    role: 'Product Manager',
+    role: 'Pre-Med Student',
   },
   {
     quote:
@@ -167,9 +125,51 @@ const testimonials = [
   },
   {
     quote:
-      'Five-minute gaps between meetings used to be wasted scrolling Twitter. Now I knock out a lesson or two. Sounds small but it adds up fast.',
-    name: 'Tom Anderson',
-    role: 'Engineering Manager',
+      'Between practice and games, I barely have time to study. Five minutes here and there between classes and I\'m keeping my GPA up. The streak tracker keeps me honest.',
+    name: 'Carlos Martinez',
+    role: 'D1 Student Athlete',
+  },
+  {
+    quote:
+      'Went from C\'s to A\'s in Organic Chem. The adaptive difficulty thing is real—when I mess up, it gives me easier content to build back up. When I\'m on fire, it challenges me.',
+    name: 'Aisha Johnson',
+    role: 'Chemistry Major',
+  },
+  {
+    quote:
+      'SAT prep books were putting me to sleep. This makes studying actually tolerable. The confetti when you get answers right sounds dumb but it genuinely makes me want to keep going.',
+    name: 'Tyler Chen',
+    role: 'High School Junior',
+  },
+  {
+    quote:
+      'English is my second language and the readings for my classes were brutal. Being able to turn them into quizzes helps me make sure I actually understood what I read.',
+    name: 'Sofia Rodriguez',
+    role: 'International Student',
+  },
+  {
+    quote:
+      'Day 47 of my streak. Started using this for one class and now I upload notes from all of them. Legit study for five subjects in the time it used to take me to review one.',
+    name: 'Marcus Williams',
+    role: 'Engineering Student',
+  },
+  {
+    quote:
+      'Finals week was less painful this semester. Instead of rereading everything, I just reviewed the lessons I\'d been building all term. Felt way more prepared going in.',
+    name: 'Emma Thompson',
+    role: 'Psychology Major',
+  },
+  {
+    quote:
+      'My study group all uses this now. We upload the same lecture slides and quiz each other. The leaderboard makes it weirdly competitive in a good way.',
+    name: 'Alex Kim',
+    role: 'Business Student',
+  },
+  {
+    quote:
+      'Work study job plus full course load = no free time. Bus rides and breaks between shifts are now productive. Sounds small but I\'ve learned so much in those tiny gaps.',
+    name: 'Jasmine Brown',
+    role: 'History Major',
   },
 ];
 
@@ -603,7 +603,7 @@ export default function MarketingLanding() {
   }, [remaining]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-neutral-50 via-neutral-100 to-neutral-200 text-neutral-900 dark:from-neutral-900 dark:via-neutral-900/80 dark:to-neutral-950 dark:text-white">
+    <main className="min-h-screen bg-gradient-to-b from-neutral-50 via-neutral-100 to-neutral-200 text-neutral-900 dark:from-surface-panel dark:via-surface-panel dark:to-slate-900/20 dark:text-white">
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 -z-10 bg-grid [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-lernex-blue/20 via-lernex-purple/20 to-transparent blur-3xl" />
@@ -731,23 +731,23 @@ export default function MarketingLanding() {
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.4),transparent_65%)] opacity-60" />
               <div className="relative">
                 <p className="text-sm uppercase tracking-[0.3em] text-white/80">How it looks</p>
-                <div className="mt-4 rounded-[32px] border-2 border-white/30 bg-surface-card p-6 text-neutral-900 shadow-2xl backdrop-blur ring-1 ring-black/5">
+                <div className="mt-4 rounded-[32px] border-2 border-white/30 bg-surface-card p-6 text-neutral-900 shadow-2xl backdrop-blur ring-1 ring-black/5 dark:bg-slate-800/90 dark:border-slate-700/50 dark:text-white">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-neutral-700">Cybersecurity</span>
-                    <span className="rounded-full bg-lernex-blue/15 px-2.5 py-0.5 font-medium text-lernex-blue">Medium</span>
+                    <span className="font-semibold text-neutral-700 dark:text-neutral-300">Cybersecurity</span>
+                    <span className="rounded-full bg-lernex-blue/15 px-2.5 py-0.5 font-medium text-lernex-blue dark:bg-lernex-blue/25 dark:text-lernex-blue/90">Medium</span>
                   </div>
-                  <h3 className="mt-4 text-xl font-bold leading-tight text-neutral-900">Zero Trust Architecture</h3>
-                  <div className="mt-4 rounded-2xl bg-lernex-blue/10 p-4 text-xs leading-relaxed">
-                    <p className="font-bold text-lernex-blue">Why you&apos;re seeing this</p>
-                    <p className="mt-1.5 text-neutral-700">You&apos;ve been mastering network security fundamentals. This builds on that foundation.</p>
+                  <h3 className="mt-4 text-xl font-bold leading-tight text-neutral-900 dark:text-white">Zero Trust Architecture</h3>
+                  <div className="mt-4 rounded-2xl bg-lernex-blue/10 p-4 text-xs leading-relaxed dark:bg-lernex-blue/20">
+                    <p className="font-bold text-lernex-blue dark:text-lernex-blue/90">Why you&apos;re seeing this</p>
+                    <p className="mt-1.5 text-neutral-700 dark:text-neutral-300">You&apos;ve been mastering network security fundamentals. This builds on that foundation.</p>
                   </div>
                   <div className="relative mt-5 max-h-36 overflow-hidden">
-                    <p className="text-sm leading-relaxed text-neutral-700">
+                    <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
                       Instead of assuming everything inside your network is safe, zero trust treats every request as if it came from an untrusted source—verifying identity and context at each step. This means checking user credentials, device health, and access context before granting permissions, even for internal users...
                     </p>
                     <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background to-transparent" />
                   </div>
-                  <div className="mt-4 flex items-center gap-2 text-xs text-neutral-500">
+                  <div className="mt-4 flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
                     <span className="flex items-center gap-1">
                       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
                       Prerequisites
@@ -758,13 +758,13 @@ export default function MarketingLanding() {
                     <span>Watch out for</span>
                   </div>
                 </div>
-                <div className="mt-5 rounded-2xl bg-surface-card p-5 text-neutral-900 shadow-xl backdrop-blur">
-                  <p className="text-xs font-bold uppercase tracking-wider text-neutral-500">Question 1 of 4</p>
-                  <p className="mt-3 text-base font-semibold leading-snug text-neutral-900">
+                <div className="mt-5 rounded-2xl bg-surface-card p-5 text-neutral-900 shadow-xl backdrop-blur dark:bg-slate-800/90 dark:text-white">
+                  <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Question 1 of 4</p>
+                  <p className="mt-3 text-base font-semibold leading-snug text-neutral-900 dark:text-white">
                     What is the core principle of zero trust security?
                   </p>
                   <div className="mt-4 space-y-2.5 text-sm">
-                    <div className="cursor-pointer rounded-xl border-2 border-lernex-green bg-lernex-green/10 px-4 py-3 font-medium text-neutral-900 shadow-sm transition">
+                    <div className="cursor-pointer rounded-xl border-2 border-lernex-green bg-lernex-green/10 px-4 py-3 font-medium text-neutral-900 shadow-sm transition dark:bg-lernex-green/20 dark:text-white">
                       ✓ Never trust, always verify
                     </div>
                     <div className="cursor-pointer rounded-xl border-2 border-neutral-200 bg-white px-4 py-3 text-neutral-700 opacity-60 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
@@ -778,8 +778,8 @@ export default function MarketingLanding() {
                     </div>
                   </div>
                   <div className="mt-4 flex items-center gap-2">
-                    <div className="rounded-full bg-lernex-green/20 px-3 py-1.5 text-xs font-bold text-lernex-green">+10 pts</div>
-                    <div className="text-xs text-neutral-500">Correct! 🎉</div>
+                    <div className="rounded-full bg-lernex-green/20 px-3 py-1.5 text-xs font-bold text-lernex-green dark:bg-lernex-green/30">+10 pts</div>
+                    <div className="text-xs text-neutral-500 dark:text-neutral-400">Correct! 🎉</div>
                   </div>
                 </div>
               </div>
@@ -962,7 +962,6 @@ export default function MarketingLanding() {
             <LaunchCelebration />
           )}
         </AnimatePresence>
-        <LiveUserMeter count={userTotal} isLaunched={isLaunched} isLoading={isLoadingUsers} error={userTotalError} />
       </section>
     </main>
   );

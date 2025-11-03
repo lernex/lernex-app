@@ -255,7 +255,7 @@ export default function Navbar() {
             width: navExpanded ? NAV_WIDTH_EXPANDED : NAV_WIDTH_COLLAPSED,
           }}
           transition={{ type: "spring", stiffness: 210, damping: 28 }}
-          className="fixed left-0 top-0 z-[22] flex h-[100dvh] max-h-screen flex-col overflow-hidden border-r border-slate-200/70 bg-gradient-to-b from-surface-panel via-surface-panel to-slate-50/30 text-foreground shadow-xl shadow-slate-900/10 backdrop-blur-xl transition-colors duration-300 dark:border-surface dark:from-surface-panel dark:via-surface-panel dark:to-slate-900/20 dark:shadow-black/40"
+          className="fixed left-0 top-0 z-[22] flex h-[100dvh] max-h-screen flex-col overflow-hidden border-r border-slate-200/90 bg-gradient-to-b from-surface-panel via-surface-panel to-slate-50/30 text-foreground shadow-xl shadow-slate-900/20 backdrop-blur-xl transition-colors duration-300 dark:border-surface dark:from-surface-panel dark:via-surface-panel dark:to-slate-900/20 dark:shadow-black/40"
           onMouseEnter={handleNavEnter}
           onMouseLeave={handleNavLeave}
           onFocusCapture={handleNavEnter}
@@ -479,7 +479,7 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-20 w-full border-b border-slate-200/70 bg-gradient-to-r from-surface-panel via-white/40 to-surface-panel text-foreground shadow-md shadow-slate-900/5 backdrop-blur-xl transition-colors dark:border-surface dark:from-surface-panel dark:via-slate-800/20 dark:to-surface-panel dark:shadow-black/20">
+    <nav className="sticky top-0 z-20 w-full border-b border-slate-200/90 bg-gradient-to-r from-surface-panel via-white/40 to-surface-panel text-foreground shadow-lg shadow-slate-900/15 backdrop-blur-xl transition-colors dark:border-surface dark:from-surface-panel dark:via-slate-800/20 dark:to-surface-panel dark:shadow-black/20">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 text-sm">
         <Link
           href={user ? "/fyp" : "/"}
