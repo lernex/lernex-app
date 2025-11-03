@@ -603,7 +603,7 @@ export default function MarketingLanding() {
   }, [remaining]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-neutral-50 via-neutral-100 to-neutral-200 text-neutral-900 dark:from-surface-panel dark:via-surface-panel dark:to-slate-900/20 dark:text-white">
+    <main className="min-h-screen bg-gradient-to-b from-neutral-50 via-neutral-100 to-neutral-200 text-neutral-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:text-white">
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 -z-10 bg-grid [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-lernex-blue/20 via-lernex-purple/20 to-transparent blur-3xl" />
@@ -853,8 +853,8 @@ export default function MarketingLanding() {
         <h2 className="text-center text-3xl font-bold">What learners are saying</h2>
         <p className="mt-3 text-center text-neutral-600 dark:text-neutral-300">Real feedback from students, professionals, and teams using Lernex daily</p>
         <div className="relative mt-10 overflow-hidden">
-          <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-20 bg-gradient-to-r from-neutral-50 to-transparent dark:from-neutral-900" />
-          <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-20 bg-gradient-to-l from-neutral-50 to-transparent dark:from-neutral-900" />
+          <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-20 bg-gradient-to-r from-neutral-50 to-transparent dark:from-slate-950" />
+          <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-20 bg-gradient-to-l from-neutral-50 to-transparent dark:from-slate-950" />
 
           <div className="flex gap-4 animate-carousel-scroll">
             {[...testimonials, ...testimonials, ...testimonials].map((item, index) => (
