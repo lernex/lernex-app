@@ -158,6 +158,13 @@ export default function Navbar() {
     }
   }, []);
 
+  // Close dropdown when navbar collapses
+  useEffect(() => {
+    if (!navExpanded && open) {
+      setOpen(false);
+    }
+  }, [navExpanded, open]);
+
   if (showSideNav) {
     const isActive = (href: string, exact = false) =>
       exact ? pathname === href : pathname.startsWith(href);
