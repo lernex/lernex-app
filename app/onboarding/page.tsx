@@ -2,9 +2,10 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { DOMAINS } from "@/data/domains";
 
-export default function OnboardingInterests() {
+function OnboardingInterestsContent() {
   const [sel, setSel] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
@@ -73,5 +74,13 @@ export default function OnboardingInterests() {
         </button>
       </div>
     </main>
+  );
+}
+
+export default function OnboardingInterests() {
+  return (
+    <ErrorBoundary>
+      <OnboardingInterestsContent />
+    </ErrorBoundary>
   );
 }

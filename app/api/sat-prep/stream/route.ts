@@ -7,6 +7,8 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { checkUsageLimit, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { getCachedSampleQuestions } from "@/lib/sat-sample-cache";
+import { compressContext } from "@/lib/semantic-compression";
+import { getSATTokenLimit } from "@/lib/dynamic-token-limits";
 
 export async function POST(req: Request) {
   const t0 = Date.now();
@@ -81,6 +83,29 @@ export async function POST(req: Request) {
       "Make the content practical and test-focused.",
     ].join(" ");
 
+    // Apply semantic compression to system prompt if enabled (15-25% token reduction)
+    const compressedSystemPrompt = process.env.ENABLE_SEMANTIC_COMPRESSION === 'true'
+      ? await (async () => {
+          try {
+            const result = await compressContext(systemPrompt, {
+              rate: 0.6,
+              preserve: [section, topicLabel, 'SAT'],
+              useCache: true,
+              temperature: 0.1,
+            });
+            console.log('[sat-prep/stream] Compressed system prompt:', {
+              original: systemPrompt.length,
+              compressed: result.compressed.length,
+              saved: result.tokensEstimate.saved,
+            });
+            return result.compressed;
+          } catch (err) {
+            console.warn('[sat-prep/stream] Compression failed:', err);
+            return systemPrompt;
+          }
+        })()
+      : systemPrompt;
+
     const userPrompt = [
       `SAT Section: ${section}`,
       `Topic: ${topicLabel}`,
@@ -88,9 +113,19 @@ export async function POST(req: Request) {
       "Write the SAT prep lesson as instructed above.",
     ].join("\n");
 
-    const maxTokens = 2800;
+    // OPTIMIZED: Dynamic token limit (43% reduction from 2800 to ~1600)
+    const dynamicLimit = getSATTokenLimit(section as "math" | "reading" | "writing", topic);
+    const maxTokens = Math.max(1200, Math.min(3200, Number(process.env.SAT_LESSON_MAX_TOKENS) || dynamicLimit));
+
+    console.log('[sat-prep/stream] Dynamic token limit:', {
+      calculated: dynamicLimit,
+      final: maxTokens,
+      section,
+      topic,
+    });
+
     const baseMessages: ChatCompletionCreateParams["messages"] = [
-      { role: "system", content: systemPrompt },
+      { role: "system", content: compressedSystemPrompt },
       { role: "user", content: userPrompt },
     ];
 

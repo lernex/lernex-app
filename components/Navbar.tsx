@@ -68,8 +68,9 @@ export default function Navbar() {
         : "border border-slate-300/60 dark:border-white/10";
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    // Use getUser() for initial load to verify session with server
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user ?? null);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);

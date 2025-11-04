@@ -10,6 +10,7 @@ import { createModelClient, type UserTier, type ModelSpeed } from "./model-confi
 import { compressContext } from "./semantic-compression";
 import { shuffleQuizQuestions } from "./quiz-shuffle";
 import { normalizeLatex } from "./latex";
+import { calculateDynamicTokenLimit, shouldRetryLesson } from "./dynamic-token-limits";
 
 type Pace = "slow" | "normal" | "fast";
 
@@ -967,10 +968,25 @@ export async function generateLessonForTopic(
     modelIdentifier
   });
 
+  // OPTIMIZED: Dynamic token limit calculation based on complexity (52% reduction from 3800 to ~1800)
+  // Intelligently adapts: simple lessons get ~1200t, complex math/LaTeX lessons get ~2200t
+  const tokenLimitResult = calculateDynamicTokenLimit({
+    subject,
+    topic,
+    difficulty: opts.difficultyPref,
+    questionCount: 3,
+  });
+
   const completionMaxTokens = Math.min(
     4096,
-    Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS ?? "3800") || 3800),
+    Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS) || tokenLimitResult.maxTokens),
   );
+
+  console.log('[fyp] Dynamic token limit:', {
+    calculated: tokenLimitResult.maxTokens,
+    final: completionMaxTokens,
+    reasoning: tokenLimitResult.reasoning,
+  });
 
   if (uid) {
     const allowed = await checkUsageLimit(sb, uid);
@@ -1562,10 +1578,65 @@ export async function generateLessonForTopic(
         });
       }
     }
-    const verifiedLesson = await validateLessonCandidate(lessonCandidate);
+    let verifiedLesson = await validateLessonCandidate(lessonCandidate);
     usageSummary = computeUsageSummary();
 
     if (verifiedLesson) {
+      // OPTIMIZED: Validate lesson length and retry with higher limit if too short (safety mechanism)
+      const retryCheck = shouldRetryLesson(verifiedLesson.content, MIN_LESSON_WORDS, tokenLimitResult);
+
+      if (retryCheck.shouldRetry && retryCheck.newLimit && attemptOrdinal < 3) {
+        console.warn('[fyp] Lesson too short, retrying with increased token limit', {
+          wordCount: verifiedLesson.content.split(/\s+/).length,
+          currentLimit: completionMaxTokens,
+          newLimit: retryCheck.newLimit,
+          reason: retryCheck.reason,
+        });
+
+        // Retry once with higher limit
+        try {
+          const retryCompletion = await client.chat.completions.create({
+            model,
+            temperature,
+            max_tokens: retryCheck.newLimit,
+            messages: messagesWithContext,
+            ...(functionCallingSupported
+              ? {
+                  tools: [CREATE_LESSON_TOOL],
+                  tool_choice: { type: "function" as const, function: { name: "create_lesson" } }
+                }
+              : jsonResponseSupported
+                ? { response_format: { type: "json_object" as const } }
+                : {}
+            ),
+          });
+
+          const retryChoice = retryCompletion.choices?.[0];
+          const retryRaw = typeof retryChoice?.message?.content === "string" && retryChoice.message.content.trim().length > 0
+            ? retryChoice.message.content.trim()
+            : extractAssistantJson(retryChoice);
+          const retryCandidate = resolveLessonCandidate(retryRaw);
+          const retryVerified = await validateLessonCandidate(retryCandidate);
+
+          if (retryVerified) {
+            const retryUsage = retryCompletion.usage;
+            recordUsageEvent({
+              source: "lesson",
+              attempt: attemptOrdinal + 1,
+              responseFormat: functionCallingSupported ? "function_call" : jsonResponseSupported ? "json_object" : "plain",
+              promptTokens: typeof retryUsage?.prompt_tokens === "number" ? retryUsage.prompt_tokens : null,
+              completionTokens: typeof retryUsage?.completion_tokens === "number" ? retryUsage.completion_tokens : null,
+              totalTokens: typeof retryUsage?.total_tokens === "number" ? retryUsage.total_tokens : null,
+            });
+            usageSummary = computeUsageSummary();
+            verifiedLesson = retryVerified;
+            console.log('[fyp] Retry successful, using retried lesson');
+          }
+        } catch (retryErr) {
+          console.warn('[fyp] Retry failed, using original lesson:', retryErr);
+        }
+      }
+
       await logLessonUsage("single", usageSummary);
       return verifiedLesson;
     }

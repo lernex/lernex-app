@@ -5,10 +5,14 @@ type LessonPromptParams = {
   difficulty: Difficulty;
   sourceText: string;
   nextTopicHint?: string;
+  lessonPlan?: {
+    title: string;
+    description: string;
+  };
 };
 
 export function buildLessonPrompts(params: LessonPromptParams) {
-  const { subject, difficulty, sourceText } = params;
+  const { subject, difficulty, sourceText, lessonPlan } = params;
 
   const system = [
     `Generate 1 micro-lesson (80-105 words, 4 sentences) + 3 MCQs using the create_lesson function.`,
@@ -22,14 +26,24 @@ export function buildLessonPrompts(params: LessonPromptParams) {
     `Subject: ${subject}`,
     `Difficulty: ${difficulty}. Adjust complexity accordingly.`,
   ];
+
+  // If we have a lesson plan, add it as targeted guidance
+  if (lessonPlan) {
+    userLines.push(`\nLesson Target:`);
+    userLines.push(`Title: ${lessonPlan.title}`);
+    userLines.push(`Focus: ${lessonPlan.description}`);
+    userLines.push(`\nCreate a lesson specifically covering the above topic using the content below.`);
+  }
+
   if (cleanSource) {
-    userLines.push(`Focus cues:`);
+    userLines.push(`\n${lessonPlan ? 'Source' : 'Focus'} content:`);
     userLines.push(cleanSource);
   } else {
     userLines.push(`Focus cues: None beyond structured context.`);
   }
+
   userLines.push(
-    `Use the Structured context JSON message for learner profile, preferences, and pacing details.`
+    `\nUse the Structured context JSON message for learner profile, preferences, and pacing details.`
   );
   userLines.push(
     `\nCall the create_lesson function with the structured lesson data.`

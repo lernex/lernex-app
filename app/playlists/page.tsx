@@ -138,15 +138,16 @@ export default function Playlists() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
+    // Use getUser() for initial load to verify session with server
     supabase.auth
-      .getSession()
+      .getUser()
       .then(({ data, error: sessionError }) => {
         if (!active) return;
         if (sessionError) {
           console.error("[playlists] session fetch failed", sessionError);
         }
 
-        setUserId(data?.session?.user?.id ?? null);
+        setUserId(data?.user?.id ?? null);
         setSessionReady(true);
       });
 

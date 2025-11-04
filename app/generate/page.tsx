@@ -8,8 +8,9 @@ import QuizBlock from "@/components/QuizBlock";
 import FormattedText from "@/components/FormattedText";
 import LessonHistoryModal from "@/components/LessonHistoryModal";
 import VoiceInput from "@/components/VoiceInput";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-export default function Generate() {
+function GenerateContent() {
   const [text, setText] = useState("");
   const [subject, setSubject] = useState("Algebra 1");
   const [mode, setMode] = useState<"quick" | "mini" | "full">("mini");
@@ -523,5 +524,13 @@ Current Question: ${followUpQuestion}
       </div>
     </main>
     </>
+  );
+}
+
+export default function Generate() {
+  return (
+    <ErrorBoundary>
+      <GenerateContent />
+    </ErrorBoundary>
   );
 }

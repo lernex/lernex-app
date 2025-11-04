@@ -83,10 +83,11 @@ export function ProfileStatsProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     let cancelled = false;
+    // Use getUser() for initial load to verify session with server
     supabase.auth
-      .getSession()
+      .getUser()
       .then(({ data }) => {
-        if (!cancelled) setUser(data.session?.user ?? null);
+        if (!cancelled) setUser(data.user ?? null);
       })
       .catch((err) => {
         if (!cancelled) {

@@ -26,8 +26,9 @@ export default function SidebarOffsetWrapper({ children }: { children: React.Rea
 
   useEffect(() => {
     const supabase = supabaseBrowser();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    // Use getUser() for initial load to verify session with server
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user ?? null);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_, session) => {
       setUser(session?.user ?? null);

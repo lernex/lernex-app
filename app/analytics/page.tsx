@@ -34,6 +34,7 @@ import {
   readCourseValue,
 } from "@/lib/user-subject-state";
 import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { calcCost } from "@/lib/usage";
 
 type AttemptRow = {
@@ -393,7 +394,7 @@ const cardBase =
 const chipBase =
   "inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-3 py-1 text-xs font-medium text-slate-600 shadow-[0_6px_18px_rgba(15,23,42,0.08)] transition-colors duration-200 hover:border-lernex-blue/40 hover:text-lernex-blue dark:border-slate-700/70 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-lernex-blue/50";
 
-export default function AnalyticsPage() {
+function AnalyticsContent() {
   const supabase = useMemo(() => supabaseBrowser(), []);
   const { resolvedTheme } = useTheme();
   const [isDark, setIsDark] = useState<boolean>(() => {
@@ -1283,5 +1284,13 @@ export default function AnalyticsPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+export default function AnalyticsPage() {
+  return (
+    <ErrorBoundary>
+      <AnalyticsContent />
+    </ErrorBoundary>
   );
 }

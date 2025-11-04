@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useLernexStore } from "@/lib/store";
 import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import type { Database } from "@/lib/types_db";
 import type { LucideIcon } from "lucide-react";
 import { Crown, Sparkles, Flame, Target, Trophy } from "lucide-react";
@@ -234,7 +235,7 @@ function TierBadge({
   );
 }
 
-export default function Leaderboard() {
+function LeaderboardContent() {
   const supabase = useMemo<AppSupabaseClient>(() => supabaseBrowser(), []);
   const { accuracyBySubject } = useLernexStore();
   const { stats } = useProfileStats();
@@ -876,5 +877,13 @@ export default function Leaderboard() {
         </motion.div>
       </div>
     </main>
+  );
+}
+
+export default function Leaderboard() {
+  return (
+    <ErrorBoundary>
+      <LeaderboardContent />
+    </ErrorBoundary>
   );
 }

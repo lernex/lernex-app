@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { AnimatePresence, motion } from "framer-motion";
 import { Camera, CheckCircle2, Loader2, UploadCloud, Plus, Trash2 } from "lucide-react";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import AddInterestModal from "@/components/AddInterestModal";
 import RemoveInterestModal from "@/components/RemoveInterestModal";
 import TTSSettings from "@/components/TTSSettings";
@@ -73,7 +74,7 @@ function splitFullName(fullName: string | null | undefined) {
   return { first, last: rest.join(" ") };
 }
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const { accuracyBySubject } = useLernexStore();
   const { stats } = useProfileStats();
   const points = stats?.points ?? 0;
@@ -1525,5 +1526,13 @@ export default function SettingsPage() {
       onSuccess={handleInterestsRefresh}
     />
     </main>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <ErrorBoundary>
+      <SettingsPageContent />
+    </ErrorBoundary>
   );
 }

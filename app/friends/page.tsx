@@ -24,6 +24,7 @@ import {
   Eye,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import StudyPlannerModal from "./StudyPlannerModal";
 import UserProfileModal from "./UserProfileModal";
 
@@ -281,7 +282,7 @@ function StatCard(props: { icon: ReactNode; label: string; value: string; hint?:
   );
 }
 
-export default function FriendsPage() {
+function FriendsContent() {
   const [data, setData] = useState<FriendsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -1304,5 +1305,13 @@ export default function FriendsPage() {
         />
       )}
     </main>
+  );
+}
+
+export default function FriendsPage() {
+  return (
+    <ErrorBoundary>
+      <FriendsContent />
+    </ErrorBoundary>
   );
 }

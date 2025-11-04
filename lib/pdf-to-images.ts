@@ -1,4 +1,5 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import { optimizeForOCR } from './image-optimizer';
 
 // Configure PDF.js worker - use file from public directory
 if (typeof window !== 'undefined') {
@@ -50,15 +51,64 @@ export async function convertPdfToImages(file: File): Promise<string[]> {
 
     await page.render(renderContext).promise;
 
-    // Convert canvas to base64 JPEG
-    // Quality 0.95 balances file size with OCR accuracy
-    const imageData = canvas.toDataURL('image/jpeg', 0.95);
-    images.push(imageData);
+    // Apply aggressive image optimization (30-50% token reduction)
+    const optimizationResult = optimizeForOCR(canvas);
+    images.push(optimizationResult.optimizedBase64);
 
-    console.log(`[pdf-to-images] Converted page ${pageNum}/${numPages} (${viewport.width.toFixed(0)}x${viewport.height.toFixed(0)}px)`);
+    console.log(`[pdf-to-images] Converted page ${pageNum}/${numPages} (${viewport.width.toFixed(0)}x${viewport.height.toFixed(0)}px) - optimized ${(optimizationResult.savings * 100).toFixed(1)}%`);
   }
 
   return images;
+}
+
+/**
+ * Convert a PDF file to an array of canvas elements (for smart OCR analysis)
+ *
+ * This function is used by the hybrid OCR system to analyze page complexity
+ * before selecting the optimal OCR strategy.
+ *
+ * @param file - PDF file to convert
+ * @returns Array of HTMLCanvasElement (one per page)
+ */
+export async function convertPdfToCanvases(file: File): Promise<HTMLCanvasElement[]> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const numPages = pdf.numPages;
+  const canvases: HTMLCanvasElement[] = [];
+
+  console.log(`[pdf-to-canvases] Converting PDF with ${numPages} pages to canvases`);
+
+  for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+
+    // Scale 2.5 provides high-resolution images for optimal OCR accuracy
+    const scale = 2.5;
+    const viewport = page.getViewport({ scale });
+
+    // Create canvas
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Could not get canvas context');
+    }
+
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+
+    // Render PDF page to canvas
+    const renderContext = {
+      canvasContext: context,
+      viewport: viewport,
+    };
+
+    await page.render(renderContext).promise;
+
+    canvases.push(canvas);
+
+    console.log(`[pdf-to-canvases] Rendered page ${pageNum}/${numPages} (${viewport.width.toFixed(0)}x${viewport.height.toFixed(0)}px)`);
+  }
+
+  return canvases;
 }
 
 /**

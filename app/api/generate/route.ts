@@ -10,6 +10,8 @@ import { buildLessonPrompts } from "@/lib/lesson-prompts";
 import { supabaseServer } from "@/lib/supabase-server";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
+import { compressContext } from "@/lib/semantic-compression";
+import { calculateDynamicTokenLimit } from "@/lib/dynamic-token-limits";
 
 // Function calling tool schema for lesson generation (saves ~80-120 tokens per lesson)
 const CREATE_LESSON_TOOL = {
@@ -235,7 +237,7 @@ export async function POST(req: NextRequest) {
   console.log('[generate] User tier:', userTier);
 
   // Use FAST model for immediate lesson generation
-  const { client, model, modelIdentifier, provider } = createModelClient(userTier, 'fast');
+  const { client, model, modelIdentifier, provider, config } = createModelClient(userTier, 'fast');
   console.log('[generate] Model selected:', { model, provider, tier: userTier });
 
   try {
@@ -245,6 +247,7 @@ export async function POST(req: NextRequest) {
       text,
       subject = "Algebra 1",
       difficulty: difficultyOverride,
+      lessonPlan, // Optional: { title, description } from planning phase
     } = body ?? {};
 
     console.log('[generate] Request params:', {
@@ -365,38 +368,98 @@ export async function POST(req: NextRequest) {
     }
     // ------------------------------------------------------------
 
+    // OPTIMIZED: Dynamic token limit calculation (36% reduction from 2200 to ~1400)
+    const tokenLimitResult = calculateDynamicTokenLimit({
+      subject,
+      difficulty,
+      topic: text.slice(0, 200), // Use text preview as topic hint
+      questionCount: 3,
+    });
+
     // Model configuration (already set up above with tiered system)
     const temperature = 1;
     const completionMaxTokens = Math.min(
       3200,
-      Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS ?? "2200") || 2200),
+      Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS) || tokenLimitResult.maxTokens),
     );
+
+    console.log('[generate] Dynamic token limit:', {
+      calculated: tokenLimitResult.maxTokens,
+      final: completionMaxTokens,
+      reasoning: tokenLimitResult.reasoning,
+    });
+
+    // Apply semantic compression to input text if enabled (20-35% token reduction)
+    let compressedText = text;
+    if (text.length > 500) {
+      try {
+        const { compressed } = await compressContext(text, {
+          rate: 0.65,
+          useCache: true,
+          temperature: 0.1,
+        });
+        compressedText = compressed;
+        console.log('[generate] Compressed input text:', {
+          original: text.length,
+          compressed: compressed.length,
+        });
+      } catch (err) {
+        console.warn('[generate] Compression failed:', err);
+      }
+    }
 
     const { system, user: userPrompt } = buildLessonPrompts({
       subject,
       difficulty,
-      sourceText: text,
+      sourceText: compressedText, // Changed from text
       nextTopicHint: nextTopicHint || undefined,
+      lessonPlan: lessonPlan ? { title: lessonPlan.title, description: lessonPlan.description } : undefined,
     });
 
     console.log("[generate] request-start", { subject, difficulty, tier: userTier, provider, model });
 
-    console.log('[generate] Creating chat completion stream with function calling...');
+    // Validate API configuration
+    if (!config.apiKey) {
+      console.error('[generate] Missing API key for provider:', provider);
+      throw new Error(`Missing API key for provider: ${provider}`);
+    }
+
+    console.log('[generate] Creating chat completion stream with function calling...', {
+      model,
+      provider,
+      hasApiKey: !!config.apiKey,
+      textLength: text.length,
+      temperature,
+      maxTokens: completionMaxTokens
+    });
+
     // OPTIMIZED: Use function calling for structured output (saves ~80-120 tokens per lesson)
     // Function calling eliminates JSON wrapper overhead compared to JSON mode
-    const stream = await client.chat.completions.create({
-      model,
-      temperature,
-      max_tokens: completionMaxTokens,
-      stream: true,
-      tools: [CREATE_LESSON_TOOL],
-      tool_choice: { type: "function", function: { name: "create_lesson" } },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: userPrompt },
-      ],
-    });
-    console.log('[generate] Stream created successfully');
+    let stream;
+    try {
+      stream = await client.chat.completions.create({
+        model,
+        temperature,
+        max_tokens: completionMaxTokens,
+        stream: true,
+        tools: [CREATE_LESSON_TOOL],
+        tool_choice: { type: "function", function: { name: "create_lesson" } },
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: userPrompt },
+        ],
+      });
+      console.log('[generate] Stream created successfully');
+    } catch (streamCreationError) {
+      console.error('[generate] Failed to create stream:', streamCreationError);
+      console.error('[generate] Stream creation error details:', {
+        name: streamCreationError instanceof Error ? streamCreationError.name : typeof streamCreationError,
+        message: streamCreationError instanceof Error ? streamCreationError.message : String(streamCreationError),
+        provider,
+        model,
+      });
+      throw streamCreationError;
+    }
 
     console.log('[generate] Creating response stream...');
     return new Response(
@@ -414,8 +477,16 @@ export async function POST(req: NextRequest) {
             for await (const chunk of stream) {
               chunkCount++;
               if (chunkCount <= 3) {
-                console.log(`[generate] Processing chunk ${chunkCount}`);
+                console.log(`[generate] Processing chunk ${chunkCount}`, chunk);
               }
+
+              // Check if the chunk contains an error
+              if (chunk && typeof chunk === 'object' && 'error' in chunk) {
+                const error = chunk.error as { message?: string; type?: string; code?: string };
+                console.error('[generate] Stream chunk contains error:', error);
+                throw new Error(error.message || 'Stream error from provider');
+              }
+
               const choice = chunk?.choices?.[0];
               const delta = choice?.delta ?? {};
 
@@ -572,6 +643,21 @@ export async function POST(req: NextRequest) {
           } catch (err) {
             console.error('[generate] Error in stream processing:', err);
             console.error('[generate] Stream error stack:', err instanceof Error ? err.stack : 'No stack');
+            console.error('[generate] Error details:', {
+              name: err instanceof Error ? err.name : typeof err,
+              message: err instanceof Error ? err.message : String(err),
+              cause: err instanceof Error ? err.cause : undefined,
+            });
+
+            // Enqueue a more informative error message to the client
+            const errorMessage = err instanceof Error
+              ? err.message
+              : 'Unknown streaming error';
+            controller.enqueue(encoder.encode(JSON.stringify({
+              error: true,
+              message: errorMessage,
+              details: 'Check server logs for more information'
+            })));
             controller.error(err as Error);
           } finally {
             console.log('[generate] Stream processing complete. Chunks processed:', chunkCount, 'Total chars:', full.length);

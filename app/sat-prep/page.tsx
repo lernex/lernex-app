@@ -5,6 +5,7 @@ import type { Lesson } from "@/types";
 import LessonCard from "@/components/LessonCard";
 import QuizBlock from "@/components/QuizBlock";
 import FormattedText from "@/components/FormattedText";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Brain } from "lucide-react";
 
 type SATSection = "math" | "reading" | "writing";
@@ -58,7 +59,7 @@ const SAT_TOPICS: SATTopic[] = [
   { id: "rhetoric", label: "Rhetorical Skills", section: "writing" },
 ];
 
-export default function SATPrep() {
+function SATPreContent() {
   const [selectedSection, setSelectedSection] = useState<SATSection>("reading");
   const [selectedTopic, setSelectedTopic] = useState<string>("contextual-meaning");
   const [streamed, setStreamed] = useState("");
@@ -359,5 +360,13 @@ export default function SATPrep() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function SATPrep() {
+  return (
+    <ErrorBoundary>
+      <SATPreContent />
+    </ErrorBoundary>
   );
 }

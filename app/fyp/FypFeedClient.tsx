@@ -5,6 +5,7 @@ import WelcomeTourOverlay from "@/components/WelcomeTourOverlay";
 import ClassPicker from "@/components/ClassPicker";
 import FypFeed from "@/components/FypFeed";
 import { ProfileBasicsProvider } from "@/app/providers/ProfileBasicsProvider";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import type { ProfileBasics } from "@/lib/profile-basics";
 import LearningPathProgress from "./LearningPathProgress";
 
@@ -15,7 +16,8 @@ type FypFeedClientProps = {
 export default function FypFeedClient({ initialProfile }: FypFeedClientProps) {
 
   return (
-    <ProfileBasicsProvider initialData={initialProfile ?? undefined}>
+    <ErrorBoundary>
+      <ProfileBasicsProvider initialData={initialProfile ?? undefined}>
       <WelcomeTourOverlay />
       <main
         data-fyp-feed-root="true"
@@ -108,5 +110,6 @@ export default function FypFeedClient({ initialProfile }: FypFeedClientProps) {
         </div>
       </main>
     </ProfileBasicsProvider>
+    </ErrorBoundary>
   );
 }

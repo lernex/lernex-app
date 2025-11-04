@@ -447,6 +447,60 @@ export interface Database {
         };
         Relationships: [];
       };
+      document_cache: {
+        Row: {
+          user_id: string;
+          file_hash: string;
+          text: string;
+          page_count: number;
+          extracted_at: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          file_hash: string;
+          text: string;
+          page_count?: number;
+          extracted_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          file_hash?: string;
+          text?: string;
+          page_count?: number;
+          extracted_at?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      shared_document_cache: {
+        Row: {
+          fingerprint: string;
+          text: string;
+          title: string;
+          page_count: number;
+          usage_count: number;
+          created_at: string;
+        };
+        Insert: {
+          fingerprint: string;
+          text: string;
+          title: string;
+          page_count?: number;
+          usage_count?: number;
+          created_at?: string;
+        };
+        Update: {
+          fingerprint?: string;
+          text?: string;
+          title?: string;
+          page_count?: number;
+          usage_count?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: { [key: string]: never };
     Functions: {
@@ -466,6 +520,33 @@ export interface Database {
           p_metrics?: Json;
         };
         Returns: Database["public"]["Tables"]["user_subject_progress"]["Row"];
+      };
+      increment_shared_document_usage: {
+        Args: { p_fingerprint: string };
+        Returns: void;
+      };
+      get_popular_shared_documents: {
+        Args: { limit_count?: number };
+        Returns: Array<{
+          fingerprint: string;
+          title: string;
+          page_count: number;
+          usage_count: number;
+          created_at: string;
+          estimated_savings_usd: number;
+        }>;
+      };
+      get_shared_cache_stats: {
+        Args: Record<string, never>;
+        Returns: Array<{
+          total_documents: number;
+          total_usage_count: number;
+          total_pages_cached: number;
+          total_savings_usd: number;
+          avg_usage_per_document: number;
+          most_used_title: string;
+          most_used_count: number;
+        }>;
       };
     };
     Enums: {

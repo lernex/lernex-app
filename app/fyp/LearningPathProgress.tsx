@@ -57,7 +57,12 @@ export default function LearningPathProgress() {
       // Single subject mode
       setIsLoading(true);
       fetch(`/api/fyp/progress?subject=${encodeURIComponent(subject)}`)
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`API error: ${res.status}`);
+          }
+          return res.json();
+        })
         .then((data) => {
           setProgressData(data);
           setIsLoading(false);
@@ -72,7 +77,12 @@ export default function LearningPathProgress() {
       Promise.all(
         subjectsToFetch.map(sub =>
           fetch(`/api/fyp/progress?subject=${encodeURIComponent(sub)}`)
-            .then(res => res.json())
+            .then(res => {
+              if (!res.ok) {
+                throw new Error(`API error: ${res.status}`);
+              }
+              return res.json();
+            })
             .then(data => ({ subject: sub, data }))
             .catch(() => ({ subject: sub, data: null }))
         )

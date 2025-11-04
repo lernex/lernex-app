@@ -15,8 +15,9 @@ export default function Welcome() {
   useEffect(() => {
     (async () => {
       const supabase = supabaseBrowser();
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) router.replace("/login");
+      // Use getUser() to verify session with server
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) router.replace("/login");
       // prefill if coming back
       const res = await fetch("/api/profile/me");
       const me = await res.json();

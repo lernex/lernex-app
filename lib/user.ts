@@ -2,8 +2,11 @@
 import { normalizeProfileStats, type ProfileStats, computeStreakAfterActivity } from "./profile-stats";
 
 export async function getSession() {
-  const { data } = await supabase.auth.getSession();
-  return data.session ?? null;
+  // Use getUser() to verify session with server instead of reading from storage
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return null;
+  const { data: sessionData } = await supabase.auth.getSession();
+  return sessionData.session ?? null;
 }
 
 export async function ensureProfile() {

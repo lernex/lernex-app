@@ -328,7 +328,7 @@ async function hydrateSnapshotRefs(refs: LessonRef[], signal?: AbortSignal): Pro
 
 export default function FypFeed() {
   const { selectedSubjects, accuracyBySubject, autoAdvanceEnabled, setAutoAdvanceEnabled, setClassPickerOpen, fypSnapshot, setFypSnapshot } = useLernexStore();
-  const { data: profileBasics } = useProfileBasics();
+  const { data: profileBasics, error: profileError } = useProfileBasics();
   const interests = profileBasics.interests;
 
   const rotation = useMemo<(string | null)[]>(() => {
@@ -559,16 +559,32 @@ export default function FypFeed() {
           if (consecutiveCooldownSkips >= rotation.length) break;
         }
       }
-      setInitialized(true);
-      if (!fetchedAny && items.length === 0 && !sawProgress) {
+
+      // Only mark as initialized if we have content OR need to show an error
+      // This prevents the page from being stuck in a blank state
+      if (items.length > 0 || fetchedAny) {
+        // Successfully loaded content
+        setInitialized(true);
+        setLoadingInfo(null);
+      } else if (!sawProgress) {
+        // Failed without any progress updates
+        setInitialized(true);
         setError("Could not load your feed. Try again.");
+        setLoadingInfo(null);
+      } else {
+        // Had progress updates but no content - likely all retries exhausted
+        // This is the critical fix: don't leave the page in limbo
+        setInitialized(true);
+        setError("Unable to generate lessons. Please try again or select a different class.");
         setLoadingInfo(null);
       }
     } catch (err) {
       if (isAbortError(err)) return;
       console.warn("[fyp] ensureBuffer error", err);
+      setInitialized(true);
       if (items.length === 0) {
         setError("Could not load your feed. Try again.");
+        setLoadingInfo(null);
       }
     } finally {
       if (activeAbortRef.current === controller) {
@@ -928,7 +944,7 @@ export default function FypFeed() {
           </motion.div>
         )}
       </AnimatePresence>
-      {!cur && !error && (
+      {!cur && !error && !profileError && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
           <div className="text-sm font-medium text-neutral-600 dark:text-neutral-200">
             {progressLabel}
@@ -962,9 +978,9 @@ export default function FypFeed() {
           </div>
         </div>
       )}
-      {error && (
+      {(error || profileError) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-red-500 dark:text-red-400">
-          <div>{error}</div>
+          <div>{profileError ? `Profile error: ${profileError.message}` : error}</div>
           <button
             onClick={() => { setError(null); setLoadingInfo(null); setInitialized(false); void ensureBuffer(0); }}
             className="rounded-full border border-slate-300/80 bg-surface-muted px-3 py-1.5 text-sm text-foreground shadow-sm transition-all hover:bg-surface-card hover:shadow-md dark:border-neutral-700"
