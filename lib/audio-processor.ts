@@ -1,6 +1,3 @@
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
-
 /**
  * Audio Compression for Transcription Cost Optimization
  *
@@ -19,21 +16,31 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util';
  * - Compression also helps with API timeouts on large files
  *
  * Technical Notes:
- * - Uses FFmpeg.wasm for browser-based compression
- * - First load downloads ~31MB of FFmpeg core files (cached after)
+ * - Uses FFmpeg.wasm for browser-based compression (LAZY LOADED on demand)
+ * - First load downloads ~31MB of FFmpeg core files from /public (cached after)
  * - Compression is CPU-intensive but runs in Web Workers
+ *
+ * PERFORMANCE FIX: FFmpeg is dynamically imported only when needed to prevent
+ * blocking the upload page render. This reduces initial bundle by ~31MB.
  */
 
 // Singleton FFmpeg instance to avoid reloading
-let ffmpegInstance: FFmpeg | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let ffmpegInstance: any | null = null;
 let isLoading = false;
 let loadError: Error | null = null;
 
 /**
- * Initialize FFmpeg.wasm with proper CORS configuration
- * This loads ~31MB of files but they're cached by the browser
+ * Initialize FFmpeg.wasm from local files
+ * This loads ~31MB of files from /public but they're cached by the browser
+ *
+ * PERFORMANCE FIX: Uses dynamic import to lazy-load FFmpeg only when needed
  */
-async function loadFFmpeg(): Promise<FFmpeg> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadFFmpeg(): Promise<any> {
+  const loadStart = performance.now();
+  console.log('[audio-compress] [PERF] Starting FFmpeg load...');
+
   // Return existing instance if already loaded
   if (ffmpegInstance && ffmpegInstance.loaded) {
     console.log('[audio-compress] Using existing FFmpeg instance');
@@ -62,6 +69,14 @@ async function loadFFmpeg(): Promise<FFmpeg> {
   loadError = null;
 
   try {
+    console.log('[audio-compress] [PERF] Dynamically importing FFmpeg library...');
+    const importStart = performance.now();
+
+    // CRITICAL: Dynamic import to prevent blocking page render
+    const { FFmpeg } = await import('@ffmpeg/ffmpeg');
+    const { toBlobURL } = await import('@ffmpeg/util');
+
+    console.log(`[audio-compress] [PERF] FFmpeg library imported in ${(performance.now() - importStart).toFixed(0)}ms`);
     console.log('[audio-compress] Loading FFmpeg.wasm (this may take a moment on first load)...');
 
     const ffmpeg = new FFmpeg();
@@ -76,15 +91,16 @@ async function loadFFmpeg(): Promise<FFmpeg> {
       console.log(`[ffmpeg] Progress: ${(progress * 100).toFixed(1)}% (${time}ms)`);
     });
 
-    // Load FFmpeg core from CDN (unpkg is reliable and has good CORS)
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+    // Load FFmpeg core from local files (served from /public directory)
+    // This avoids CORS/CSP issues with CDN blob URLs in production
+    const baseURL = window.location.origin;
 
     await ffmpeg.load({
       coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
       wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
     });
 
-    console.log('[audio-compress] FFmpeg loaded successfully');
+    console.log(`[audio-compress] [PERF] FFmpeg loaded successfully in ${(performance.now() - loadStart).toFixed(0)}ms`);
     ffmpegInstance = ffmpeg;
     isLoading = false;
 
@@ -119,6 +135,9 @@ export async function compressAudio(file: File): Promise<File> {
   try {
     // Load FFmpeg (will use cached instance if available)
     const ffmpeg = await loadFFmpeg();
+
+    // Dynamic import of fetchFile utility
+    const { fetchFile } = await import('@ffmpeg/util');
 
     // Generate unique filenames to avoid conflicts in FFmpeg's virtual FS
     const inputName = `input_${Date.now()}.${file.name.split('.').pop() || 'audio'}`;

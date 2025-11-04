@@ -1,10 +1,9 @@
-import * as pdfjsLib from 'pdfjs-dist';
 import { optimizeForOCR } from './image-optimizer';
 
-// Configure PDF.js worker - use file from public directory
-if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
-}
+/**
+ * PERFORMANCE FIX: PDF.js is dynamically imported only when needed to prevent
+ * blocking the upload page render. This significantly reduces initial bundle size.
+ */
 
 /**
  * Convert a PDF file to an array of base64-encoded images (one per page)
@@ -18,6 +17,19 @@ if (typeof window !== 'undefined') {
  * This high resolution enables DeepSeek OCR to achieve 97% accuracy with 9x compression
  */
 export async function convertPdfToImages(file: File): Promise<string[]> {
+  const loadStart = performance.now();
+  console.log('[pdf-to-images] [PERF] Dynamically importing PDF.js library...');
+
+  // CRITICAL: Dynamic import to prevent blocking page render
+  const pdfjsLib = await import('pdfjs-dist');
+
+  // Configure PDF.js worker - use file from public directory
+  if (typeof window !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+  }
+
+  console.log(`[pdf-to-images] [PERF] PDF.js library imported in ${(performance.now() - loadStart).toFixed(0)}ms`);
+
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const numPages = pdf.numPages;
@@ -71,6 +83,19 @@ export async function convertPdfToImages(file: File): Promise<string[]> {
  * @returns Array of HTMLCanvasElement (one per page)
  */
 export async function convertPdfToCanvases(file: File): Promise<HTMLCanvasElement[]> {
+  const loadStart = performance.now();
+  console.log('[pdf-to-canvases] [PERF] Dynamically importing PDF.js library...');
+
+  // CRITICAL: Dynamic import to prevent blocking page render
+  const pdfjsLib = await import('pdfjs-dist');
+
+  // Configure PDF.js worker - use file from public directory
+  if (typeof window !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+  }
+
+  console.log(`[pdf-to-canvases] [PERF] PDF.js library imported in ${(performance.now() - loadStart).toFixed(0)}ms`);
+
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const numPages = pdf.numPages;

@@ -34,9 +34,10 @@ import {
   isDocumentShareable,
   formatUsageCount,
 } from "@/lib/collaborative-cache";
-import { compressAudio, isCompressibleAudio, preloadFFmpeg } from "@/lib/audio-processor";
+import { compressAudio, isCompressibleAudio } from "@/lib/audio-processor";
 import { processDocument } from "@/lib/upload-router";
 import type { PipelineConfig } from "@/lib/pipeline-types";
+import { startBackgroundPreload, subscribeToLibraryStatus, getLibraryStatus } from "@/lib/library-preloader";
 
 type UploadLessonsClientProps = {
   initialProfile?: ProfileBasics | null;
@@ -614,6 +615,39 @@ function ensureSubjectLabel(label: string | undefined): string {
 }
 
 export default function UploadLessonsClient({ initialProfile }: UploadLessonsClientProps) {
+  // ========================================
+  // PERFORMANCE MONITORING
+  // ========================================
+  const componentMountTime = useRef(performance.now());
+  const firstRenderTime = useRef<number | null>(null);
+
+  // Log component initialization
+  useEffect(() => {
+    const mountDuration = performance.now() - componentMountTime.current;
+    console.log(`[PERF] UploadLessonsClient mounted in ${mountDuration.toFixed(0)}ms`);
+
+    // Track first render (when DOM is painted)
+    requestAnimationFrame(() => {
+      if (!firstRenderTime.current) {
+        firstRenderTime.current = performance.now();
+        const renderDuration = firstRenderTime.current - componentMountTime.current;
+        console.log(`[PERF] UploadLessonsClient first render in ${renderDuration.toFixed(0)}ms`);
+
+        // Log overall page load performance
+        if (performance.getEntriesByType) {
+          const navTiming = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+          if (navTiming) {
+            console.log(`[PERF] Page load metrics:`, {
+              domContentLoaded: `${(navTiming.domContentLoadedEventEnd - navTiming.domContentLoadedEventStart).toFixed(0)}ms`,
+              totalPageLoad: `${(navTiming.loadEventEnd - navTiming.fetchStart).toFixed(0)}ms`,
+              domInteractive: `${(navTiming.domInteractive - navTiming.fetchStart).toFixed(0)}ms`,
+            });
+          }
+        }
+      }
+    });
+  }, []);
+
   const { selectedSubjects } = useLernexStore();
   const preferredSubject = useMemo(() => {
     // Default to "Auto" for even distribution across content
@@ -644,6 +678,8 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
   const [insights, setInsights] = useState<string[]>([]);
   const [lessons, setLessons] = useState<PendingLesson[]>([]);
   const [textPreview, setTextPreview] = useState<string | null>(null);
+  const [librariesReady, setLibrariesReady] = useState(false);
+  const [librariesLoading, setLibrariesLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -651,11 +687,34 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
     setSubject(preferredSubject);
   }, [preferredSubject]);
 
-  // Pre-load FFmpeg for audio compression (improves UX by loading in background)
+  // ========================================
+  // SMART LIBRARY PRELOADING
+  // ========================================
+  // Start background preload of heavy libraries during idle time
+  // This ensures libraries are ready when user uploads, with 0 wait time
   useEffect(() => {
-    preloadFFmpeg().catch((error) => {
-      console.warn('[audio-compress] Pre-load failed (will load on-demand):', error);
+    console.log('[library-preloader] Initiating smart background preload strategy...');
+
+    // Subscribe to library status updates
+    const unsubscribe = subscribeToLibraryStatus(() => {
+      const status = getLibraryStatus();
+      setLibrariesReady(status.criticalReady); // PDF.js is most critical
+      setLibrariesLoading(
+        status.pdfjs.status === 'loading' ||
+        status.ffmpeg.status === 'loading' ||
+        status.tesseract.status === 'loading'
+      );
+
+      // Log progress
+      if (status.allReady) {
+        console.log('[library-preloader] 🎉 All libraries ready! Upload will be instant.');
+      }
     });
+
+    // Start preloading in background (during idle time)
+    startBackgroundPreload();
+
+    return unsubscribe;
   }, []);
 
   // Helper function to generate quick lessons from first 3 pages
@@ -1436,6 +1495,30 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
     [subject, lessons.length, generateQuickLessons, processFirstPages, processFilesIncrementalLearning],
   );
 
+  // ========================================
+  // PREDICTIVE PRELOADING ON USER INTERACTION
+  // ========================================
+  // Aggressively preload critical libraries when user shows intent to upload
+  // This provides instant upload experience
+  const handleUploadIntent = useCallback(() => {
+    const status = getLibraryStatus();
+
+    // If PDF.js isn't loaded or loading, start loading it immediately
+    if (status.pdfjs.status === 'idle') {
+      console.log('[predictive-preload] User showing upload intent - preloading PDF.js now!');
+      import('@/lib/library-preloader').then(({ preloadPDFjs }) => {
+        preloadPDFjs();
+      });
+    }
+
+    // Also trigger Tesseract if not loaded
+    if (status.tesseract.status === 'idle') {
+      import('@/lib/library-preloader').then(({ preloadTesseract }) => {
+        preloadTesseract();
+      });
+    }
+  }, []);
+
   const handleFileInputChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
       const list = event.target.files;
@@ -1706,10 +1789,13 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
             </motion.div>
 
             <div
+              onMouseEnter={handleUploadIntent} // Predictive preload on hover
+              onFocus={handleUploadIntent} // Predictive preload on focus
               onDragEnter={(event) => {
                 event.preventDefault();
                 if (stage === "generating") return;
                 setDragActive(true);
+                handleUploadIntent(); // Predictive preload when dragging file over
               }}
               onDragOver={(event) => {
                 event.preventDefault();
@@ -1810,12 +1896,39 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                 <button
                   type="button"
                   onClick={handleBrowse}
+                  onMouseEnter={handleUploadIntent}
                   disabled={stage === "generating"}
                   className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-lernex-blue to-lernex-purple px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-lernex-blue/30 transition hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <UploadCloud className="h-4 w-4" />
                   Choose files
                 </button>
+
+                {/* Smart loading indicator - shows when libraries are preloading */}
+                <AnimatePresence>
+                  {librariesLoading && !librariesReady && stage === "idle" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400"
+                    >
+                      <Loader2 className="h-3 w-3 animate-spin text-lernex-blue" />
+                      Optimizing for instant upload...
+                    </motion.div>
+                  )}
+                  {librariesReady && stage === "idle" && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400"
+                    >
+                      <CheckCircle2 className="h-3 w-3" />
+                      Ready for instant upload
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
               {(stage === "parsing" || stage === "generating" || stage === "chunking") && (
                 <motion.div

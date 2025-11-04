@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, easeOut } from 'framer-motion';
 import { ArrowRight, CheckCircle2, Loader2, Sparkles, ShieldCheck, Zap, TrendingUp, Brain, Users } from 'lucide-react';
+import PricingComparisonTable from '@/components/PricingComparisonTable';
 
 type Tier = {
   id: 'free' | 'plus' | 'premium';
@@ -509,6 +510,9 @@ export default function Pricing() {
             </ul>
           </div>
         </motion.div>
+
+        {/* Comparison Table */}
+        <PricingComparisonTable />
 
         <motion.p
           initial={{ opacity: 0 }}

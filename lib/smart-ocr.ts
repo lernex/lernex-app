@@ -1,4 +1,3 @@
-import Tesseract from 'tesseract.js';
 import { optimizeForOCRTier } from './image-optimizer';
 
 /**
@@ -20,6 +19,9 @@ import { optimizeForOCRTier } from './image-optimizer';
  * - Simple documents (80% free): 80% cost reduction
  * - Medium documents (50% free, 30% cheap, 20% premium): 65% cost reduction
  * - Complex documents (20% free, 30% cheap, 50% premium): 40% cost reduction
+ *
+ * PERFORMANCE FIX: Tesseract.js is dynamically imported only when needed to prevent
+ * blocking the upload page render. This significantly reduces initial bundle size.
  */
 
 export interface PageComplexity {
@@ -196,6 +198,14 @@ export function selectOCRStrategy(complexity: PageComplexity): OCRStrategy {
  */
 export async function processWithTesseract(canvas: HTMLCanvasElement): Promise<string> {
   try {
+    const loadStart = performance.now();
+    console.log('[tesseract] [PERF] Dynamically importing Tesseract.js library...');
+
+    // CRITICAL: Dynamic import to prevent blocking page render
+    const Tesseract = await import('tesseract.js');
+
+    console.log(`[tesseract] [PERF] Tesseract.js library imported in ${(performance.now() - loadStart).toFixed(0)}ms`);
+
     const result = await Tesseract.recognize(canvas, 'eng', {
       logger: (m) => {
         if (m.status === 'recognizing text') {
