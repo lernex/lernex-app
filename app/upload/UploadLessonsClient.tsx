@@ -22,6 +22,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useLernexStore } from "@/lib/store";
 import type { Lesson } from "@/types";
 import type { ProfileBasics } from "@/lib/profile-basics";
+// PERFORMANCE OPTIMIZATION: These imports are lightweight function definitions
+// The heavy libraries (FFmpeg, PDF.js, Tesseract) are dynamically imported inside these functions
 import { convertPdfToImages, convertImageToBase64, convertPdfToCanvases } from "@/lib/pdf-to-images";
 import { smartOCR, calculateCostSavings } from "@/lib/smart-ocr";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -682,6 +684,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
   const [librariesLoading, setLibrariesLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const statusUpdateTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setSubject(preferredSubject);
@@ -695,26 +698,41 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
   useEffect(() => {
     console.log('[library-preloader] Initiating smart background preload strategy...');
 
-    // Subscribe to library status updates
+    // Subscribe to library status updates (debounced to prevent flickering)
     const unsubscribe = subscribeToLibraryStatus(() => {
-      const status = getLibraryStatus();
-      setLibrariesReady(status.criticalReady); // PDF.js is most critical
-      setLibrariesLoading(
-        status.pdfjs.status === 'loading' ||
-        status.ffmpeg.status === 'loading' ||
-        status.tesseract.status === 'loading'
-      );
-
-      // Log progress
-      if (status.allReady) {
-        console.log('[library-preloader] 🎉 All libraries ready! Upload will be instant.');
+      // Debounce status updates to prevent rapid re-renders (flickering)
+      if (statusUpdateTimerRef.current) {
+        clearTimeout(statusUpdateTimerRef.current);
       }
+
+      statusUpdateTimerRef.current = setTimeout(() => {
+        const status = getLibraryStatus();
+        const newReady = status.criticalReady;
+        const newLoading = status.pdfjs.status === 'loading' ||
+                           status.ffmpeg.status === 'loading' ||
+                           status.tesseract.status === 'loading';
+
+        // Only update if values actually changed (prevent unnecessary re-renders)
+        setLibrariesReady(prev => prev !== newReady ? newReady : prev);
+        setLibrariesLoading(prev => prev !== newLoading ? newLoading : prev);
+
+        // Log progress
+        if (status.allReady) {
+          console.log('[library-preloader] 🎉 All libraries ready! Upload will be instant.');
+        }
+      }, 100); // 100ms debounce
     });
 
     // Start preloading in background (during idle time)
+    // This is idempotent and safe to call multiple times
     startBackgroundPreload();
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      if (statusUpdateTimerRef.current) {
+        clearTimeout(statusUpdateTimerRef.current);
+      }
+    };
   }, []);
 
   // Helper function to generate quick lessons from first 3 pages

@@ -45,7 +45,7 @@ export async function POST() {
     correctStreak: 0,
     mistakes: 0,
     done: false,
-    maxSteps: 7,
+    maxSteps: 6,
     asked: [],
     remaining: rest,
   };

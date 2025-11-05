@@ -28,6 +28,7 @@ export default function PlacementClient() {
   const [prefetching, setPrefetching] = useState(false);
 
   const [selected, setSelected] = useState<number | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
   const [correctTotal, setCorrectTotal] = useState(0);
   const [questionTotal, setQuestionTotal] = useState(0);
   const correctTotalRef = useRef(0);
@@ -178,16 +179,22 @@ export default function PlacementClient() {
     })();
   }, [router, dlog, finishAndGo]);
 
-  // 2) Select answer and wait for user to move on
+  // 2) Select answer (without submitting yet)
   const answer = (idx: number) => {
-    if (!item || !state || selected !== null) return;
-    dlog("answer", { idx, correctIndex: item.correctIndex, correct: idx === item.correctIndex });
+    if (!item || !state || confirmed) return;
     setSelected(idx);
-    const correct = idx === item.correctIndex;
+  };
+
+  // 3) Confirm the selected answer and submit
+  const confirmAnswer = () => {
+    if (!item || !state || selected === null || confirmed) return;
+    dlog("confirmAnswer", { idx: selected, correctIndex: item.correctIndex, correct: selected === item.correctIndex });
+    setConfirmed(true);
+    const correct = selected === item.correctIndex;
     setQuestionTotal((t) => t + 1);
     if (correct) setCorrectTotal((c) => c + 1);
 
-    const payload = { state, item, answer: idx };
+    const payload = { state, item, answer: selected };
     setPendingAnswer(payload);
 
     const branch = correct ? branches?.right : branches?.wrong;
@@ -205,7 +212,7 @@ export default function PlacementClient() {
         setPendingNext(null);
       }
       setPrefetching(true);
-      const key = [state.subject, state.course, state.step, idx].join("-");
+      const key = [state.subject, state.course, state.step, selected].join("-");
       void prefetchNext(payload, key);
     }
   };
@@ -224,6 +231,7 @@ export default function PlacementClient() {
       setState(next.state);
       setItem(next.item);
       setSelected(null);
+      setConfirmed(false);
       setBranches(null);
       setPendingNext(null);
       if (prev.state.course !== next.state.course) {
@@ -297,6 +305,7 @@ export default function PlacementClient() {
           void finishAndGo(data.state);
         }
         setSelected(null);
+        setConfirmed(false);
         setPendingAnswer(null);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Unknown error";
@@ -408,17 +417,20 @@ export default function PlacementClient() {
           {item.choices.map((c, i) => {
             const isCorrect = i === item.correctIndex;
             const isSel = selected === i;
+            const showResult = confirmed && isSel;
             return (
               <button
                 key={i}
                 onClick={() => answer(i)}
-                disabled={selected !== null}
+                disabled={confirmed}
                 style={{ animationDelay: `${i * 50}ms` }}
                 className={`text-left px-4 py-3 rounded-xl border font-medium transition-all duration-300 transform animate-fade-in-item
-                  ${isSel
+                  ${showResult
                     ? (isCorrect
                       ? "bg-gradient-to-r from-green-600 to-green-500 border-green-400 text-white shadow-lg scale-[1.02]"
                       : "bg-gradient-to-r from-red-600 to-red-500 border-red-400 text-white shadow-lg scale-[1.02]")
+                    : isSel
+                    ? "bg-blue-100 border-blue-400 dark:bg-blue-900/30 dark:border-blue-500 shadow-md scale-[1.02]"
                     : "bg-white border-neutral-300 hover:bg-neutral-50 hover:border-blue-400 dark:bg-neutral-800 dark:border-neutral-600 dark:text-white dark:hover:bg-neutral-700 dark:hover:border-purple-400 hover:scale-[1.02] hover:shadow-md disabled:hover:scale-100 disabled:hover:shadow-none"}`}
               >
                 <FormattedText text={c} />
@@ -427,16 +439,28 @@ export default function PlacementClient() {
           })}
         </div>
 
+        {/* Confirm button - shown when answer is selected but not confirmed */}
+        {selected !== null && !confirmed && (
+          <div className="pt-3 flex justify-end animate-slide-up">
+            <button
+              onClick={confirmAnswer}
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-xl"
+            >
+              Confirm Answer
+            </button>
+          </div>
+        )}
+
         {/* Explanation */}
-        {selected !== null && item.explanation && (
+        {confirmed && item.explanation && (
           <div className="text-sm text-neutral-600 dark:text-neutral-300 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 animate-slide-up">
             <div className="font-semibold text-blue-600 dark:text-blue-400 mb-1">Explanation:</div>
             <FormattedText text={item.explanation} />
           </div>
         )}
 
-        {/* Next button */}
-        {selected !== null && (
+        {/* Next button - shown after confirmation */}
+        {confirmed && (
           <div className="pt-3 flex justify-end animate-slide-up">
             <button
               onClick={nextQuestion}
