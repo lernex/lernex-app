@@ -56,12 +56,6 @@ const nextConfig: NextConfig = {
           chunks: 'async',
           priority: 20,
         };
-        splitChunks.cacheGroups.tesseract = {
-          test: /[\\/]node_modules[\\/]tesseract\.js[\\/]/,
-          name: 'tesseract',
-          chunks: 'async',
-          priority: 20,
-        };
       }
     }
 

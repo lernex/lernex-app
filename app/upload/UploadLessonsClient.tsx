@@ -279,7 +279,7 @@ async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
 
     const allText: string[] = [];
     let totalCost = 0;
-    const strategyStats = { free: 0, cheap: 0, premium: 0, 'premium-pipeline': 0, skipped: 0 };
+    const strategyStats = { cheap: 0, premium: 0, 'premium-pipeline': 0, skipped: 0 };
     const skipStats = { blank: 0, duplicate: 0 };
     const pageHashes = new Set<string>(); // Track page hashes for duplicate detection
 
@@ -313,8 +313,6 @@ async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
           } else if (skipReason === 'duplicate') {
             skipStats.duplicate++;
           }
-        } else if (strategy === 'tesseract') {
-          strategyStats.free++;
         } else if (strategy === 'deepseek-low') {
           strategyStats.cheap++;
         } else if (strategy.includes('pipeline')) {
@@ -336,7 +334,7 @@ async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
 
     console.log(`[hybrid-ocr] ✅ Processing complete!`);
     console.log(`[hybrid-ocr] Pages processed: ${processedPages}/${numPages} (skipped ${strategyStats.skipped}: ${skipStats.blank} blank, ${skipStats.duplicate} duplicate)`);
-    console.log(`[hybrid-ocr] Strategy breakdown: ${strategyStats.free} free, ${strategyStats.cheap} cheap, ${strategyStats.premium} premium, ${strategyStats['premium-pipeline']} premium-pipeline`);
+    console.log(`[hybrid-ocr] Strategy breakdown: ${strategyStats.cheap} cheap, ${strategyStats.premium} premium, ${strategyStats['premium-pipeline']} premium-pipeline`);
     console.log(`[hybrid-ocr] Total cost: ${totalCost} tokens (baseline: ${savings.baselineCost} tokens)`);
     console.log(`[hybrid-ocr] Savings: ${savings.savingsTokens} tokens (${savings.savingsPercent.toFixed(1)}%) = $${savings.savingsDollars.toFixed(4)}`);
 
@@ -709,8 +707,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
         const status = getLibraryStatus();
         const newReady = status.criticalReady;
         const newLoading = status.pdfjs.status === 'loading' ||
-                           status.ffmpeg.status === 'loading' ||
-                           status.tesseract.status === 'loading';
+                           status.ffmpeg.status === 'loading';
 
         // Only update if values actually changed (prevent unnecessary re-renders)
         setLibrariesReady(prev => prev !== newReady ? newReady : prev);
@@ -1526,13 +1523,6 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
       console.log('[predictive-preload] User showing upload intent - preloading PDF.js now!');
       import('@/lib/library-preloader').then(({ preloadPDFjs }) => {
         preloadPDFjs();
-      });
-    }
-
-    // Also trigger Tesseract if not loaded
-    if (status.tesseract.status === 'idle') {
-      import('@/lib/library-preloader').then(({ preloadTesseract }) => {
-        preloadTesseract();
       });
     }
   }, []);

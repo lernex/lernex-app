@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       }
     }
     
-    const { text, subject = "Algebra 1", difficulty = "easy", mode = "mini" } = await req.json();
+    const { text, subject = "Algebra 1", difficulty = "easy", mode = "mini", quizOnly = false } = await req.json();
 
     if (typeof text !== "string" || text.trim().length < 20) {
       return new Response(JSON.stringify({ error: "Provide >= 20 characters" }), { status: 400 });
@@ -37,31 +37,64 @@ export async function POST(req: Request) {
 
     const src = text.slice(0, MAX_CHARS);
 
-    // Question count guidance based on mode
-    const countRule = mode === "quick"
-      ? "Produce 0-1 multiple-choice questions. Prefer 0 if the user''s request is a narrowly scoped factual question."
-      : mode === "full"
-        ? "Produce 3-5 multiple-choice questions."
-        : "Produce 2-3 multiple-choice questions.";
+    // Question count guidance and context based on mode and quiz-only setting
+    let countRule: string;
+    let contextRule: string;
+
+    if (quizOnly) {
+      // Quiz-only mode: higher question counts, broader coverage
+      if (mode === "short") {
+        countRule = "Produce exactly 3-4 multiple-choice questions covering key concepts.";
+      } else if (mode === "comprehensive") {
+        countRule = "Produce exactly 8-12 multiple-choice questions covering all major concepts thoroughly.";
+      } else {
+        // standard
+        countRule = "Produce exactly 5-7 multiple-choice questions covering main concepts.";
+      }
+      contextRule = "Create questions based on the provided material.";
+    } else {
+      // Lesson + quiz mode: questions must be answerable from the lesson
+      countRule = mode === "quick"
+        ? "Produce 0-1 multiple-choice questions. Prefer 0 if the user's request is a narrowly scoped factual question."
+        : mode === "full"
+          ? "Produce 3-5 multiple-choice questions."
+          : "Produce 2-3 multiple-choice questions.";
+      contextRule = "CRITICAL: Questions must test ONLY what was explicitly taught in the provided lesson text. A student who reads the lesson should be able to answer all questions. Do NOT test concepts not covered in the lesson.";
+    }
 
     const system = `
 Generate quiz as valid JSON. Schema: {id, subject, title, difficulty:"intro"|"easy"|"medium"|"hard", questions:[{prompt, choices[], correctIndex, explanation}]}
-Rules: ${countRule} Stay strictly within subject boundaries (e.g., Algebra 1: no vectors/calculus). Choices≤8w. Explanations≤25w. Math: \\(inline\\) \\[display\\], escape \\\\(, balance pairs.
+Rules: ${countRule} ${contextRule} Stay strictly within subject boundaries (e.g., Algebra 1: no vectors/calculus). Choices≤8w. Explanations≤25w. Math: \\(inline\\) \\[display\\], escape \\\\(, balance pairs.
 `.trim();
 
-    const quickMaxTokens = Math.min(
-      900,
-      Math.max(320, Number(process.env.GROQ_QUIZ_MAX_TOKENS_QUICK ?? "600") || 600),
-    );
-    const miniMaxTokens = Math.min(
-      1800,
-      Math.max(600, Number(process.env.GROQ_QUIZ_MAX_TOKENS_MINI ?? "1200") || 1200),
-    );
-    const fullMaxTokens = Math.min(
-      2600,
-      Math.max(900, Number(process.env.GROQ_QUIZ_MAX_TOKENS_FULL ?? "1800") || 1800),
-    );
-    const maxTokens = mode === "quick" ? quickMaxTokens : mode === "full" ? fullMaxTokens : miniMaxTokens;
+    // Token limits - higher for quiz-only mode
+    let maxTokens: number;
+    if (quizOnly) {
+      // Quiz-only mode token limits
+      if (mode === "short") {
+        maxTokens = Math.min(1800, Math.max(800, Number(process.env.GROQ_QUIZ_MAX_TOKENS_SHORT ?? "1400") || 1400));
+      } else if (mode === "comprehensive") {
+        maxTokens = Math.min(5000, Math.max(2400, Number(process.env.GROQ_QUIZ_MAX_TOKENS_COMPREHENSIVE ?? "3800") || 3800));
+      } else {
+        // standard
+        maxTokens = Math.min(3200, Math.max(1600, Number(process.env.GROQ_QUIZ_MAX_TOKENS_STANDARD ?? "2600") || 2600));
+      }
+    } else {
+      // Lesson + quiz mode token limits (original)
+      const quickMaxTokens = Math.min(
+        900,
+        Math.max(320, Number(process.env.GROQ_QUIZ_MAX_TOKENS_QUICK ?? "600") || 600),
+      );
+      const miniMaxTokens = Math.min(
+        1800,
+        Math.max(600, Number(process.env.GROQ_QUIZ_MAX_TOKENS_MINI ?? "1200") || 1200),
+      );
+      const fullMaxTokens = Math.min(
+        2600,
+        Math.max(900, Number(process.env.GROQ_QUIZ_MAX_TOKENS_FULL ?? "1800") || 1800),
+      );
+      maxTokens = mode === "quick" ? quickMaxTokens : mode === "full" ? fullMaxTokens : miniMaxTokens;
+    }
     let raw = "";
     let usedFallback = false;
 
@@ -76,12 +109,19 @@ Rules: ${countRule} Stay strictly within subject boundaries (e.g., Algebra 1: no
           { role: "system", content: system },
           {
             role: "user",
-            content: `Subject: ${subject}
+            content: quizOnly
+              ? `Subject: ${subject}
 Mode: ${mode}
 Difficulty: ${difficulty}
-Source Text:
+Source Material:
 ${src}
-Create fair multiple-choice questions based on the source, following the rules.`,
+Create fair multiple-choice questions based on the source material, following the rules.`
+              : `Subject: ${subject}
+Mode: ${mode}
+Difficulty: ${difficulty}
+Lesson Text:
+${src}
+Create questions that test what was taught in this lesson. Students should be able to answer after reading the lesson.`,
           },
         ],
       });
@@ -104,12 +144,19 @@ Create fair multiple-choice questions based on the source, following the rules.`
               { role: "system", content: system },
               {
                 role: "user",
-                content: `Subject: ${subject}
+                content: quizOnly
+                  ? `Subject: ${subject}
 Mode: ${mode}
 Difficulty: ${difficulty}
-Source Text:
+Source Material:
 ${src}
-Create fair multiple-choice questions based on the source, following the rules.`,
+Create fair multiple-choice questions based on the source material, following the rules.`
+                  : `Subject: ${subject}
+Mode: ${mode}
+Difficulty: ${difficulty}
+Lesson Text:
+${src}
+Create questions that test what was taught in this lesson. Students should be able to answer after reading the lesson.`,
               },
             ],
           });

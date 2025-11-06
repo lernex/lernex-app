@@ -1,12 +1,12 @@
 /**
  * Smart Library Preloader
  *
- * Intelligently preloads heavy libraries (FFmpeg, PDF.js, Tesseract) to optimize UX:
+ * Intelligently preloads heavy libraries (FFmpeg, PDF.js) to optimize UX:
  *
  * Strategy:
  * 1. Page loads instantly (libraries not in main bundle)
  * 2. Start preloading during browser idle time (requestIdleCallback)
- * 3. Prioritize PDF.js (80% of uploads) > Tesseract > FFmpeg (20% of uploads)
+ * 3. Prioritize PDF.js (80% of uploads) > FFmpeg (20% of uploads)
  * 4. Libraries ready when user needs them (0 wait time)
  *
  * This gives us the best of both worlds:
@@ -26,7 +26,6 @@ interface LibraryState {
 class LibraryPreloader {
   private pdfjs: LibraryState = { status: 'idle', startTime: null, loadTime: null, error: null };
   private ffmpeg: LibraryState = { status: 'idle', startTime: null, loadTime: null, error: null };
-  private tesseract: LibraryState = { status: 'idle', startTime: null, loadTime: null, error: null };
 
   private listeners: Set<() => void> = new Set();
   private preloadStarted = false; // Prevent duplicate preload calls
@@ -68,13 +67,9 @@ class LibraryPreloader {
     // Start immediately after page becomes interactive
     schedulePreload(() => this.preloadPDFjs(), 1000);
 
-    // PRIORITY 2: Tesseract (medium priority - 30% of PDFs need OCR)
-    // Start after PDF.js has time to load
-    schedulePreload(() => this.preloadTesseract(), 8000);
-
-    // PRIORITY 3: FFmpeg (lowest priority - 20% of uploads)
-    // Start last, as audio uploads are less common
-    schedulePreload(() => this.preloadFFmpeg(), 15000);
+    // PRIORITY 2: FFmpeg (lower priority - 20% of uploads)
+    // Start after PDF.js has time to load, as audio uploads are less common
+    schedulePreload(() => this.preloadFFmpeg(), 8000);
   }
 
   /**
@@ -159,35 +154,6 @@ class LibraryPreloader {
     }
   }
 
-  /**
-   * Preload Tesseract.js library
-   */
-  public async preloadTesseract(): Promise<void> {
-    if (this.tesseract.status !== 'idle') {
-      console.log(`[library-preloader] Tesseract already ${this.tesseract.status}`);
-      return;
-    }
-
-    this.tesseract.status = 'loading';
-    this.tesseract.startTime = performance.now();
-    console.log('[library-preloader] [PRIORITY 2] Preloading Tesseract.js...');
-    this.notifyListeners();
-
-    try {
-      // Dynamic import Tesseract
-      await import('tesseract.js');
-
-      this.tesseract.status = 'loaded';
-      this.tesseract.loadTime = performance.now() - (this.tesseract.startTime || 0);
-      console.log(`[library-preloader] ✅ Tesseract.js preloaded in ${this.tesseract.loadTime.toFixed(0)}ms`);
-      this.notifyListeners();
-    } catch (error) {
-      this.tesseract.status = 'error';
-      this.tesseract.error = error instanceof Error ? error : new Error('Failed to preload Tesseract');
-      console.error('[library-preloader] ❌ Tesseract.js preload failed:', error);
-      this.notifyListeners();
-    }
-  }
 
   /**
    * Get loading status for all libraries
@@ -196,10 +162,8 @@ class LibraryPreloader {
     return {
       pdfjs: { ...this.pdfjs },
       ffmpeg: { ...this.ffmpeg },
-      tesseract: { ...this.tesseract },
       allReady: this.pdfjs.status === 'loaded' &&
-                this.ffmpeg.status === 'loaded' &&
-                this.tesseract.status === 'loaded',
+                this.ffmpeg.status === 'loaded',
       criticalReady: this.pdfjs.status === 'loaded', // PDF.js is most critical
     };
   }
@@ -207,14 +171,14 @@ class LibraryPreloader {
   /**
    * Check if a specific library is ready
    */
-  public isReady(library: 'pdfjs' | 'ffmpeg' | 'tesseract'): boolean {
+  public isReady(library: 'pdfjs' | 'ffmpeg'): boolean {
     return this[library].status === 'loaded';
   }
 
   /**
    * Get estimated load time for a library (if not loaded yet)
    */
-  public getEstimatedLoadTime(library: 'pdfjs' | 'ffmpeg' | 'tesseract'): number {
+  public getEstimatedLoadTime(library: 'pdfjs' | 'ffmpeg'): number {
     const state = this[library];
 
     if (state.status === 'loaded') return 0;
@@ -226,7 +190,6 @@ class LibraryPreloader {
     // Estimated load times (in ms)
     const estimates = {
       pdfjs: 2000,      // 2 seconds
-      tesseract: 3000,  // 3 seconds
       ffmpeg: 15000,    // 15 seconds (31MB download)
     };
 
@@ -251,7 +214,6 @@ class LibraryPreloader {
   public reset(): void {
     this.pdfjs = { status: 'idle', startTime: null, loadTime: null, error: null };
     this.ffmpeg = { status: 'idle', startTime: null, loadTime: null, error: null };
-    this.tesseract = { status: 'idle', startTime: null, loadTime: null, error: null };
     this.preloadStarted = false;
     this.notifyListeners();
   }
@@ -268,10 +230,6 @@ class LibraryPreloader {
       this.ffmpeg.status = 'idle';
       this.ffmpeg.error = null;
     }
-    if (this.tesseract.status === 'error') {
-      this.tesseract.status = 'idle';
-      this.tesseract.error = null;
-    }
     this.notifyListeners();
   }
 }
@@ -286,8 +244,7 @@ export default libraryPreloader;
 export const startBackgroundPreload = () => libraryPreloader.startBackgroundPreload();
 export const preloadPDFjs = () => libraryPreloader.preloadPDFjs();
 export const preloadFFmpeg = () => libraryPreloader.preloadFFmpeg();
-export const preloadTesseract = () => libraryPreloader.preloadTesseract();
 export const getLibraryStatus = () => libraryPreloader.getStatus();
-export const isLibraryReady = (lib: 'pdfjs' | 'ffmpeg' | 'tesseract') => libraryPreloader.isReady(lib);
-export const getEstimatedLoadTime = (lib: 'pdfjs' | 'ffmpeg' | 'tesseract') => libraryPreloader.getEstimatedLoadTime(lib);
+export const isLibraryReady = (lib: 'pdfjs' | 'ffmpeg') => libraryPreloader.isReady(lib);
+export const getEstimatedLoadTime = (lib: 'pdfjs' | 'ffmpeg') => libraryPreloader.getEstimatedLoadTime(lib);
 export const subscribeToLibraryStatus = (listener: () => void) => libraryPreloader.subscribe(listener);

@@ -49,12 +49,12 @@ export function selectOCRStrategyForPipeline(
   }
 
   // For text-only pages, apply pipeline-specific thresholds
-  // FAST pipeline: More aggressive free/cheap usage
+  // FAST pipeline: More aggressive cheap usage
   // PREMIUM pipeline: More conservative, prefer premium
 
   if (complexity.textDensity >= pipelineConfig.freeThreshold) {
-    // High text density: Use free OCR if above threshold
-    return 'free';
+    // High text density: Use cheap OCR for simple text-heavy pages
+    return 'cheap';
   }
 
   if (complexity.textDensity >= pipelineConfig.cheapThreshold) {
