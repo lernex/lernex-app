@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { X, AlertCircle, Send, Sparkles } from "lucide-react";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 
 type ReportIssueModalProps = {
   isOpen: boolean;
@@ -19,6 +20,12 @@ export default function ReportIssueModal({
   const [error, setError] = useState("");
   const [isClosing, setIsClosing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Focus trap for accessibility
+  const modalRef = useFocusTrap<HTMLDivElement>({
+    enabled: isOpen,
+    initialFocus: textareaRef.current,
+  });
 
   useEffect(() => {
     if (isOpen) {
@@ -92,6 +99,7 @@ export default function ReportIssueModal({
 
       {/* Modal */}
       <div
+        ref={modalRef}
         className={`relative w-full max-w-md transform transition-all duration-300 ${
           isClosing ? "scale-95 opacity-0" : "scale-100 opacity-100"
         }`}

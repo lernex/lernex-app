@@ -1,10 +1,11 @@
 // components/AddInterestModal.tsx
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Plus, Check, ChevronLeft } from "lucide-react";
 import { DOMAINS, LEVELS_BY_DOMAIN } from "@/data/domains";
 import { useRouter } from "next/navigation";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 
 interface AddInterestModalProps {
   isOpen: boolean;
@@ -25,6 +26,23 @@ export default function AddInterestModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
+  // Focus trap for accessibility
+  const modalRef = useFocusTrap<HTMLDivElement>({ enabled: isOpen });
+
+  // Handle escape key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isOpen, onClose]);
 
   // Don't filter domains - user can have multiple courses from same domain
   const availableDomains = DOMAINS;
@@ -98,6 +116,7 @@ export default function AddInterestModal({
           {/* Modal */}
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div
+              ref={modalRef}
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}

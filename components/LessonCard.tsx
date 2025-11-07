@@ -1,6 +1,6 @@
 ﻿"use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Maximize2 } from "lucide-react";
+import { Maximize2, Loader2 } from "lucide-react";
 import { Lesson } from "@/types";
 import FormattedText from "./FormattedText";
 import ExpandedLessonModal from "./ExpandedLessonModal";
@@ -27,6 +27,9 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
   const [reporting, setReporting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [likeLoading, setLikeLoading] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [dislikeLoading, setDislikeLoading] = useState(false);
   const contextEntries = useMemo(() => {
     const ctx = lesson.context;
     if (!ctx || typeof ctx !== "object") return [];
@@ -366,35 +369,57 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <button
             onClick={() => {
+              if (likeLoading) return;
               const prevLiked = liked;
               const prevDisliked = disliked;
               setLiked(true);
               setDisliked(false);
+              setLikeLoading(true);
               void sendFeedback("like").then((ok) => {
                 if (!ok) {
                   setLiked(prevLiked);
                   setDisliked(prevDisliked);
                 }
+                setLikeLoading(false);
               });
             }}
             className={helpfulClass}
             aria-label="Mark lesson as helpful"
+            disabled={likeLoading}
           >
-            Helpful
+            {likeLoading ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading...
+              </span>
+            ) : (
+              "Helpful"
+            )}
           </button>
           <button
             onClick={() => {
+              if (saveLoading) return;
               const prevSaved = saved;
               const nextSaved = !prevSaved;
               setSaved(nextSaved);
+              setSaveLoading(true);
               void sendFeedback("save").then((ok) => {
                 if (!ok) setSaved(prevSaved);
+                setSaveLoading(false);
               });
             }}
             className={saveClass}
             aria-label="Save lesson"
+            disabled={saveLoading}
           >
-            {saved ? "Saved" : "Save"}
+            {saveLoading ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Saving...
+              </span>
+            ) : (
+              saved ? "Saved" : "Save"
+            )}
           </button>
           <TTSButton
             lessonText={lesson.content}
@@ -404,21 +429,32 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
           />
           <button
             onClick={() => {
+              if (dislikeLoading) return;
               const prevLiked = liked;
               const prevDisliked = disliked;
               setDisliked(true);
               setLiked(false);
+              setDislikeLoading(true);
               void sendFeedback("dislike").then((ok) => {
                 if (!ok) {
                   setDisliked(prevDisliked);
                   setLiked(prevLiked);
                 }
+                setDislikeLoading(false);
               });
             }}
             className={dislikeClass}
             aria-label="Not helpful"
+            disabled={dislikeLoading}
           >
-            Not helpful
+            {dislikeLoading ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading...
+              </span>
+            ) : (
+              "Not helpful"
+            )}
           </button>
           <button
             onClick={() => {

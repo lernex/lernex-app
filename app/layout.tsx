@@ -9,6 +9,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import ThemeProvider from "./providers/ThemeProvider";
 import PageTransition from "@/components/PageTransition";
 import { ProfileStatsProvider } from "./providers/ProfileStatsProvider";
+import { ReactQueryProvider } from "./providers/ReactQueryProvider";
 import StructuredData from "@/components/StructuredData";
 import { defaultMetadata } from "@/lib/seo";
 import { supabaseServer } from "@/lib/supabase-server";
@@ -97,21 +98,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         id="top"
         className={`${inter.className} bg-white text-neutral-900 dark:bg-lernex-charcoal dark:text-white`}
       >
-        <ThemeProvider initialPreference={initialPreference}>
-          <ProfileStatsProvider>
-            <div className="fixed inset-0 -z-10 bg-[radial-gradient(60%_40%_at_50%_0%,rgba(47,128,237,0.12),transparent)]"></div>
-            <Navbar />
-            <SidebarOffsetWrapper>
-              <PageTransition>
-                {children}
-              </PageTransition>
-              <Footer />
-            </SidebarOffsetWrapper>
-            <Analytics />
-            <SpeedInsights />
-            <StructuredData />
-          </ProfileStatsProvider>
-        </ThemeProvider>
+        <ReactQueryProvider>
+          <ThemeProvider initialPreference={initialPreference}>
+            <ProfileStatsProvider>
+              <div className="fixed inset-0 -z-10 bg-[radial-gradient(60%_40%_at_50%_0%,rgba(47,128,237,0.12),transparent)]"></div>
+              <Navbar />
+              <SidebarOffsetWrapper>
+                <PageTransition>
+                  {children}
+                </PageTransition>
+                <Footer />
+              </SidebarOffsetWrapper>
+              <Analytics />
+              <SpeedInsights />
+              <StructuredData />
+            </ProfileStatsProvider>
+          </ThemeProvider>
+        </ReactQueryProvider>
       </body>
     </html>
   );

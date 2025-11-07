@@ -251,7 +251,7 @@ export default function Navbar() {
     return (
       <>
         <div
-          className="fixed left-0 top-0 z-[21] h-[100dvh] w-5 cursor-pointer"
+          className="fixed left-0 top-0 z-[21] h-[100dvh] w-5 cursor-pointer hidden md:block"
           onMouseEnter={handleNavEnter}
           aria-hidden="true"
         />
@@ -263,7 +263,7 @@ export default function Navbar() {
             width: navExpanded ? NAV_WIDTH_EXPANDED : NAV_WIDTH_COLLAPSED,
           }}
           transition={{ type: "spring", stiffness: 210, damping: 28 }}
-          className="fixed left-0 top-0 z-[22] flex h-[100dvh] max-h-screen flex-col overflow-hidden border-r border-slate-200/90 bg-gradient-to-b from-surface-panel via-surface-panel to-slate-50/30 text-foreground shadow-xl shadow-slate-900/20 backdrop-blur-xl transition-colors duration-300 dark:border-surface dark:from-surface-panel dark:via-surface-panel dark:to-slate-900/20 dark:shadow-black/40"
+          className="fixed left-0 top-0 z-[22] h-[100dvh] max-h-screen flex-col overflow-hidden border-r border-slate-200/90 bg-gradient-to-b from-surface-panel via-surface-panel to-slate-50/30 text-foreground shadow-xl shadow-slate-900/20 backdrop-blur-xl transition-colors duration-300 dark:border-surface dark:from-surface-panel dark:via-surface-panel dark:to-slate-900/20 dark:shadow-black/40 hidden md:flex"
           onMouseEnter={handleNavEnter}
           onMouseLeave={handleNavLeave}
           onFocusCapture={handleNavEnter}
@@ -482,6 +482,142 @@ export default function Navbar() {
             )}
           </div>
         </motion.nav>
+
+        {/* Mobile Navigation for authenticated users */}
+        <nav className="md:hidden sticky top-0 z-20 w-full border-b border-slate-200/90 bg-gradient-to-r from-surface-panel via-white/40 to-surface-panel text-foreground shadow-lg shadow-slate-900/15 backdrop-blur-xl transition-colors dark:border-surface dark:from-surface-panel dark:via-slate-800/20 dark:to-surface-panel dark:shadow-black/20">
+          <div className="flex items-center justify-between px-4 py-3">
+            <Link
+              href="/fyp"
+              className="gradient-logo bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-xl font-bold text-transparent"
+            >
+              Lernex
+            </Link>
+
+            <div className="flex items-center gap-3">
+              {/* Stats display */}
+              <span className="flex items-center gap-1 rounded-full border border-orange-200/60 bg-gradient-to-r from-orange-50 to-orange-100/50 px-2.5 py-1 text-sm shadow-sm shadow-orange-500/10 dark:border-orange-500/20 dark:from-orange-900/20 dark:to-orange-800/10">
+                🔥 {streak}
+              </span>
+              <span className="flex items-center gap-1 rounded-full border border-amber-200/60 bg-gradient-to-r from-amber-50 to-amber-100/50 px-2.5 py-1 text-sm shadow-sm shadow-amber-500/10 dark:border-amber-500/20 dark:from-amber-900/20 dark:to-amber-800/10">
+                ⭐ {points}
+              </span>
+
+              {/* Hamburger menu */}
+              <button
+                onClick={() => setMobileOpen((s) => !s)}
+                aria-label="Toggle menu"
+                className="rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-lg backdrop-blur hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 dark:bg-white/5"
+              >
+                {mobileOpen ? "✕" : "☰"}
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile menu overlay */}
+          <AnimatePresence>
+            {mobileOpen && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="border-t border-slate-200/70 bg-gradient-to-b from-surface-panel to-slate-50/30 backdrop-blur-xl dark:border-surface dark:from-surface-panel dark:to-slate-900/20"
+              >
+                <div className="max-h-[calc(100vh-4rem)] overflow-y-auto p-4">
+                  <div className="grid gap-2 text-sm">
+                    {navItems.map(({ href, label, icon: Icon, exact }) => {
+                      const active = isActive(href, exact);
+                      return (
+                        <Link
+                          key={href}
+                          href={href}
+                          onClick={() => setMobileOpen(false)}
+                          className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 ${
+                            active
+                              ? "border border-lernex-blue/70 bg-gradient-to-r from-lernex-blue/20 to-lernex-purple/18 text-lernex-blue shadow-sm"
+                              : "border border-surface bg-surface-card hover:border-lernex-blue/30 hover:bg-surface-muted"
+                          }`}
+                        >
+                          <Icon className="h-5 w-5" />
+                          <span className="font-medium">{label}</span>
+                        </Link>
+                      );
+                    })}
+
+                    {/* User section */}
+                    {user && (
+                      <div className="mt-4 border-t border-slate-200/70 pt-4 dark:border-surface">
+                        <Link
+                          href="/public-profile"
+                          onClick={() => setMobileOpen(false)}
+                          className="flex items-center gap-3 rounded-xl border border-surface bg-surface-card px-4 py-3 transition-all duration-200 hover:border-lernex-blue/30 hover:bg-surface-muted"
+                        >
+                          <div className={`relative flex h-9 w-9 shrink-0 items-center justify-center overflow-visible rounded-full shadow-sm ${avatarBackground} ${avatarRing}`}>
+                            {user.user_metadata?.avatar_url ? (
+                              <Image
+                                src={user.user_metadata.avatar_url}
+                                alt="avatar"
+                                width={36}
+                                height={36}
+                                className="h-full w-full object-cover rounded-full"
+                              />
+                            ) : (
+                              <span className="text-sm font-semibold text-neutral-700 dark:text-white">
+                                {user.email?.[0]?.toUpperCase()}
+                              </span>
+                            )}
+                            {membership && (
+                              <span
+                                className={`absolute -bottom-1 -right-1 z-10 flex h-4 w-4 items-center justify-center rounded-full text-white shadow-sm ${
+                                  membership === "premium"
+                                    ? "bg-gradient-to-br from-amber-400 to-rose-500"
+                                    : "bg-gradient-to-br from-indigo-500 to-purple-500"
+                                }`}
+                              >
+                                {membership === "premium" ? (
+                                  <Crown className="h-2.5 w-2.5" strokeWidth={2.4} />
+                                ) : (
+                                  <Sparkles className="h-2.5 w-2.5" strokeWidth={2.4} />
+                                )}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-semibold text-neutral-900 dark:text-white">
+                              {user.user_metadata?.full_name ?? user.email}
+                            </span>
+                            <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                              View profile
+                            </span>
+                          </div>
+                        </Link>
+
+                        <Link
+                          href="/settings"
+                          onClick={() => setMobileOpen(false)}
+                          className="mt-2 flex items-center gap-3 rounded-xl border border-surface bg-surface-card px-4 py-3 transition-all duration-200 hover:border-lernex-blue/30 hover:bg-surface-muted"
+                        >
+                          <span className="text-sm font-medium">Settings</span>
+                        </Link>
+
+                        <button
+                          onClick={async () => {
+                            await supabase.auth.signOut();
+                            setMobileOpen(false);
+                            router.replace("/login");
+                          }}
+                          className="mt-2 flex w-full items-center gap-3 rounded-xl border border-red-200/60 bg-red-50/50 px-4 py-3 text-red-600 transition-all duration-200 hover:bg-red-100/60 dark:border-red-500/20 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
+                        >
+                          <span className="text-sm font-medium">Logout</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </nav>
       </>
     );
   }

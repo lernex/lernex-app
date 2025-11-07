@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import Image from "next/image";
+import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   const sp = useSearchParams();
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const supabase = supabaseBrowser();
@@ -58,10 +60,17 @@ export default function LoginPage() {
   }, [sp]);
 
   const signInWithGoogle = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/api/auth/callback` },
-    });
+    setGoogleLoading(true);
+    try {
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/api/auth/callback` },
+      });
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : "Google sign-in failed");
+      setGoogleLoading(false);
+    }
+    // Note: If successful, user will be redirected, so no need to set loading to false
   };
 
   const signInWithEmail = async () => {
@@ -95,10 +104,20 @@ export default function LoginPage() {
 
         <button
           onClick={signInWithGoogle}
-          className="flex items-center justify-center w-full gap-2 py-3 rounded-xl bg-white border border-neutral-300 text-black hover:bg-neutral-200 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-700"
+          disabled={googleLoading}
+          className="flex items-center justify-center w-full gap-2 py-3 rounded-xl bg-white border border-neutral-300 text-black hover:bg-neutral-200 disabled:opacity-60 disabled:cursor-not-allowed dark:bg-neutral-800 dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-700"
         >
-          <Image src="/GoogleLogo.svg" alt="Google logo" width={20} height={20} />
-          Continue with Google
+          {googleLoading ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Signing in...
+            </>
+          ) : (
+            <>
+              <Image src="/GoogleLogo.svg" alt="Google logo" width={20} height={20} />
+              Continue with Google
+            </>
+          )}
         </button>
 
         <div className="text-center text-neutral-500 dark:text-neutral-400 text-sm">— or —</div>

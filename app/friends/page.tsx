@@ -835,10 +835,15 @@ function FriendsContent() {
           </div>
           <button
             onClick={() => load({ silent: true })}
-            className="inline-flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white/70 px-3 py-1.5 text-xs font-medium text-neutral-600 shadow-[0_20px_40px_-30px_rgba(47,128,237,0.28)] transition hover:border-lernex-blue/40 hover:text-lernex-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/30 dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-none"
+            disabled={refreshing}
+            className="inline-flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white/70 px-3 py-1.5 text-xs font-medium text-neutral-600 shadow-[0_20px_40px_-30px_rgba(47,128,237,0.28)] transition hover:border-lernex-blue/40 hover:text-lernex-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c] dark:text-neutral-300 dark:shadow-none"
           >
-            <RefreshCcw className="h-3.5 w-3.5" />
-            Refresh list
+            {refreshing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCcw className="h-3.5 w-3.5" />
+            )}
+            {refreshing ? "Refreshing..." : "Refresh list"}
           </button>
         </div>
         <div className="relative mt-4">

@@ -11,6 +11,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import type { Database } from "@/lib/types_db";
 import type { LucideIcon } from "lucide-react";
 import { Crown, Sparkles, Flame, Target, Trophy } from "lucide-react";
+import { Skeleton, SkeletonAvatar } from "@/components/ui/Skeleton";
 
 const POINTS_PER_CORRECT = 10;
 
@@ -713,15 +714,25 @@ function LeaderboardContent() {
               <ol className="mt-4 space-y-3">
                 <AnimatePresence initial={false}>
                   {loading ? (
-                    <motion.li
-                      key="loading-points"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="text-sm text-neutral-500 dark:text-neutral-400"
-                    >
-                      Loading leaderboard...
-                    </motion.li>
+                    <>
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <motion.li
+                          key={`skeleton-${i}`}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="flex items-center gap-3 rounded-xl bg-white/60 dark:bg-lernex-charcoal/30 p-3 border border-lernex-charcoal/5 dark:border-white/5"
+                        >
+                          <Skeleton className="h-6 w-6 rounded" />
+                          <SkeletonAvatar size="sm" />
+                          <div className="flex-1 space-y-2">
+                            <Skeleton className="h-4 w-24" />
+                            <Skeleton className="h-3 w-16" />
+                          </div>
+                          <Skeleton className="h-6 w-12 rounded-full" />
+                        </motion.li>
+                      ))}
+                    </>
                   ) : topPoints.length === 0 ? (
                     <motion.li
                       key="empty-points"
@@ -797,15 +808,25 @@ function LeaderboardContent() {
                 <ol className="mt-4 space-y-3">
                   <AnimatePresence initial={false}>
                     {loading ? (
-                      <motion.li
-                        key="loading-streaks"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="text-sm text-neutral-500 dark:text-neutral-400"
-                      >
-                        Loading leaderboard...
-                      </motion.li>
+                      <>
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <motion.li
+                            key={`skeleton-streak-${i}`}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="flex items-center gap-3 rounded-xl bg-white/60 dark:bg-lernex-charcoal/30 p-3 border border-lernex-charcoal/5 dark:border-white/5"
+                          >
+                            <Skeleton className="h-6 w-6 rounded" />
+                            <SkeletonAvatar size="sm" />
+                            <div className="flex-1 space-y-2">
+                              <Skeleton className="h-4 w-24" />
+                              <Skeleton className="h-3 w-16" />
+                            </div>
+                            <Skeleton className="h-6 w-12 rounded-full" />
+                          </motion.li>
+                        ))}
+                      </>
                     ) : topStreak.length === 0 ? (
                       <motion.li
                         key="empty-streaks"

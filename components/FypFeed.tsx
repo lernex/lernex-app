@@ -1,11 +1,13 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { BookOpen } from "lucide-react";
 import LessonCard from "./LessonCard";
 import QuizBlock from "./QuizBlock";
 import { Lesson } from "@/types";
 import { useLernexStore, type LessonRef } from "@/lib/store";
 import { useProfileBasics } from "@/app/providers/ProfileBasicsProvider";
+import { EmptyState } from "./ui/EmptyState";
 
 type ApiLesson = {
   id: string;
@@ -364,6 +366,7 @@ export default function FypFeed() {
   const [autoAdvancing, setAutoAdvancing] = useState(false);
   const [skipLoading, setSkipLoading] = useState(false);
   const [skipReasonMenu, setSkipReasonMenu] = useState<string | null>(null);
+  const [completingLesson, setCompletingLesson] = useState(false);
   const subjectsKeyInitRef = useRef(false);
   const autoAdvanceRef = useRef<number | null>(null);
   const hintTimeoutRef = useRef<number | null>(null);
@@ -828,6 +831,7 @@ export default function FypFeed() {
     }
 
     // Call completion API to remove pending lesson and trigger background generation
+    setCompletingLesson(true);
     (async () => {
       try {
         // Mark lesson as complete and remove from pending queue
@@ -848,6 +852,8 @@ export default function FypFeed() {
         });
       } catch (err) {
         console.debug("[fyp] completion/generation error (non-critical)", err);
+      } finally {
+        setCompletingLesson(false);
       }
     })();
 
@@ -945,38 +951,62 @@ export default function FypFeed() {
         )}
       </AnimatePresence>
       {!cur && !error && !profileError && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
-          <div className="text-sm font-medium text-neutral-600 dark:text-neutral-200">
-            {progressLabel}
-          </div>
-          <div className="w-full max-w-xs">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200/70 dark:bg-neutral-800/60">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 transition-[width] duration-500 ease-out"
-                style={{ width: progressWidth }}
+        <>
+          {loadingInfo || fetching.current ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
+              <div className="text-sm font-medium text-neutral-600 dark:text-neutral-200">
+                {progressLabel}
+              </div>
+              <div className="w-full max-w-xs">
+                <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200/70 dark:bg-neutral-800/60">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 transition-[width] duration-500 ease-out"
+                    style={{ width: progressWidth }}
+                  />
+                </div>
+                <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                  {progressDetail}
+                </div>
+                {shouldOfferClassPicker && (
+                  <div className="mt-3 flex flex-col items-center gap-2">
+                    <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                      {waitingForCourse
+                        ? `Select a course for ${loadingInfo?.subject ?? "this class"} to keep new lessons coming.`
+                        : "Pick a class to start your personalized feed."}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setClassPickerOpen(true)}
+                      className="rounded-full border border-slate-300/80 bg-surface-muted px-3 py-1.5 text-xs font-medium text-foreground shadow-sm transition-all hover:bg-surface-card hover:shadow-md dark:border-neutral-700"
+                    >
+                      Open class picker
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : initialized && items.length === 0 ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <EmptyState
+                icon={BookOpen}
+                title="No lessons available"
+                description={
+                  selectedSubjects.length === 0
+                    ? "Select a class to start your personalized learning journey!"
+                    : "We're preparing your personalized lessons. Check back soon or try selecting different classes."
+                }
+                action={
+                  selectedSubjects.length === 0
+                    ? {
+                        label: "Choose Classes",
+                        onClick: () => setClassPickerOpen(true),
+                      }
+                    : undefined
+                }
               />
             </div>
-            <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-              {progressDetail}
-            </div>
-            {shouldOfferClassPicker && (
-              <div className="mt-3 flex flex-col items-center gap-2">
-                <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {waitingForCourse
-                    ? `Select a course for ${loadingInfo?.subject ?? "this class"} to keep new lessons coming.`
-                    : "Pick a class to start your personalized feed."}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setClassPickerOpen(true)}
-                  className="rounded-full border border-slate-300/80 bg-surface-muted px-3 py-1.5 text-xs font-medium text-foreground shadow-sm transition-all hover:bg-surface-card hover:shadow-md dark:border-neutral-700"
-                >
-                  Open class picker
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+          ) : null}
+        </>
       )}
       {(error || profileError) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-red-500 dark:text-red-400">
