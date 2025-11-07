@@ -92,13 +92,25 @@ async function loadFFmpeg(): Promise<any> {
     });
 
     // Load FFmpeg core from local files (served from /public directory)
-    // This avoids CORS/CSP issues with CDN blob URLs in production
+    // Use direct URLs instead of blob URLs to avoid CSP and module resolution issues
     const baseURL = window.location.origin;
 
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-    });
+    try {
+      // Try loading with blob URLs first (faster, works in most browsers)
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+      });
+    } catch (blobError) {
+      console.warn('[audio-compress] Blob URL loading failed, trying direct URLs...', blobError);
+
+      // Fallback: Load directly from public directory without blob URLs
+      // This works better in strict CSP environments
+      await ffmpeg.load({
+        coreURL: `${baseURL}/ffmpeg-core.js`,
+        wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+      });
+    }
 
     console.log(`[audio-compress] [PERF] FFmpeg loaded successfully in ${(performance.now() - loadStart).toFixed(0)}ms`);
     ffmpegInstance = ffmpeg;

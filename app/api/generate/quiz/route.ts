@@ -63,19 +63,20 @@ export async function POST(req: Request) {
     }
 
     const system = `JSON quiz. Schema: {id, subject, title, difficulty:"intro"|"easy"|"medium"|"hard", questions:[{prompt, choices[], correctIndex, explanation}]}
-Rules: ${countRule} ${contextRule} Stay within subject boundaries. Choices≤8w. Explanations≤25w. Math: \\(inline\\) \\[display\\], escape \\\\(.`.trim();
+Rules: ${countRule} ${contextRule} Stay within subject boundaries. Choices≤8w. Explanations≤25w.
+LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\\\frac). Use {...} for multi-char sub/super (x_{10} not x_10).`.trim();
 
     // Token limits - higher for quiz-only mode
     let maxTokens: number;
     if (quizOnly) {
-      // Quiz-only mode token limits
+      // Quiz-only mode token limits - increased to prevent truncation
       if (mode === "short") {
-        maxTokens = Math.min(1800, Math.max(800, Number(process.env.GROQ_QUIZ_MAX_TOKENS_SHORT ?? "1400") || 1400));
+        maxTokens = Math.min(1800, Math.max(800, Number(process.env.GROQ_QUIZ_MAX_TOKENS_SHORT ?? "1600") || 1600));
       } else if (mode === "comprehensive") {
-        maxTokens = Math.min(5000, Math.max(2400, Number(process.env.GROQ_QUIZ_MAX_TOKENS_COMPREHENSIVE ?? "3800") || 3800));
+        maxTokens = Math.min(5000, Math.max(2400, Number(process.env.GROQ_QUIZ_MAX_TOKENS_COMPREHENSIVE ?? "4200") || 4200));
       } else {
         // standard
-        maxTokens = Math.min(3200, Math.max(1600, Number(process.env.GROQ_QUIZ_MAX_TOKENS_STANDARD ?? "2600") || 2600));
+        maxTokens = Math.min(3200, Math.max(1600, Number(process.env.GROQ_QUIZ_MAX_TOKENS_STANDARD ?? "2900") || 2900));
       }
     } else {
       // Lesson + quiz mode token limits (original)
@@ -108,7 +109,7 @@ Rules: ${countRule} ${contextRule} Stay within subject boundaries. Choices≤8w.
           {
             role: "user",
             content: quizOnly
-              ? `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nSource:\n${src}\nCreate fair questions following rules.`
+              ? `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nSource:\n${src}\n\nFollow all rules. Use proper LaTeX.`
               : `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nLesson:\n${src}\nTest concepts with new examples. Change all numbers/variables.`,
           },
         ],
@@ -133,7 +134,7 @@ Rules: ${countRule} ${contextRule} Stay within subject boundaries. Choices≤8w.
               {
                 role: "user",
                 content: quizOnly
-                  ? `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nSource:\n${src}\nCreate fair questions following rules.`
+                  ? `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nSource:\n${src}\n\nFollow all rules. Use proper LaTeX.`
                   : `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nLesson:\n${src}\nTest concepts with new examples. Change all numbers/variables.`,
               },
             ],

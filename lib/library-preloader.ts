@@ -149,8 +149,12 @@ class LibraryPreloader {
     } catch (error) {
       this.ffmpeg.status = 'error';
       this.ffmpeg.error = error instanceof Error ? error : new Error('Failed to preload FFmpeg');
-      console.error('[library-preloader] ❌ FFmpeg preload failed:', error);
+
+      // Only warn for preload failures - this is non-critical as FFmpeg will load on-demand when needed
+      console.warn('[library-preloader] FFmpeg preload failed (will load on-demand when needed):', error instanceof Error ? error.message : error);
       this.notifyListeners();
+
+      // Don't throw - preloading is an optimization, not a requirement
     }
   }
 

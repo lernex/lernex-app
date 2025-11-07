@@ -435,10 +435,10 @@ Current Question: ${followUpQuestion}
           </div>
 
           {/* Length selection - changes based on content type */}
-          <div className="overflow-hidden">
+          <div className="overflow-visible">
             <div
               className={`transition-all duration-500 ease-in-out ${
-                contentType === "lesson" ? "opacity-100 max-h-24" : "opacity-0 max-h-0"
+                contentType === "lesson" ? "opacity-100 max-h-28" : "opacity-0 max-h-0 pointer-events-none"
               }`}
             >
               {contentType === "lesson" && (
@@ -451,9 +451,9 @@ Current Question: ${followUpQuestion}
                     <button
                       key={opt.key}
                       onClick={() => setMode(opt.key as typeof mode)}
-                      className={`group relative overflow-hidden rounded-xl border px-3 py-2.5 text-xs sm:text-sm font-medium transition-all duration-300 ${
+                      className={`group relative rounded-xl border px-3 py-2.5 text-xs sm:text-sm font-medium transition-all duration-300 ${
                         mode === opt.key
-                          ? "border-lernex-blue bg-lernex-blue text-white shadow-lg shadow-lernex-blue/30 scale-[1.02]"
+                          ? "border-lernex-blue bg-lernex-blue text-white shadow-lg shadow-lernex-blue/30"
                           : "border-surface bg-surface-card text-neutral-700 dark:text-neutral-200 hover:border-lernex-blue/50 hover:shadow-md"
                       }`}
                     >
@@ -465,7 +465,7 @@ Current Question: ${followUpQuestion}
             </div>
             <div
               className={`transition-all duration-500 ease-in-out ${
-                contentType === "quiz" ? "opacity-100 max-h-32" : "opacity-0 max-h-0"
+                contentType === "quiz" ? "opacity-100 max-h-48" : "opacity-0 max-h-0 pointer-events-none"
               }`}
             >
               {contentType === "quiz" && (
@@ -478,9 +478,9 @@ Current Question: ${followUpQuestion}
                     <button
                       key={opt.key}
                       onClick={() => setQuizMode(opt.key as typeof quizMode)}
-                      className={`w-full group relative overflow-hidden rounded-xl border px-4 py-2.5 text-sm font-medium transition-all duration-300 ${
+                      className={`w-full group relative rounded-xl border px-4 py-2.5 text-sm font-medium transition-all duration-300 ${
                         quizMode === opt.key
-                          ? "border-lernex-purple bg-gradient-to-r from-lernex-purple to-pink-500 text-white shadow-lg shadow-lernex-purple/30 scale-[1.02]"
+                          ? "border-lernex-purple bg-gradient-to-r from-lernex-purple to-pink-500 text-white shadow-lg shadow-lernex-purple/30"
                           : "border-surface bg-surface-card text-neutral-700 dark:text-neutral-200 hover:border-lernex-purple/50 hover:shadow-md"
                       }`}
                     >
