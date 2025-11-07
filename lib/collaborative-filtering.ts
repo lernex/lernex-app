@@ -64,12 +64,12 @@ export async function getSimilarUsers(
     .order("similarity_score", { ascending: false })
     .limit(limit);
 
-  if (error) {
+  if (error || !data) {
     console.error("Error fetching similar users:", error);
     return [];
   }
 
-  return data.map((row) => row.user_id);
+  return (data as Array<{ user_id: string }>).map((row) => row.user_id);
 }
 
 // ============================================================================
@@ -98,14 +98,14 @@ export async function getCoOccurrenceRecommendations(
     .order("confidence_score", { ascending: false })
     .limit(limit * 2); // Get more to deduplicate
 
-  if (error) {
+  if (error || !data) {
     console.error("Error fetching co-occurrence recommendations:", error);
     return [];
   }
 
   // Aggregate scores for lessons that appear multiple times
   const scoreMap = new Map<string, number>();
-  for (const row of data) {
+  for (const row of (data as Array<{ lesson_b_id: string; confidence_score: number | null }>)) {
     const currentScore = scoreMap.get(row.lesson_b_id) || 0;
     // Use max score if lesson appears multiple times
     scoreMap.set(
@@ -149,14 +149,14 @@ export async function getCohortRecommendations(
     .in("user_id", similarUserIds)
     .eq("subject", subject);
 
-  if (error) {
+  if (error || !data) {
     console.error("Error fetching cohort preferences:", error);
     return [];
   }
 
   // Count how many similar users liked each lesson
   const lessonCounts = new Map<string, number>();
-  for (const pref of data) {
+  for (const pref of (data as Array<{ liked_ids: string[] | null; saved_ids: string[] | null }>)) {
     const allLikes = [
       ...(pref.liked_ids || []),
       ...(pref.saved_ids || []),
@@ -208,16 +208,17 @@ export async function getCollaborativeRecommendations(
   };
 
   // Get user's current preferences
-  const { data: preferences } = await supabase
+  const { data: preferences, error: prefsError } = await supabase
     .from("user_subject_preferences")
     .select("liked_ids, disliked_ids, saved_ids")
     .eq("user_id", userId)
     .eq("subject", subject)
     .single();
 
-  const likedIds = preferences?.liked_ids || [];
-  const dislikedIds = preferences?.disliked_ids || [];
-  const savedIds = preferences?.saved_ids || [];
+  const prefs = preferences as { liked_ids: string[] | null; disliked_ids: string[] | null; saved_ids: string[] | null } | null;
+  const likedIds = prefs?.liked_ids || [];
+  const dislikedIds = prefs?.disliked_ids || [];
+  const savedIds = prefs?.saved_ids || [];
   const allPositiveIds = [...likedIds, ...savedIds];
 
   // 1. Get cohort-based recommendations (40% weight)
@@ -311,16 +312,23 @@ export async function getCachedRecommendations(
 
   if (error || !data) return null;
 
+  const cachedData = data as {
+    expires_at: string | null;
+    recommended_lesson_ids: string[];
+    recommendation_scores: unknown;
+    recommendation_sources: unknown;
+  };
+
   // Check if cache is expired
-  const expiresAt = new Date(data.expires_at || 0);
+  const expiresAt = new Date(cachedData.expires_at || 0);
   if (expiresAt < new Date()) {
     return null;
   }
 
   return {
-    recommendedLessonIds: data.recommended_lesson_ids,
-    scores: data.recommendation_scores.map(Number),
-    sources: (data.recommendation_sources as { cohort: string[]; coOccurrence: string[] }) || {
+    recommendedLessonIds: cachedData.recommended_lesson_ids,
+    scores: (cachedData.recommendation_scores as number[]).map(Number),
+    sources: (cachedData.recommendation_sources as { cohort: string[]; coOccurrence: string[] }) || {
       cohort: [],
       coOccurrence: [],
     },
@@ -341,7 +349,8 @@ export async function cacheRecommendations(
   const expiresAt = new Date();
   expiresAt.setHours(expiresAt.getHours() + expiryHours);
 
-  const { error } = await supabase.from("collaborative_recommendations").upsert(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("collaborative_recommendations").upsert(
     {
       user_id: userId,
       subject: subject,

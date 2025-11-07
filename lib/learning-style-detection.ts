@@ -43,7 +43,8 @@ export async function recordInteractionSignal(
   supabase: SupabaseClient<Database>,
   signal: InteractionSignal
 ): Promise<void> {
-  const { error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
     .from("interaction_signals")
     .insert(signal);
 
@@ -66,7 +67,7 @@ async function computeLearningStyleFromSignals(
   subject: string
 ): Promise<Partial<LearningStyle>> {
   // Fetch recent signals (last 90 days, up to 100 signals)
-  const { data: signals, error } = await supabase
+  const { data: signalsData, error } = await supabase
     .from("interaction_signals")
     .select("*")
     .eq("user_id", userId)
@@ -74,9 +75,23 @@ async function computeLearningStyleFromSignals(
     .order("created_at", { ascending: false })
     .limit(100);
 
-  if (error || !signals || signals.length === 0) {
+  if (error || !signalsData || signalsData.length === 0) {
     return {}; // Return empty if no data
   }
+
+  const signals = signalsData as Array<{
+    scroll_depth_percent: number | null;
+    replay_count: number | null;
+    hint_requests: number | null;
+    first_attempt_correct: boolean | null;
+    total_attempts: number | null;
+    answer_change_count: number | null;
+    time_to_first_answer_seconds: number | null;
+    correct_count: number | null;
+    total_questions: number | null;
+    time_on_task_seconds: number | null;
+    [key: string]: unknown;
+  }>;
 
   const sampleSize = signals.length;
 
@@ -192,12 +207,24 @@ export async function updateLearningStyleProfile(
   }
 
   // Fetch existing profile for smoothing
-  const { data: existing } = await supabase
+  const { data: existingData, error: existingError } = await supabase
     .from("user_learning_style_profile")
     .select("*")
     .eq("user_id", userId)
     .eq("subject", subject)
     .single();
+
+  const existing = existingData as {
+    visual_preference: number | null;
+    example_preference: number | null;
+    pace_preference: number | null;
+    challenge_tolerance: number | null;
+    explanation_length: number | null;
+    retry_tendency: number | null;
+    error_consistency: number | null;
+    help_seeking: number | null;
+    [key: string]: unknown;
+  } | null;
 
   // Smooth with existing profile (70% new, 30% old) if exists
   const smooth = (newVal: number | undefined, oldVal: number | null): number => {
@@ -210,21 +237,22 @@ export async function updateLearningStyleProfile(
   const update: Database["public"]["Tables"]["user_learning_style_profile"]["Insert"] = {
     user_id: userId,
     subject: subject,
-    visual_preference: smooth(computed.visualPreference, existing?.visual_preference),
-    example_preference: smooth(computed.examplePreference, existing?.example_preference),
-    pace_preference: smooth(computed.pacePreference, existing?.pace_preference),
-    challenge_tolerance: smooth(computed.challengeTolerance, existing?.challenge_tolerance),
-    explanation_length: smooth(computed.explanationLength, existing?.explanation_length),
-    retry_tendency: smooth(computed.retryTendency, existing?.retry_tendency),
-    error_consistency: smooth(computed.errorConsistency, existing?.error_consistency),
-    help_seeking: smooth(computed.helpSeeking, existing?.help_seeking),
+    visual_preference: smooth(computed.visualPreference, existing?.visual_preference ?? null),
+    example_preference: smooth(computed.examplePreference, existing?.example_preference ?? null),
+    pace_preference: smooth(computed.pacePreference, existing?.pace_preference ?? null),
+    challenge_tolerance: smooth(computed.challengeTolerance, existing?.challenge_tolerance ?? null),
+    explanation_length: smooth(computed.explanationLength, existing?.explanation_length ?? null),
+    retry_tendency: smooth(computed.retryTendency, existing?.retry_tendency ?? null),
+    error_consistency: smooth(computed.errorConsistency, existing?.error_consistency ?? null),
+    help_seeking: smooth(computed.helpSeeking, existing?.help_seeking ?? null),
     confidence_level: computed.confidenceLevel || 0,
     sample_size: computed.sampleSize || 0,
     last_updated_at: new Date().toISOString(),
   };
 
   // Upsert profile
-  const { error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
     .from("user_learning_style_profile")
     .upsert(update, {
       onConflict: "user_id,subject",
@@ -271,17 +299,30 @@ export async function getLearningStyleProfile(
     };
   }
 
+  const profile = data as {
+    visual_preference: number | null;
+    example_preference: number | null;
+    pace_preference: number | null;
+    challenge_tolerance: number | null;
+    explanation_length: number | null;
+    retry_tendency: number | null;
+    error_consistency: number | null;
+    help_seeking: number | null;
+    confidence_level: number | null;
+    sample_size: number | null;
+  };
+
   return {
-    visualPreference: data.visual_preference || 0,
-    examplePreference: data.example_preference || 0,
-    pacePreference: data.pace_preference || 0,
-    challengeTolerance: data.challenge_tolerance || 0,
-    explanationLength: data.explanation_length || 0,
-    retryTendency: data.retry_tendency || 0,
-    errorConsistency: data.error_consistency || 0,
-    helpSeeking: data.help_seeking || 0,
-    confidenceLevel: data.confidence_level || 0,
-    sampleSize: data.sample_size || 0,
+    visualPreference: profile.visual_preference || 0,
+    examplePreference: profile.example_preference || 0,
+    pacePreference: profile.pace_preference || 0,
+    challengeTolerance: profile.challenge_tolerance || 0,
+    explanationLength: profile.explanation_length || 0,
+    retryTendency: profile.retry_tendency || 0,
+    errorConsistency: profile.error_consistency || 0,
+    helpSeeking: profile.help_seeking || 0,
+    confidenceLevel: profile.confidence_level || 0,
+    sampleSize: profile.sample_size || 0,
   };
 }
 

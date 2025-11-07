@@ -27,12 +27,17 @@ async function computeUserVector(
   subject: string
 ): Promise<UserVector | null> {
   // Fetch user data
-  const [profile, preferences, progress] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("interests")
-      .eq("id", userId)
-      .single(),
+  const { data: profileData, error: profileError } = await supabase
+    .from("profiles")
+    .select("interests")
+    .eq("id", userId)
+    .single();
+
+  if (profileError || !profileData) return null;
+
+  const profile = profileData as { interests: string[] | null };
+
+  const [preferencesResult, progressResult] = await Promise.all([
     supabase
       .from("user_subject_preferences")
       .select("tone_tags, liked_ids, disliked_ids")
@@ -47,17 +52,18 @@ async function computeUserVector(
       .single(),
   ]);
 
-  if (profile.error || !profile.data) return null;
+  const preferences = preferencesResult.data as { tone_tags: string[] | null; liked_ids: string[] | null; disliked_ids: string[] | null } | null;
+  const progress = progressResult.data as { metrics: unknown } | null;
 
   // 1. Interests Vector (5 dimensions - common subjects)
   const commonSubjects = ["Math", "Physics", "Chemistry", "Biology", "Computer Science"];
-  const interests = profile.data.interests || [];
+  const interests = profile.interests || [];
   const interestsVector = commonSubjects.map((s) =>
     interests.includes(s) ? 1.0 : 0.0
   );
 
   // 2. Performance Vector (3 dimensions - accuracy, pace, consistency)
-  const metrics = (progress.data?.metrics as Record<string, unknown>) || {};
+  const metrics = (progress?.metrics as Record<string, unknown>) || {};
   const accuracy = typeof metrics.accuracyPct === "number"
     ? metrics.accuracyPct / 100
     : 0.5;
@@ -78,7 +84,7 @@ async function computeUserVector(
     "fast-paced",
     "practice-heavy",
   ];
-  const userToneTags = preferences.data?.tone_tags || [];
+  const userToneTags = preferences?.tone_tags || [];
   const preferenceVector = allToneTags.map((tag) =>
     userToneTags.includes(tag) ? 1.0 : 0.0
   );
@@ -233,7 +239,8 @@ async function buildCohortsForSubject(
       const similarityScore = computeUserSimilarity(member, centroid);
 
       // Upsert cohort assignment
-      await supabase.from("user_cohorts").upsert(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("user_cohorts").upsert(
         {
           user_id: member.userId,
           subject: member.subject,
@@ -269,17 +276,17 @@ export async function runCohortBuilderJob(
   console.log("[cohort-builder] Starting cohort builder job...");
 
   // Get all subjects with active users
-  const { data: subjects } = await supabase
+  const { data: subjects, error: subjectsError } = await supabase
     .from("user_subject_progress")
     .select("subject")
     .limit(1000);
 
-  if (!subjects) {
-    console.log("[cohort-builder] No subjects found");
+  if (subjectsError || !subjects) {
+    console.log("[cohort-builder] No subjects found or error:", subjectsError);
     return;
   }
 
-  const uniqueSubjects = [...new Set(subjects.map((s) => s.subject))];
+  const uniqueSubjects = [...new Set((subjects as Array<{ subject: string }>).map((s) => s.subject))];
   console.log(`[cohort-builder] Processing ${uniqueSubjects.length} subjects`);
 
   // Build cohorts for each subject
