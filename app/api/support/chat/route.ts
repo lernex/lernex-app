@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import { cookies } from 'next/headers';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { take } from '@/lib/rate';
-import { checkUsageLimit, logUsage } from '@/lib/usage';
+import { canUserGenerate, logUsage } from '@/lib/usage';
 import type { Database } from '@/lib/types_db';
 import { rankSupportKnowledge, type SupportKnowledgeEntry } from '@/lib/support-knowledge';
 import { createModelClient, fetchUserTier } from '@/lib/model-config';
@@ -1188,10 +1188,21 @@ export async function POST(req: NextRequest) {
   }
 
   if (userId) {
-    const allowed = await checkUsageLimit(supabase, userId);
-    if (!allowed) {
-      return new Response(JSON.stringify({ error: 'Usage limit exceeded' }), { status: 403 });
+    const limitCheck = await canUserGenerate(supabase, userId);
+    if (!limitCheck.allowed) {
+      console.log('[support/chat] Usage limit exceeded for user:', userId);
+      return new Response(
+        JSON.stringify({
+          error: 'Usage limit exceeded',
+          limitData: limitCheck,
+        }),
+        {
+          status: 429,
+          headers: { 'content-type': 'application/json' },
+        }
+      );
     }
+    console.log('[support/chat] Usage limit check passed');
   }
 
   // Fetch user tier with cache-busting (always fresh, no stale data)

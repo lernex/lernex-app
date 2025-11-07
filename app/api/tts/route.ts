@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { translateLessonForTTS } from "@/lib/tts-translation";
 import { generateSpeech } from "@/lib/kokoro-tts";
-import { logUsage, calcCost, checkUsageLimit } from "@/lib/usage";
+import { logUsage, calcCost, canUserGenerate } from "@/lib/usage";
 
 /**
  * POST /api/tts
@@ -40,13 +40,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Check usage limit
-    const withinLimit = await checkUsageLimit(supabase, user.id);
-    if (!withinLimit) {
+    const limitCheck = await canUserGenerate(supabase, user.id);
+    if (!limitCheck.allowed) {
+      console.log('[tts] Usage limit exceeded for user:', user.id);
       return NextResponse.json(
-        { error: "Usage limit reached. Please upgrade your plan." },
+        {
+          error: "Usage limit reached. Please upgrade your plan.",
+          limitData: limitCheck,
+        },
         { status: 429 }
       );
     }
+    console.log('[tts] Usage limit check passed');
 
     // Parse request body
     const body = await req.json();

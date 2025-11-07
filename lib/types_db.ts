@@ -501,6 +501,225 @@ export interface Database {
         };
         Relationships: [];
       };
+      user_cohorts: {
+        Row: {
+          user_id: string;
+          subject: string;
+          cohort_id: string;
+          similarity_score: number;
+          interests_vector: Json | null;
+          performance_vector: Json | null;
+          preference_vector: Json | null;
+          cohort_size: number | null;
+          last_updated_at: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          subject: string;
+          cohort_id: string;
+          similarity_score: number;
+          interests_vector?: Json | null;
+          performance_vector?: Json | null;
+          preference_vector?: Json | null;
+          cohort_size?: number | null;
+          last_updated_at?: string | null;
+          created_at?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          subject?: string;
+          cohort_id?: string;
+          similarity_score?: number;
+          interests_vector?: Json | null;
+          performance_vector?: Json | null;
+          preference_vector?: Json | null;
+          cohort_size?: number | null;
+          last_updated_at?: string | null;
+          created_at?: string | null;
+        };
+        Relationships: [];
+      };
+      lesson_co_occurrences: {
+        Row: {
+          lesson_a_id: string;
+          lesson_b_id: string;
+          subject: string;
+          co_like_count: number | null;
+          co_save_count: number | null;
+          confidence_score: number | null;
+          last_updated_at: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          lesson_a_id: string;
+          lesson_b_id: string;
+          subject: string;
+          co_like_count?: number | null;
+          co_save_count?: number | null;
+          confidence_score?: number | null;
+          last_updated_at?: string | null;
+          created_at?: string | null;
+        };
+        Update: {
+          lesson_a_id?: string;
+          lesson_b_id?: string;
+          subject?: string;
+          co_like_count?: number | null;
+          co_save_count?: number | null;
+          confidence_score?: number | null;
+          last_updated_at?: string | null;
+          created_at?: string | null;
+        };
+        Relationships: [];
+      };
+      user_learning_style_profile: {
+        Row: {
+          user_id: string;
+          subject: string;
+          visual_preference: number | null;
+          example_preference: number | null;
+          pace_preference: number | null;
+          challenge_tolerance: number | null;
+          explanation_length: number | null;
+          retry_tendency: number | null;
+          error_consistency: number | null;
+          help_seeking: number | null;
+          avg_time_on_task_seconds: number | null;
+          completion_rate: number | null;
+          skip_rate: number | null;
+          confidence_level: number | null;
+          sample_size: number | null;
+          last_updated_at: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          subject: string;
+          visual_preference?: number | null;
+          example_preference?: number | null;
+          pace_preference?: number | null;
+          challenge_tolerance?: number | null;
+          explanation_length?: number | null;
+          retry_tendency?: number | null;
+          error_consistency?: number | null;
+          help_seeking?: number | null;
+          avg_time_on_task_seconds?: number | null;
+          completion_rate?: number | null;
+          skip_rate?: number | null;
+          confidence_level?: number | null;
+          sample_size?: number | null;
+          last_updated_at?: string | null;
+          created_at?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          subject?: string;
+          visual_preference?: number | null;
+          example_preference?: number | null;
+          pace_preference?: number | null;
+          challenge_tolerance?: number | null;
+          explanation_length?: number | null;
+          retry_tendency?: number | null;
+          error_consistency?: number | null;
+          help_seeking?: number | null;
+          avg_time_on_task_seconds?: number | null;
+          completion_rate?: number | null;
+          skip_rate?: number | null;
+          confidence_level?: number | null;
+          sample_size?: number | null;
+          last_updated_at?: string | null;
+          created_at?: string | null;
+        };
+        Relationships: [];
+      };
+      interaction_signals: {
+        Row: {
+          id: string;
+          user_id: string;
+          lesson_id: string;
+          subject: string;
+          time_on_task_seconds: number | null;
+          scroll_depth_percent: number | null;
+          replay_count: number | null;
+          hint_requests: number | null;
+          first_attempt_correct: boolean | null;
+          total_attempts: number | null;
+          answer_change_count: number | null;
+          time_to_first_answer_seconds: number | null;
+          correct_count: number | null;
+          total_questions: number | null;
+          skipped: boolean | null;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          lesson_id: string;
+          subject: string;
+          time_on_task_seconds?: number | null;
+          scroll_depth_percent?: number | null;
+          replay_count?: number | null;
+          hint_requests?: number | null;
+          first_attempt_correct?: boolean | null;
+          total_attempts?: number | null;
+          answer_change_count?: number | null;
+          time_to_first_answer_seconds?: number | null;
+          correct_count?: number | null;
+          total_questions?: number | null;
+          skipped?: boolean | null;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          lesson_id?: string;
+          subject?: string;
+          time_on_task_seconds?: number | null;
+          scroll_depth_percent?: number | null;
+          replay_count?: number | null;
+          hint_requests?: number | null;
+          first_attempt_correct?: boolean | null;
+          total_attempts?: number | null;
+          answer_change_count?: number | null;
+          time_to_first_answer_seconds?: number | null;
+          correct_count?: number | null;
+          total_questions?: number | null;
+          skipped?: boolean | null;
+          created_at?: string | null;
+        };
+        Relationships: [];
+      };
+      collaborative_recommendations: {
+        Row: {
+          user_id: string;
+          subject: string;
+          recommended_lesson_ids: string[];
+          recommendation_scores: number[];
+          recommendation_sources: Json | null;
+          generated_at: string | null;
+          expires_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          subject: string;
+          recommended_lesson_ids: string[];
+          recommendation_scores: number[];
+          recommendation_sources?: Json | null;
+          generated_at?: string | null;
+          expires_at?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          subject?: string;
+          recommended_lesson_ids?: string[];
+          recommendation_scores?: number[];
+          recommendation_sources?: Json | null;
+          generated_at?: string | null;
+          expires_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: { [key: string]: never };
     Functions: {

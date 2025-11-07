@@ -60,12 +60,6 @@ const nextConfig: NextConfig = {
       // This ensures they're loaded on-demand, not in the main bundle
       const splitChunks = config.optimization.splitChunks;
       if (typeof splitChunks === 'object' && splitChunks.cacheGroups) {
-        splitChunks.cacheGroups.ffmpeg = {
-          test: /[\\/]node_modules[\\/]@ffmpeg[\\/]/,
-          name: 'ffmpeg',
-          chunks: 'async',
-          priority: 20,
-        };
         splitChunks.cacheGroups.pdfjs = {
           test: /[\\/]node_modules[\\/]pdfjs-dist[\\/]/,
           name: 'pdfjs',
@@ -78,35 +72,9 @@ const nextConfig: NextConfig = {
     return config;
   },
 
-  // Headers for WASM files (FFmpeg, etc.)
+  // Headers for WASM files (PDF.js)
   async headers() {
     return [
-      {
-        source: '/ffmpeg-core.wasm',
-        headers: [
-          {
-            key: 'Content-Type',
-            value: 'application/wasm',
-          },
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
-          },
-        ],
-      },
-      {
-        source: '/ffmpeg-core.js',
-        headers: [
-          {
-            key: 'Content-Type',
-            value: 'text/javascript',
-          },
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
-          },
-        ],
-      },
       {
         source: '/pdf.worker.min.mjs',
         headers: [

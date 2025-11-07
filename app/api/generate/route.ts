@@ -5,7 +5,7 @@ import { take } from "@/lib/rate";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
-import { checkUsageLimit, logUsage } from "@/lib/usage";
+import { canUserGenerate, logUsage } from "@/lib/usage";
 import { buildLessonPrompts } from "@/lib/lesson-prompts";
 import { supabaseServer } from "@/lib/supabase-server";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
@@ -224,10 +224,19 @@ export async function POST(req: NextRequest) {
   }
 
   if (uid) {
-    const ok = await checkUsageLimit(sb, uid);
-    if (!ok) {
+    const limitCheck = await canUserGenerate(sb, uid);
+    if (!limitCheck.allowed) {
       console.log('[generate] Usage limit exceeded for user:', uid);
-      return new Response(JSON.stringify({ error: "Usage limit exceeded" }), { status: 403 });
+      return new Response(
+        JSON.stringify({
+          error: "Usage limit exceeded",
+          limitData: limitCheck,
+        }),
+        {
+          status: 429,
+          headers: { "content-type": "application/json" },
+        }
+      );
     }
     console.log('[generate] Usage limit check passed');
   }

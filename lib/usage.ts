@@ -141,7 +141,199 @@ export async function logUsage(
 
   if (userId) {
     await updateUserTotalCost(sb, userId);
+
+    // Update period cost for usage limits
+    const cost = calcCost(model, usage.input_tokens ?? 0, usage.output_tokens ?? 0);
+    if (cost > 0) {
+      await updatePeriodCost(sb, userId, cost);
+    }
   }
+}
+
+/**
+ * Usage limit constants per subscription tier
+ */
+export const USAGE_LIMITS = {
+  free: 0.06,      // $0.06 per day
+  plus: 2.50,      // $2.50 per month
+  premium: 5.00,   // $5.00 per month
+} as const;
+
+/**
+ * Period duration in hours per subscription tier
+ */
+export const PERIOD_DURATION_HOURS = {
+  free: 24,        // 24 hours (1 day)
+  plus: 720,       // 720 hours (30 days)
+  premium: 720,    // 720 hours (30 days)
+} as const;
+
+export type SubscriptionTier = 'free' | 'plus' | 'premium';
+
+/**
+ * Get usage limit for a subscription tier
+ */
+export function getUsageLimit(tier: SubscriptionTier): number {
+  return USAGE_LIMITS[tier] ?? USAGE_LIMITS.free;
+}
+
+/**
+ * Get period duration in hours for a subscription tier
+ */
+export function getPeriodDurationHours(tier: SubscriptionTier): number {
+  return PERIOD_DURATION_HOURS[tier] ?? PERIOD_DURATION_HOURS.free;
+}
+
+/**
+ * Check if usage period has expired
+ */
+export function isPeriodExpired(periodStart: string | null, tier: SubscriptionTier): boolean {
+  if (!periodStart) return true;
+
+  const durationHours = getPeriodDurationHours(tier);
+  const periodStartTime = new Date(periodStart).getTime();
+  const periodEndTime = periodStartTime + (durationHours * 60 * 60 * 1000);
+  const now = Date.now();
+
+  return now >= periodEndTime;
+}
+
+/**
+ * Calculate time remaining until period reset
+ */
+export function getTimeUntilReset(periodStart: string | null, tier: SubscriptionTier): number {
+  if (!periodStart) return 0;
+
+  const durationHours = getPeriodDurationHours(tier);
+  const periodStartTime = new Date(periodStart).getTime();
+  const periodEndTime = periodStartTime + (durationHours * 60 * 60 * 1000);
+  const now = Date.now();
+
+  return Math.max(0, periodEndTime - now);
+}
+
+/**
+ * Format time remaining as { hours, minutes }
+ */
+export function formatTimeRemaining(milliseconds: number): { hours: number; minutes: number } {
+  const totalMinutes = Math.ceil(milliseconds / (60 * 1000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return { hours, minutes };
+}
+
+export type UsageLimitCheck = {
+  allowed: boolean;
+  currentCost: number;
+  limitAmount: number;
+  percentUsed: number;
+  periodStart: string | null;
+  timeUntilResetMs: number;
+  reason: string;
+  tier: SubscriptionTier;
+};
+
+/**
+ * Check if user can perform generation (has not exceeded limit)
+ * This function automatically resets the period if expired
+ */
+export async function canUserGenerate(
+  sb: SupabaseClient,
+  userId: string
+): Promise<UsageLimitCheck> {
+  // Get user profile
+  const { data: profile, error } = await sb
+    .from("profiles")
+    .select("subscription_tier, period_cost, usage_period_start")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !profile) {
+    return {
+      allowed: false,
+      currentCost: 0,
+      limitAmount: 0,
+      percentUsed: 0,
+      periodStart: null,
+      timeUntilResetMs: 0,
+      reason: "Profile not found",
+      tier: "free",
+    };
+  }
+
+  const tier = (profile.subscription_tier as SubscriptionTier) ?? "free";
+  const limit = getUsageLimit(tier);
+
+  // Check if period has expired and reset if needed
+  const expired = isPeriodExpired(profile.usage_period_start, tier);
+
+  let currentCost = profile.period_cost ?? 0;
+  let periodStart = profile.usage_period_start;
+
+  if (expired) {
+    // Reset the period
+    const now = new Date().toISOString();
+    await sb
+      .from("profiles")
+      .update({
+        usage_period_start: now,
+        period_cost: 0,
+      })
+      .eq("user_id", userId);
+
+    currentCost = 0;
+    periodStart = now;
+  }
+
+  // Calculate time until reset
+  const timeUntilResetMs = getTimeUntilReset(periodStart, tier);
+  const percentUsed = limit > 0 ? Math.round((currentCost / limit) * 100) : 0;
+
+  // Check if under limit
+  const allowed = currentCost < limit;
+  const reason = allowed
+    ? "Within usage limit"
+    : `Usage limit exceeded for current period`;
+
+  return {
+    allowed,
+    currentCost,
+    limitAmount: limit,
+    percentUsed,
+    periodStart,
+    timeUntilResetMs,
+    reason,
+    tier,
+  };
+}
+
+/**
+ * Update period cost after usage
+ * This function is called by logUsage after each generation
+ */
+async function updatePeriodCost(
+  sb: SupabaseClient,
+  userId: string,
+  costToAdd: number
+): Promise<void> {
+  // First, ensure period is not expired
+  const check = await canUserGenerate(sb, userId);
+
+  // Add to period cost
+  const { data: profile } = await sb
+    .from("profiles")
+    .select("period_cost")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const currentPeriodCost = profile?.period_cost ?? 0;
+  const newPeriodCost = currentPeriodCost + costToAdd;
+
+  await sb
+    .from("profiles")
+    .update({ period_cost: newPeriodCost })
+    .eq("user_id", userId);
 }
 
 

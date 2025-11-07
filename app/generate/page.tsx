@@ -9,6 +9,8 @@ import FormattedText from "@/components/FormattedText";
 import LessonHistoryModal from "@/components/LessonHistoryModal";
 import VoiceInput from "@/components/VoiceInput";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { useUsageLimitCheck } from "@/lib/hooks/useUsageLimitCheck";
+import UsageLimitModal from "@/components/UsageLimitModal";
 
 function GenerateContent() {
   const [text, setText] = useState("");
@@ -38,6 +40,9 @@ function GenerateContent() {
   // TTS settings
   const [ttsAutoPlay, setTtsAutoPlay] = useState(false);
   const [savedLessonId, setSavedLessonId] = useState<string | null>(null);
+
+  // Usage limit check hook
+  const { checkLimit, isModalOpen, closeModal, limitData } = useUsageLimitCheck();
 
   const startProgress = () => {
     setProgress(0);
@@ -72,6 +77,12 @@ function GenerateContent() {
 
   const handleFollowUp = async () => {
     if (!followUpQuestion.trim() || !lesson) return;
+
+    // Check usage limit before follow-up generation
+    const canGenerate = await checkLimit();
+    if (!canGenerate) {
+      return; // Modal will be shown by the hook
+    }
 
     setFollowUpLoading(true);
     setFollowUpStreaming("");
@@ -168,6 +179,12 @@ Current Question: ${followUpQuestion}
   };
 
   const run = async () => {
+    // Check usage limit before starting generation
+    const canGenerate = await checkLimit();
+    if (!canGenerate) {
+      return; // Modal will be shown by the hook
+    }
+
     const t0 = performance.now();
     setLoading(true);
     setErr(null);
@@ -376,6 +393,17 @@ Current Question: ${followUpQuestion}
   return (
     <>
       <LessonHistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
+      {limitData && (
+        <UsageLimitModal
+          isOpen={isModalOpen}
+          onClose={closeModal}
+          timeUntilResetMs={limitData.timeUntilResetMs}
+          tier={limitData.tier}
+          currentCost={limitData.currentCost}
+          limitAmount={limitData.limitAmount}
+          percentUsed={limitData.percentUsed}
+        />
+      )}
     <main className="relative min-h-[calc(100vh-56px)] flex items-center justify-center px-4 py-10 text-foreground">
       {/* History Button - Top Right */}
       <button

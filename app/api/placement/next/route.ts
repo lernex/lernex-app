@@ -7,7 +7,7 @@ import type { ChatCompletion } from "openai/resources/chat/completions";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlacementState, PlacementItem, Difficulty, PlacementNextResponse } from "@/types/placement";
 import { supabaseServer } from "@/lib/supabase-server";
-import { checkUsageLimit, logUsage } from "@/lib/usage";
+import { canUserGenerate, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { shuffleQuestionChoices } from "@/lib/quiz-shuffle";
 import { LEVELS_BY_DOMAIN } from "@/data/domains";
@@ -316,10 +316,21 @@ export async function POST(req: Request) {
   if (!user) return new Response(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
 
-  const ok = await checkUsageLimit(sb, user.id);
-  if (!ok) {
-    return new Response(JSON.stringify({ error: "Usage limit exceeded" }), { status: 403 });
+  const limitCheck = await canUserGenerate(sb, user.id);
+  if (!limitCheck.allowed) {
+    console.log('[placement/next] Usage limit exceeded for user:', user.id);
+    return new Response(
+      JSON.stringify({
+        error: "Usage limit exceeded",
+        limitData: limitCheck,
+      }),
+      {
+        status: 429,
+        headers: { "content-type": "application/json" },
+      }
+    );
   }
+  console.log('[placement/next] Usage limit check passed');
 
   // Fetch user tier with cache-busting (always fresh, no stale data)
   const userTier = await fetchUserTier(sb, user.id);

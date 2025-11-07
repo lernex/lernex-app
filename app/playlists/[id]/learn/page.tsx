@@ -10,6 +10,8 @@ import LessonCard from "@/components/LessonCard";
 import QuizBlock from "@/components/QuizBlock";
 import PageTransition from "@/components/PageTransition";
 import type { Lesson } from "@/types";
+import { useUsageLimitCheck } from "@/lib/hooks/useUsageLimitCheck";
+import UsageLimitModal from "@/components/UsageLimitModal";
 
 type SavedLesson = {
   lesson_id: string;
@@ -42,6 +44,9 @@ export default function PlaylistLearnMode() {
   const autoAdvanceRef = useRef<number | null>(null);
 
   const supabase = useMemo(() => supabaseBrowser(), []);
+
+  // Usage limit check hook
+  const { checkLimit, isModalOpen, closeModal, limitData } = useUsageLimitCheck();
 
   const loadPlaylistLessons = useCallback(async () => {
     if (!id) return;
@@ -138,6 +143,13 @@ export default function PlaylistLearnMode() {
 
   const generateRemixLessons = useCallback(async () => {
     if (!id) return;
+
+    // Check usage limit before starting remix generation
+    const canGenerate = await checkLimit();
+    if (!canGenerate) {
+      return; // Modal will be shown by the hook
+    }
+
     setGenerating(true);
     setError(null);
 
@@ -162,7 +174,7 @@ export default function PlaylistLearnMode() {
     } finally {
       setGenerating(false);
     }
-  }, [id]);
+  }, [id, checkLimit]);
 
   useEffect(() => {
     if (mode === "play") {
@@ -425,8 +437,20 @@ export default function PlaylistLearnMode() {
   }
 
   return (
-    <PageTransition>
-      <main className="relative min-h-screen bg-gradient-to-b from-white via-white to-lernex-gray/50 text-neutral-900 dark:from-lernex-charcoal dark:via-lernex-charcoal/98 dark:to-lernex-charcoal/92 dark:text-white">
+    <>
+      {limitData && (
+        <UsageLimitModal
+          isOpen={isModalOpen}
+          onClose={closeModal}
+          timeUntilResetMs={limitData.timeUntilResetMs}
+          tier={limitData.tier}
+          currentCost={limitData.currentCost}
+          limitAmount={limitData.limitAmount}
+          percentUsed={limitData.percentUsed}
+        />
+      )}
+      <PageTransition>
+        <main className="relative min-h-screen bg-gradient-to-b from-white via-white to-lernex-gray/50 text-neutral-900 dark:from-lernex-charcoal dark:via-lernex-charcoal/98 dark:to-lernex-charcoal/92 dark:text-white">
         {/* Floating background effects */}
         <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.26),transparent_45%),radial-gradient(circle_at_80%_80%,rgba(168,85,247,0.28),transparent_55%)] dark:bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.22),transparent_45%),radial-gradient(circle_at_80%_80%,rgba(168,85,247,0.22),transparent_55%)]" />
@@ -579,5 +603,6 @@ export default function PlaylistLearnMode() {
         </div>
       </main>
     </PageTransition>
+    </>
   );
 }

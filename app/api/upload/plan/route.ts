@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { take } from "@/lib/rate";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
-import { checkUsageLimit } from "@/lib/usage";
+import { canUserGenerate } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 
 export const dynamic = "force-dynamic";
@@ -115,10 +115,21 @@ export async function POST(req: NextRequest) {
   }
 
   if (uid) {
-    const ok = await checkUsageLimit(sb, uid);
-    if (!ok) {
-      return new Response(JSON.stringify({ error: "Usage limit exceeded" }), { status: 403 });
+    const limitCheck = await canUserGenerate(sb, uid);
+    if (!limitCheck.allowed) {
+      console.log('[upload/plan] Usage limit exceeded for user:', uid);
+      return new Response(
+        JSON.stringify({
+          error: "Usage limit exceeded",
+          limitData: limitCheck,
+        }),
+        {
+          status: 429,
+          headers: { "content-type": "application/json" },
+        }
+      );
     }
+    console.log('[upload/plan] Usage limit check passed');
   }
 
   const userTier = uid ? await fetchUserTier(sb, uid) : 'free';

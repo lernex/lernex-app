@@ -35,7 +35,7 @@ import {
 } from "@/lib/user-subject-state";
 import { useProfileStats } from "@/app/providers/ProfileStatsProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { calcCost } from "@/lib/usage";
+import { calcCost, USAGE_LIMITS } from "@/lib/usage";
 
 type AttemptRow = {
   subject: string;
@@ -656,7 +656,7 @@ function AnalyticsContent() {
   }, [usage]);
 
   const planLabel = profile?.subscription_tier === "premium" ? "Premium" : profile?.subscription_tier === "plus" ? "Plus" : "Free";
-  const usageAllowance = profile?.subscription_tier === "premium" ? 4.5 : profile?.subscription_tier === "plus" ? 2.25 : 0.5;
+  const usageAllowance = USAGE_LIMITS[profile?.subscription_tier ?? "free"];
   const usageSpent = profile?.totalCost ?? usageSummary.totalCost;
   const usageFill = usageAllowance > 0 ? clamp01(usageSpent / usageAllowance) : 0;
   const usagePercentUsed = Math.round(usageFill * 100);
@@ -1173,6 +1173,9 @@ function AnalyticsContent() {
                   <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
                     {Math.max(0, usagePercentRemaining)}% left
                   </span>
+                  <span className="rounded-full bg-lernex-blue/10 px-2 py-1 text-[11px] font-medium text-lernex-blue dark:bg-lernex-blue/15">
+                    {profile?.subscription_tier === "free" ? "Daily limit" : "Monthly limit"}
+                  </span>
                 </div>
               </div>
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/25">
@@ -1193,8 +1196,8 @@ function AnalyticsContent() {
                 />
               </div>
               <div className="mt-3 flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-300">
-                <span>Used ${usageSpent.toFixed(2)} so far</span>
-                <span>{usagePercentRemaining <= 0 ? "Top up to keep creating" : "Included usage"}</span>
+                <span>Used ${usageSpent.toFixed(2)} of ${usageAllowance.toFixed(2)}</span>
+                <span>{usagePercentRemaining <= 0 ? "Limit reached" : profile?.subscription_tier === "free" ? "Resets daily" : "Resets monthly"}</span>
               </div>
             </div>
             <p className="mt-4 text-xs text-neutral-500 dark:text-neutral-300">{usageStatusMessage}</p>

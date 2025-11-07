@@ -22,8 +22,10 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useLernexStore } from "@/lib/store";
 import type { Lesson } from "@/types";
 import type { ProfileBasics } from "@/lib/profile-basics";
+import { useUsageLimitCheck } from "@/lib/hooks/useUsageLimitCheck";
+import UsageLimitModal from "@/components/UsageLimitModal";
 // PERFORMANCE OPTIMIZATION: These imports are lightweight function definitions
-// The heavy libraries (FFmpeg, PDF.js, Tesseract) are dynamically imported inside these functions
+// The heavy libraries (PDF.js, Tesseract) are dynamically imported inside these functions
 import { convertPdfToImages, convertImageToBase64, convertPdfToCanvases } from "@/lib/pdf-to-images";
 import { smartOCR, calculateCostSavings } from "@/lib/smart-ocr";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -36,7 +38,6 @@ import {
   isDocumentShareable,
   formatUsageCount,
 } from "@/lib/collaborative-cache";
-import { compressAudio, isCompressibleAudio } from "@/lib/audio-processor";
 import { processDocument } from "@/lib/upload-router";
 import type { PipelineConfig } from "@/lib/pipeline-types";
 import { startBackgroundPreload, subscribeToLibraryStatus, getLibraryStatus } from "@/lib/library-preloader";
@@ -72,26 +73,11 @@ async function parseAudioFile(file: File): Promise<string> {
     throw new Error(`"${file.name}" exceeds ${(MAX_AUDIO_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0)}MB audio limit.`);
   }
 
-  // Step 0: Compress audio to reduce transcription costs (40-60% savings)
-  let audioFileToTranscribe = file;
-  if (isCompressibleAudio(file)) {
-    try {
-      console.log('[audio] Step 0/3: Compressing audio for cost optimization...');
-      audioFileToTranscribe = await compressAudio(file);
-      console.log('[audio] Compression successful, proceeding with compressed file');
-    } catch (compressionError) {
-      // Fallback to original file if compression fails
-      console.warn('[audio] Compression failed, using original file:', compressionError);
-      audioFileToTranscribe = file;
-    }
-  } else {
-    console.log('[audio] File format not compressible, skipping compression');
-  }
-
   // Step 1: Transcribe audio with Whisper
-  console.log('[audio] Step 1/3: Transcribing audio with Whisper...');
+  // Whisper supports multiple formats: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm
+  console.log('[audio] Step 1/2: Transcribing audio with Whisper...');
   const formData = new FormData();
-  formData.append('audio', audioFileToTranscribe);
+  formData.append('audio', file);
 
   // Estimate duration based on file size (rough estimate: 1MB ≈ 1 minute for compressed audio)
   const estimatedDuration = Math.round((file.size / (1024 * 1024)) * 60);
@@ -113,7 +99,7 @@ async function parseAudioFile(file: File): Promise<string> {
 
   // Step 2: Shorten the transcript using gpt-oss-20b
   // This removes filler words, repetitions, and extracts key educational content
-  console.log('[audio] Step 2/3: Condensing transcript with AI...');
+  console.log('[audio] Step 2/2: Condensing transcript with AI...');
   const shortenResponse = await fetch('/api/shorten', {
     method: 'POST',
     headers: {
@@ -684,6 +670,9 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
   const abortControllerRef = useRef<AbortController | null>(null);
   const statusUpdateTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Usage limit check hook
+  const { checkLimit, isModalOpen, closeModal, limitData } = useUsageLimitCheck();
+
   useEffect(() => {
     setSubject(preferredSubject);
   }, [preferredSubject]);
@@ -706,8 +695,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
       statusUpdateTimerRef.current = setTimeout(() => {
         const status = getLibraryStatus();
         const newReady = status.criticalReady;
-        const newLoading = status.pdfjs.status === 'loading' ||
-                           status.ffmpeg.status === 'loading';
+        const newLoading = status.pdfjs.status === 'loading';
 
         // Only update if values actually changed (prevent unnecessary re-renders)
         setLibrariesReady(prev => prev !== newReady ? newReady : prev);
@@ -1112,6 +1100,13 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
   const processFiles = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
+
+      // Check usage limit before starting generation
+      const canGenerate = await checkLimit();
+      if (!canGenerate) {
+        return; // Modal will be shown by the hook
+      }
+
       setError(null);
       setStage("parsing");
       setStatusDetail("Processing your content with AI…");
@@ -1507,7 +1502,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
       setStatusDetail(null);
       setProgress(100);
     },
-    [subject, lessons.length, generateQuickLessons, processFirstPages, processFilesIncrementalLearning],
+    [subject, lessons.length, generateQuickLessons, processFirstPages, processFilesIncrementalLearning, checkLimit],
   );
 
   // ========================================
@@ -1593,6 +1588,18 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
     <ErrorBoundary>
       <ProfileBasicsProvider initialData={initialProfile ?? undefined}>
         <WelcomeTourOverlay />
+        {limitData && (
+          <UsageLimitModal
+            isOpen={isModalOpen}
+            onClose={closeModal}
+            timeUntilResetMs={limitData.timeUntilResetMs}
+            tier={limitData.tier}
+            currentCost={limitData.currentCost}
+            limitAmount={limitData.limitAmount}
+            percentUsed={limitData.percentUsed}
+          />
+        )}
+
       <main className="relative isolate mx-auto flex min-h-[calc(100vh-56px)] w-full max-w-6xl flex-col gap-12 px-4 pb-16 pt-12 sm:px-6 lg:px-8">
         <div className="pointer-events-none absolute inset-0 -z-10">
           <div className="absolute inset-x-[-12%] top-[-18%] h-[420px] rounded-full bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.18),transparent_70%)] blur-3xl dark:bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.28),transparent_70%)]" />

@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { supabaseServer } from "@/lib/supabase-server";
-import { checkUsageLimit, logUsage } from "@/lib/usage";
+import { canUserGenerate, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { getCachedSampleQuestions } from "@/lib/sat-sample-cache";
 import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
@@ -90,11 +90,21 @@ export async function POST(req: Request) {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
 
     if (uid) {
-      const ok = await checkUsageLimit(sb, uid);
-      if (!ok) {
-        console.warn("[sat-prep/quiz] usage-limit", { uid });
-        return new Response("Usage limit exceeded", { status: 403 });
+      const limitCheck = await canUserGenerate(sb, uid);
+      if (!limitCheck.allowed) {
+        console.log('[sat-prep/quiz] Usage limit exceeded for user:', uid);
+        return new Response(
+          JSON.stringify({
+            error: "Usage limit exceeded",
+            limitData: limitCheck,
+          }),
+          {
+            status: 429,
+            headers: { "content-type": "application/json" },
+          }
+        );
       }
+      console.log('[sat-prep/quiz] Usage limit check passed');
     }
 
     const body = await req.json().catch(() => ({}));

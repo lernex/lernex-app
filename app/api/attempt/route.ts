@@ -3,6 +3,12 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/lib/types_db";
 import { computeStreakAfterActivity } from "@/lib/profile-stats";
+import {
+  recordInteractionSignal,
+  updateLearningStyleProfile,
+  shouldUpdateProfile,
+  createInteractionSignalFromAttempt,
+} from "@/lib/learning-style-detection";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -320,6 +326,52 @@ export async function POST(req: NextRequest) {
             console.error("[api/attempt] user_subject_state update failed", stateUpdateError);
           }
         }
+      }
+    }
+
+    // ========================================================================
+    // LEARNING STYLE DETECTION: Record interaction signals and update profile
+    // ========================================================================
+    if (eventType === "lesson-finish" && subjectValue && typeof lesson_id === "string") {
+      try {
+        // Extract time on task from body if provided
+        const timeOnTaskSeconds = typeof (body as any)?.time_on_task_seconds === "number"
+          ? Number((body as any).time_on_task_seconds)
+          : null;
+
+        // Create interaction signal from attempt data
+        const signal = createInteractionSignalFromAttempt(
+          uid,
+          String(lesson_id),
+          subjectValue,
+          correctCountNumber,
+          typeof total === "number" ? Number(total) : 0,
+          timeOnTaskSeconds || 60, // Default to 60s if not provided
+          false // Not skipped if we reached this point
+        );
+
+        // Record signal (fire and forget - don't block response)
+        recordInteractionSignal(supabase, signal).catch((err) =>
+          console.error("[api/attempt] Failed to record interaction signal:", err)
+        );
+
+        // Check if it's time to update learning style profile (every 5 attempts)
+        const { count: attemptCount } = await supabase
+          .from("attempts")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", uid)
+          .eq("subject", subjectValue);
+
+        if (attemptCount && shouldUpdateProfile(attemptCount)) {
+          console.log(`[api/attempt] Updating learning style profile (${attemptCount} attempts)`);
+          // Update profile asynchronously (don't block response)
+          updateLearningStyleProfile(supabase, uid, subjectValue).catch((err) =>
+            console.error("[api/attempt] Failed to update learning style profile:", err)
+          );
+        }
+      } catch (err) {
+        // Don't fail the attempt if learning style tracking fails
+        console.error("[api/attempt] Learning style tracking error:", err);
       }
     }
 

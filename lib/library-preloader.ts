@@ -1,13 +1,12 @@
 /**
  * Smart Library Preloader
  *
- * Intelligently preloads heavy libraries (FFmpeg, PDF.js) to optimize UX:
+ * Intelligently preloads heavy libraries (PDF.js) to optimize UX:
  *
  * Strategy:
  * 1. Page loads instantly (libraries not in main bundle)
  * 2. Start preloading during browser idle time (requestIdleCallback)
- * 3. Prioritize PDF.js (80% of uploads) > FFmpeg (20% of uploads)
- * 4. Libraries ready when user needs them (0 wait time)
+ * 3. Libraries ready when user needs them (0 wait time)
  *
  * This gives us the best of both worlds:
  * - Fast initial page load (< 1 second)
@@ -25,7 +24,6 @@ interface LibraryState {
 
 class LibraryPreloader {
   private pdfjs: LibraryState = { status: 'idle', startTime: null, loadTime: null, error: null };
-  private ffmpeg: LibraryState = { status: 'idle', startTime: null, loadTime: null, error: null };
 
   private listeners: Set<() => void> = new Set();
   private preloadStarted = false; // Prevent duplicate preload calls
@@ -63,13 +61,9 @@ class LibraryPreloader {
       }
     };
 
-    // PRIORITY 1: PDF.js (most common - 80% of uploads)
+    // PRIORITY 1: PDF.js (most common upload type)
     // Start immediately after page becomes interactive
     schedulePreload(() => this.preloadPDFjs(), 1000);
-
-    // PRIORITY 2: FFmpeg (lower priority - 20% of uploads)
-    // Start after PDF.js has time to load, as audio uploads are less common
-    schedulePreload(() => this.preloadFFmpeg(), 8000);
   }
 
   /**
@@ -123,41 +117,6 @@ class LibraryPreloader {
     }
   }
 
-  /**
-   * Preload FFmpeg library
-   */
-  public async preloadFFmpeg(): Promise<void> {
-    if (this.ffmpeg.status !== 'idle') {
-      console.log(`[library-preloader] FFmpeg already ${this.ffmpeg.status}`);
-      return;
-    }
-
-    this.ffmpeg.status = 'loading';
-    this.ffmpeg.startTime = performance.now();
-    console.log('[library-preloader] [PRIORITY 3] Preloading FFmpeg (31MB, may take 10-30s)...');
-    this.notifyListeners();
-
-    try {
-      // Use the existing preloadFFmpeg function from audio-processor
-      const { preloadFFmpeg } = await import('./audio-processor');
-      await preloadFFmpeg();
-
-      this.ffmpeg.status = 'loaded';
-      this.ffmpeg.loadTime = performance.now() - (this.ffmpeg.startTime || 0);
-      console.log(`[library-preloader] ✅ FFmpeg preloaded in ${(this.ffmpeg.loadTime / 1000).toFixed(1)}s`);
-      this.notifyListeners();
-    } catch (error) {
-      this.ffmpeg.status = 'error';
-      this.ffmpeg.error = error instanceof Error ? error : new Error('Failed to preload FFmpeg');
-
-      // Only warn for preload failures - this is non-critical as FFmpeg will load on-demand when needed
-      console.warn('[library-preloader] FFmpeg preload failed (will load on-demand when needed):', error instanceof Error ? error.message : error);
-      this.notifyListeners();
-
-      // Don't throw - preloading is an optimization, not a requirement
-    }
-  }
-
 
   /**
    * Get loading status for all libraries
@@ -165,24 +124,22 @@ class LibraryPreloader {
   public getStatus() {
     return {
       pdfjs: { ...this.pdfjs },
-      ffmpeg: { ...this.ffmpeg },
-      allReady: this.pdfjs.status === 'loaded' &&
-                this.ffmpeg.status === 'loaded',
-      criticalReady: this.pdfjs.status === 'loaded', // PDF.js is most critical
+      allReady: this.pdfjs.status === 'loaded',
+      criticalReady: this.pdfjs.status === 'loaded',
     };
   }
 
   /**
    * Check if a specific library is ready
    */
-  public isReady(library: 'pdfjs' | 'ffmpeg'): boolean {
+  public isReady(library: 'pdfjs'): boolean {
     return this[library].status === 'loaded';
   }
 
   /**
    * Get estimated load time for a library (if not loaded yet)
    */
-  public getEstimatedLoadTime(library: 'pdfjs' | 'ffmpeg'): number {
+  public getEstimatedLoadTime(library: 'pdfjs'): number {
     const state = this[library];
 
     if (state.status === 'loaded') return 0;
@@ -191,13 +148,8 @@ class LibraryPreloader {
       return performance.now() - state.startTime;
     }
 
-    // Estimated load times (in ms)
-    const estimates = {
-      pdfjs: 2000,      // 2 seconds
-      ffmpeg: 15000,    // 15 seconds (31MB download)
-    };
-
-    return estimates[library];
+    // Estimated load time for PDF.js (in ms)
+    return 2000; // 2 seconds
   }
 
   /**
@@ -217,7 +169,6 @@ class LibraryPreloader {
    */
   public reset(): void {
     this.pdfjs = { status: 'idle', startTime: null, loadTime: null, error: null };
-    this.ffmpeg = { status: 'idle', startTime: null, loadTime: null, error: null };
     this.preloadStarted = false;
     this.notifyListeners();
   }
@@ -229,10 +180,6 @@ class LibraryPreloader {
     if (this.pdfjs.status === 'error') {
       this.pdfjs.status = 'idle';
       this.pdfjs.error = null;
-    }
-    if (this.ffmpeg.status === 'error') {
-      this.ffmpeg.status = 'idle';
-      this.ffmpeg.error = null;
     }
     this.notifyListeners();
   }
@@ -247,8 +194,7 @@ export default libraryPreloader;
 // Named exports for convenience
 export const startBackgroundPreload = () => libraryPreloader.startBackgroundPreload();
 export const preloadPDFjs = () => libraryPreloader.preloadPDFjs();
-export const preloadFFmpeg = () => libraryPreloader.preloadFFmpeg();
 export const getLibraryStatus = () => libraryPreloader.getStatus();
-export const isLibraryReady = (lib: 'pdfjs' | 'ffmpeg') => libraryPreloader.isReady(lib);
-export const getEstimatedLoadTime = (lib: 'pdfjs' | 'ffmpeg') => libraryPreloader.getEstimatedLoadTime(lib);
+export const isLibraryReady = (lib: 'pdfjs') => libraryPreloader.isReady(lib);
+export const getEstimatedLoadTime = (lib: 'pdfjs') => libraryPreloader.getEstimatedLoadTime(lib);
 export const subscribeToLibraryStatus = (listener: () => void) => libraryPreloader.subscribe(listener);

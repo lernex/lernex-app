@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { supabaseServer } from "@/lib/supabase-server";
-import { checkUsageLimit, logUsage } from "@/lib/usage";
+import { canUserGenerate, logUsage } from "@/lib/usage";
 import { normalizeLatex, scanLatex, hasLatexIssues } from "@/lib/latex";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
@@ -17,10 +17,21 @@ export async function POST(req: Request) {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
 
     if (user) {
-      const ok = await checkUsageLimit(sb, user.id);
-      if (!ok) {
-        return new Response(JSON.stringify({ error: "Usage limit exceeded" }), { status: 403 });
+      const limitCheck = await canUserGenerate(sb, user.id);
+      if (!limitCheck.allowed) {
+        console.log('[generate/quiz] Usage limit exceeded for user:', user.id);
+        return new Response(
+          JSON.stringify({
+            error: "Usage limit exceeded",
+            limitData: limitCheck,
+          }),
+          {
+            status: 429,
+            headers: { "content-type": "application/json" },
+          }
+        );
       }
+      console.log('[generate/quiz] Usage limit check passed');
     }
     
     const { text, subject = "Algebra 1", difficulty = "easy", mode = "mini", quizOnly = false } = await req.json();

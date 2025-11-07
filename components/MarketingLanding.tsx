@@ -854,8 +854,8 @@ export default function MarketingLanding() {
         <h2 className="text-center text-3xl font-bold">What learners are saying</h2>
         <p className="mt-3 text-center text-neutral-600 dark:text-neutral-300">Real feedback from students, professionals, and teams using Lernex daily</p>
         <div className="relative mt-10 overflow-hidden">
-          <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-20 bg-gradient-to-r from-neutral-50 to-transparent dark:from-slate-950" />
-          <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-20 bg-gradient-to-l from-neutral-50 to-transparent dark:from-slate-950" />
+          <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-20 bg-gradient-to-r from-neutral-50 to-transparent dark:from-[#1a1d2e]" />
+          <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-20 bg-gradient-to-l from-neutral-50 to-transparent dark:from-[#1a1d2e]" />
 
           <div className="flex gap-4 animate-carousel-scroll">
             {[...testimonials, ...testimonials, ...testimonials].map((item, index) => (

@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import type { ChatCompletionCreateParams } from "openai/resources/chat/completions";
 import { supabaseServer } from "@/lib/supabase-server";
-import { checkUsageLimit, logUsage } from "@/lib/usage";
+import { canUserGenerate, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { compressContext } from "@/lib/semantic-compression";
 
@@ -49,11 +49,21 @@ export async function POST(req: Request) {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
 
     if (uid) {
-      const ok = await checkUsageLimit(sb, uid);
-      if (!ok) {
-        console.warn("[gen/stream] usage-limit", { uid });
-        return new Response("Usage limit exceeded", { status: 403 });
+      const limitCheck = await canUserGenerate(sb, uid);
+      if (!limitCheck.allowed) {
+        console.log('[generate/stream] Usage limit exceeded for user:', uid);
+        return new Response(
+          JSON.stringify({
+            error: "Usage limit exceeded",
+            limitData: limitCheck,
+          }),
+          {
+            status: 429,
+            headers: { "content-type": "application/json" },
+          }
+        );
       }
+      console.log('[generate/stream] Usage limit check passed');
     }
 
     const body = await req.json().catch(() => ({}));

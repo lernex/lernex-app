@@ -7,6 +7,8 @@ import QuizBlock from "@/components/QuizBlock";
 import FormattedText from "@/components/FormattedText";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Brain } from "lucide-react";
+import { useUsageLimitCheck } from "@/lib/hooks/useUsageLimitCheck";
+import UsageLimitModal from "@/components/UsageLimitModal";
 
 type SATSection = "math" | "reading" | "writing";
 type SATTopic = {
@@ -69,6 +71,9 @@ function SATPreContent() {
   const [err, setErr] = useState<string | null>(null);
   const timerRef = useRef<number | null>(null);
 
+  // Usage limit check hook
+  const { checkLimit, isModalOpen, closeModal, limitData } = useUsageLimitCheck();
+
   const sections: { key: SATSection; label: string; color: string }[] = [
     { key: "math", label: "Math", color: "from-blue-500 to-cyan-500" },
     { key: "reading", label: "Reading", color: "from-purple-500 to-pink-500" },
@@ -102,6 +107,12 @@ function SATPreContent() {
   }, []);
 
   const run = async () => {
+    // Check usage limit before starting generation
+    const canGenerate = await checkLimit();
+    if (!canGenerate) {
+      return; // Modal will be shown by the hook
+    }
+
     const t0 = performance.now();
     setLoading(true);
     setErr(null);
@@ -220,6 +231,18 @@ function SATPreContent() {
 
   return (
     <main className="min-h-[calc(100vh-56px)] flex items-center justify-center px-4 py-10 text-foreground">
+      {limitData && (
+        <UsageLimitModal
+          isOpen={isModalOpen}
+          onClose={closeModal}
+          timeUntilResetMs={limitData.timeUntilResetMs}
+          tier={limitData.tier}
+          currentCost={limitData.currentCost}
+          limitAmount={limitData.limitAmount}
+          percentUsed={limitData.percentUsed}
+        />
+      )}
+
       <div className="w-full max-w-2xl space-y-4 py-6">
         <div className="rounded-2xl border border-surface bg-surface-panel p-6 space-y-5 shadow-sm backdrop-blur transition-colors">
           {/* Header */}
