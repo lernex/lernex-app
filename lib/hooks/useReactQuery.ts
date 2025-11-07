@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 // ============================================================================
@@ -160,34 +160,4 @@ export function useInvalidateUserQueries() {
     queryClient.invalidateQueries({ queryKey: ["profile"] });
     queryClient.invalidateQueries({ queryKey: queryKeys.profileBasics });
   };
-}
-
-/**
- * Mutation hook for updating user membership
- * Automatically invalidates related queries on success
- */
-export function useUpdateMembership() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (tier: "premium" | "plus" | null) => {
-      const supabase = supabaseBrowser();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const { error } = await supabase
-        .from("profiles")
-        .update({ subscription_tier: tier })
-        .eq("id", user.id);
-
-      if (error) throw error;
-      return tier;
-    },
-    onSuccess: (_, variables) => {
-      // Invalidate membership queries to refetch fresh data
-      queryClient.invalidateQueries({ queryKey: ["membership"] });
-    },
-  });
 }
