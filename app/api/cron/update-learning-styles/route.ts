@@ -62,7 +62,8 @@ export async function POST(req: NextRequest) {
       .from("interaction_signals")
       .select("user_id, subject")
       .gte("created_at", oneDayAgo.toISOString())
-      .limit(1000);
+      .limit(1000)
+      .returns<Array<{ user_id: string; subject: string }>>();
 
     if (signalsError) {
       console.error("[cron] Error fetching interaction signals:", signalsError);
