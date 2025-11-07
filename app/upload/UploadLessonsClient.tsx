@@ -853,15 +853,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
     }
   }, [subject]);
 
-  useEffect(() => {
-    if (!lessons.length) return;
-    const timer = window.setTimeout(() => {
-      try {
-        window.MathJax?.typesetPromise?.().catch(() => {});
-      } catch {}
-    }, 180);
-    return () => window.clearTimeout(timer);
-  }, [lessons]);
+  // KaTeX renders synchronously during component render, so no manual typesetting needed
 
   useEffect(
     () => () => {

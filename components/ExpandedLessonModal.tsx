@@ -30,26 +30,7 @@ export default function ExpandedLessonModal({
   const modalRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Typeset math when content changes or modal opens
-  useEffect(() => {
-    if (!isOpen) return;
-    const shouldTypeset =
-      typeof lesson.content === "string" && MATH_TRIGGER_RE.test(lesson.content);
-    if (!shouldTypeset) return;
-
-    const el = contentRef.current;
-    if (!el) return;
-
-    // Double requestAnimationFrame to ensure layout is committed
-    const handle1 = window.requestAnimationFrame(() => {
-      const handle2 = window.requestAnimationFrame(() => {
-        window.MathJax?.typesetPromise?.([el]).catch(() => {});
-      });
-      return () => window.cancelAnimationFrame(handle2);
-    });
-
-    return () => window.cancelAnimationFrame(handle1);
-  }, [isOpen, lesson.content]);
+  // KaTeX renders synchronously during component render, so no manual typesetting needed
 
   // Prevent body scroll when modal is open
   useEffect(() => {

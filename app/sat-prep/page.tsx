@@ -212,21 +212,10 @@ function SATPreContent() {
     }
   };
 
+  // KaTeX renders synchronously during component render, so no manual typesetting needed
   useEffect(() => {
     if (!lesson) return;
-    const kick = () => {
-      try {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            window.MathJax?.typesetPromise?.().catch(() => {});
-            setTimeout(() => {
-              window.MathJax?.typesetPromise?.().catch(() => {});
-            }, 200);
-          });
-        });
-      } catch {}
-    };
-    kick();
+    // No-op: KaTeX doesn't need manual typesetting
   }, [lesson]);
 
   return (
@@ -332,7 +321,7 @@ function SATPreContent() {
         {/* Streaming text preview */}
         {!lesson && streamed && (
           <div className="whitespace-pre-wrap rounded-2xl border border-surface bg-surface-card p-5 text-neutral-700 shadow-sm dark:text-neutral-200 transition-all animate-in fade-in duration-300">
-            <FormattedText text={streamed} incremental />
+            <FormattedText text={streamed} />
           </div>
         )}
 

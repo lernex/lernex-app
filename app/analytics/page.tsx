@@ -65,6 +65,8 @@ type ProfileSnapshot = {
   points: number;
   streak: number;
   totalCost: number;
+  periodCost: number;
+  usagePeriodStart: string | null;
   interests: string[];
   lastStudyDate: string | null;
   placementReady: boolean;
@@ -161,6 +163,8 @@ function normalizeProfile(row: Record<string, unknown> | null | undefined): Prof
     points: Math.max(0, Math.round(toNumber(row?.["points"], 0))),
     streak: Math.max(0, Math.round(toNumber(row?.["streak"], 0))),
     totalCost: Number(row?.["total_cost"] ?? 0) || 0,
+    periodCost: Number(row?.["period_cost"] ?? 0) || 0,
+    usagePeriodStart: toStringOrNull(row?.["usage_period_start"]),
     interests,
     lastStudyDate: toStringOrNull(row?.["last_study_date"]),
     placementReady: row?.["placement_ready"] === true,
@@ -460,7 +464,7 @@ function AnalyticsContent() {
           }),
           supabase
             .from("profiles")
-            .select("points, streak, total_cost, last_study_date, interests, placement_ready, subscription_tier")
+            .select("points, streak, total_cost, period_cost, usage_period_start, last_study_date, interests, placement_ready, subscription_tier")
             .eq("id", userId)
             .maybeSingle(),
           supabase
@@ -657,7 +661,7 @@ function AnalyticsContent() {
 
   const planLabel = profile?.subscription_tier === "premium" ? "Premium" : profile?.subscription_tier === "plus" ? "Plus" : "Free";
   const usageAllowance = USAGE_LIMITS[profile?.subscription_tier ?? "free"];
-  const usageSpent = profile?.totalCost ?? usageSummary.totalCost;
+  const usageSpent = profile?.periodCost ?? 0;
   const usageFill = usageAllowance > 0 ? clamp01(usageSpent / usageAllowance) : 0;
   const usagePercentUsed = Math.round(usageFill * 100);
   const usagePercentRemaining =
@@ -1196,7 +1200,7 @@ function AnalyticsContent() {
                 />
               </div>
               <div className="mt-3 flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-300">
-                <span>Used ${usageSpent.toFixed(2)} of ${usageAllowance.toFixed(2)}</span>
+                <span>{usagePercentUsed}% of {profile?.subscription_tier === "free" ? "daily" : "monthly"} allowance used</span>
                 <span>{usagePercentRemaining <= 0 ? "Limit reached" : profile?.subscription_tier === "free" ? "Resets daily" : "Resets monthly"}</span>
               </div>
             </div>

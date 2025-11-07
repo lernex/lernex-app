@@ -328,42 +328,7 @@ Current Question: ${followUpQuestion}
     }
   };
 
-  // After we assemble the final lesson (card + quiz), force a one-time global
-  // MathJax typeset to ensure everything on the page is rendered, including
-  // prompts/choices that may contain raw TeX without delimiters before our
-  // heuristics kick in.
-  useEffect(() => {
-    if (!lesson) return;
-    const kick = () => {
-      try {
-        // Double-rAF so layout is committed before typeset
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            // Best-effort: ignore errors in case MathJax isn't loaded yet
-            // The FormattedText fallbacks will still handle local elements.
-            window.MathJax?.typesetPromise?.().catch(() => {});
-            // Second pass a bit later to catch any late layout
-            setTimeout(() => {
-              window.MathJax?.typesetPromise?.().catch(() => {});
-            }, 200);
-          });
-        });
-      } catch {}
-    };
-    kick();
-  }, [lesson]);
-
-  // Typeset MathJax when follow-up history changes
-  useEffect(() => {
-    if (followUpHistory.length === 0) return;
-    try {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          window.MathJax?.typesetPromise?.().catch(() => {});
-        });
-      });
-    } catch {}
-  }, [followUpHistory]);
+  // KaTeX renders synchronously during component render, so no manual typesetting needed
 
   const saveToHistory = async (lessonToSave: Lesson) => {
     try {
@@ -574,7 +539,7 @@ Current Question: ${followUpQuestion}
         {!lesson && streamed && (
           <div className="whitespace-pre-wrap rounded-2xl border border-surface bg-surface-card p-4 text-neutral-700 shadow-sm dark:text-neutral-200">
             {/* Use incremental rendering to avoid flashing while streaming */}
-            <FormattedText text={streamed} incremental />
+            <FormattedText text={streamed} />
           </div>
         )}
 
@@ -658,7 +623,7 @@ Current Question: ${followUpQuestion}
                         <div className="w-2 h-2 bg-lernex-purple rounded-full animate-pulse" />
                         <span className="text-xs font-medium text-lernex-purple">Generating response...</span>
                       </div>
-                      <FormattedText text={followUpStreaming} incremental />
+                      <FormattedText text={followUpStreaming} />
                     </div>
                   </div>
                 )}

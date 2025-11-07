@@ -206,18 +206,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
     setStats(normalizeProfileStats(fallback));
   }, [setStats, stats]);
 
-  // Ensure MathJax formats newly shown questions immediately after index
-  // changes. This complements the per-element fallback in FormattedText and
-  // helps when the entire question block swaps at once.
-  useEffect(() => {
-    if (!needsMathTypeset) return;
-    const el = rootRef.current;
-    if (!el) return;
-    const handle = window.requestAnimationFrame(() => {
-      window.MathJax?.typesetPromise?.([el]).catch(() => {});
-    });
-    return () => window.cancelAnimationFrame(handle);
-  }, [qIndex, needsMathTypeset]);
+  // KaTeX renders synchronously during component render, so no manual typesetting needed
 
   const choose = (idx: number, ev?: React.MouseEvent<HTMLButtonElement>) => {
     if (selected !== null) return;
@@ -253,13 +242,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
     // Ensure formatting stays intact after the immediate UI update when
     // button classes change (avoids transient unformatted state in some
     // browsers during reflow).
-    if (needsMathTypeset) {
-      window.requestAnimationFrame(() => {
-        const el = rootRef.current;
-        if (!el) return;
-        window.MathJax?.typesetPromise?.([el]).catch(() => {});
-      });
-    }
+    // KaTeX renders synchronously, no manual typesetting needed
   };
 
   const back = () => {

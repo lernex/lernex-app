@@ -62,8 +62,7 @@ export async function POST(req: NextRequest) {
       .from("interaction_signals")
       .select("user_id, subject")
       .gte("created_at", oneDayAgo.toISOString())
-      .limit(1000)
-      .returns<Array<{ user_id: string; subject: string }>>();
+      .limit(1000);
 
     if (signalsError) {
       console.error("[cron] Error fetching interaction signals:", signalsError);
@@ -84,7 +83,7 @@ export async function POST(req: NextRequest) {
 
     // Get unique user-subject pairs
     const uniquePairs = new Map<string, string>();
-    for (const signal of recentSignals) {
+    for (const signal of recentSignals as Array<{ user_id: string; subject: string }>) {
       const key = `${signal.user_id}:${signal.subject}`;
       uniquePairs.set(key, signal.subject);
     }

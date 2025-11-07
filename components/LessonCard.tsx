@@ -109,18 +109,7 @@ export default function LessonCard({ lesson, className, lessonId, audioUrl, auto
     return contentHasMath || titleHasMath;
   }, [lesson.content, lesson.title]);
 
-  // Mount guard: Once the lesson content is in the DOM, run a local
-  // MathJax typeset against just this card to ensure stable formatting after
-  // the preview -> card swap.
-  useEffect(() => {
-    if (!shouldTypesetLesson) return;
-    const el = cardRef.current;
-    if (!el) return;
-    const handle = window.requestAnimationFrame(() => {
-      window.MathJax?.typesetPromise?.([el]).catch(() => {});
-    });
-    return () => window.cancelAnimationFrame(handle);
-  }, [lesson.id, lesson.content, shouldTypesetLesson]);
+  // KaTeX renders synchronously during component render, so no manual typesetting needed
 
   const computeFade = useCallback(() => {
     const node = scrollRef.current;
