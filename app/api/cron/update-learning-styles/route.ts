@@ -58,11 +58,19 @@ export async function POST(req: NextRequest) {
     const oneDayAgo = new Date();
     oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
-    const { data: recentSignals } = await supabase
+    const { data: recentSignals, error: signalsError } = await supabase
       .from("interaction_signals")
       .select("user_id, subject")
       .gte("created_at", oneDayAgo.toISOString())
       .limit(1000);
+
+    if (signalsError) {
+      console.error("[cron] Error fetching interaction signals:", signalsError);
+      return NextResponse.json(
+        { error: "Failed to fetch interaction signals" },
+        { status: 500 }
+      );
+    }
 
     if (!recentSignals || recentSignals.length === 0) {
       console.log("[cron] No recent interaction signals found");
