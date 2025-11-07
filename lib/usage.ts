@@ -246,7 +246,7 @@ export async function canUserGenerate(
   const { data: profile, error } = await sb
     .from("profiles")
     .select("subscription_tier, period_cost, usage_period_start")
-    .eq("user_id", userId)
+    .eq("id", userId)
     .maybeSingle();
 
   if (error || !profile) {
@@ -280,7 +280,7 @@ export async function canUserGenerate(
         usage_period_start: now,
         period_cost: 0,
       })
-      .eq("user_id", userId);
+      .eq("id", userId);
 
     currentCost = 0;
     periodStart = now;
@@ -324,7 +324,7 @@ async function updatePeriodCost(
   const { data: profile } = await sb
     .from("profiles")
     .select("period_cost")
-    .eq("user_id", userId)
+    .eq("id", userId)
     .maybeSingle();
 
   const currentPeriodCost = profile?.period_cost ?? 0;
@@ -333,7 +333,7 @@ async function updatePeriodCost(
   await sb
     .from("profiles")
     .update({ period_cost: newPeriodCost })
-    .eq("user_id", userId);
+    .eq("id", userId);
 }
 
 

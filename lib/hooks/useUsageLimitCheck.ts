@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase-client";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { UsageLimitCheck } from "@/lib/usage";
 
 /**
@@ -18,7 +18,7 @@ export function useUsageLimitCheck() {
    */
   const checkLimit = useCallback(async (): Promise<boolean> => {
     try {
-      const supabase = createClient();
+      const supabase = supabaseBrowser();
 
       // Get current user
       const {
