@@ -317,8 +317,8 @@ async function updatePeriodCost(
   userId: string,
   costToAdd: number
 ): Promise<void> {
-  // First, ensure period is not expired
-  const check = await canUserGenerate(sb, userId);
+  // First, ensure period is not expired (this call resets if needed)
+  await canUserGenerate(sb, userId);
 
   // Add to period cost
   const { data: profile } = await sb

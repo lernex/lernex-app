@@ -57,7 +57,7 @@ async function computeUserVector(
   );
 
   // 2. Performance Vector (3 dimensions - accuracy, pace, consistency)
-  const metrics = (progress.data?.metrics as any) || {};
+  const metrics = (progress.data?.metrics as Record<string, unknown>) || {};
   const accuracy = typeof metrics.accuracyPct === "number"
     ? metrics.accuracyPct / 100
     : 0.5;

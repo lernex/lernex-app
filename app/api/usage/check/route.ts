@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase-server";
+import { supabaseServer } from "@/lib/supabase-server";
 import { canUserGenerate } from "@/lib/usage";
 
 /**
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createClient();
+    const supabase = await supabaseServer();
 
     // Verify the requesting user matches the userId
     const {

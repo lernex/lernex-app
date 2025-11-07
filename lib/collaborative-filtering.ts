@@ -320,7 +320,7 @@ export async function getCachedRecommendations(
   return {
     recommendedLessonIds: data.recommended_lesson_ids,
     scores: data.recommendation_scores.map(Number),
-    sources: (data.recommendation_sources as any) || {
+    sources: (data.recommendation_sources as { cohort: string[]; coOccurrence: string[] }) || {
       cohort: [],
       coOccurrence: [],
     },
@@ -347,7 +347,7 @@ export async function cacheRecommendations(
       subject: subject,
       recommended_lesson_ids: recommendations.recommendedLessonIds,
       recommendation_scores: recommendations.scores,
-      recommendation_sources: recommendations.sources as any,
+      recommendation_sources: recommendations.sources as Record<string, unknown>,
       generated_at: new Date().toISOString(),
       expires_at: expiresAt.toISOString(),
     },

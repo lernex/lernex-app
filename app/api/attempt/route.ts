@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
       correct_increment,
       points_per_correct,
       difficulty,
+      time_on_task_seconds,
     } = (body ?? {}) as {
       lesson_id?: unknown;
       subject?: unknown;
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
       correct_increment?: unknown;
       points_per_correct?: unknown;
       difficulty?: unknown;
+      time_on_task_seconds?: unknown;
     };
 
     const cookieStore = await cookies();
@@ -335,8 +337,8 @@ export async function POST(req: NextRequest) {
     if (eventType === "lesson-finish" && subjectValue && typeof lesson_id === "string") {
       try {
         // Extract time on task from body if provided
-        const timeOnTaskSeconds = typeof (body as any)?.time_on_task_seconds === "number"
-          ? Number((body as any).time_on_task_seconds)
+        const timeOnTaskSeconds = typeof time_on_task_seconds === "number"
+          ? Number(time_on_task_seconds)
           : null;
 
         // Create interaction signal from attempt data

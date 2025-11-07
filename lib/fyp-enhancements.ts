@@ -97,9 +97,9 @@ export async function getBlendedRecommendations(
  * Adds "Similar learners enjoyed this" tags
  */
 export function enrichLessonWithCollaborativeSignals(
-  lesson: Record<string, any>,
+  lesson: Record<string, unknown>,
   collabRecs: CollaborativeRecommendations
-): Record<string, any> {
+): Record<string, unknown> {
   const lessonId = lesson.id as string;
   const isCollabRecommended = collabRecs.recommendedLessonIds.includes(lessonId);
 
