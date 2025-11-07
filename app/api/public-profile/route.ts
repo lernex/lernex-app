@@ -16,7 +16,7 @@ export async function GET() {
     const { data: profile, error } = await supabase
       .from("profiles")
       .select(
-        "id, username, full_name, avatar_url, bio, interests, public_stats, show_real_name"
+        "id, username, full_name, avatar_url, bio, interests, public_stats, show_real_name, streak, points"
       )
       .eq("id", user.id)
       .single();
@@ -33,6 +33,32 @@ export async function GET() {
       showActivity: true,
     };
 
+    // Count total quizzes (attempts)
+    const { count: totalQuizzes } = await supabase
+      .from("attempts")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    // Calculate average accuracy from attempts
+    const { data: attempts } = await supabase
+      .from("attempts")
+      .select("correct_count, total")
+      .eq("user_id", user.id)
+      .limit(100);
+
+    let averageAccuracy = 0;
+    if (attempts && attempts.length > 0) {
+      const totalCorrect = attempts.reduce(
+        (sum, a) => sum + (a.correct_count || 0),
+        0
+      );
+      const totalQuestions = attempts.reduce((sum, a) => sum + (a.total || 0), 0);
+      averageAccuracy =
+        totalQuestions > 0
+          ? Math.round((totalCorrect / totalQuestions) * 100)
+          : 0;
+    }
+
     const response = {
       id: profile.id,
       username: profile.username,
@@ -42,6 +68,12 @@ export async function GET() {
       interests: Array.isArray(profile.interests) ? profile.interests : [],
       publicStats: profile.public_stats || defaultPublicStats,
       showRealName: profile.show_real_name ?? false,
+      stats: {
+        streak: profile.streak || 0,
+        points: profile.points || 0,
+        averageAccuracy: averageAccuracy,
+        totalQuizzes: totalQuizzes || 0,
+      },
     };
 
     return NextResponse.json(response);

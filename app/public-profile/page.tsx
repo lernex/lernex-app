@@ -33,6 +33,12 @@ type ProfileData = {
     showActivity: boolean;
   };
   showRealName: boolean;
+  stats: {
+    streak: number;
+    points: number;
+    averageAccuracy: number;
+    totalQuizzes: number;
+  };
 };
 
 type ToastState = {
@@ -94,6 +100,12 @@ export default function PublicProfilePage() {
   const [newInterest, setNewInterest] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [showRealName, setShowRealName] = useState(false);
+  const [stats, setStats] = useState({
+    streak: 0,
+    points: 0,
+    averageAccuracy: 0,
+    totalQuizzes: 0,
+  });
 
   useEffect(() => {
     if (!toast) return;
@@ -120,6 +132,7 @@ export default function PublicProfilePage() {
       setPublicStats(json.publicStats);
       setAvatarUrl(json.avatarUrl);
       setShowRealName(json.showRealName ?? false);
+      setStats(json.stats);
     } catch (err) {
       console.error(err);
       setToast({
@@ -661,6 +674,7 @@ export default function PublicProfilePage() {
             initial={initial}
             paletteIndex={paletteIndex}
             publicStats={publicStats}
+            stats={stats}
           />
         )}
       </div>
@@ -679,6 +693,7 @@ function ProfilePreview({
   initial,
   paletteIndex,
   publicStats,
+  stats,
 }: {
   displayName: string;
   username: string;
@@ -694,6 +709,12 @@ function ProfilePreview({
     showPoints: boolean;
     showAccuracy: boolean;
     showActivity: boolean;
+  };
+  stats: {
+    streak: number;
+    points: number;
+    averageAccuracy: number;
+    totalQuizzes: number;
   };
 }) {
   // Determine what name to show based on showRealName setting
@@ -775,12 +796,12 @@ function ProfilePreview({
           </div>
         )}
 
-        {/* Mock Stats (would show real data in actual profile view) */}
+        {/* Real User Stats */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {publicStats.showStreak && (
             <div className="rounded-xl border border-neutral-200/60 bg-white/50 p-4 text-center dark:border-neutral-800 dark:bg-neutral-900/30">
               <div className="text-2xl font-bold text-neutral-900 dark:text-white">
-                12
+                {stats.streak}
               </div>
               <div className="text-xs text-neutral-500 dark:text-neutral-400">
                 Day Streak
@@ -790,7 +811,7 @@ function ProfilePreview({
           {publicStats.showPoints && (
             <div className="rounded-xl border border-neutral-200/60 bg-white/50 p-4 text-center dark:border-neutral-800 dark:bg-neutral-900/30">
               <div className="text-2xl font-bold text-neutral-900 dark:text-white">
-                1,234
+                {stats.points.toLocaleString()}
               </div>
               <div className="text-xs text-neutral-500 dark:text-neutral-400">
                 Points
@@ -800,7 +821,7 @@ function ProfilePreview({
           {publicStats.showAccuracy && (
             <div className="rounded-xl border border-neutral-200/60 bg-white/50 p-4 text-center dark:border-neutral-800 dark:bg-neutral-900/30">
               <div className="text-2xl font-bold text-neutral-900 dark:text-white">
-                87%
+                {stats.averageAccuracy}%
               </div>
               <div className="text-xs text-neutral-500 dark:text-neutral-400">
                 Accuracy
@@ -810,7 +831,7 @@ function ProfilePreview({
           {publicStats.showActivity && (
             <div className="rounded-xl border border-neutral-200/60 bg-white/50 p-4 text-center dark:border-neutral-800 dark:bg-neutral-900/30">
               <div className="text-2xl font-bold text-neutral-900 dark:text-white">
-                45
+                {stats.totalQuizzes}
               </div>
               <div className="text-xs text-neutral-500 dark:text-neutral-400">
                 Quizzes

@@ -386,10 +386,10 @@ function HeatmapGrid({ points, isDark }: { points: HeatmapPoint[]; isDark: boole
 }
 
 const pageShell =
-  "relative mx-auto w-full overflow-hidden rounded-[32px] bg-gradient-to-br from-slate-50/80 via-white/90 to-slate-100/80 text-slate-900 shadow-[0_45px_120px_-60px_rgba(15,23,42,0.4)] dark:from-[#030712]/90 dark:via-[#060b19]/90 dark:to-[#0f172a]/90 dark:text-white";
+  "relative mx-auto w-full overflow-hidden rounded-[32px] bg-gradient-to-br from-slate-50/80 via-white/90 to-slate-100/80 text-slate-900 shadow-[0_45px_120px_-60px_rgba(15,23,42,0.4)] dark:from-[#12151f] dark:via-[#1a1d2e] dark:to-[#1f2438] dark:text-white";
 
 const cardBase =
-  "group relative overflow-hidden rounded-2xl border border-slate-100/80 bg-gradient-to-br from-white/95 via-white/90 to-slate-50/90 p-6 ring-1 ring-black/5 backdrop-blur-xl shadow-[0_22px_48px_-24px_rgba(15,23,42,0.3)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_34px_65px_-22px_rgba(15,23,42,0.36)] dark:border-slate-800/80 dark:bg-[radial-gradient(circle_at_top_left,rgba(17,24,39,0.88),rgba(15,23,42,0.92))] dark:ring-white/5 dark:hover:ring-lernex-blue/40";
+  "group relative overflow-hidden rounded-2xl border border-slate-100/80 bg-gradient-to-br from-white/95 via-white/90 to-slate-50/90 p-6 ring-1 ring-black/5 backdrop-blur-xl shadow-[0_22px_48px_-24px_rgba(15,23,42,0.3)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_34px_65px_-22px_rgba(15,23,42,0.36)] dark:border-white/10 dark:bg-[radial-gradient(circle_at_top_left,rgba(26,30,46,0.92),rgba(32,38,54,0.88))] dark:ring-white/5 dark:hover:ring-lernex-blue/40 dark:shadow-lernex-blue/10";
 
 const chipBase =
   "inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-3 py-1 text-xs font-medium text-slate-600 shadow-[0_6px_18px_rgba(15,23,42,0.08)] transition-colors duration-200 hover:border-lernex-blue/40 hover:text-lernex-blue dark:border-slate-700/70 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-lernex-blue/50";

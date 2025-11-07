@@ -438,26 +438,25 @@ Current Question: ${followUpQuestion}
           <div className="overflow-hidden">
             <div
               className={`transition-all duration-500 ease-in-out ${
-                contentType === "lesson" ? "opacity-100 max-h-20" : "opacity-0 max-h-0"
+                contentType === "lesson" ? "opacity-100 max-h-24" : "opacity-0 max-h-0"
               }`}
             >
               {contentType === "lesson" && (
-                <div className="flex flex-wrap gap-2 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="grid grid-cols-3 gap-2 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
                   {[
-                    { key: "quick", label: "Quick Question", icon: "⚡" },
-                    { key: "mini", label: "Mini Lesson", icon: "📝" },
-                    { key: "full", label: "Full Lesson", icon: "📚" },
+                    { key: "quick", label: "Quick Question" },
+                    { key: "mini", label: "Mini Lesson" },
+                    { key: "full", label: "Full Lesson" },
                   ].map((opt) => (
                     <button
                       key={opt.key}
                       onClick={() => setMode(opt.key as typeof mode)}
-                      className={`group relative overflow-hidden rounded-full border px-4 py-2 text-sm font-medium transition-all duration-300 ${
+                      className={`group relative overflow-hidden rounded-xl border px-3 py-2.5 text-xs sm:text-sm font-medium transition-all duration-300 ${
                         mode === opt.key
-                          ? "border-lernex-blue bg-lernex-blue text-white shadow-lg shadow-lernex-blue/30 scale-105"
+                          ? "border-lernex-blue bg-lernex-blue text-white shadow-lg shadow-lernex-blue/30 scale-[1.02]"
                           : "border-surface bg-surface-card text-neutral-700 dark:text-neutral-200 hover:border-lernex-blue/50 hover:shadow-md"
                       }`}
                     >
-                      <span className="mr-1.5">{opt.icon}</span>
                       {opt.label}
                     </button>
                   ))}
@@ -466,30 +465,31 @@ Current Question: ${followUpQuestion}
             </div>
             <div
               className={`transition-all duration-500 ease-in-out ${
-                contentType === "quiz" ? "opacity-100 max-h-20" : "opacity-0 max-h-0"
+                contentType === "quiz" ? "opacity-100 max-h-32" : "opacity-0 max-h-0"
               }`}
             >
               {contentType === "quiz" && (
-                <div className="flex flex-wrap gap-2 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="space-y-2 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
                   {[
-                    { key: "short", label: "Quick Quiz", desc: "3-4 questions", icon: "🎯" },
-                    { key: "standard", label: "Standard Quiz", desc: "5-7 questions", icon: "📋" },
-                    { key: "comprehensive", label: "Full Quiz", desc: "8-12 questions", icon: "🎓" },
+                    { key: "short", label: "Quick Quiz", desc: "3-4 questions" },
+                    { key: "standard", label: "Standard Quiz", desc: "5-7 questions" },
+                    { key: "comprehensive", label: "Full Quiz", desc: "8-12 questions" },
                   ].map((opt) => (
                     <button
                       key={opt.key}
                       onClick={() => setQuizMode(opt.key as typeof quizMode)}
-                      className={`group relative overflow-hidden rounded-full border px-4 py-2 text-sm font-medium transition-all duration-300 ${
+                      className={`w-full group relative overflow-hidden rounded-xl border px-4 py-2.5 text-sm font-medium transition-all duration-300 ${
                         quizMode === opt.key
-                          ? "border-lernex-purple bg-gradient-to-r from-lernex-purple to-pink-500 text-white shadow-lg shadow-lernex-purple/30 scale-105"
+                          ? "border-lernex-purple bg-gradient-to-r from-lernex-purple to-pink-500 text-white shadow-lg shadow-lernex-purple/30 scale-[1.02]"
                           : "border-surface bg-surface-card text-neutral-700 dark:text-neutral-200 hover:border-lernex-purple/50 hover:shadow-md"
                       }`}
                     >
-                      <span className="mr-1.5">{opt.icon}</span>
-                      {opt.label}
-                      <span className={`ml-1.5 text-xs ${quizMode === opt.key ? "text-white/80" : "text-neutral-500 dark:text-neutral-400"}`}>
-                        ({opt.desc})
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span>{opt.label}</span>
+                        <span className={`text-xs ${quizMode === opt.key ? "text-white/80" : "text-neutral-500 dark:text-neutral-400"}`}>
+                          {opt.desc}
+                        </span>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -593,54 +593,90 @@ Current Question: ${followUpQuestion}
               </div>
             )}
 
-            {/* Follow-up Questions Section - Show immediately after lesson is generated */}
+            {/* Follow-up Questions Section - Enhanced Modern Design */}
             {lesson && (
-              <div className="space-y-4">
-                {/* Follow-up History */}
-                {followUpHistory.map((item, idx) => (
-                  <div key={idx} className="space-y-3">
-                    <div className="rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-4 shadow-sm">
-                      <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1.5">Your Question</div>
-                      <div className="text-foreground">{item.question}</div>
+              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-3 duration-500">
+                {/* Chat History - Clean conversational design */}
+                {followUpHistory.length > 0 && (
+                  <div className="rounded-2xl border border-surface bg-surface-panel/50 backdrop-blur p-4 space-y-3 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Conversation</h3>
+                      <span className="text-xs text-neutral-500 dark:text-neutral-400">{followUpHistory.length} {followUpHistory.length === 1 ? 'exchange' : 'exchanges'}</span>
                     </div>
-                    <div className="relative overflow-hidden rounded-[28px] border border-surface bg-surface-card shadow-xl ring-1 ring-black/5 backdrop-blur-xl">
-                      <div className="pointer-events-none absolute inset-0 opacity-80 dark:opacity-40 bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.2),transparent_55%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.18),transparent_48%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.08),transparent_60%)]" />
-                      <div className="relative px-5 py-4 sm:px-6">
-                        <div className="text-xs font-semibold text-lernex-purple mb-2">Follow-up Answer</div>
-                        <FormattedText text={item.answer} />
+                    {followUpHistory.map((item, idx) => (
+                      <div key={idx} className="space-y-2 animate-in fade-in slide-in-from-left-2 duration-300" style={{ animationDelay: `${idx * 100}ms` }}>
+                        {/* User Question */}
+                        <div className="flex justify-end">
+                          <div className="max-w-[85%] rounded-2xl rounded-tr-md bg-gradient-to-br from-lernex-blue to-lernex-purple p-3 shadow-sm">
+                            <p className="text-sm text-white leading-relaxed">{item.question}</p>
+                          </div>
+                        </div>
+                        {/* AI Response */}
+                        <div className="flex justify-start">
+                          <div className="max-w-[90%] rounded-2xl rounded-tl-md border border-surface bg-surface-card p-4 shadow-sm">
+                            <FormattedText text={item.answer} />
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
+                )}
 
                 {/* Streaming Answer */}
                 {followUpStreaming && (
-                  <div className="relative overflow-hidden rounded-[28px] border border-surface bg-surface-card shadow-xl ring-1 ring-black/5 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="pointer-events-none absolute inset-0 opacity-80 dark:opacity-40 bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.2),transparent_55%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.18),transparent_48%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.08),transparent_60%)]" />
-                    <div className="relative px-5 py-4 sm:px-6">
-                      <div className="text-xs font-semibold text-lernex-purple mb-2">Follow-up Answer</div>
+                  <div className="flex justify-start animate-in fade-in slide-in-from-left-3 duration-300">
+                    <div className="max-w-[90%] rounded-2xl rounded-tl-md border border-surface bg-surface-card p-4 shadow-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-2 h-2 bg-lernex-purple rounded-full animate-pulse" />
+                        <span className="text-xs font-medium text-lernex-purple">Generating response...</span>
+                      </div>
                       <FormattedText text={followUpStreaming} incremental />
                     </div>
                   </div>
                 )}
 
-                {/* Follow-up Input */}
-                <div className="relative overflow-hidden rounded-[28px] border border-surface bg-surface-card shadow-xl ring-1 ring-black/5 backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:shadow-2xl">
-                  <div className="pointer-events-none absolute inset-0 opacity-80 dark:opacity-40 bg-[radial-gradient(circle_at_12%_18%,rgba(59,130,246,0.2),transparent_55%),radial-gradient(circle_at_82%_78%,rgba(168,85,247,0.18),transparent_48%),radial-gradient(circle_at_50%_-5%,rgba(236,72,153,0.08),transparent_60%)]" />
-                  <div className="relative px-5 py-5 sm:px-6">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple flex items-center justify-center shadow-sm">
-                        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                {/* Input Section - Modern & Clean */}
+                <div className="rounded-2xl border border-surface bg-surface-panel p-4 shadow-sm backdrop-blur transition-all duration-300 hover:shadow-md">
+                  <div className="space-y-3">
+                    {/* Header */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-lernex-blue to-lernex-purple flex items-center justify-center shadow-md">
+                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                         </svg>
                       </div>
-                      <h3 className="text-lg font-semibold text-foreground">Have a follow-up question?</h3>
+                      <div>
+                        <h3 className="text-base font-semibold text-foreground">Ask Follow-Up Questions</h3>
+                        <p className="text-xs text-neutral-600 dark:text-neutral-400">Get clarification or explore deeper</p>
+                      </div>
                     </div>
 
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-                      Ask for clarification or dive deeper into any part of the lesson.
-                    </p>
+                    {/* Quick Action Chips */}
+                    {followUpHistory.length === 0 && !followUpStreaming && (
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { text: "Give another example", icon: "💡" },
+                          { text: "Common mistakes?", icon: "⚠️" },
+                          { text: "Practice quiz", icon: "📝", special: true },
+                        ].map((prompt) => (
+                          <button
+                            key={prompt.text}
+                            onClick={() => setFollowUpQuestion(prompt.text)}
+                            disabled={followUpLoading}
+                            className={`group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed ${
+                              prompt.special
+                                ? "bg-gradient-to-r from-lernex-purple/15 to-pink-500/15 border border-lernex-purple/30 text-lernex-purple dark:text-pink-400 hover:from-lernex-purple/25 hover:to-pink-500/25 hover:scale-105 hover:shadow-md"
+                                : "bg-surface-muted border border-surface text-neutral-700 dark:text-neutral-300 hover:bg-surface-card hover:border-lernex-blue/40 hover:text-lernex-blue hover:scale-105"
+                            }`}
+                          >
+                            <span className="text-sm">{prompt.icon}</span>
+                            <span>{prompt.text}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
+                    {/* Input Field */}
                     <div className="flex gap-2">
                       <div className="relative flex-1">
                         <input
@@ -653,11 +689,11 @@ Current Question: ${followUpQuestion}
                               handleFollowUp();
                             }
                           }}
-                          placeholder="e.g., Can you explain that example in more detail?"
+                          placeholder="Type your question..."
                           disabled={followUpLoading}
-                          className="w-full rounded-xl border border-surface bg-surface-muted pl-4 pr-12 py-2.5 text-foreground outline-none transition-all focus:ring-2 focus:ring-lernex-blue/40 focus:border-lernex-blue placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:opacity-60"
+                          className="w-full rounded-xl border border-surface bg-surface-card pl-4 pr-12 py-3 text-sm text-foreground outline-none transition-all focus:ring-2 focus:ring-lernex-blue/40 focus:border-lernex-blue placeholder:text-neutral-500 dark:placeholder:text-neutral-400 disabled:opacity-60 disabled:cursor-not-allowed"
                         />
-                        <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2">
                           <VoiceInput
                             onTranscription={(transcribedText) => {
                               setFollowUpQuestion((prev) => (prev ? prev + " " + transcribedText : transcribedText));
@@ -669,46 +705,20 @@ Current Question: ${followUpQuestion}
                       <button
                         onClick={handleFollowUp}
                         disabled={followUpLoading || !followUpQuestion.trim()}
-                        className="rounded-xl bg-gradient-to-r from-lernex-blue to-lernex-purple px-6 py-2.5 text-white font-medium shadow-sm transition-all hover:opacity-90 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:shadow-sm"
+                        className="flex-shrink-0 rounded-xl bg-gradient-to-r from-lernex-blue to-lernex-purple px-5 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-md"
                       >
                         {followUpLoading ? (
-                          <div className="flex items-center gap-2">
-                            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
-                            <span>Thinking...</span>
-                          </div>
+                          <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
                         ) : (
-                          "Ask"
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                          </svg>
                         )}
                       </button>
                     </div>
-
-                    {followUpHistory.length === 0 && !followUpStreaming && (
-                      <div className="mt-4 flex flex-wrap gap-2 items-center">
-                        <div className="text-xs text-neutral-500 dark:text-neutral-400">Quick prompts:</div>
-                        {[
-                          "Can you give another example?",
-                          "What are common mistakes?",
-                          "Generate a practice quiz on this",
-                        ].map((prompt, idx) => (
-                          <button
-                            key={prompt}
-                            onClick={() => setFollowUpQuestion(prompt)}
-                            disabled={followUpLoading}
-                            className={`text-xs rounded-full border border-surface px-3 py-1 transition-all disabled:opacity-60 ${
-                              idx === 2
-                                ? "bg-gradient-to-r from-lernex-purple/10 to-pink-500/10 border-lernex-purple/30 text-lernex-purple dark:text-pink-400 hover:bg-lernex-purple/20 hover:border-lernex-purple hover:shadow-md"
-                                : "bg-surface-muted text-neutral-700 dark:text-neutral-300 hover:bg-lernex-blue/10 hover:border-lernex-blue hover:text-lernex-blue"
-                            }`}
-                          >
-                            {idx === 2 && <span className="mr-1">🎯</span>}
-                            {prompt}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>

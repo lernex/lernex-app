@@ -44,28 +44,26 @@ export async function POST(req: Request) {
     if (quizOnly) {
       // Quiz-only mode: higher question counts, broader coverage
       if (mode === "short") {
-        countRule = "Produce exactly 3-4 multiple-choice questions covering key concepts.";
+        countRule = "Produce 3-4 questions covering key concepts.";
       } else if (mode === "comprehensive") {
-        countRule = "Produce exactly 8-12 multiple-choice questions covering all major concepts thoroughly.";
+        countRule = "Produce 8-12 questions covering all major concepts.";
       } else {
         // standard
-        countRule = "Produce exactly 5-7 multiple-choice questions covering main concepts.";
+        countRule = "Produce 5-7 questions covering main concepts.";
       }
-      contextRule = "Create questions based on the provided material.";
+      contextRule = "Use different examples/scenarios.";
     } else {
       // Lesson + quiz mode: questions must be answerable from the lesson
       countRule = mode === "quick"
-        ? "Produce 0-1 multiple-choice questions. Prefer 0 if the user's request is a narrowly scoped factual question."
+        ? "Produce 0-1 questions. Prefer 0 if narrowly scoped."
         : mode === "full"
-          ? "Produce 3-5 multiple-choice questions."
-          : "Produce 2-3 multiple-choice questions.";
-      contextRule = "CRITICAL: Questions must test ONLY what was explicitly taught in the provided lesson text. A student who reads the lesson should be able to answer all questions. Do NOT test concepts not covered in the lesson.";
+          ? "Produce 3-5 questions."
+          : "Produce 2-3 questions.";
+      contextRule = "Test concepts with NEW examples. If lesson shows y=3x+5, use y=2x+7. Never reuse lesson's numbers/scenarios. Test understanding, not memorization.";
     }
 
-    const system = `
-Generate quiz as valid JSON. Schema: {id, subject, title, difficulty:"intro"|"easy"|"medium"|"hard", questions:[{prompt, choices[], correctIndex, explanation}]}
-Rules: ${countRule} ${contextRule} Stay strictly within subject boundaries (e.g., Algebra 1: no vectors/calculus). Choices≤8w. Explanations≤25w. Math: \\(inline\\) \\[display\\], escape \\\\(, balance pairs.
-`.trim();
+    const system = `JSON quiz. Schema: {id, subject, title, difficulty:"intro"|"easy"|"medium"|"hard", questions:[{prompt, choices[], correctIndex, explanation}]}
+Rules: ${countRule} ${contextRule} Stay within subject boundaries. Choices≤8w. Explanations≤25w. Math: \\(inline\\) \\[display\\], escape \\\\(.`.trim();
 
     // Token limits - higher for quiz-only mode
     let maxTokens: number;
@@ -110,18 +108,8 @@ Rules: ${countRule} ${contextRule} Stay strictly within subject boundaries (e.g.
           {
             role: "user",
             content: quizOnly
-              ? `Subject: ${subject}
-Mode: ${mode}
-Difficulty: ${difficulty}
-Source Material:
-${src}
-Create fair multiple-choice questions based on the source material, following the rules.`
-              : `Subject: ${subject}
-Mode: ${mode}
-Difficulty: ${difficulty}
-Lesson Text:
-${src}
-Create questions that test what was taught in this lesson. Students should be able to answer after reading the lesson.`,
+              ? `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nSource:\n${src}\nCreate fair questions following rules.`
+              : `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nLesson:\n${src}\nTest concepts with new examples. Change all numbers/variables.`,
           },
         ],
       });
@@ -145,18 +133,8 @@ Create questions that test what was taught in this lesson. Students should be ab
               {
                 role: "user",
                 content: quizOnly
-                  ? `Subject: ${subject}
-Mode: ${mode}
-Difficulty: ${difficulty}
-Source Material:
-${src}
-Create fair multiple-choice questions based on the source material, following the rules.`
-                  : `Subject: ${subject}
-Mode: ${mode}
-Difficulty: ${difficulty}
-Lesson Text:
-${src}
-Create questions that test what was taught in this lesson. Students should be able to answer after reading the lesson.`,
+                  ? `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nSource:\n${src}\nCreate fair questions following rules.`
+                  : `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nLesson:\n${src}\nTest concepts with new examples. Change all numbers/variables.`,
               },
             ],
           });

@@ -36,15 +36,20 @@
 }
 
 /* Dark mode variables - target html element with dark class */
+/* Enhanced with subtle blue/purple tints for depth - less pitch black, more sophisticated */
 :root.dark,
 html.dark {
-  --background: #1C1C1E;
-  --foreground: #f2f2f2;
-  --surface-page: #05070d;
-  --surface-panel: rgba(9, 12, 20, 0.9);
-  --surface-card: rgba(12, 16, 26, 0.82);
-  --surface-muted: rgba(18, 23, 34, 0.75);
-  --surface-border: rgba(71, 85, 105, 0.45);
+  --background: #1a1d2e;
+  --foreground: #e8eaf0;
+  /* Richer backgrounds with subtle blue/purple tints instead of pitch black */
+  --surface-page: #12151f;
+  --surface-panel: rgba(20, 24, 36, 0.92);
+  --surface-card: rgba(26, 30, 46, 0.88);
+  --surface-muted: rgba(32, 38, 54, 0.82);
+  --surface-border: rgba(96, 108, 128, 0.5);
+  /* Accent surfaces for highlights and glows */
+  --surface-highlight: rgba(47, 128, 237, 0.12);
+  --surface-glow: rgba(155, 81, 224, 0.1);
   color-scheme: dark;
 }
 

@@ -603,10 +603,11 @@ export default function MarketingLanding() {
   }, [remaining]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-neutral-50 via-neutral-100 to-neutral-200 text-neutral-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:text-white">
+    <main className="min-h-screen bg-gradient-to-b from-neutral-50 via-neutral-100 to-neutral-200 text-neutral-900 dark:from-[#0f1218] dark:via-[#12151f] dark:to-[#1a1d2e] dark:text-white">
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 -z-10 bg-grid [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
-        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-lernex-blue/20 via-lernex-purple/20 to-transparent blur-3xl" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-lernex-blue/25 via-lernex-purple/20 to-transparent blur-3xl dark:from-lernex-blue/20 dark:via-lernex-purple/25 dark:to-lernex-blue/15" />
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-transparent via-transparent to-lernex-purple/10 dark:to-lernex-purple/15" />
         <div className="mx-auto flex max-w-6xl flex-col items-center px-6 pt-16 pb-28 text-center md:pt-20 md:pb-32">
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
@@ -667,15 +668,15 @@ export default function MarketingLanding() {
             ))}
           </motion.div>
           <div className="mt-10 grid w-full max-w-4xl grid-cols-1 gap-3 text-left text-sm text-neutral-600 dark:text-neutral-300 md:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-blue-50/30 to-white p-5 shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-blue/15 hover:border-lernex-blue/30 dark:from-white/10 dark:via-blue-900/10 dark:to-white/5 dark:bg-white/5 dark:shadow-black/20 dark:hover:shadow-lernex-blue/20">
+            <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-blue-50/30 to-white p-5 shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-blue/15 hover:border-lernex-blue/30 dark:from-[#1f2435] dark:via-[#1a2240]/80 dark:to-[#1f2538] dark:border-white/10 dark:shadow-lernex-blue/10 dark:hover:shadow-lernex-blue/25 dark:hover:border-lernex-blue/40">
               <div className="text-2xl font-bold bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-transparent">2 min</div>
               <div>From upload to your first curated Lernex path.</div>
             </div>
-            <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-purple-50/30 to-white p-5 shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-purple/15 hover:border-lernex-purple/30 dark:from-white/10 dark:via-purple-900/10 dark:to-white/5 dark:bg-white/5 dark:shadow-black/20 dark:hover:shadow-lernex-purple/20">
+            <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-purple-50/30 to-white p-5 shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-purple/15 hover:border-lernex-purple/30 dark:from-[#231f35] dark:via-[#2a1f40]/80 dark:to-[#231f38] dark:border-white/10 dark:shadow-lernex-purple/10 dark:hover:shadow-lernex-purple/25 dark:hover:border-lernex-purple/40">
               <div className="text-2xl font-bold bg-gradient-to-r from-lernex-purple to-lernex-blue bg-clip-text text-transparent">7 min</div>
               <div>The average daily session to stay on track.</div>
             </div>
-            <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-green-50/30 to-white p-5 shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-green/15 hover:border-lernex-green/30 dark:from-white/10 dark:via-green-900/10 dark:to-white/5 dark:bg-white/5 dark:shadow-black/20 dark:hover:shadow-lernex-green/20">
+            <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-green-50/30 to-white p-5 shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-green/15 hover:border-lernex-green/30 dark:from-[#1f3528] dark:via-[#1f3f28]/80 dark:to-[#1f3530] dark:border-white/10 dark:shadow-lernex-green/10 dark:hover:shadow-lernex-green/25 dark:hover:border-lernex-green/40">
               <div className="text-2xl font-bold bg-gradient-to-r from-lernex-green to-lernex-blue bg-clip-text text-transparent">92%</div>
               <div>Report remembering critical details a week later.</div>
             </div>
@@ -699,7 +700,7 @@ export default function MarketingLanding() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
-              className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/30 to-white p-8 shadow-card shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-3xl hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/5 dark:from-slate-900/50 dark:via-slate-800/20 dark:to-slate-900/50 dark:bg-white/10 dark:shadow-lg dark:shadow-black/20 dark:hover:shadow-2xl dark:hover:shadow-lernex-purple/15"
+              className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/30 to-white p-8 shadow-card shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-3xl hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/10 dark:from-[#1a1e30] dark:via-[#1f2438]/90 dark:to-[#1a1e32] dark:shadow-lg dark:shadow-lernex-blue/5 dark:hover:shadow-2xl dark:hover:shadow-lernex-purple/20 dark:hover:border-lernex-purple/30"
               style={{ zIndex: learningFlow.length - idx }}
             >
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-lernex-blue/8 via-lernex-purple/12 to-lernex-blue/6 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
@@ -714,7 +715,7 @@ export default function MarketingLanding() {
       </section>
 
       <section className="mx-auto mt-28 max-w-6xl px-6">
-        <div className="rounded-3xl border border-slate-200/70 bg-surface-card p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:bg-white/5">
+        <div className="rounded-3xl border border-slate-200/70 bg-surface-card p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:border-white/10 dark:bg-gradient-to-br dark:from-[#1a1e30] dark:via-[#1f2438] dark:to-[#1a1e30] dark:shadow-lernex-blue/15">
           <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="text-left">
               <h2 className="text-3xl font-bold">Your personal AI learning coach</h2>
@@ -793,7 +794,7 @@ export default function MarketingLanding() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4 }}
-                className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/30 to-white p-6 text-left shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/10 dark:from-white/12 dark:via-white/8 dark:to-white/10 dark:bg-white/10 dark:shadow-black/20 dark:hover:shadow-lernex-purple/20"
+                className="group relative overflow-hidden rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/30 to-white p-6 text-left shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/10 dark:from-[#1f2435]/95 dark:via-[#1a1e30]/95 dark:to-[#1f2435]/95 dark:shadow-lernex-blue/8 dark:hover:shadow-lernex-purple/25 dark:hover:border-lernex-purple/30"
               >
                 <div className="text-4xl transition-transform group-hover:scale-110">{feature.icon}</div>
                 <div className="mt-4 text-lg font-semibold">{feature.title}</div>
@@ -805,7 +806,7 @@ export default function MarketingLanding() {
       </section>
 
       <section className="mx-auto mt-28 max-w-5xl px-6">
-        <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-lernex-blue/20 via-lernex-purple/25 to-lernex-blue/10 p-10 text-center shadow-2xl shadow-lernex-purple/30 backdrop-blur">
+        <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-lernex-blue/20 via-lernex-purple/25 to-lernex-blue/10 p-10 text-center shadow-2xl shadow-lernex-purple/30 backdrop-blur dark:border-lernex-purple/30 dark:from-lernex-blue/30 dark:via-lernex-purple/35 dark:to-lernex-blue/25 dark:shadow-lernex-purple/40">
           <h2 className="text-3xl font-bold text-white">Real results from real learners</h2>
           <p className="mt-4 text-base text-white/80">
             Students, professionals, and teams are mastering new skills faster with personalized AI lessons and instant feedback.
@@ -839,7 +840,7 @@ export default function MarketingLanding() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
-              className="group rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/30 to-white p-6 text-center shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/10 dark:from-white/12 dark:via-white/8 dark:to-white/10 dark:bg-white/5 dark:shadow-black/20 dark:hover:shadow-lernex-purple/20"
+              className="group rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/30 to-white p-6 text-center shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/10 dark:from-[#1f2435]/95 dark:via-[#1a1e30]/95 dark:to-[#1f2435]/95 dark:shadow-lernex-blue/8 dark:hover:shadow-lernex-purple/25 dark:hover:border-lernex-purple/30"
             >
               <div className="text-4xl transition-transform group-hover:scale-110">{b.icon}</div>
               <div className="mt-4 text-xl font-semibold">{b.title}</div>
@@ -860,7 +861,7 @@ export default function MarketingLanding() {
             {[...testimonials, ...testimonials, ...testimonials].map((item, index) => (
               <div
                 key={`${item.name}-${index}`}
-                className="group relative flex-shrink-0 w-[380px] overflow-hidden rounded-3xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/30 to-white p-6 text-left shadow-lg shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/10 dark:from-white/12 dark:via-white/8 dark:to-white/10 dark:bg-white/10 dark:shadow-black/20 dark:hover:shadow-lernex-purple/20"
+                className="group relative flex-shrink-0 w-[380px] overflow-hidden rounded-3xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/30 to-white p-6 text-left shadow-lg shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/10 dark:from-[#1f2435]/95 dark:via-[#1a1e30]/95 dark:to-[#1f2435]/95 dark:shadow-lernex-blue/8 dark:hover:shadow-lernex-purple/25 dark:hover:border-lernex-purple/30"
               >
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-lernex-blue/8 via-lernex-purple/12 to-lernex-blue/6 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                 <p className="relative text-sm leading-relaxed text-neutral-700 dark:text-neutral-200">&ldquo;{item.quote}&rdquo;</p>
@@ -875,7 +876,7 @@ export default function MarketingLanding() {
       </section>
 
       <section className="mx-auto mt-28 max-w-5xl px-6">
-        <div className="rounded-3xl border border-slate-200/70 bg-surface-card p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:bg-white/5">
+        <div className="rounded-3xl border border-slate-200/70 bg-surface-card p-10 shadow-xl shadow-lernex-blue/10 backdrop-blur dark:border-white/10 dark:bg-gradient-to-br dark:from-[#1a1e30] dark:via-[#1f2438] dark:to-[#1a1e30] dark:shadow-lernex-blue/15">
           <h2 className="text-center text-3xl font-bold">FAQs</h2>
           <div className="mt-8 space-y-4">
             {faqs.map((item) => (
@@ -885,7 +886,7 @@ export default function MarketingLanding() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4 }}
-                className="rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/30 to-white px-6 py-5 shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/10 dark:from-white/12 dark:via-white/8 dark:to-white/10 dark:bg-white/10 dark:shadow-black/20 dark:hover:shadow-lernex-purple/20"
+                className="rounded-2xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/30 to-white px-6 py-5 shadow-md shadow-slate-900/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-lernex-blue/10 hover:border-lernex-blue/30 dark:border-white/10 dark:from-[#1f2435]/95 dark:via-[#1a1e30]/95 dark:to-[#1f2435]/95 dark:shadow-lernex-blue/8 dark:hover:shadow-lernex-purple/25 dark:hover:border-lernex-purple/30"
               >
                 <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">{item.question}</h3>
                 <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">{item.answer}</p>
@@ -930,7 +931,7 @@ export default function MarketingLanding() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.5, ease: 'easeOut' }}
-              className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-surface-card p-6 text-center shadow-md shadow-black/10 backdrop-blur dark:bg-white/5"
+              className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-surface-card p-6 text-center shadow-md shadow-black/10 backdrop-blur dark:border-white/10 dark:bg-gradient-to-br dark:from-[#1a1e30] dark:via-[#1f2438] dark:to-[#1a1e30] dark:shadow-lernex-blue/10"
             >
               <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-r from-lernex-blue/20 via-lernex-purple/20 to-transparent" />
               <h3 className="text-xl font-semibold tracking-wide text-neutral-800 dark:text-white">
