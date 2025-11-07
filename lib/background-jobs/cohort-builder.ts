@@ -47,7 +47,7 @@ async function computeUserVector(
       .single(),
   ]);
 
-  if (!profile.data) return null;
+  if (profile.error || !profile.data) return null;
 
   // 1. Interests Vector (5 dimensions - common subjects)
   const commonSubjects = ["Math", "Physics", "Chemistry", "Biology", "Computer Science"];
