@@ -8,7 +8,7 @@
  * - Slow model: Deepinfra gpt-oss-20b (lower cost, no speed priority)
  *
  * Plus/Premium Tiers:
- * - Fast model: Cerebras gpt-oss-120b (higher intelligence, faster response)
+ * - Fast model: Fireworks AI gpt-oss-120b (higher intelligence, faster response)
  * - Slow model: Deepinfra gpt-oss-120b (higher intelligence, cost-optimized)
  */
 
@@ -22,7 +22,7 @@ export interface ModelConfig {
   apiKey: string;
   baseURL: string;
   model: string;
-  provider: 'groq' | 'deepinfra' | 'cerebras' | 'lightningai';
+  provider: 'groq' | 'deepinfra' | 'cerebras' | 'lightningai' | 'fireworksai';
 }
 
 /**
@@ -34,12 +34,12 @@ export function getModelConfig(tier: UserTier, speed: ModelSpeed): ModelConfig {
   if (isPaidTier) {
     // Plus and Premium get the more intelligent models
     if (speed === 'fast') {
-      // Cerebras for fast, high-intelligence generation (uses cerebras.cloud.sdk but supports OpenAI API)
+      // Fireworks AI for fast, high-intelligence generation (uses OpenAI-compatible API)
       return {
-        apiKey: process.env.CEREBRAS_API_KEY || '',
-        baseURL: 'https://api.cerebras.ai/v1',
-        model: 'gpt-oss-120b', // Cerebras uses no prefix
-        provider: 'cerebras'
+        apiKey: process.env.FIREWORKSAI_API_KEY || '',
+        baseURL: 'https://api.fireworks.ai/inference/v1',
+        model: 'accounts/fireworks/models/gpt-oss-120b',
+        provider: 'fireworksai'
       };
     } else {
       // Deepinfra for slower, cost-optimized high-intelligence generation
@@ -84,7 +84,10 @@ export function getModelIdentifier(provider: ModelConfig['provider'], model: str
     case 'deepinfra':
       // Deepinfra is used for both free (20b) and paid (120b) slow models
       return model.includes('120b') ? 'deepinfra/gpt-oss-120b' : 'deepinfra/gpt-oss-20b';
+    case 'fireworksai':
+      return 'fireworksai/gpt-oss-120b';
     case 'cerebras':
+      // Keep for backwards compatibility with old usage logs
       return 'cerebras/gpt-oss-120b';
     case 'lightningai':
       // Keep for backwards compatibility with old usage logs

@@ -8,8 +8,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * - Deepinfra: $0.03 input / $0.14 output per 1M tokens
  *
  * Plus/Premium Tier Models (gpt-oss-120b):
- * - Cerebras: $0.35 input / $0.75 output per 1M tokens
+ * - Fireworks AI: $0.15 input / $0.60 output per 1M tokens
  * - Deepinfra: $0.10 input / $0.40 output per 1M tokens
+ * - Cerebras: $0.35 input / $0.75 output per 1M tokens (legacy, kept for backwards compatibility)
  * - LightningAI: $0.10 input / $0.40 output per 1M tokens (legacy, kept for backwards compatibility)
  *
  * TTS Models:
@@ -40,12 +41,15 @@ const PRICES: Record<string, { input: number; output: number }> = {
   "deepinfra/gpt-oss-20b": { input: 0.03 / 1_000_000, output: 0.14 / 1_000_000 },
 
   // PLUS/PREMIUM TIER - gpt-oss-120b models (larger, more intelligent)
-  // Cerebras gpt-oss-120b (FAST model for paid tiers)
-  "gpt-oss-120b": { input: 0.35 / 1_000_000, output: 0.75 / 1_000_000 },
-  "cerebras/gpt-oss-120b": { input: 0.35 / 1_000_000, output: 0.75 / 1_000_000 },
+  // Fireworks AI gpt-oss-120b (FAST model for paid tiers)
+  "gpt-oss-120b": { input: 0.15 / 1_000_000, output: 0.6 / 1_000_000 },
+  "fireworksai/gpt-oss-120b": { input: 0.15 / 1_000_000, output: 0.6 / 1_000_000 },
 
   // Deepinfra gpt-oss-120b (SLOW model for paid tiers)
   "deepinfra/gpt-oss-120b": { input: 0.1 / 1_000_000, output: 0.4 / 1_000_000 },
+
+  // Cerebras gpt-oss-120b (legacy - kept for backwards compatibility with old usage logs)
+  "cerebras/gpt-oss-120b": { input: 0.35 / 1_000_000, output: 0.75 / 1_000_000 },
 
   // LightningAI gpt-oss-120b (legacy - kept for backwards compatibility with old usage logs)
   "lightningai/gpt-oss-120b": { input: 0.1 / 1_000_000, output: 0.4 / 1_000_000 },
