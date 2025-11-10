@@ -129,6 +129,7 @@ const featureCategories: FeatureCategory[] = [
     name: 'Support & Access',
     icon: '🎧',
     features: [
+      { name: 'Ads', free: 'Ad-supported', plus: 'No ads', premium: 'No ads', highlight: true },
       { name: 'Support type', free: 'Community forums', plus: 'Priority (<2hr avg)', premium: 'Dedicated concierge', highlight: true },
       { name: 'Beta feature access', free: 'Standard release', plus: 'Early access', premium: 'Instant on launch' },
       { name: 'Feature request priority', free: 'Basic', plus: 'Prioritized', premium: 'High priority' },

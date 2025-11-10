@@ -61,7 +61,7 @@ export default function ExpandedLessonModal({
     <div
       className={cn(
         "fixed inset-0 z-50 flex items-center justify-center",
-        "bg-black/70 backdrop-blur-xl p-4",
+        "bg-slate-900/20 dark:bg-black/70 backdrop-blur-xl p-4",
         "animate-in fade-in duration-300"
       )}
       onClick={onClose}

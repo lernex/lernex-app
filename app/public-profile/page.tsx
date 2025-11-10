@@ -16,8 +16,12 @@ import {
   Globe,
   Lock,
   Info,
+  Trophy,
+  Edit3,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import FeaturedAchievementsModal from "@/components/FeaturedAchievementsModal";
+import FeaturedAchievementsDisplay from "@/components/FeaturedAchievementsDisplay";
 
 type ProfileData = {
   id: string;
@@ -33,6 +37,7 @@ type ProfileData = {
     showActivity: boolean;
   };
   showRealName: boolean;
+  featuredAchievements: string[];
   stats: {
     streak: number;
     points: number;
@@ -85,6 +90,7 @@ export default function PublicProfilePage() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [showAchievementsModal, setShowAchievementsModal] = useState(false);
 
   // Form state
   const [username, setUsername] = useState("");
@@ -100,6 +106,7 @@ export default function PublicProfilePage() {
   const [newInterest, setNewInterest] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [showRealName, setShowRealName] = useState(false);
+  const [featuredAchievements, setFeaturedAchievements] = useState<string[]>([]);
   const [stats, setStats] = useState({
     streak: 0,
     points: 0,
@@ -132,6 +139,7 @@ export default function PublicProfilePage() {
       setPublicStats(json.publicStats);
       setAvatarUrl(json.avatarUrl);
       setShowRealName(json.showRealName ?? false);
+      setFeaturedAchievements(json.featuredAchievements || []);
       setStats(json.stats);
     } catch (err) {
       console.error(err);
@@ -162,6 +170,7 @@ export default function PublicProfilePage() {
           publicStats,
           avatarUrl,
           showRealName,
+          featuredAchievements,
         }),
       });
       if (!response.ok) {
@@ -233,6 +242,39 @@ export default function PublicProfilePage() {
 
   const removeInterest = (interest: string) => {
     setInterests(interests.filter((i) => i !== interest));
+  };
+
+  const handleSaveFeaturedAchievements = async (selected: string[]) => {
+    setFeaturedAchievements(selected);
+    setSaving(true);
+    try {
+      const response = await fetch("/api/public-profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username,
+          fullName,
+          bio,
+          interests,
+          publicStats,
+          avatarUrl,
+          showRealName,
+          featuredAchievements: selected,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update featured achievements");
+      }
+      setToast({ message: "Featured achievements updated!", tone: "success" });
+    } catch (err) {
+      console.error(err);
+      setToast({
+        message: "Failed to update featured achievements",
+        tone: "error",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -570,6 +612,70 @@ export default function PublicProfilePage() {
               </div>
             </motion.section>
 
+            {/* Featured Achievements Section */}
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35, duration: 0.5 }}
+              className="lg:col-span-3"
+            >
+              <div className="rounded-3xl border border-neutral-200/70 bg-gradient-to-br from-white via-slate-50/70 to-white/95 p-6 shadow-[0_32px_70px_-45px_rgba(47,128,237,0.38)] backdrop-blur-sm dark:border-neutral-800 dark:bg-gradient-to-br dark:from-[#101a2c] dark:via-[#0d1524] dark:to-[#090f1c]">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="mb-2 flex items-center gap-2 text-lg font-semibold text-neutral-900 dark:text-white">
+                      <Trophy className="h-5 w-5 text-amber-500" />
+                      Featured Achievements
+                    </h2>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-300">
+                      Showcase your top achievements on your public profile to impress other learners.
+                    </p>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.05, rotate: 2 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowAchievementsModal(true)}
+                    className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-lernex-blue to-lernex-purple px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:shadow-xl"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                    Manage
+                  </motion.button>
+                </div>
+
+                <div className="mt-6">
+                  {featuredAchievements.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-neutral-300 bg-neutral-50/50 py-12 text-center dark:border-neutral-700 dark:bg-neutral-900/20">
+                      <Trophy className="mb-3 h-12 w-12 text-neutral-300 dark:text-neutral-600" />
+                      <p className="mb-1 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                        No achievements featured yet
+                      </p>
+                      <p className="mb-4 max-w-sm text-xs text-neutral-500 dark:text-neutral-400">
+                        Click &quot;Manage&quot; to select up to 6 achievements to showcase on your profile
+                      </p>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setShowAchievementsModal(true)}
+                        className="inline-flex items-center gap-2 rounded-xl border border-lernex-blue/40 bg-lernex-blue/10 px-4 py-2 text-sm font-medium text-lernex-blue transition hover:bg-lernex-blue/20 dark:text-lernex-blue/90"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Select Achievements
+                      </motion.button>
+                    </div>
+                  ) : (
+                    <FeaturedAchievementsDisplay
+                      achievementIds={featuredAchievements}
+                      userStats={{
+                        points: stats.points,
+                        streak: stats.streak,
+                        lessons: stats.totalQuizzes,
+                        accuracy: stats.averageAccuracy,
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            </motion.section>
+
             {/* Privacy Settings */}
             <motion.section
               initial={{ opacity: 0, y: 20 }}
@@ -675,9 +781,24 @@ export default function PublicProfilePage() {
             paletteIndex={paletteIndex}
             publicStats={publicStats}
             stats={stats}
+            featuredAchievements={featuredAchievements}
           />
         )}
       </div>
+
+      {/* Featured Achievements Modal */}
+      <FeaturedAchievementsModal
+        isOpen={showAchievementsModal}
+        onClose={() => setShowAchievementsModal(false)}
+        currentFeatured={featuredAchievements}
+        onSave={handleSaveFeaturedAchievements}
+        userStats={{
+          points: stats.points,
+          streak: stats.streak,
+          lessons: stats.totalQuizzes,
+          accuracy: stats.averageAccuracy,
+        }}
+      />
     </main>
   );
 }
@@ -694,6 +815,7 @@ function ProfilePreview({
   paletteIndex,
   publicStats,
   stats,
+  featuredAchievements,
 }: {
   displayName: string;
   username: string;
@@ -716,6 +838,7 @@ function ProfilePreview({
     averageAccuracy: number;
     totalQuizzes: number;
   };
+  featuredAchievements: string[];
 }) {
   // Determine what name to show based on showRealName setting
   const visibleName = showRealName && fullName ? fullName : (username || displayName);
@@ -795,6 +918,17 @@ function ProfilePreview({
             </div>
           </div>
         )}
+
+        {/* Featured Achievements */}
+        <FeaturedAchievementsDisplay
+          achievementIds={featuredAchievements}
+          userStats={{
+            points: stats.points,
+            streak: stats.streak,
+            lessons: stats.totalQuizzes,
+            accuracy: stats.averageAccuracy,
+          }}
+        />
 
         {/* Real User Stats */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

@@ -45,7 +45,8 @@ const tiers: Tier[] = [
       'Track your streaks and build consistent study habits',
       'Access to community challenges and weekend competitions',
       'Basic dashboard with progress analytics and insights',
-      'Standard generation limits (refreshes daily)'
+      'Standard generation limits (refreshes daily)',
+      'Ad-supported experience to keep Lernex free forever'
     ]
   },
   {
@@ -66,6 +67,7 @@ const tiers: Tier[] = [
     features: [
       'Advanced AI model with 6x more intelligence for deeper personalization',
       '3x higher daily AI creation limits with unlimited instant retries',
+      'Ad-free learning experience with zero distractions',
       'Adaptive study paths that learn from every question you skip or answer',
       'Curated exam playlists and interview prep drills for your field',
       'Export printable study guides and flashcard PDFs to learn anywhere',
@@ -92,6 +94,7 @@ const tiers: Tier[] = [
     features: [
       'Advanced AI model with 6x more intelligence for maximum personalization',
       'Unlimited AI generation with zero daily caps or restrictions',
+      'Ad-free learning experience with zero distractions',
       'Collaborative workspaces for study groups, teams, or classrooms',
       'Instant access to every beta feature the moment it ships',
       'Deep personalization engine powered by spaced repetition algorithms',

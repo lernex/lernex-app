@@ -16,7 +16,7 @@ export async function GET() {
     const { data: profile, error } = await supabase
       .from("profiles")
       .select(
-        "id, username, full_name, avatar_url, bio, interests, public_stats, show_real_name, streak, points"
+        "id, username, full_name, avatar_url, bio, interests, public_stats, show_real_name, streak, points, featured_achievements"
       )
       .eq("id", user.id)
       .single();
@@ -68,6 +68,9 @@ export async function GET() {
       interests: Array.isArray(profile.interests) ? profile.interests : [],
       publicStats: profile.public_stats || defaultPublicStats,
       showRealName: profile.show_real_name ?? false,
+      featuredAchievements: Array.isArray(profile.featured_achievements)
+        ? profile.featured_achievements
+        : [],
       stats: {
         streak: profile.streak || 0,
         points: profile.points || 0,
@@ -96,7 +99,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { username, fullName, bio, interests, publicStats, avatarUrl, showRealName } = body;
+    const { username, fullName, bio, interests, publicStats, avatarUrl, showRealName, featuredAchievements } = body;
 
     // Validate username (alphanumeric and underscores only)
     if (username && !/^[a-zA-Z0-9_]+$/.test(username)) {
@@ -132,6 +135,21 @@ export async function PATCH(request: NextRequest) {
       return new NextResponse("Maximum 10 interests allowed", { status: 400 });
     }
 
+    // Validate featured achievements (max 6)
+    if (Array.isArray(featuredAchievements)) {
+      if (featuredAchievements.length > 6) {
+        return new NextResponse("Maximum 6 featured achievements allowed", {
+          status: 400
+        });
+      }
+      // Validate that all items are strings
+      if (!featuredAchievements.every(item => typeof item === "string")) {
+        return new NextResponse("Featured achievements must be an array of strings", {
+          status: 400
+        });
+      }
+    }
+
     const { error } = await supabase
       .from("profiles")
       .update({
@@ -142,6 +160,7 @@ export async function PATCH(request: NextRequest) {
         public_stats: publicStats,
         avatar_url: avatarUrl,
         show_real_name: typeof showRealName === "boolean" ? showRealName : undefined,
+        featured_achievements: Array.isArray(featuredAchievements) ? featuredAchievements : undefined,
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id);
