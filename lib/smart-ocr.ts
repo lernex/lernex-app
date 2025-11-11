@@ -56,7 +56,7 @@ export interface OCRResult {
  * @returns PageComplexity metrics for OCR strategy selection
  */
 export async function analyzePageComplexity(canvas: HTMLCanvasElement): Promise<PageComplexity> {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) {
     throw new Error('Could not get canvas context');
   }
@@ -193,7 +193,7 @@ export function selectOCRStrategy(complexity: PageComplexity): OCRStrategy {
  * @returns true if page is blank and should be skipped
  */
 export function isBlankPage(canvas: HTMLCanvasElement): boolean {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) {
     return false; // If we can't analyze, don't skip
   }
@@ -242,7 +242,7 @@ export function isBlankPage(canvas: HTMLCanvasElement): boolean {
  * @returns 64-character binary string representing page content
  */
 export function getPageHash(canvas: HTMLCanvasElement): string {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) {
     return ''; // Return empty hash if context unavailable
   }
@@ -251,7 +251,7 @@ export function getPageHash(canvas: HTMLCanvasElement): string {
   const small = document.createElement('canvas');
   small.width = 8;
   small.height = 8;
-  const smallCtx = small.getContext('2d');
+  const smallCtx = small.getContext('2d', { willReadFrequently: true });
 
   if (!smallCtx) {
     return '';

@@ -427,7 +427,7 @@ Current Question: ${followUpQuestion}
       {/* History Button - Top Right */}
       <button
         onClick={() => setIsHistoryOpen(true)}
-        className="fixed top-20 right-6 flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-surface bg-surface-card hover:bg-surface-muted shadow-lg hover:shadow-xl transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 z-10 group"
+        className="absolute top-20 right-6 flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-surface bg-surface-card hover:bg-surface-muted shadow-lg hover:shadow-xl transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40 z-10 group"
       >
         <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-lernex-purple/15 text-lernex-purple group-hover:bg-lernex-purple/25 transition-colors">
           <Clock className="h-4 w-4" />

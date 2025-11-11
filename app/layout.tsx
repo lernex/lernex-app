@@ -15,6 +15,8 @@ import StructuredData from "@/components/StructuredData";
 import { defaultMetadata } from "@/lib/seo";
 import { supabaseServer } from "@/lib/supabase-server";
 import SidebarOffsetWrapper from "@/components/SidebarOffsetWrapper";
+import { ToastProvider } from "@/components/ui/ToastProvider";
+import GlobalKeyboardShortcuts from "@/components/GlobalKeyboardShortcuts";
 
 const inter = Inter({ subsets: ["latin"] });
 type ThemePreference = "auto" | "light" | "dark";
@@ -113,6 +115,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Analytics />
               <SpeedInsights />
               <StructuredData />
+              <ToastProvider />
+              <GlobalKeyboardShortcuts />
             </ProfileStatsProvider>
           </ThemeProvider>
         </ReactQueryProvider>

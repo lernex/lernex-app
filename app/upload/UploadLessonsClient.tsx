@@ -394,7 +394,7 @@ async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
     const canvas = document.createElement('canvas');
     canvas.width = img.width;
     canvas.height = img.height;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) {
       throw new Error('Could not get canvas context');
     }
@@ -899,6 +899,10 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
       setStatusDetail("Processing pages with incremental learning...");
       setProgress(5);
 
+      // Create abort controller for cancellation support
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       // Convert PDF to canvases
       const canvases = await convertPdfToCanvases(file);
       if (canvases.length === 0) return null;
@@ -961,6 +965,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                 text: textChunk,
                 subject,
               }),
+              signal: controller.signal, // Add abort signal for cancellation support
             });
 
             if (response.ok) {
@@ -993,11 +998,22 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                 setInsights(prev => [...prev, newLesson.title].slice(0, 8));
               }
             } else {
-              console.error(`[incremental] Lesson generation failed:`, response.status);
+              console.error(`[incremental] Lesson generation failed:`, response.status, response.statusText);
+              // Increment counter to avoid infinite retry on API errors
+              lessonCount++;
+              break; // Break out of while loop - retrying same chunk won't help
             }
           } catch (err) {
+            // Check if this was a user cancellation
+            if ((err as DOMException)?.name === "AbortError") {
+              console.log('[incremental] Generation cancelled by user');
+              throw err; // Re-throw to be caught by outer try-catch
+            }
+
             console.error(`[incremental] Error generating lesson ${lessonCount + 1}:`, err);
-            // Continue processing even if one lesson fails
+            // Increment counter to avoid infinite retry loop on JSON parsing errors
+            lessonCount++;
+            break; // Break out of while loop - retrying same chunk won't help
           }
 
           // Small delay to prevent overwhelming the API
@@ -1026,8 +1042,20 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
         lessonsGenerated: lessonCount,
       };
     } catch (error) {
+      // Handle user cancellation gracefully
+      if ((error as DOMException)?.name === "AbortError") {
+        console.log('[incremental] User cancelled incremental processing');
+        setStage("idle");
+        setStatusDetail(null);
+        setProgress(0);
+        return null;
+      }
+
       console.error('[incremental] Incremental learning failed:', error);
       return null;
+    } finally {
+      // Clean up abort controller
+      abortControllerRef.current = null;
     }
   }, [subject]);
 

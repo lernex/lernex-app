@@ -24,6 +24,7 @@ import {
   Crown,
   GraduationCap,
 } from "lucide-react";
+import Tooltip from "./ui/Tooltip";
 
 export default function Navbar() {
   const { stats } = useProfileStats();
@@ -311,32 +312,38 @@ export default function Navbar() {
                   const badgeText = safeValue > 999 ? "999+" : safeValue.toString();
                   const formattedValue = safeValue.toLocaleString();
                   return (
-                    <div
+                    <Tooltip
                       key={key}
-                      className={`${tileBase} ${tilePadding}`}
+                      content={`${label}: ${formattedValue}`}
+                      position="right"
+                      disabled={navExpanded}
                     >
-                      <span className={`${iconShell} ${iconTone}`}>
-                        <Icon className="h-5 w-5" />
-                        <span className={`${badgeBase} ${badgeTone}`}>{badgeText}</span>
-                      </span>
-                      <motion.div
-                        initial={false}
-                        animate={
-                          navExpanded
-                            ? { opacity: 1, maxWidth: 168, marginLeft: 12 }
-                            : { opacity: 0, maxWidth: 0, marginLeft: 0 }
-                        }
-                        transition={{ duration: 0.24, ease: "easeOut" }}
-                        className="flex min-w-0 flex-col overflow-hidden leading-tight"
+                      <div
+                        className={`${tileBase} ${tilePadding}`}
                       >
-                        <span className="text-[10px] uppercase tracking-[0.26em] text-neutral-500 dark:text-neutral-400">
-                          {label}
+                        <span className={`${iconShell} ${iconTone}`}>
+                          <Icon className="h-5 w-5" />
+                          <span className={`${badgeBase} ${badgeTone}`}>{badgeText}</span>
                         </span>
-                        <span className="text-base font-semibold text-neutral-900 dark:text-white">
-                          {formattedValue}
-                        </span>
-                      </motion.div>
-                    </div>
+                        <motion.div
+                          initial={false}
+                          animate={
+                            navExpanded
+                              ? { opacity: 1, maxWidth: 168, marginLeft: 12 }
+                              : { opacity: 0, maxWidth: 0, marginLeft: 0 }
+                          }
+                          transition={{ duration: 0.24, ease: "easeOut" }}
+                          className="flex min-w-0 flex-col overflow-hidden leading-tight"
+                        >
+                          <span className="text-[10px] uppercase tracking-[0.26em] text-neutral-500 dark:text-neutral-400">
+                            {label}
+                          </span>
+                          <span className="text-base font-semibold text-neutral-900 dark:text-white">
+                            {formattedValue}
+                          </span>
+                        </motion.div>
+                      </div>
+                    </Tooltip>
                   );
                 })}
               </div>
@@ -346,32 +353,50 @@ export default function Navbar() {
               >
                 {navItems.map(({ href, label, icon: Icon, exact }) => {
                   const active = isActive(href, exact);
+                  // Map navigation shortcuts
+                  const shortcutMap: Record<string, string> = {
+                    '/fyp': 'H',
+                    '/generate': 'G',
+                    '/upload': 'U',
+                    '/playlists': 'P',
+                    '/analytics': 'A',
+                    '/leaderboard': 'L',
+                    '/friends': 'F',
+                  };
+                  const shortcut = shortcutMap[href];
                   return (
-                    <Link
+                    <Tooltip
                       key={href}
-                      href={href}
-                      title={label}
-                      aria-label={label}
-                      aria-current={active ? "page" : undefined}
-                      className={`${tileBase} ${tilePadding} ${active ? activeClasses : ""}`}
+                      content={label}
+                      position="right"
+                      disabled={navExpanded}
+                      shortcut={shortcut}
                     >
-                      <span className={`${iconShell} ${active ? activeIconShell : ""}`}>
-                        <Icon className="h-5 w-5" />
-                      </span>
-                      <motion.span
-                        initial={false}
-                        animate={
-                          navExpanded
-                            ? { opacity: 1, maxWidth: 160, marginLeft: 12 }
-                            : { opacity: 0, maxWidth: 0, marginLeft: 0 }
-                        }
-                        transition={{ duration: 0.24, ease: "easeOut" }}
-                        className="min-w-0 text-sm font-medium text-neutral-600 dark:text-neutral-200"
-                        style={{ display: "inline-block" }}
+                      <Link
+                        href={href}
+                        title={label}
+                        aria-label={label}
+                        aria-current={active ? "page" : undefined}
+                        className={`${tileBase} ${tilePadding} ${active ? activeClasses : ""}`}
                       >
-                        {label}
-                      </motion.span>
-                    </Link>
+                        <span className={`${iconShell} ${active ? activeIconShell : ""}`}>
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <motion.span
+                          initial={false}
+                          animate={
+                            navExpanded
+                              ? { opacity: 1, maxWidth: 160, marginLeft: 12 }
+                              : { opacity: 0, maxWidth: 0, marginLeft: 0 }
+                          }
+                          transition={{ duration: 0.24, ease: "easeOut" }}
+                          className="min-w-0 text-sm font-medium text-neutral-600 dark:text-neutral-200"
+                          style={{ display: "inline-block" }}
+                        >
+                          {label}
+                        </motion.span>
+                      </Link>
+                    </Tooltip>
                   );
                 })}
               </div>

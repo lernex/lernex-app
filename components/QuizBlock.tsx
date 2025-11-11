@@ -323,6 +323,41 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
     onDone(correctCount);
   };
 
+  // Keyboard shortcuts for quiz navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      // Answer selection with number keys (1-4)
+      if (e.key >= '1' && e.key <= '4') {
+        const idx = parseInt(e.key) - 1;
+        if (idx < q.choices.length && selected === null) {
+          e.preventDefault();
+          choose(idx);
+        }
+      }
+
+      // Next question with Enter or 'n' key
+      if ((e.key === 'Enter' || e.key === 'n') && selected !== null) {
+        e.preventDefault();
+        next();
+      }
+
+      // Previous question with 'b' key
+      if (e.key === 'b' && qIndex > 0) {
+        e.preventDefault();
+        back();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [qIndex, selected, q, choose, next, back]);
+
   const btnClass = (idx: number) => {
     const base = "text-left px-3 py-2 rounded-xl border transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lernex-blue/40";
     if (selected === null) {

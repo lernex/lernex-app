@@ -279,7 +279,7 @@ export async function GET(
     const userTier = await fetchUserTier(sb, user.id);
 
     // 6. Generate remix lessons using OpenAI with token-optimized prompt
-    const { client: openai, model: modelName } = createModelClient(userTier, "slow"); // Use slow for quality generation
+    const { client: openai, model: modelName } = createModelClient(userTier, "fast"); // Use fast for reliable generation
 
     const systemPrompt = `You are an expert educational content generator. Your task is to create ${count} new lessons that follow similar patterns to an existing playlist, but with fresh content and variations.
 

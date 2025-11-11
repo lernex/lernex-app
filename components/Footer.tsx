@@ -7,10 +7,6 @@ export default function Footer() {
         <div className="space-y-2">
           <div className="bg-gradient-to-r from-lernex-blue to-lernex-purple bg-clip-text text-lg font-semibold text-transparent">Lernex</div>
           <p className="text-neutral-600 dark:text-neutral-400">Learn faster with AI-generated micro-lessons and instant quizzes.</p>
-          <div className="flex gap-3 pt-2">
-            <Link href="/about" className="rounded-md border border-white/10 px-2 py-1 hover:bg-white/10">About</Link>
-            <Link href="/docs" className="rounded-md border border-white/10 px-2 py-1 hover:bg-white/10">Docs</Link>
-          </div>
         </div>
         <div>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Product</div>
@@ -24,7 +20,6 @@ export default function Footer() {
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Community</div>
           <ul className="space-y-2">
             <li><Link href="/leaderboard" className="hover:underline">Leaderboard</Link></li>
-            <li><Link href="/docs" className="hover:underline">Help & Docs</Link></li>
           </ul>
         </div>
         <div>

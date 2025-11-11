@@ -49,7 +49,7 @@ export interface OptimizationResult {
  * @returns Cropped canvas with minimal margins
  */
 function cropWhitespace(canvas: HTMLCanvasElement): HTMLCanvasElement {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) {
     console.warn('[image-optimizer] No canvas context, skipping crop');
     return canvas;
@@ -152,7 +152,7 @@ function cropWhitespace(canvas: HTMLCanvasElement): HTMLCanvasElement {
   const croppedCanvas = document.createElement('canvas');
   croppedCanvas.width = cropWidth;
   croppedCanvas.height = cropHeight;
-  const croppedCtx = croppedCanvas.getContext('2d');
+  const croppedCtx = croppedCanvas.getContext('2d', { willReadFrequently: true });
 
   if (!croppedCtx) {
     console.warn('[image-optimizer] Failed to create cropped canvas context');
@@ -186,7 +186,7 @@ function cropWhitespace(canvas: HTMLCanvasElement): HTMLCanvasElement {
  * @returns Optimal JPEG quality (0.7-0.9)
  */
 function getOptimalQuality(canvas: HTMLCanvasElement): number {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) {
     return 0.85; // Default quality
   }

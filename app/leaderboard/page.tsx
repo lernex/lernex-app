@@ -96,13 +96,25 @@ function uniqueIds(ids: Array<string | null | undefined>): string[] {
 function calcRangeStart(range: Range): Date {
   const now = new Date();
   switch (range) {
-    case "daily":
-      return new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    case "weekly":
-      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    case "monthly": {
+    case "daily": {
+      // Start of today (midnight in local timezone)
       const start = new Date(now);
-      start.setMonth(start.getMonth() - 1);
+      start.setHours(0, 0, 0, 0);
+      return start;
+    }
+    case "weekly": {
+      // Start of current week (Sunday)
+      const start = new Date(now);
+      start.setHours(0, 0, 0, 0);
+      const dayOfWeek = start.getDay();
+      start.setDate(start.getDate() - dayOfWeek);
+      return start;
+    }
+    case "monthly": {
+      // Start of current month
+      const start = new Date(now);
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
       return start;
     }
     default:

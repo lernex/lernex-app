@@ -47,7 +47,7 @@ export async function convertPdfToImages(file: File): Promise<string[]> {
 
     // Create canvas
     const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext('2d', { willReadFrequently: true });
     if (!context) {
       throw new Error('Could not get canvas context');
     }
@@ -112,7 +112,7 @@ export async function convertPdfToCanvases(file: File): Promise<HTMLCanvasElemen
 
     // Create canvas
     const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext('2d', { willReadFrequently: true });
     if (!context) {
       throw new Error('Could not get canvas context');
     }
