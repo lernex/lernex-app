@@ -75,6 +75,49 @@ function GenerateContent() {
     fetchTTSSettings();
   }, []);
 
+  // Helper function to consume streaming quiz responses
+  const consumeQuizStream = async (response: Response): Promise<Array<{ prompt: string; choices: string[]; correctIndex: number; explanation: string }>> => {
+    if (!response.body) {
+      throw new Error("No response body");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const questions: Array<{ prompt: string; choices: string[]; correctIndex: number; explanation: string }> = [];
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // Process complete lines (newline-delimited JSON)
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            const question = JSON.parse(line);
+            // Add question to lesson immediately for progressive display
+            if (question.prompt && question.choices) {
+              questions.push(question);
+              setLesson((prev) => prev ? {
+                ...prev,
+                questions: [...(prev.questions || []), question],
+              } : prev);
+            }
+          } catch (e) {
+            console.warn("[client] Failed to parse quiz question line:", line, e);
+          }
+        }
+      }
+    }
+
+    return questions;
+  };
+
   const handleFollowUp = async () => {
     if (!followUpQuestion.trim() || !lesson) return;
 
@@ -111,16 +154,12 @@ function GenerateContent() {
           throw new Error("Quiz generation failed");
         }
 
-        const quizObj = await quizRes.json();
+        // Consume streaming quiz response
+        const questions = await consumeQuizStream(quizRes);
 
-        // Update the lesson with new quiz questions
-        if (Array.isArray(quizObj?.questions) && quizObj.questions.length > 0) {
-          setLesson((prev) => prev ? {
-            ...prev,
-            questions: [...(prev.questions || []), ...quizObj.questions],
-          } : prev);
-
-          const answerText = `I've generated ${quizObj.questions.length} additional quiz questions for you! Check them out below.`;
+        // Confirm completion to user
+        if (questions.length > 0) {
+          const answerText = `I've generated ${questions.length} additional quiz questions for you! Check them out below.`;
           setFollowUpHistory((prev) => [...prev, { question: followUpQuestion, answer: answerText }]);
           setFollowUpQuestion("");
         }
@@ -197,8 +236,8 @@ Current Question: ${followUpQuestion}
 
     try {
       if (contentType === "quiz") {
-        // Quiz-only mode: skip lesson generation, only create quiz
-        const quizReq = fetch("/api/generate/quiz", {
+        // Quiz-only mode: skip lesson generation, only create quiz with streaming
+        const quizRes = await fetch("/api/generate/quiz", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -210,27 +249,35 @@ Current Question: ${followUpQuestion}
           }),
         });
 
-        const quizObj = await quizReq.then(async (r) => {
-          if (!r.ok) throw new Error((await r.text()) || "Quiz generation failed");
-          return r.json();
-        });
+        if (!quizRes.ok) {
+          throw new Error((await quizRes.text()) || "Quiz generation failed");
+        }
 
-        // Assemble Lesson object with empty content for quiz-only mode
+        // Create initial Lesson object with empty questions
         const assembled: Lesson = {
-          id: quizObj?.id ?? crypto.randomUUID(),
-          subject: quizObj?.subject ?? subject,
-          topic: quizObj?.topic ?? "Quiz",
-          title: quizObj?.title ?? "Practice Quiz",
+          id: crypto.randomUUID(),
+          subject: subject,
+          topic: "Quiz",
+          title: "Practice Quiz",
           content: "", // No lesson content in quiz-only mode
-          difficulty: (quizObj?.difficulty as "intro" | "easy" | "medium" | "hard") ?? "easy",
-          questions: Array.isArray(quizObj?.questions) ? quizObj.questions : [],
+          difficulty: "easy",
+          questions: [],
         };
 
         setLesson(assembled);
-        console.log("[client] quiz-only-complete", (performance.now() - t0).toFixed(1), "ms");
+        console.log("[client] quiz-stream-start", (performance.now() - t0).toFixed(1), "ms");
 
-        // Save to history
-        saveToHistory(assembled).catch((err) =>
+        // Consume streaming quiz response (questions added progressively via consumeQuizStream)
+        const questions = await consumeQuizStream(quizRes);
+
+        console.log("[client] quiz-only-complete", (performance.now() - t0).toFixed(1), "ms", `${questions.length} questions`);
+
+        // Save to history with final question count
+        const finalLesson = {
+          ...assembled,
+          questions,
+        };
+        saveToHistory(finalLesson).catch((err) =>
           console.warn("[generate] Failed to save to history:", err)
         );
       } else {
@@ -279,7 +326,7 @@ Current Question: ${followUpQuestion}
           lessonContent = "Generated lesson.";
         }
 
-        // 2) Now generate quiz based on the actual lesson content
+        // 2) Now generate quiz based on the actual lesson content with streaming
         const quizRes = await fetch("/api/generate/quiz", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -296,26 +343,33 @@ Current Question: ${followUpQuestion}
           throw new Error((await quizRes.text()) || "Quiz generation failed");
         }
 
-        const quizObj = await quizRes.json();
-        const t3 = performance.now();
-        console.log("[client] quiz-complete", (t3 - t0).toFixed(1), "ms");
-
-        // 3) Assemble Lesson object for LessonCard + QuizBlock
+        // Create initial Lesson object
         const assembled: Lesson = {
-          id: quizObj?.id ?? crypto.randomUUID(),
-          subject: quizObj?.subject ?? subject,
-          topic: quizObj?.topic ?? "Micro-lesson",
-          title: quizObj?.title ?? "Quick Concept",
+          id: crypto.randomUUID(),
+          subject: subject,
+          topic: "Micro-lesson",
+          title: "Quick Concept",
           content: lessonContent,
-          difficulty: (quizObj?.difficulty as "intro" | "easy" | "medium" | "hard") ?? "easy",
-          questions: Array.isArray(quizObj?.questions) ? quizObj.questions : [],
+          difficulty: "easy",
+          questions: [],
         };
 
         setLesson(assembled);
+        console.log("[client] quiz-stream-start", (t2 - t0).toFixed(1), "ms");
+
+        // Consume streaming quiz response (questions added progressively)
+        const questions = await consumeQuizStream(quizRes);
+
+        const t3 = performance.now();
+        console.log("[client] quiz-complete", (t3 - t0).toFixed(1), "ms", `${questions.length} questions`);
         console.log("[client] total-complete", (t3 - t0).toFixed(1), "ms");
 
-        // Save lesson to history (fire and forget)
-        saveToHistory(assembled).catch((err) =>
+        // Save lesson to history with final questions (fire and forget)
+        const finalLesson = {
+          ...assembled,
+          questions,
+        };
+        saveToHistory(finalLesson).catch((err) =>
           console.warn("[generate] Failed to save to history:", err)
         );
       }

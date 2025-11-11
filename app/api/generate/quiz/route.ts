@@ -105,172 +105,18 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
       );
       maxTokens = mode === "quick" ? quickMaxTokens : mode === "full" ? fullMaxTokens : miniMaxTokens;
     }
-    let raw = "";
-    let usedFallback = false;
 
-    let completion: Awaited<ReturnType<typeof client.chat.completions.create>> | null = null;
-    try {
-      completion = await client.chat.completions.create({
-        model,
-        temperature: 0.4,
-        max_tokens: maxTokens,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: system },
-          {
-            role: "user",
-            content: quizOnly
-              ? `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nSource:\n${src}\n\nFollow all rules. Use proper LaTeX.`
-              : `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nLesson:\n${src}\nTest concepts with new examples. Change all numbers/variables.`,
-          },
-        ],
-      });
-      raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
-    } catch (err: unknown) {
-      const e = err as unknown as { error?: { failed_generation?: string } };
-      const failed = e?.error?.failed_generation;
-      if (typeof failed === "string" && failed.trim().length > 0) {
-        raw = failed;
-        usedFallback = true;
-      } else {
-        // Retry without JSON mode
-        try {
-          usedFallback = true;
-          completion = await client.chat.completions.create({
-            model,
-            temperature: 0.4,
-            max_tokens: maxTokens,
-            messages: [
-              { role: "system", content: system },
-              {
-                role: "user",
-                content: quizOnly
-                  ? `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nSource:\n${src}\n\nFollow all rules. Use proper LaTeX.`
-                  : `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nLesson:\n${src}\nTest concepts with new examples. Change all numbers/variables.`,
-              },
-            ],
-          });
-          raw = (completion.choices?.[0]?.message?.content as string | undefined) ?? "";
-        } catch {
-          return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 });
-        }
-      }
-    }
-
-    if (!raw) raw = "{}";
-    if (user && completion?.usage) {
-      const u = completion.usage;
-      let mapped: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
-      if (u && typeof u === "object") {
-        const rec = (u as unknown) as { prompt_tokens?: unknown; completion_tokens?: unknown };
-        const prompt = typeof rec.prompt_tokens === "number" ? rec.prompt_tokens : null;
-        const completionTokens = typeof rec.completion_tokens === "number" ? rec.completion_tokens : null;
-        mapped = { input_tokens: prompt, output_tokens: completionTokens };
-      }
-      if (mapped) {
-        try {
-          await logUsage(sb, user.id, ip, modelIdentifier, mapped, {
-            metadata: {
-              route: "generate-quiz",
-              subject,
-              difficulty,
-              mode,
-              usedFallback,
-              sourceTextLength: src.length,
-              provider,
-              tier: userTier,
-            }
-          });
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-    // Robust JSON parsing with balanced-brace extraction fallback
-    function extractBalancedObject(s: string): string | null {
-      let i = 0;
-      const n = s.length;
-      let depth = 0;
-      let start = -1;
-      let inStr = false;
-      let escaped = false;
-      for (; i < n; i++) {
-        const ch = s[i];
-        if (inStr) {
-          if (escaped) {
-            escaped = false;
-          } else if (ch === "\\") {
-            escaped = true;
-          } else if (ch === '"') {
-            inStr = false;
-          }
-          continue;
-        }
-        if (ch === '"') { inStr = true; continue; }
-        if (ch === '{') {
-          if (depth === 0) start = i;
-          depth++;
-        } else if (ch === '}') {
-          depth--;
-          if (depth === 0 && start !== -1) {
-            return s.slice(start, i + 1);
-          }
-        }
-      }
-      return null;
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      const extracted = extractBalancedObject(raw);
-      if (!extracted) {
-        return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 });
-      }
-      try {
-        parsed = JSON.parse(extracted);
-      } catch {
-        return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 502 });
-      }
-    }
-
-    // Normalize/sanitize the quiz object to maximize front-end formatting success
-    const obj = parsed as {
-      id?: string;
-      subject?: string;
-      title?: string;
-      difficulty?: string;
-      questions?: { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown }[];
-    };
+    // Helper functions for streaming quiz generation
     const coerceStr = (v: unknown) => {
       if (typeof v === "string") return v;
       if (v == null) return "";
       return String(v).trim();
     };
-    const latexDiagnostics: { field: string; scan: ReturnType<typeof scanLatex> }[] = [];
-    const recordDiagnostics = (field: string, value: string) => {
-      if (!value) return;
-      const scan = scanLatex(value);
-      if (hasLatexIssues(scan)) {
-        latexDiagnostics.push({ field, scan });
-      }
-    };
+
     const normalizeField = (field: string, value: unknown) => {
       const text = coerceStr(value);
-      const normalized = normalizeLatex(text);
-      recordDiagnostics(field, normalized);
-      return normalized;
+      return normalizeLatex(text);
     };
-
-    obj.id = coerceStr(obj.id);
-    const normalizedSubject = normalizeField("subject", obj.subject ?? subject);
-    obj.subject = normalizedSubject || subject;
-    obj.title = normalizeField("title", obj.title);
-    const allowedDifficulty = new Set(["intro", "easy", "medium", "hard"]);
-    obj.difficulty = typeof obj.difficulty === "string" && allowedDifficulty.has(obj.difficulty)
-      ? obj.difficulty
-      : difficulty;
 
     const sanitizeQuestion = (
       rawQuestion: { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown } | null | undefined,
@@ -284,7 +130,7 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
       };
       const prompt = normalizeField("q" + idx + ".prompt", question.prompt);
       const baseChoices = Array.isArray(question.choices) ? (question.choices as unknown[]).map(coerceStr) : [];
-      const maxChoices = obj.difficulty === "intro" || obj.difficulty === "easy" ? 3 : 4;
+      const maxChoices = difficulty === "intro" || difficulty === "easy" ? 3 : 4;
       const trimmedChoices = baseChoices.filter((c) => c.length > 0).slice(0, Math.max(2, maxChoices));
       const choices = trimmedChoices.map((choice, choiceIdx) => normalizeField("q" + idx + ".choices[" + choiceIdx + "]", choice));
       const rawIdx = question.correctIndex;
@@ -294,33 +140,231 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
       return { prompt, choices, correctIndex: idxValue, explanation };
     };
 
-    if (Array.isArray(obj.questions)) {
-      obj.questions = obj.questions.map((q, idx) => sanitizeQuestion(q, idx));
-      // Shuffle answer choices to prevent AI bias toward position A
-      obj.questions = shuffleQuizQuestions(obj.questions as { prompt: string; choices: string[]; correctIndex: number; explanation: string; }[]);
-    } else {
-      obj.questions = [];
+    /**
+     * Try to parse partial quiz JSON and extract questions
+     */
+    function tryParseQuestions(buffer: string): { questions: unknown[] | null } {
+      try {
+        const parsed = JSON.parse(buffer);
+        if (parsed && typeof parsed === "object" && Array.isArray(parsed.questions)) {
+          return { questions: parsed.questions };
+        }
+      } catch {
+        // JSON not complete yet, try to extract partial questions array
+        // Look for questions array in partial JSON
+        const questionsMatch = buffer.match(/"questions"\s*:\s*\[([^\]]*(?:\][^\]]*)*)/);
+        if (questionsMatch) {
+          try {
+            // Try to parse the questions array portion
+            const questionsStr = "[" + questionsMatch[1];
+            // Count braces to find complete questions
+            let depth = 0;
+            let inString = false;
+            let escaped = false;
+            let lastCompleteIndex = -1;
+
+            for (let i = 0; i < questionsStr.length; i++) {
+              const ch = questionsStr[i];
+              if (inString) {
+                if (escaped) {
+                  escaped = false;
+                } else if (ch === "\\") {
+                  escaped = true;
+                } else if (ch === '"') {
+                  inString = false;
+                }
+                continue;
+              }
+              if (ch === '"') {
+                inString = true;
+                continue;
+              }
+              if (ch === '{') {
+                depth++;
+              } else if (ch === '}') {
+                depth--;
+                if (depth === 0) {
+                  lastCompleteIndex = i;
+                }
+              }
+            }
+
+            if (lastCompleteIndex > 0) {
+              const completeStr = questionsStr.slice(0, lastCompleteIndex + 1) + "]";
+              const parsed = JSON.parse(completeStr);
+              if (Array.isArray(parsed)) {
+                return { questions: parsed };
+              }
+            }
+          } catch {
+            // Partial parse failed
+          }
+        }
+      }
+      return { questions: null };
     }
 
-    if (latexDiagnostics.length > 0) {
-      console.warn("[quiz] latex-anomalies", {
-        quizId: obj.id,
-        fallback: usedFallback,
-        issues: latexDiagnostics.map(({ field, scan }) => ({
-          field,
-          doubleEscapedMacros: scan.doubleEscapedMacros,
-          unmatchedInlinePairs: scan.unmatchedInlinePairs,
-          unmatchedDisplayPairs: scan.unmatchedDisplayPairs,
-          oddDollarBlocks: scan.oddDollarBlocks,
-        })),
-      });
-    }
+    // Enable streaming for progressive quiz generation
+    const userPrompt = quizOnly
+      ? `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nSource:\n${src}\n\nFollow all rules. Use proper LaTeX.`
+      : `Subject: ${subject}\nMode: ${mode}\nDifficulty: ${difficulty}\nLesson:\n${src}\nTest concepts with new examples. Change all numbers/variables.`;
 
-    // Note: Bedrock usage logging is handled in the generation route; here we log only for the Cerebras path above.
+    const enc = new TextEncoder();
 
-    return new Response(JSON.stringify(obj), {
-      headers: { "content-type": "application/json", "Cache-Control": "no-store" },
-      status: 200,
+    // Create streaming response
+    const bodyStream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        let buffer = "";
+        let usedFallback = false;
+        let completion: { usage?: { prompt_tokens?: number; completion_tokens?: number } } | null = null;
+        let sentQuestionCount = 0;
+
+        const safeEnqueue = (data: string) => {
+          try {
+            controller.enqueue(enc.encode(data));
+          } catch (e) {
+            console.error('[generate/quiz] enqueue-error', e);
+          }
+        };
+
+        const doClose = () => {
+          try {
+            controller.close();
+          } catch (e) {
+            console.error('[generate/quiz] close-error', e);
+          }
+        };
+
+        try {
+          // Start streaming completion
+          const stream = await client.chat.completions.create({
+            model,
+            temperature: 0.4,
+            max_tokens: maxTokens,
+            response_format: { type: "json_object" },
+            stream: true,
+            messages: [
+              { role: "system", content: system },
+              { role: "user", content: userPrompt },
+            ],
+          });
+
+          // Process stream chunks
+          for await (const chunk of stream) {
+            const delta = chunk?.choices?.[0]?.delta;
+            const content = delta?.content || "";
+
+            // Capture usage from final chunk
+            const chunkUsage = (chunk as { usage?: { prompt_tokens?: number; completion_tokens?: number } })?.usage;
+            if (chunkUsage) {
+              completion = { usage: chunkUsage };
+            }
+
+            if (content) {
+              buffer += content;
+
+              // Try to parse partial questions
+              const partial = tryParseQuestions(buffer);
+              if (partial.questions && partial.questions.length > sentQuestionCount) {
+                // Send new questions that haven't been sent yet
+                const newQuestions = partial.questions.slice(sentQuestionCount);
+                for (const question of newQuestions) {
+                  // Apply normalization and shuffling to each question
+                  const sanitized = sanitizeQuestion(question as { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown }, sentQuestionCount);
+                  const shuffled = shuffleQuizQuestions([sanitized])[0];
+
+                  // Send as newline-delimited JSON
+                  safeEnqueue(JSON.stringify(shuffled) + "\n");
+                  sentQuestionCount++;
+                }
+              }
+            }
+          }
+
+          // Final parse to catch any remaining questions
+          const final = tryParseQuestions(buffer);
+          if (final.questions && final.questions.length > sentQuestionCount) {
+            const remainingQuestions = final.questions.slice(sentQuestionCount);
+            for (const question of remainingQuestions) {
+              const sanitized = sanitizeQuestion(question as { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown }, sentQuestionCount);
+              const shuffled = shuffleQuizQuestions([sanitized])[0];
+              safeEnqueue(JSON.stringify(shuffled) + "\n");
+              sentQuestionCount++;
+            }
+          }
+
+        } catch (err: unknown) {
+          console.error('[generate/quiz] stream-error', err);
+          // Fallback to non-streaming mode
+          try {
+            usedFallback = true;
+            const fallbackCompletion = await client.chat.completions.create({
+              model,
+              temperature: 0.4,
+              max_tokens: maxTokens,
+              response_format: { type: "json_object" },
+              messages: [
+                { role: "system", content: system },
+                { role: "user", content: userPrompt },
+              ],
+            });
+
+            const raw = (fallbackCompletion.choices?.[0]?.message?.content as string | undefined) ?? "{}";
+            completion = fallbackCompletion;
+
+            // Parse and send all questions
+            const parsed = tryParseQuestions(raw);
+            if (parsed.questions) {
+              for (let i = 0; i < parsed.questions.length; i++) {
+                const sanitized = sanitizeQuestion(parsed.questions[i] as { prompt?: unknown; choices?: unknown; correctIndex?: unknown; explanation?: unknown }, i);
+                const shuffled = shuffleQuizQuestions([sanitized])[0];
+                safeEnqueue(JSON.stringify(shuffled) + "\n");
+                sentQuestionCount++;
+              }
+            }
+          } catch (fallbackErr) {
+            console.error('[generate/quiz] fallback-error', fallbackErr);
+            safeEnqueue(JSON.stringify({ error: "Quiz generation failed" }) + "\n");
+          }
+        }
+
+        // Log usage
+        if (user && completion?.usage) {
+          const u = completion.usage;
+          const mapped = {
+            input_tokens: u.prompt_tokens ?? null,
+            output_tokens: u.completion_tokens ?? null,
+          };
+
+          try {
+            await logUsage(sb, user.id, ip, modelIdentifier, mapped, {
+              metadata: {
+                route: "generate-quiz",
+                subject,
+                difficulty,
+                mode,
+                usedFallback,
+                sourceTextLength: src.length,
+                provider,
+                tier: userTier,
+                questionCount: sentQuestionCount,
+              }
+            });
+          } catch (logErr) {
+            console.warn('[generate/quiz] usage-log-error', logErr);
+          }
+        }
+
+        doClose();
+      },
+    });
+
+    return new Response(bodyStream, {
+      headers: {
+        "content-type": "text/event-stream",
+        "Cache-Control": "no-store, no-transform",
+        "X-Accel-Buffering": "no",
+      },
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";

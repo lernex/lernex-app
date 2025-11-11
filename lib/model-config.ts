@@ -8,7 +8,7 @@
  * - Slow model: Deepinfra gpt-oss-20b (lower cost, no speed priority)
  *
  * Plus/Premium Tiers:
- * - Fast model: Fireworks AI gpt-oss-120b (higher intelligence, faster response)
+ * - Fast model: Groq gpt-oss-120b (higher intelligence, faster response)
  * - Slow model: Deepinfra gpt-oss-120b (higher intelligence, cost-optimized)
  */
 
@@ -34,12 +34,12 @@ export function getModelConfig(tier: UserTier, speed: ModelSpeed): ModelConfig {
   if (isPaidTier) {
     // Plus and Premium get the more intelligent models
     if (speed === 'fast') {
-      // Fireworks AI for fast, high-intelligence generation (uses OpenAI-compatible API)
+      // Groq for fast, high-intelligence generation (uses OpenAI-compatible API)
       return {
-        apiKey: process.env.FIREWORKSAI_API_KEY || '',
-        baseURL: 'https://api.fireworks.ai/inference/v1',
-        model: 'accounts/fireworks/models/gpt-oss-120b',
-        provider: 'fireworksai'
+        apiKey: process.env.GROQ_API_KEY || '',
+        baseURL: 'https://api.groq.com/openai/v1',
+        model: 'openai/gpt-oss-120b',
+        provider: 'groq'
       };
     } else {
       // Deepinfra for slower, cost-optimized high-intelligence generation
@@ -80,7 +80,8 @@ export function getModelIdentifier(provider: ModelConfig['provider'], model: str
   // Return model identifier that matches the pricing table
   switch (provider) {
     case 'groq':
-      return 'groq/gpt-oss-20b';
+      // Groq is used for both free (20b) and paid (120b) fast models
+      return model.includes('120b') ? 'groq/gpt-oss-120b' : 'groq/gpt-oss-20b';
     case 'deepinfra':
       // Deepinfra is used for both free (20b) and paid (120b) slow models
       return model.includes('120b') ? 'deepinfra/gpt-oss-120b' : 'deepinfra/gpt-oss-20b';
