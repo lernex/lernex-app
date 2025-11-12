@@ -196,8 +196,21 @@ Schema: { "subject": "string", "lessons": [{ "title": "string", "description": "
     const message = completion?.choices?.[0]?.message;
     const content = message?.content;
 
+    console.log('[plan] Response analysis:', {
+      hasCompletion: !!completion,
+      hasChoices: !!completion?.choices,
+      choicesLength: completion?.choices?.length || 0,
+      hasMessage: !!message,
+      hasContent: !!content,
+      contentType: typeof content,
+      contentLength: typeof content === 'string' ? content.length : 0,
+      preview: typeof content === 'string' ? content.slice(0, 200) : 'N/A',
+      fullMessage: JSON.stringify(message, null, 2).slice(0, 500)
+    });
+
     if (!content || typeof content !== 'string') {
       console.error('[plan] No content in response');
+      console.error('[plan] Full completion object:', JSON.stringify(completion, null, 2));
       return new Response(
         JSON.stringify({ error: "Failed to generate lesson plan" }),
         { status: 500 }

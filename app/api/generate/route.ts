@@ -505,8 +505,8 @@ export async function POST(req: NextRequest) {
             console.log('[generate] Beginning to process chunks...');
             for await (const chunk of stream) {
               chunkCount++;
-              if (chunkCount <= 3) {
-                console.log(`[generate] Processing chunk ${chunkCount}`, chunk);
+              if (chunkCount <= 5) {
+                console.log(`[generate] Chunk ${chunkCount}:`, JSON.stringify(chunk, null, 2).slice(0, 500));
               }
 
               // Check if the chunk contains an error
@@ -518,6 +518,10 @@ export async function POST(req: NextRequest) {
 
               const choice = chunk?.choices?.[0];
               const delta = choice?.delta ?? {};
+
+              if (chunkCount <= 5) {
+                console.log(`[generate] Chunk ${chunkCount} delta:`, JSON.stringify(delta, null, 2));
+              }
 
               // Track finish reason
               if (choice?.finish_reason) {
@@ -534,6 +538,9 @@ export async function POST(req: NextRequest) {
                 full += content;
                 controller.enqueue(encoder.encode(content));
                 wrote = true;
+                if (chunkCount <= 5) {
+                  console.log(`[generate] Chunk ${chunkCount} added ${content.length} chars to full (total: ${full.length})`);
+                }
               }
 
               const chunkUsage = (chunk as { usage?: { prompt_tokens?: number; completion_tokens?: number } } | undefined)?.usage;
@@ -549,11 +556,12 @@ export async function POST(req: NextRequest) {
               wrote,
               chunkCount,
               fullLength: full.length,
-              finishReason
+              finishReason,
+              preview: full.slice(0, 200)
             });
 
-            if (!wrote) {
-              console.log('[generate] No data written, attempting non-streaming fallback...');
+            if (!wrote || full.length === 0) {
+              console.log('[generate] No data written or empty response, attempting non-streaming fallback...');
               try {
                 // OPTIMIZED: Fallback uses same prompt-based approach (no json_schema due to Groq bug)
                 const fallback = await client.chat.completions.create({
@@ -570,12 +578,20 @@ export async function POST(req: NextRequest) {
                 const message = fallback?.choices?.[0]?.message;
                 const backup = (message?.content as string | undefined) ?? "";
 
+                console.log('[generate] Fallback response:', {
+                  hasMessage: !!message,
+                  hasContent: !!backup,
+                  contentLength: backup.length,
+                  preview: backup.slice(0, 200)
+                });
+
                 if (backup) {
                   full = backup;
                   controller.enqueue(encoder.encode(backup));
                   wrote = true;
                 } else {
-                  console.warn("[gen/lesson] fallback-empty");
+                  console.warn("[gen/lesson] fallback-empty - no content in message");
+                  console.warn("[gen/lesson] Full fallback response:", JSON.stringify(fallback, null, 2));
                 }
                 const u = fallback?.usage;
                 if (u) {
