@@ -972,6 +972,13 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
               const responseText = await response.text();
               let jsonText = responseText.trim();
 
+              // Check for empty response
+              if (!jsonText) {
+                console.error(`[incremental] Empty response from API`);
+                lessonCount++;
+                break;
+              }
+
               // Handle markdown code fences
               if (jsonText.startsWith('```json')) {
                 jsonText = jsonText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
@@ -979,7 +986,24 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                 jsonText = jsonText.replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
               }
 
-              const payload = JSON.parse(jsonText) as Lesson;
+              // Try to parse the JSON
+              let payload: Lesson;
+              try {
+                payload = JSON.parse(jsonText) as Lesson;
+              } catch (parseError) {
+                console.error(`[incremental] JSON parse error:`, parseError);
+                console.error(`[incremental] Received text:`, jsonText.slice(0, 200));
+                lessonCount++;
+                break;
+              }
+
+              // Validate that we have required fields
+              if (!payload.title || !payload.content || !payload.questions) {
+                console.error(`[incremental] Incomplete lesson data:`, payload);
+                lessonCount++;
+                break;
+              }
+
               const newLesson: PendingLesson = {
                 ...payload,
                 id: payload.id ?? crypto.randomUUID(),
@@ -998,7 +1022,9 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                 setInsights(prev => [...prev, newLesson.title].slice(0, 8));
               }
             } else {
+              const errorText = await response.text().catch(() => 'Unknown error');
               console.error(`[incremental] Lesson generation failed:`, response.status, response.statusText);
+              console.error(`[incremental] Error details:`, errorText);
               // Increment counter to avoid infinite retry on API errors
               lessonCount++;
               break; // Break out of while loop - retrying same chunk won't help

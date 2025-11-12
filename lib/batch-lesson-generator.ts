@@ -170,7 +170,13 @@ function modelSupportsFunctionCalling(model: string): boolean {
   const override = process.env.FYP_ALLOW_FUNCTION_CALLING;
   if (override) return override.toLowerCase() === "true";
 
-  // Cerebras and most OpenAI-compatible models support function calling
+  // Groq's gpt-oss models have known issues with forced tool_choice
+  // Use JSON mode instead for more reliable structured output
+  if (model.includes("gpt-oss")) {
+    return false;
+  }
+
+  // Most OpenAI-compatible models support function calling
   return !model.includes("text-") && !model.includes("gpt-3.5-turbo-instruct");
 }
 
@@ -418,8 +424,7 @@ async function generateLessonBatchSingleCall(
       temperature,
       max_tokens: completionMaxTokens,
       messages,
-      tools: [CREATE_LESSON_BATCH_TOOL],
-      tool_choice: { type: "function" as const, function: { name: "create_lesson_batch" } }
+      response_format: { type: "json_object" }
     });
 
     const choice = completion.choices?.[0];
@@ -427,17 +432,12 @@ async function generateLessonBatchSingleCall(
       throw new Error("No completion choice returned");
     }
 
-    const toolCalls = choice.message.tool_calls;
-    if (!toolCalls || toolCalls.length === 0) {
-      throw new Error("No tool calls in response");
+    const content = choice.message.content;
+    if (!content || typeof content !== 'string') {
+      throw new Error("No content in response");
     }
 
-    const toolCall = toolCalls[0];
-    if (toolCall.function.name !== "create_lesson_batch") {
-      throw new Error(`Unexpected function: ${toolCall.function.name}`);
-    }
-
-    const batchData = JSON.parse(toolCall.function.arguments);
+    const batchData = JSON.parse(content);
     const lessons = batchData.lessons as unknown[];
 
     if (!Array.isArray(lessons) || lessons.length === 0) {

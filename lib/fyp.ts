@@ -219,7 +219,9 @@ function clampTemperature(value: number) {
 const DEFAULT_TEMPERATURE = clampTemperature(resolveNumericEnv(process.env.CEREBRAS_LESSON_TEMPERATURE, FALLBACK_TEMPERATURE));
 
 const JSON_RESPONSE_DENYLIST: RegExp[] = [];
-const FUNCTION_CALLING_DENYLIST: RegExp[] = [];
+// Groq's gpt-oss models have known issues with forced tool_choice
+// Disable forced function calling for these models
+const FUNCTION_CALLING_DENYLIST: RegExp[] = [/gpt-oss/];
 
 function normalizeBooleanEnv(value: string | undefined): boolean | null {
   if (!value) return null;

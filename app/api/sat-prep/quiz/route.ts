@@ -164,40 +164,34 @@ export async function POST(req: Request) {
       topic,
     });
 
-    // OPTIMIZED: Use function calling for structured output (42% token reduction vs JSON mode)
+    // OPTIMIZED: Use JSON mode for structured output (more reliable with Groq's gpt-oss models)
+    // Groq's gpt-oss models have known issues with forced tool_choice
     const completion = await client.chat.completions.create({
       model,
       temperature: 0.9,
       max_tokens: maxTokens,
-      tools: [CREATE_SAT_QUIZ_TOOL],
-      tool_choice: { type: "function", function: { name: "create_sat_quiz" } },
+      response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: systemPrompt + "\n\nYou must respond with valid JSON matching the quiz schema." },
         { role: "user", content: userPrompt },
       ],
     });
 
-    // OPTIMIZED: Extract from tool_calls (function calling response)
-    const toolCalls = completion?.choices?.[0]?.message?.tool_calls;
-    if (!toolCalls || !Array.isArray(toolCalls) || toolCalls.length === 0) {
-      console.error("[sat-prep/quiz] no-tool-calls", { completion });
-      throw new Error("No tool calls in AI response");
+    // OPTIMIZED: Extract from content (JSON mode response)
+    const content = completion?.choices?.[0]?.message?.content;
+    if (!content || typeof content !== "string") {
+      console.error("[sat-prep/quiz] no-content", { completion });
+      throw new Error("No content in AI response");
     }
 
-    const argsJson = toolCalls[0]?.function?.arguments;
-    if (!argsJson || typeof argsJson !== "string") {
-      console.error("[sat-prep/quiz] invalid-tool-call-args", { toolCalls });
-      throw new Error("Invalid tool call arguments");
-    }
-
-    console.log("[sat-prep/quiz] tool-call-args-length", argsJson.length);
+    console.log("[sat-prep/quiz] content-length", content.length);
 
     let parsed;
     try {
-      parsed = JSON.parse(argsJson);
+      parsed = JSON.parse(content);
     } catch (parseErr) {
-      console.error("[sat-prep/quiz] json-parse-error", { argsJson, parseErr });
-      throw new Error("Failed to parse tool call arguments as JSON");
+      console.error("[sat-prep/quiz] json-parse-error", { content: content.slice(0, 200), parseErr });
+      throw new Error("Failed to parse response as JSON");
     }
 
     // Normalize LaTeX delimiters and shuffle answer choices

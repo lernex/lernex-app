@@ -183,35 +183,25 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
       model,
       temperature: 0.7,
       max_tokens: 2000,
-      tools: [PLANNING_TOOL],
-      tool_choice: { type: "function", function: { name: "create_lesson_plan" } },
+      response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: systemPrompt + "\n\nYou must respond with valid JSON matching the lesson plan schema." },
         { role: "user", content: userPrompt },
       ],
     });
 
     const message = completion?.choices?.[0]?.message;
-    const toolCalls = message?.tool_calls;
+    const content = message?.content;
 
-    if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
-      console.error('[plan] No tool calls in response');
+    if (!content || typeof content !== 'string') {
+      console.error('[plan] No content in response');
       return new Response(
         JSON.stringify({ error: "Failed to generate lesson plan" }),
         { status: 500 }
       );
     }
 
-    const planArgs = toolCalls[0]?.function?.arguments;
-    if (!planArgs) {
-      console.error('[plan] No arguments in tool call');
-      return new Response(
-        JSON.stringify({ error: "Failed to generate lesson plan" }),
-        { status: 500 }
-      );
-    }
-
-    const plan: PlanResponse = JSON.parse(planArgs);
+    const plan: PlanResponse = JSON.parse(content);
 
     console.log('[plan] Plan created successfully:', {
       totalLessons: plan.lessons.length,

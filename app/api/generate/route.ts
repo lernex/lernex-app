@@ -433,7 +433,7 @@ export async function POST(req: NextRequest) {
       throw new Error(`Missing API key for provider: ${provider}`);
     }
 
-    console.log('[generate] Creating chat completion stream with function calling...', {
+    console.log('[generate] Creating chat completion stream with JSON mode...', {
       model,
       provider,
       hasApiKey: !!config.apiKey,
@@ -442,8 +442,9 @@ export async function POST(req: NextRequest) {
       maxTokens: completionMaxTokens
     });
 
-    // OPTIMIZED: Use function calling for structured output (saves ~80-120 tokens per lesson)
-    // Function calling eliminates JSON wrapper overhead compared to JSON mode
+    // OPTIMIZED: Use JSON mode instead of forced tool calling
+    // Groq's gpt-oss models have known issues with forced tool_choice
+    // JSON mode is more reliable and still provides structured output
     let stream;
     try {
       stream = await client.chat.completions.create({
@@ -451,10 +452,9 @@ export async function POST(req: NextRequest) {
         temperature,
         max_tokens: completionMaxTokens,
         stream: true,
-        tools: [CREATE_LESSON_TOOL],
-        tool_choice: { type: "function", function: { name: "create_lesson" } },
+        response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: system },
+          { role: "system", content: system + "\n\nYou must respond with valid JSON matching the lesson schema." },
           { role: "user", content: userPrompt },
         ],
       });
@@ -505,25 +505,8 @@ export async function POST(req: NextRequest) {
                 console.log('[generate] Stream finished with reason:', finishReason);
               }
 
-              // OPTIMIZED: Handle function calling tool_calls (primary path with token savings)
-              // When using function calling, deltas come in delta.tool_calls[0].function.arguments
-              const toolCalls = (delta as { tool_calls?: unknown }).tool_calls;
-              if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-                const toolCall = toolCalls[0];
-                if (toolCall && typeof toolCall === "object") {
-                  const fn = (toolCall as { function?: { arguments?: unknown } }).function;
-                  if (fn && typeof fn === "object") {
-                    const args = (fn as { arguments?: unknown }).arguments;
-                    if (typeof args === "string" && args) {
-                      full += args;
-                      controller.enqueue(encoder.encode(args));
-                      wrote = true;
-                    }
-                  }
-                }
-              }
-
-              // Fallback: Handle regular content (for compatibility with non-function-calling models)
+              // OPTIMIZED: Handle JSON mode content (primary path)
+              // When using JSON mode, content comes in delta.content
               const content = typeof (delta as { content?: unknown }).content === "string"
                 ? (delta as { content: string }).content
                 : "";
@@ -552,42 +535,21 @@ export async function POST(req: NextRequest) {
             if (!wrote) {
               console.log('[generate] No data written, attempting non-streaming fallback...');
               try {
-                // OPTIMIZED: Fallback also uses function calling for consistency
+                // OPTIMIZED: Fallback also uses JSON mode for consistency
                 const fallback = await client.chat.completions.create({
                   model,
                   temperature,
                   max_tokens: completionMaxTokens,
-                  tools: [CREATE_LESSON_TOOL],
-                  tool_choice: { type: "function", function: { name: "create_lesson" } },
+                  response_format: { type: "json_object" },
                   messages: [
-                    { role: "system", content: system },
+                    { role: "system", content: system + "\n\nYou must respond with valid JSON matching the lesson schema." },
                     { role: "user", content: userPrompt },
                   ],
                 });
 
-                // Extract from tool_calls (function calling) or content (fallback)
+                // Extract from content
                 const message = fallback?.choices?.[0]?.message;
-                let backup = "";
-
-                // Try tool_calls first (function calling response)
-                const toolCalls = message?.tool_calls;
-                if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-                  const toolCall = toolCalls[0];
-                  if (toolCall && typeof toolCall === "object") {
-                    const fn = (toolCall as { function?: { arguments?: unknown; name?: unknown } }).function;
-                    if (fn && typeof fn === "object" && (fn as { name?: unknown }).name === "create_lesson") {
-                      const args = (fn as { arguments?: unknown }).arguments;
-                      if (typeof args === "string") {
-                        backup = args;
-                      }
-                    }
-                  }
-                }
-
-                // Fallback to content if no tool_calls
-                if (!backup) {
-                  backup = (message?.content as string | undefined) ?? "";
-                }
+                const backup = (message?.content as string | undefined) ?? "";
 
                 if (backup) {
                   full = backup;
