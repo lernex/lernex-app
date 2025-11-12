@@ -11,8 +11,8 @@ interface UndoableActionOptions<T> {
 
 export function useUndoableAction<T = unknown>() {
   const toast = useToast()
-  const undoTimeoutRef = useRef<NodeJS.Timeout>()
-  const dataRef = useRef<T>()
+  const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const dataRef = useRef<T | undefined>(undefined)
 
   const executeWithUndo = async (
     data: T,

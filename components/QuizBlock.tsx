@@ -325,6 +325,8 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
 
   // Keyboard shortcuts for quiz navigation
   useEffect(() => {
+    if (!q) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger if user is typing in an input
       const target = e.target as HTMLElement;
@@ -335,7 +337,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
       // Answer selection with number keys (1-4)
       if (e.key >= '1' && e.key <= '4') {
         const idx = parseInt(e.key) - 1;
-        if (idx < q.choices.length && selected === null) {
+        if (q && idx < q.choices.length && selected === null) {
           e.preventDefault();
           choose(idx);
         }
