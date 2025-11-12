@@ -165,7 +165,8 @@ Guidelines:
 - Ensure comprehensive coverage without redundancy
 ${returnSections ? `- For each lesson, identify the most relevant section of the source text by specifying start and end character indices (0-based, end exclusive)
 - Text sections should be 300-800 characters long and contain the core content needed for that lesson
-- Sections can overlap if concepts are interconnected, but aim for distinct focus areas` : ''}
+- Sections can overlap if concepts are interconnected, but aim for distinct focus areas
+- IMPORTANT: You can ESTIMATE/APPROXIMATE the character indices - no need to count every character precisely. Use rough estimates based on content structure (e.g., "paragraph 2 starts around char 200")` : ''}
 
 Content length guidelines:
 - Short content (< 1000 chars): 2-3 lessons
@@ -177,7 +178,7 @@ Content length guidelines:
 ${requestedSubject ? `Preferred subject focus: ${requestedSubject}\n\n` : ''}Content (${text.length} characters total):
 ${text}
 
-Create a lesson plan that breaks this content into logical, bite-sized lessons.${returnSections ? ` For each lesson, specify the textSection with start and end character indices that identify the most relevant portion of the source text for that lesson.` : ''}`;
+Create a lesson plan that breaks this content into logical, bite-sized lessons.${returnSections ? ` For each lesson, specify the textSection with start and end character indices that identify the most relevant portion of the source text for that lesson. You can approximate/estimate the indices - no need to count characters precisely.` : ''}`;
 
     // Use prompt-based JSON generation (Groq's gpt-oss models don't support json_schema)
     const enhancedSystemPrompt = systemPrompt + `\n\nIMPORTANT: Respond with ONLY a valid JSON object matching this exact schema (no markdown, no code fences):
