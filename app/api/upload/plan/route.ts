@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { take } from "@/lib/rate";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
-import { canUserGenerate } from "@/lib/usage";
+import { canUserGenerate, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 
 export const dynamic = "force-dynamic";
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
   }
 
   const userTier = uid ? await fetchUserTier(sb, uid) : 'free';
-  const { client, model, provider } = createModelClient(userTier, 'fast');
+  const { client, model, modelIdentifier, provider } = createModelClient(userTier, 'fast');
 
   try {
     const body = await req.json();
@@ -223,6 +223,28 @@ Schema: { "subject": "string", "lessons": [{ "title": "string", "description": "
       totalLessons: plan.lessons.length,
       subject: plan.subject
     });
+
+    // Log API usage for cost tracking
+    const usage = completion?.usage;
+    if (usage && (uid || ip)) {
+      try {
+        await logUsage(sb, uid, ip, modelIdentifier, {
+          input_tokens: typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : null,
+          output_tokens: typeof usage.completion_tokens === "number" ? usage.completion_tokens : null,
+        }, {
+          metadata: {
+            route: "upload-plan",
+            subject: plan.subject,
+            lessonCount: plan.lessons.length,
+            provider,
+            tier: userTier
+          },
+        });
+        console.log('[plan] Usage logged successfully');
+      } catch (logError) {
+        console.error('[plan] Failed to log usage:', logError);
+      }
+    }
 
     return new Response(
       JSON.stringify(plan),

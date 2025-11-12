@@ -42,6 +42,32 @@ import { processDocument } from "@/lib/upload-router";
 import type { PipelineConfig } from "@/lib/pipeline-types";
 import { startBackgroundPreload, subscribeToLibraryStatus, getLibraryStatus } from "@/lib/library-preloader";
 
+// Fix common LaTeX escaping issues in AI-generated JSON
+// The AI sometimes under-escapes LaTeX commands in JSON strings
+function fixLatexEscaping(str: string): string {
+  let result = str;
+
+  // Fix unescaped LaTeX delimiters: \( → \\(, \) → \\), \[ → \\[, \] → \\]
+  // But don't double-escape if already escaped (\\( should stay \\()
+  result = result.replace(/([^\\])\\([()[\]])/g, '$1\\\\$2');
+  result = result.replace(/^\\([()[\]])/g, '\\\\$1');
+
+  // Fix common LaTeX commands that appear unescaped
+  // Pattern matches: \command but not \\command
+  const latexCommands = [
+    'frac', 'sqrt', 'sum', 'int', 'lim', 'sin', 'cos', 'tan', 'log', 'ln',
+    'prod', 'alpha', 'beta', 'gamma', 'delta', 'theta', 'pi', 'infty',
+    'leq', 'geq', 'neq', 'cdot', 'times', 'pm', 'to', 'partial', 'nabla',
+    'mathbf', 'vec', 'hat', 'bar', 'underline', 'overline'
+  ];
+  const commandPattern = new RegExp(`([^\\\\])\\\\(${latexCommands.join('|')})\\b`, 'g');
+  result = result.replace(commandPattern, '$1\\\\\\\\$2');
+  const startPattern = new RegExp(`^\\\\(${latexCommands.join('|')})\\b`, 'g');
+  result = result.replace(startPattern, '\\\\\\\\$1');
+
+  return result;
+}
+
 type UploadLessonsClientProps = {
   initialProfile?: ProfileBasics | null;
 };
@@ -949,6 +975,12 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
           const chunkEnd = Math.min(chunkStart + INCREMENTAL_CHUNK_SIZE * 2, accumulatedText.length); // Use 2x window for context
           const textChunk = accumulatedText.slice(chunkStart, chunkEnd);
 
+          // Skip if chunk is too small (API requires at least 20 chars, but we want 100+ for quality)
+          if (textChunk.trim().length < 100) {
+            console.log(`[incremental] Skipping lesson ${lessonCount + 1} - chunk too small (${textChunk.length} chars)`);
+            break; // Exit the loop - no more valid chunks
+          }
+
           console.log(`[incremental] Generating lesson ${lessonCount + 1} from chars ${chunkStart}-${chunkEnd}...`);
 
           // Update progress for lesson generation
@@ -986,13 +1018,16 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                 jsonText = jsonText.replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
               }
 
-              // Try to parse the JSON
+              // Try to parse the JSON with LaTeX escaping fixes
               let payload: Lesson;
               try {
-                payload = JSON.parse(jsonText) as Lesson;
+                // Apply LaTeX escaping fixes before parsing
+                const fixedJson = fixLatexEscaping(jsonText);
+                payload = JSON.parse(fixedJson) as Lesson;
               } catch (parseError) {
                 console.error(`[incremental] JSON parse error:`, parseError);
-                console.error(`[incremental] Received text:`, jsonText.slice(0, 200));
+                console.error(`[incremental] Received text:`, jsonText.slice(0, 300));
+                console.error(`[incremental] Error position:`, (parseError as SyntaxError).message);
                 lessonCount++;
                 break;
               }
@@ -1020,6 +1055,12 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
               // Update insights
               if (newLesson.title) {
                 setInsights(prev => [...prev, newLesson.title].slice(0, 8));
+              }
+
+              // Add delay between requests to prevent rate limiting (except for last lesson)
+              if (lessonCount < MAX_INCREMENTAL_LESSONS && accumulatedText.length >= INCREMENTAL_CHUNK_SIZE) {
+                console.log(`[incremental] Waiting 800ms before next request to avoid rate limits...`);
+                await new Promise(resolve => setTimeout(resolve, 800));
               }
             } else {
               const errorText = await response.text().catch(() => 'Unknown error');
@@ -2214,7 +2255,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ delay: 0.14, duration: 0.55 }}
-              className="relative"
+              className="relative mx-auto max-w-2xl"
             >
               <div className="mb-6 flex items-center justify-between">
                 <div>
