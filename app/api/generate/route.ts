@@ -12,6 +12,8 @@ import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
 import { compressContext } from "@/lib/semantic-compression";
 import { calculateDynamicTokenLimit } from "@/lib/dynamic-token-limits";
+import { fixLatexEscaping, tryParseJsonWithLatex } from "@/lib/latex-utils";
+import type { PipelineConfig } from "@/lib/pipeline-types";
 
 // Function calling tool schema for lesson generation (saves ~80-120 tokens per lesson)
 const CREATE_LESSON_TOOL = {
@@ -106,87 +108,6 @@ function sha256(s: string) {
   return crypto.createHash("sha256").update(s).digest("hex");
 }
 
-// Fix common LaTeX escaping issues in AI-generated JSON
-// The AI sometimes under-escapes LaTeX commands in JSON strings
-function fixLatexEscaping(str: string): string {
-  let result = str;
-
-  // Fix unescaped LaTeX delimiters: \( → \\(, \) → \\), \[ → \\[, \] → \\]
-  // But don't double-escape if already escaped (\\( should stay \\()
-  result = result.replace(/([^\\])\\([()[\]])/g, '$1\\\\$2');
-  result = result.replace(/^\\([()[\]])/g, '\\\\$1');
-
-  // Fix common LaTeX commands that appear unescaped
-  // Pattern matches: \command but not \\command
-  const latexCommands = [
-    'frac', 'sqrt', 'sum', 'int', 'lim', 'sin', 'cos', 'tan', 'log', 'ln',
-    'prod', 'alpha', 'beta', 'gamma', 'delta', 'theta', 'pi', 'infty',
-    'leq', 'geq', 'neq', 'cdot', 'times', 'pm', 'to', 'partial', 'nabla',
-    'mathbf', 'vec', 'hat', 'bar', 'underline', 'overline'
-  ];
-  const commandPattern = new RegExp(`([^\\\\])\\\\(${latexCommands.join('|')})\\b`, 'g');
-  result = result.replace(commandPattern, '$1\\\\\\\\$2');
-  const startPattern = new RegExp(`^\\\\(${latexCommands.join('|')})\\b`, 'g');
-  result = result.replace(startPattern, '\\\\\\\\$1');
-
-  return result;
-}
-
-// Try to parse JSON with LaTeX escaping fixes
-function tryParseJson(text: string): unknown | null {
-  const cleaned = text.trim();
-  if (!cleaned) return null;
-
-  const segments: string[] = [];
-
-  // Try as-is first
-  segments.push(cleaned);
-
-  // Remove markdown code fences
-  if (cleaned.startsWith("```")) {
-    const withoutFence = cleaned.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-    if (withoutFence) segments.push(withoutFence);
-  }
-
-  // Extract JSON object (greedy match)
-  const objectMatch = cleaned.match(/\{[\s\S]*\}/);
-  if (objectMatch) segments.push(objectMatch[0]);
-
-  // Try to find JSON after any preamble text
-  const jsonStartIndex = cleaned.indexOf('{');
-  if (jsonStartIndex > 0) {
-    segments.push(cleaned.slice(jsonStartIndex));
-  }
-
-  // Add LaTeX-fixed versions
-  const fixedCleaned = fixLatexEscaping(cleaned);
-  if (fixedCleaned !== cleaned) {
-    segments.push(fixedCleaned);
-    const fixedObjectMatch = fixedCleaned.match(/\{[\s\S]*\}/);
-    if (fixedObjectMatch) segments.push(fixedObjectMatch[0]);
-  }
-
-  for (const candidate of segments) {
-    try {
-      const parsed = JSON.parse(candidate);
-      if (typeof parsed === "string") {
-        try {
-          return JSON.parse(parsed);
-        } catch {
-          continue;
-        }
-      }
-      if (parsed && typeof parsed === "object") {
-        return parsed;
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  return null;
-}
-
 const MAX_CACHE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 type CachedLesson = Lesson & { cachedAt?: string };
@@ -245,10 +166,6 @@ export async function POST(req: NextRequest) {
   const userTier = uid ? await fetchUserTier(sb, uid) : 'free';
   console.log('[generate] User tier:', userTier);
 
-  // Use FAST model for immediate lesson generation
-  const { client, model, modelIdentifier, provider, config } = createModelClient(userTier, 'fast');
-  console.log('[generate] Model selected:', { model, provider, tier: userTier });
-
   try {
     console.log('[generate] Parsing request body...');
     const body = await req.json().catch(() => ({}));
@@ -257,12 +174,33 @@ export async function POST(req: NextRequest) {
       subject = "Algebra 1",
       difficulty: difficultyOverride,
       lessonPlan, // Optional: { title, description } from planning phase
+      isOptimizedExcerpt = false, // Flag to skip semantic compression for pre-extracted textSections
+      pipelineConfig, // Optional: PipelineConfig from upload-router for optimal processing
     } = body ?? {};
+
+    // Extract pipeline settings or use defaults
+    const modelSpeed = pipelineConfig?.generation?.modelSpeed || 'fast';
+    const enableSemanticCompression = pipelineConfig?.generation?.enableSemanticCompression ?? true;
+    const compressionRate = pipelineConfig?.generation?.compressionRate || 0.65;
+    const maxTokensPerLesson = pipelineConfig?.generation?.maxTokensPerLesson || 1400;
+
+    console.log('[generate] Pipeline config:', {
+      tier: pipelineConfig?.tier || 'default',
+      modelSpeed,
+      enableSemanticCompression,
+      compressionRate,
+      maxTokensPerLesson,
+    });
+
+    // Create model client with pipeline-specified speed
+    const { client, model, modelIdentifier, provider, config } = createModelClient(userTier, modelSpeed);
+    console.log('[generate] Model selected:', { model, provider, tier: userTier, speed: modelSpeed });
 
     console.log('[generate] Request params:', {
       textLength: text?.length || 0,
       subject,
       difficulty: difficultyOverride || 'auto',
+      isOptimizedExcerpt,
     });
 
     // -------- Safety gates --------
@@ -401,12 +339,14 @@ export async function POST(req: NextRequest) {
       reasoning: tokenLimitResult.reasoning,
     });
 
-    // Apply semantic compression to input text if enabled (20-35% token reduction)
+    // Apply semantic compression to input text if enabled by pipeline config
+    // OPTIMIZATION: Skip compression for pre-extracted textSection excerpts to preserve educational context
+    // textSection excerpts are already optimized (300-800 chars, focused content)
     let compressedText = text;
-    if (text.length > 500) {
+    if (enableSemanticCompression && !isOptimizedExcerpt && text.length > 500) {
       try {
         const { compressed } = await compressContext(text, {
-          rate: 0.65,
+          rate: compressionRate,
           useCache: true,
           temperature: 0.1,
         });
@@ -414,10 +354,16 @@ export async function POST(req: NextRequest) {
         console.log('[generate] Compressed input text:', {
           original: text.length,
           compressed: compressed.length,
+          rate: compressionRate,
+          reduction: `${(((text.length - compressed.length) / text.length) * 100).toFixed(1)}%`,
         });
       } catch (err) {
         console.warn('[generate] Compression failed:', err);
       }
+    } else if (!enableSemanticCompression) {
+      console.log('[generate] Semantic compression disabled by pipeline config');
+    } else if (isOptimizedExcerpt) {
+      console.log('[generate] Skipping semantic compression - text is pre-optimized excerpt');
     }
 
     const { system, user: userPrompt } = buildLessonPrompts({
@@ -612,8 +558,8 @@ export async function POST(req: NextRequest) {
             }
             let parsed: unknown = null;
             try {
-              // Use tryParseJson to handle LaTeX escaping issues
-              parsed = tryParseJson(full) ?? JSON.parse(full || "{}");
+              // Use tryParseJsonWithLatex to handle LaTeX escaping issues
+              parsed = tryParseJsonWithLatex(full) ?? JSON.parse(full || "{}");
             } catch {
               // ignore parse errors; client will handle
               return;

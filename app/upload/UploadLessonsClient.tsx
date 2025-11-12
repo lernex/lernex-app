@@ -41,32 +41,7 @@ import {
 import { processDocument } from "@/lib/upload-router";
 import type { PipelineConfig } from "@/lib/pipeline-types";
 import { startBackgroundPreload, subscribeToLibraryStatus, getLibraryStatus } from "@/lib/library-preloader";
-
-// Fix common LaTeX escaping issues in AI-generated JSON
-// The AI sometimes under-escapes LaTeX commands in JSON strings
-function fixLatexEscaping(str: string): string {
-  let result = str;
-
-  // Fix unescaped LaTeX delimiters: \( → \\(, \) → \\), \[ → \\[, \] → \\]
-  // But don't double-escape if already escaped (\\( should stay \\()
-  result = result.replace(/([^\\])\\([()[\]])/g, '$1\\\\$2');
-  result = result.replace(/^\\([()[\]])/g, '\\\\$1');
-
-  // Fix common LaTeX commands that appear unescaped
-  // Pattern matches: \command but not \\command
-  const latexCommands = [
-    'frac', 'sqrt', 'sum', 'int', 'lim', 'sin', 'cos', 'tan', 'log', 'ln',
-    'prod', 'alpha', 'beta', 'gamma', 'delta', 'theta', 'pi', 'infty',
-    'leq', 'geq', 'neq', 'cdot', 'times', 'pm', 'to', 'partial', 'nabla',
-    'mathbf', 'vec', 'hat', 'bar', 'underline', 'overline'
-  ];
-  const commandPattern = new RegExp(`([^\\\\])\\\\(${latexCommands.join('|')})\\b`, 'g');
-  result = result.replace(commandPattern, '$1\\\\\\\\$2');
-  const startPattern = new RegExp(`^\\\\(${latexCommands.join('|')})\\b`, 'g');
-  result = result.replace(startPattern, '\\\\\\\\$1');
-
-  return result;
-}
+import { fixLatexEscaping } from "@/lib/latex-utils";
 
 type UploadLessonsClientProps = {
   initialProfile?: ProfileBasics | null;
@@ -88,10 +63,10 @@ const MAX_AUDIO_FILE_SIZE_BYTES = 250 * 1024 * 1024; // 250MB for audio - suppor
 const MAX_TEXT_LENGTH = 24_000;
 const MIN_CHARS_REQUIRED = 220;
 
-// INCREMENTAL LEARNING: Configuration for progressive lesson generation
-const INCREMENTAL_CHUNK_SIZE = 500; // Generate a lesson every 500 characters
+// OPTIMIZED INCREMENTAL LEARNING: Plan-first progressive lesson generation
+// Uses lesson planning API to create structured lessons, not arbitrary chunks
 const MAX_INCREMENTAL_LESSONS = 6; // Maximum lessons to generate incrementally
-const ENABLE_INCREMENTAL_LEARNING = true; // Feature flag for incremental learning
+const ENABLE_INCREMENTAL_LEARNING = true; // Feature flag for plan-first incremental learning
 
 // Process audio files with Whisper transcription + AI shortening
 async function parseAudioFile(file: File): Promise<string> {
@@ -155,7 +130,7 @@ async function parseAudioFile(file: File): Promise<string> {
   return shortenedText;
 }
 
-async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
+async function parseFileWithDeepSeekOCR(file: File): Promise<{ text: string; pipelineConfig?: PipelineConfig }> {
   const fileType = file.type.toLowerCase();
   const fileName = file.name.toLowerCase();
 
@@ -165,7 +140,8 @@ async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
     fileName.match(/\.(mp3|wav|m4a|ogg|webm|flac|aac|wma)$/i)
   ) {
     console.log('[audio] Processing audio file...');
-    return await parseAudioFile(file);
+    const text = await parseAudioFile(file);
+    return { text };
   }
 
   if (file.size > MAX_FILE_SIZE_BYTES) {
@@ -212,7 +188,7 @@ async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
           console.warn('[collaborative-cache] Failed to increment usage count:', err)
         );
 
-        return sharedDoc.text;
+        return { text: sharedDoc.text };
       }
       console.log('[collaborative-cache] Not in shared cache');
 
@@ -222,7 +198,7 @@ async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
       if (cached) {
         console.log(`[cache-hit] ✅ Using cached OCR result (${cached.pageCount} pages, saved from ${timeAgo(cached.extractedAt)})`);
         console.log('[cache-hit] Saved 100% of OCR processing cost!');
-        return cached.text;
+        return { text: cached.text };
       }
 
       console.log('[cache-miss] No cached result found in either cache, proceeding with OCR...');
@@ -402,7 +378,7 @@ async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
       }
     }
 
-    return combinedText;
+    return { text: combinedText, pipelineConfig: pipelineConfig || undefined };
   }
   // Check if it's an image - Use smart OCR for single images too
   else if (fileType.startsWith('image/') || fileName.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/i)) {
@@ -469,7 +445,7 @@ async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
       }
     }
 
-    return text;
+    return { text };
   }
   // For other file types (DOCX, PPTX, etc.), send as FormData to premium API
   else {
@@ -515,7 +491,7 @@ async function parseFileWithDeepSeekOCR(file: File): Promise<string> {
       }
     }
 
-    return extractedText;
+    return { text: extractedText };
   }
 }
 
@@ -690,6 +666,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
   const [insights, setInsights] = useState<string[]>([]);
   const [lessons, setLessons] = useState<PendingLesson[]>([]);
   const [textPreview, setTextPreview] = useState<string | null>(null);
+  const [pipelineConfig, setPipelineConfig] = useState<PipelineConfig | null>(null);
   const [librariesReady, setLibrariesReady] = useState(false);
   const [librariesLoading, setLibrariesLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -836,6 +813,8 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
               title: plan.title,
               description: plan.description,
             },
+            isOptimizedExcerpt: !!plan.textSection, // Skip semantic compression for pre-extracted sections
+            pipelineConfig, // OPTIMIZED: Use pipeline config from upload router for optimal processing
           }),
         });
 
@@ -906,10 +885,10 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
     fileInputRef.current?.click();
   }, [stage]);
 
-  // INCREMENTAL LEARNING: Generate lessons as pages are processed (REVOLUTIONARY APPROACH)
-  // This generates lessons IMMEDIATELY as text accumulates, not after batches complete
+  // OPTIMIZED INCREMENTAL LEARNING: Plan-First Progressive Generation
+  // This creates a lesson plan first, then generates lessons progressively as pages are processed
   const processFilesIncrementalLearning = useCallback(async (file: File) => {
-    console.log('[incremental] Starting incremental learning flow...');
+    console.log('[incremental] Starting optimized plan-first incremental learning flow...');
 
     const fileType = file.type.toLowerCase();
     const fileName = file.name.toLowerCase();
@@ -922,7 +901,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
 
     try {
       setStage("parsing");
-      setStatusDetail("Processing pages with incremental learning...");
+      setStatusDetail("Processing initial pages for lesson planning...");
       setProgress(5);
 
       // Create abort controller for cancellation support
@@ -934,169 +913,238 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
       if (canvases.length === 0) return null;
 
       const totalPages = canvases.length;
-      console.log(`[incremental] Processing ${totalPages} pages with incremental lesson generation`);
+      console.log(`[incremental] Processing ${totalPages} pages with plan-first incremental learning`);
 
       // Import smartOCR for processing
       const { smartOCR } = await import('@/lib/smart-ocr');
 
-      let accumulatedText = '';
-      let lessonCount = 0;
+      // PHASE 1: Extract text from first 3-5 pages for quick planning
+      const planningPageCount = Math.min(5, totalPages);
+      let planningText = '';
       const pageHashes = new Set<string>();
-      const generatedLessons: PendingLesson[] = [];
-      let allPageText = ''; // Track full document text for final lessons
 
-      // Process pages ONE BY ONE and generate lessons incrementally
-      for (let pageIdx = 0; pageIdx < canvases.length; pageIdx++) {
+      setStatusDetail(`Analyzing first ${planningPageCount} pages for lesson planning...`);
+
+      for (let pageIdx = 0; pageIdx < planningPageCount; pageIdx++) {
         const canvas = canvases[pageIdx];
         const pageNum = pageIdx + 1;
 
-        // Update progress for page processing
-        const pageProgress = Math.round((pageIdx / totalPages) * 40);
+        const pageProgress = Math.round((pageIdx / planningPageCount) * 10);
         setProgress(5 + pageProgress);
-        setStatusDetail(`Processing page ${pageNum}/${totalPages} - ${lessonCount} lessons generated...`);
 
-        console.log(`[incremental] Processing page ${pageNum}/${totalPages}...`);
+        console.log(`[incremental] Extracting text from page ${pageNum} for planning...`);
         const { text, skipped } = await smartOCR(canvas, pageNum, totalPages, pageHashes);
 
-        if (skipped) {
-          console.log(`[incremental] Page ${pageNum} skipped`);
-          continue;
-        }
-
-        // Accumulate text from this page
-        accumulatedText += text + '\n\n';
-        allPageText += text + '\n\n';
-
-        console.log(`[incremental] Page ${pageNum} complete. Accumulated: ${accumulatedText.length} chars, Lessons: ${lessonCount}/${MAX_INCREMENTAL_LESSONS}`);
-
-        // REVOLUTIONARY: Generate a lesson every INCREMENTAL_CHUNK_SIZE characters
-        while (accumulatedText.length >= INCREMENTAL_CHUNK_SIZE && lessonCount < MAX_INCREMENTAL_LESSONS) {
-          const chunkStart = lessonCount * INCREMENTAL_CHUNK_SIZE;
-          const chunkEnd = Math.min(chunkStart + INCREMENTAL_CHUNK_SIZE * 2, accumulatedText.length); // Use 2x window for context
-          const textChunk = accumulatedText.slice(chunkStart, chunkEnd);
-
-          // Skip if chunk is too small (API requires at least 20 chars, but we want 100+ for quality)
-          if (textChunk.trim().length < 100) {
-            console.log(`[incremental] Skipping lesson ${lessonCount + 1} - chunk too small (${textChunk.length} chars)`);
-            break; // Exit the loop - no more valid chunks
-          }
-
-          console.log(`[incremental] Generating lesson ${lessonCount + 1} from chars ${chunkStart}-${chunkEnd}...`);
-
-          // Update progress for lesson generation
-          const lessonProgress = 45 + Math.round((lessonCount / MAX_INCREMENTAL_LESSONS) * 50);
-          setProgress(lessonProgress);
-          setStatusDetail(`Generating lesson ${lessonCount + 1} from page ${pageNum}...`);
-
-          try {
-            // Generate lesson from this chunk
-            const response = await fetch("/api/generate", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({
-                text: textChunk,
-                subject,
-              }),
-              signal: controller.signal, // Add abort signal for cancellation support
-            });
-
-            if (response.ok) {
-              const responseText = await response.text();
-              let jsonText = responseText.trim();
-
-              // Check for empty response
-              if (!jsonText) {
-                console.error(`[incremental] Empty response from API`);
-                lessonCount++;
-                break;
-              }
-
-              // Handle markdown code fences
-              if (jsonText.startsWith('```json')) {
-                jsonText = jsonText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-              } else if (jsonText.startsWith('```')) {
-                jsonText = jsonText.replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
-              }
-
-              // Try to parse the JSON with LaTeX escaping fixes
-              let payload: Lesson;
-              try {
-                // Apply LaTeX escaping fixes before parsing
-                const fixedJson = fixLatexEscaping(jsonText);
-                payload = JSON.parse(fixedJson) as Lesson;
-              } catch (parseError) {
-                console.error(`[incremental] JSON parse error:`, parseError);
-                console.error(`[incremental] Received text:`, jsonText.slice(0, 300));
-                console.error(`[incremental] Error position:`, (parseError as SyntaxError).message);
-                lessonCount++;
-                break;
-              }
-
-              // Validate that we have required fields
-              if (!payload.title || !payload.content || !payload.questions) {
-                console.error(`[incremental] Incomplete lesson data:`, payload);
-                lessonCount++;
-                break;
-              }
-
-              const newLesson: PendingLesson = {
-                ...payload,
-                id: payload.id ?? crypto.randomUUID(),
-                sourceIndex: 0,
-              };
-
-              // IMMEDIATE DISPLAY: Add lesson to state right away
-              generatedLessons.push(newLesson);
-              setLessons(prev => [...prev, newLesson]);
-
-              lessonCount++;
-              console.log(`[incremental] ✨ Lesson ${lessonCount} generated and displayed! User sees it NOW while processing continues`);
-
-              // Update insights
-              if (newLesson.title) {
-                setInsights(prev => [...prev, newLesson.title].slice(0, 8));
-              }
-
-              // Add delay between requests to prevent rate limiting (except for last lesson)
-              if (lessonCount < MAX_INCREMENTAL_LESSONS && accumulatedText.length >= INCREMENTAL_CHUNK_SIZE) {
-                console.log(`[incremental] Waiting 800ms before next request to avoid rate limits...`);
-                await new Promise(resolve => setTimeout(resolve, 800));
-              }
-            } else {
-              const errorText = await response.text().catch(() => 'Unknown error');
-              console.error(`[incremental] Lesson generation failed:`, response.status, response.statusText);
-              console.error(`[incremental] Error details:`, errorText);
-              // Increment counter to avoid infinite retry on API errors
-              lessonCount++;
-              break; // Break out of while loop - retrying same chunk won't help
-            }
-          } catch (err) {
-            // Check if this was a user cancellation
-            if ((err as DOMException)?.name === "AbortError") {
-              console.log('[incremental] Generation cancelled by user');
-              throw err; // Re-throw to be caught by outer try-catch
-            }
-
-            console.error(`[incremental] Error generating lesson ${lessonCount + 1}:`, err);
-            // Increment counter to avoid infinite retry loop on JSON parsing errors
-            lessonCount++;
-            break; // Break out of while loop - retrying same chunk won't help
-          }
-
-          // Small delay to prevent overwhelming the API
-          if (lessonCount < MAX_INCREMENTAL_LESSONS) {
-            await new Promise(resolve => setTimeout(resolve, 300));
-          }
-        }
-
-        // Stop processing more pages if we've hit the lesson limit
-        if (lessonCount >= MAX_INCREMENTAL_LESSONS) {
-          console.log(`[incremental] Reached ${MAX_INCREMENTAL_LESSONS} lessons, stopping early`);
-          break;
+        if (!skipped && text.trim().length > 0) {
+          planningText += text + '\n\n';
         }
       }
 
-      console.log(`[incremental] ✅ Incremental processing complete! Generated ${lessonCount} lessons progressively`);
+      // Check if we have enough text for planning
+      if (planningText.trim().length < MIN_CHARS_REQUIRED) {
+        console.log('[incremental] Insufficient text for planning, falling back to standard flow');
+        return null;
+      }
+
+      console.log(`[incremental] Extracted ${planningText.length} chars from ${planningPageCount} pages for planning`);
+
+      // PHASE 2: Create lesson plan from initial content
+      setStatusDetail("Creating structured lesson plan...");
+      setProgress(15);
+
+      type LessonPlanWithSection = {
+        id: string;
+        title: string;
+        description: string;
+        estimatedLength: number;
+        textSection?: { start: number; end: number };
+      };
+
+      let lessonPlans: LessonPlanWithSection[] = [];
+
+      try {
+        console.log('[incremental] Calling planning API...');
+        const planResponse = await fetch("/api/upload/plan", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            text: planningText,
+            subject,
+            returnSections: true,
+          }),
+          signal: controller.signal,
+        });
+
+        if (!planResponse.ok) {
+          throw new Error('Planning API failed');
+        }
+
+        const planData = await planResponse.json();
+        lessonPlans = planData.lessons || [];
+
+        console.log('[incremental] Lesson plan created:', {
+          totalLessons: lessonPlans.length,
+          subject: planData.subject
+        });
+
+        // Update subject if planning determined a better one
+        if (planData.subject && planData.subject !== subject) {
+          setSubject(planData.subject);
+        }
+      } catch (planError) {
+        console.error('[incremental] Planning failed:', planError);
+        console.log('[incremental] Falling back to standard flow');
+        return null;
+      }
+
+      if (lessonPlans.length === 0) {
+        console.log('[incremental] No lessons in plan, falling back to standard flow');
+        return null;
+      }
+
+      // Update insights with lesson titles
+      setInsights(lessonPlans.slice(0, 4).map(p => p.title));
+
+      // PHASE 3: Generate lessons progressively based on the plan
+      // Limit to MAX_INCREMENTAL_LESSONS to match the original behavior
+      const lessonsToGenerate = lessonPlans.slice(0, MAX_INCREMENTAL_LESSONS);
+      const generatedLessons: PendingLesson[] = [];
+      let allPageText = planningText;
+
+      setStatusDetail("Generating first lesson...");
+      setProgress(20);
+
+      // Generate lessons one by one, showing them immediately
+      for (let lessonIdx = 0; lessonIdx < lessonsToGenerate.length; lessonIdx++) {
+        const plan = lessonsToGenerate[lessonIdx];
+
+        // Check if we need more pages for this lesson
+        // If the lesson's text section is beyond what we've extracted, process more pages
+        const needMoreText = plan.textSection && plan.textSection.end > allPageText.length;
+
+        if (needMoreText && pageHashes.size < totalPages) {
+          // Process additional pages until we have enough text
+          const pagesNeeded = Math.min(
+            Math.ceil((plan.textSection!.end - allPageText.length) / 500) + 2, // Estimate pages needed
+            totalPages - pageHashes.size
+          );
+
+          setStatusDetail(`Loading content for lesson ${lessonIdx + 1}...`);
+
+          for (let i = 0; i < pagesNeeded && pageHashes.size < totalPages; i++) {
+            const pageIdx = pageHashes.size; // Next unprocessed page
+            if (pageIdx >= totalPages) break;
+
+            const canvas = canvases[pageIdx];
+            const pageNum = pageIdx + 1;
+
+            console.log(`[incremental] Processing page ${pageNum} for lesson ${lessonIdx + 1}...`);
+            const { text, skipped } = await smartOCR(canvas, pageNum, totalPages, pageHashes);
+
+            if (!skipped && text.trim().length > 0) {
+              allPageText += text + '\n\n';
+            }
+          }
+        }
+
+        // Calculate progress for this lesson
+        const lessonProgress = 20 + Math.round((lessonIdx / lessonsToGenerate.length) * 75);
+        setProgress(lessonProgress);
+        setStatusDetail(`Generating lesson ${lessonIdx + 1} of ${lessonsToGenerate.length}: ${plan.title}...`);
+
+        console.log(`[incremental] Generating lesson ${lessonIdx + 1}/${lessonsToGenerate.length}: ${plan.title}...`);
+
+        // Extract relevant text for this lesson
+        const relevantText = plan.textSection
+          ? allPageText.slice(plan.textSection.start, Math.min(plan.textSection.end, allPageText.length))
+          : allPageText.slice(0, Math.min(1000, allPageText.length)); // Fallback to first 1000 chars
+
+        console.log(`[incremental] Text optimization for lesson ${lessonIdx + 1}:`, {
+          total: allPageText.length,
+          relevant: relevantText.length,
+          savings: plan.textSection ? `${(100 - (relevantText.length / allPageText.length) * 100).toFixed(1)}%` : 'N/A'
+        });
+
+        try {
+          // Generate lesson using the plan context
+          const response = await fetch("/api/generate", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              text: relevantText,
+              subject,
+              lessonPlan: {
+                title: plan.title,
+                description: plan.description,
+              },
+              isOptimizedExcerpt: !!plan.textSection, // Skip semantic compression for pre-extracted sections
+              pipelineConfig, // OPTIMIZED: Use pipeline config from upload router for optimal processing
+            }),
+            signal: controller.signal,
+          });
+
+          if (!response.ok) {
+            console.error(`[incremental] Lesson ${lessonIdx + 1} generation failed:`, response.status);
+            // Continue to next lesson instead of breaking
+            continue;
+          }
+
+          const responseText = await response.text();
+          let jsonText = responseText.trim();
+
+          // Handle markdown code fences
+          if (jsonText.startsWith('```json')) {
+            jsonText = jsonText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+          } else if (jsonText.startsWith('```')) {
+            jsonText = jsonText.replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+          }
+
+          // Parse and validate lesson
+          let payload: Lesson;
+          try {
+            const fixedJson = fixLatexEscaping(jsonText);
+            payload = JSON.parse(fixedJson) as Lesson;
+          } catch (parseError) {
+            console.error(`[incremental] JSON parse error for lesson ${lessonIdx + 1}:`, parseError);
+            continue;
+          }
+
+          // Validate required fields
+          if (!payload.title || !payload.content || !payload.questions) {
+            console.error(`[incremental] Incomplete lesson ${lessonIdx + 1}:`, payload);
+            continue;
+          }
+
+          const newLesson: PendingLesson = {
+            ...payload,
+            id: payload.id ?? plan.id ?? crypto.randomUUID(),
+            sourceIndex: 0,
+          };
+
+          // IMMEDIATE DISPLAY: Show lesson to user right away
+          generatedLessons.push(newLesson);
+          setLessons(prev => [...prev, newLesson]);
+
+          console.log(`[incremental] ✨ Lesson ${lessonIdx + 1} (${plan.title}) generated and displayed!`);
+
+          // Small delay between requests (500ms like standard flow, not 800ms)
+          if (lessonIdx < lessonsToGenerate.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (err) {
+          // Check if this was a user cancellation
+          if ((err as DOMException)?.name === "AbortError") {
+            console.log('[incremental] Generation cancelled by user');
+            throw err;
+          }
+
+          console.error(`[incremental] Error generating lesson ${lessonIdx + 1}:`, err);
+          // Continue to next lesson
+          continue;
+        }
+      }
+
+      console.log(`[incremental] ✅ Plan-first incremental learning complete! Generated ${generatedLessons.length} lessons with proper structure`);
 
       setStage("complete");
       setStatusDetail(null);
@@ -1106,7 +1154,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
         generatedLessons,
         fullText: allPageText,
         totalPages,
-        lessonsGenerated: lessonCount,
+        lessonsGenerated: generatedLessons.length,
       };
     } catch (error) {
       // Handle user cancellation gracefully
@@ -1268,9 +1316,13 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
             setProgress(35);
 
             // Process full document
-            const extracted = await parseFileWithDeepSeekOCR(firstFile!);
-            if (extracted && extracted.trim().length) {
-              textFragments.push(extracted);
+            const result = await parseFileWithDeepSeekOCR(firstFile!);
+            if (result.text && result.text.trim().length) {
+              textFragments.push(result.text);
+            }
+            // Store pipeline config for later use in lesson generation
+            if (result.pipelineConfig) {
+              setPipelineConfig(result.pipelineConfig);
             }
           } else {
             // All pages were in the quick start, we're done with parsing
@@ -1290,9 +1342,13 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
             setStatusDetail(isAudio ? `Transcribing ${file.name}…` : `Processing ${file.name}…`);
             setProgress(8 + Math.round((index / files.length) * 12));
 
-            const extracted = await parseFileWithDeepSeekOCR(file);
-            if (extracted && extracted.trim().length) {
-              textFragments.push(extracted);
+            const result = await parseFileWithDeepSeekOCR(file);
+            if (result.text && result.text.trim().length) {
+              textFragments.push(result.text);
+            }
+            // Store pipeline config from first file
+            if (index === 0 && result.pipelineConfig) {
+              setPipelineConfig(result.pipelineConfig);
             }
             if (textFragments.join("\n").length > MAX_TEXT_LENGTH) break;
           }
@@ -1518,6 +1574,8 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                 title: plan.title,
                 description: plan.description,
               },
+              isOptimizedExcerpt: !!plan.textSection, // Skip semantic compression for pre-extracted sections
+              pipelineConfig, // OPTIMIZED: Use pipeline config from upload router for optimal processing
             }),
             signal: controller.signal,
           });
@@ -1728,7 +1786,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                     className="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-gradient-to-r from-emerald-500/10 to-green-500/10 px-3 py-1 dark:border-emerald-500/30 dark:bg-gradient-to-r dark:from-emerald-500/15 dark:to-green-500/15 hover:border-emerald-500/60 hover:from-emerald-500/20 hover:to-green-500/20 transition-all cursor-default shadow-sm"
                   >
                     <NotebookPen className="h-3 w-3 text-emerald-500" />
-                    Incremental learning
+                    Smart incremental learning
                   </motion.span>
                 )}
                 <motion.span
@@ -2231,7 +2289,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
               <ul className="mt-4 space-y-3 text-neutral-600 dark:text-neutral-300">
                 {ENABLE_INCREMENTAL_LEARNING && (
                   <li>
-                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">Incremental learning:</span> lessons generate as pages are processed, showing you content within seconds instead of minutes. Experience 5-10x perceived speed improvement with real-time lesson generation.
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">Smart incremental learning:</span> creates a structured lesson plan from your content, then generates high-quality lessons progressively. Get your first lesson in seconds while maintaining coherent structure and logical progression.
                   </li>
                 )}
                 <li>
