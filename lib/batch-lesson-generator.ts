@@ -419,12 +419,12 @@ async function generateLessonBatchSingleCall(
   });
 
   try {
+    // Use prompt-based JSON generation (Groq's gpt-oss models don't support json_schema)
     const completion = await client.chat.completions.create({
       model,
       temperature,
       max_tokens: completionMaxTokens,
       messages,
-      response_format: { type: "json_object" }
     });
 
     const choice = completion.choices?.[0];

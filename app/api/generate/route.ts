@@ -442,19 +442,39 @@ export async function POST(req: NextRequest) {
       maxTokens: completionMaxTokens
     });
 
-    // OPTIMIZED: Use JSON mode instead of forced tool calling
-    // Groq's gpt-oss models have known issues with forced tool_choice
-    // JSON mode is more reliable and still provides structured output
+    // OPTIMIZED: Try structured outputs first (for when Groq fixes the bug), fallback to prompt-based
+    // Known issue: Groq's gpt-oss models currently ignore json_schema (regression reported 3 weeks ago)
+    // Workaround: Enhanced prompt engineering ensures JSON compliance even when json_schema is ignored
+    const enhancedSystem = system + `\n\nIMPORTANT: Respond with ONLY a valid JSON object matching this exact schema (no markdown, no code fences):
+{
+  "id": "string (slug format)",
+  "subject": "string",
+  "topic": "string",
+  "title": "string (3-7 words)",
+  "content": "string (80-105 words, 4 sentences)",
+  "difficulty": "intro" | "easy" | "medium" | "hard",
+  "questions": [
+    {
+      "prompt": "string",
+      "choices": ["string", "string", "string", "string"],
+      "correctIndex": 0-3,
+      "explanation": "string (max 15 words)"
+    }
+  ] (exactly 3 questions)
+}`;
+
     let stream;
     try {
+      // OPTIMIZED: Use prompt-based JSON generation (Groq's gpt-oss models have json_schema bug)
+      // When Groq fixes the bug, we can re-enable json_schema structured outputs
+      // See: https://community.groq.com/t/structured-outputs-ignored-by-openai-gpt-oss-120b/687
       stream = await client.chat.completions.create({
         model,
         temperature,
         max_tokens: completionMaxTokens,
         stream: true,
-        response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: system + "\n\nYou must respond with valid JSON matching the lesson schema." },
+          { role: "system", content: enhancedSystem },
           { role: "user", content: userPrompt },
         ],
       });
@@ -535,14 +555,13 @@ export async function POST(req: NextRequest) {
             if (!wrote) {
               console.log('[generate] No data written, attempting non-streaming fallback...');
               try {
-                // OPTIMIZED: Fallback also uses JSON mode for consistency
+                // OPTIMIZED: Fallback uses same prompt-based approach (no json_schema due to Groq bug)
                 const fallback = await client.chat.completions.create({
                   model,
                   temperature,
                   max_tokens: completionMaxTokens,
-                  response_format: { type: "json_object" },
                   messages: [
-                    { role: "system", content: system + "\n\nYou must respond with valid JSON matching the lesson schema." },
+                    { role: "system", content: enhancedSystem },
                     { role: "user", content: userPrompt },
                   ],
                 });

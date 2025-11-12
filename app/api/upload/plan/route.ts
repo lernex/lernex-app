@@ -179,13 +179,16 @@ ${text}
 
 Create a lesson plan that breaks this content into logical, bite-sized lessons.${returnSections ? ` For each lesson, specify the textSection with start and end character indices that identify the most relevant portion of the source text for that lesson.` : ''}`;
 
+    // Use prompt-based JSON generation (Groq's gpt-oss models don't support json_schema)
+    const enhancedSystemPrompt = systemPrompt + `\n\nIMPORTANT: Respond with ONLY a valid JSON object (no markdown, no code fences). Output must be parseable with JSON.parse().
+Schema: { "subject": "string", "lessons": [{ "title": "string", "description": "string"${returnSections ? ', "textSection": { "start": number, "end": number }' : ''} }] }`;
+
     const completion = await client.chat.completions.create({
       model,
       temperature: 0.7,
       max_tokens: 2000,
-      response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: systemPrompt + "\n\nYou must respond with valid JSON matching the lesson plan schema." },
+        { role: "system", content: enhancedSystemPrompt },
         { role: "user", content: userPrompt },
       ],
     });

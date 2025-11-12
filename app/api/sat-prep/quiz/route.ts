@@ -164,15 +164,16 @@ export async function POST(req: Request) {
       topic,
     });
 
-    // OPTIMIZED: Use JSON mode for structured output (more reliable with Groq's gpt-oss models)
-    // Groq's gpt-oss models have known issues with forced tool_choice
+    // OPTIMIZED: Use prompt-based JSON generation (Groq's gpt-oss models don't support json_schema)
+    // Groq's gpt-oss models have known issues with forced tool_choice and json validation
+    const enhancedSystemPrompt = systemPrompt + `\n\nIMPORTANT: Respond with ONLY a valid JSON object (no markdown, no code fences). Output must be parseable with JSON.parse().`;
+
     const completion = await client.chat.completions.create({
       model,
       temperature: 0.9,
       max_tokens: maxTokens,
-      response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: systemPrompt + "\n\nYou must respond with valid JSON matching the quiz schema." },
+        { role: "system", content: enhancedSystemPrompt },
         { role: "user", content: userPrompt },
       ],
     });
