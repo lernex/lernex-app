@@ -377,7 +377,8 @@ export async function POST(req: NextRequest) {
     }
     // ------------------------------------------------------------
 
-    // OPTIMIZED: Dynamic token limit calculation (36% reduction from 2200 to ~1400)
+    // OPTIMIZED: Dynamic token limit calculation with boost for gpt-oss models
+    // gpt-oss models use reasoning tokens (like o1), so they need higher limits
     const tokenLimitResult = calculateDynamicTokenLimit({
       subject,
       difficulty,
@@ -387,10 +388,12 @@ export async function POST(req: NextRequest) {
 
     // Model configuration (already set up above with tiered system)
     const temperature = 1;
-    const completionMaxTokens = Math.min(
-      3200,
-      Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS) || tokenLimitResult.maxTokens),
-    );
+
+    // gpt-oss models need 3-4x more tokens due to reasoning token consumption
+    const baseLimit = Number(process.env.CEREBRAS_LESSON_MAX_TOKENS) || tokenLimitResult.maxTokens;
+    const completionMaxTokens = model.includes('gpt-oss')
+      ? Math.min(6400, Math.max(2400, baseLimit * 3)) // 3x for reasoning models
+      : Math.min(3200, Math.max(900, baseLimit));
 
     console.log('[generate] Dynamic token limit:', {
       calculated: tokenLimitResult.maxTokens,
@@ -468,6 +471,9 @@ export async function POST(req: NextRequest) {
       // OPTIMIZED: Use prompt-based JSON generation (Groq's gpt-oss models have json_schema bug)
       // When Groq fixes the bug, we can re-enable json_schema structured outputs
       // See: https://community.groq.com/t/structured-outputs-ignored-by-openai-gpt-oss-120b/687
+
+      // gpt-oss models use reasoning tokens (like o1), which improves output quality
+      // Token limits have been increased 3x for these models to accommodate reasoning
       stream = await client.chat.completions.create({
         model,
         temperature,
