@@ -180,13 +180,29 @@ ${text}
 Create a lesson plan that breaks this content into logical, bite-sized lessons.${returnSections ? ` For each lesson, specify the textSection with start and end character indices that identify the most relevant portion of the source text for that lesson.` : ''}`;
 
     // Use prompt-based JSON generation (Groq's gpt-oss models don't support json_schema)
-    const enhancedSystemPrompt = systemPrompt + `\n\nIMPORTANT: Respond with ONLY a valid JSON object (no markdown, no code fences). Output must be parseable with JSON.parse().
-Schema: { "subject": "string", "lessons": [{ "title": "string", "description": "string"${returnSections ? ', "textSection": { "start": number, "end": number }' : ''} }] }`;
+    const enhancedSystemPrompt = systemPrompt + `\n\nIMPORTANT: Respond with ONLY a valid JSON object matching this exact schema (no markdown, no code fences):
+{
+  "subject": "string",
+  "lessons": [
+    {
+      "id": "string (slug format)",
+      "title": "string (concise)",
+      "description": "string (15-30 words)",
+      "estimatedLength": number (400-900)${returnSections ? ',\n      "textSection": { "start": number, "end": number }' : ''}
+    }
+  ] (2-12 lessons)
+}`;
+
+    // gpt-oss models use reasoning tokens (like o1), so they need higher limits
+    // Match the token handling from /api/generate for consistency
+    const completionMaxTokens = model.includes('gpt-oss')
+      ? 6400 // Higher limit for reasoning models to accommodate reasoning + output
+      : 2000; // Standard limit for non-reasoning models
 
     const completion = await client.chat.completions.create({
       model,
       temperature: 0.7,
-      max_tokens: 2000,
+      max_tokens: completionMaxTokens,
       messages: [
         { role: "system", content: enhancedSystemPrompt },
         { role: "user", content: userPrompt },
