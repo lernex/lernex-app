@@ -166,6 +166,10 @@ export async function POST(req: NextRequest) {
   const userTier = uid ? await fetchUserTier(sb, uid) : 'free';
   console.log('[generate] User tier:', userTier);
 
+  // Declare these outside try block so they're available in catch for error logging
+  let modelIdentifier = 'unknown';
+  let provider = 'unknown';
+
   try {
     console.log('[generate] Parsing request body...');
     const body = await req.json().catch(() => ({}));
@@ -193,7 +197,12 @@ export async function POST(req: NextRequest) {
     });
 
     // Create model client with pipeline-specified speed
-    const { client, model, modelIdentifier, provider, config } = createModelClient(userTier, modelSpeed);
+    const modelClient = createModelClient(userTier, modelSpeed);
+    const client = modelClient.client;
+    const model = modelClient.model;
+    modelIdentifier = modelClient.modelIdentifier;
+    provider = modelClient.provider;
+    const config = modelClient.config;
     console.log('[generate] Model selected:', { model, provider, tier: userTier, speed: modelSpeed });
 
     console.log('[generate] Request params:', {
