@@ -403,6 +403,7 @@ export async function POST(req: NextRequest) {
     // OPTIMIZED: Try structured outputs first (for when Groq fixes the bug), fallback to prompt-based
     // Known issue: Groq's gpt-oss models currently ignore json_schema (regression reported 3 weeks ago)
     // Workaround: Enhanced prompt engineering ensures JSON compliance even when json_schema is ignored
+    // Note: For gpt-oss models, we use default (medium) reasoning effort for high-quality lessons
     const enhancedSystem = system + `\n\nIMPORTANT: Respond with ONLY a valid JSON object matching this exact schema (no markdown, no code fences):
 {
   "id": "string (slug format)",

@@ -195,12 +195,12 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
 }`;
 
     // gpt-oss models use reasoning tokens (like o1), so they need higher limits
-    // Match the token handling from /api/generate for consistency
+    // Planning is a simpler task - use low reasoning effort to save tokens
     const completionMaxTokens = model.includes('gpt-oss')
-      ? 6400 // Higher limit for reasoning models to accommodate reasoning + output
-      : 2000; // Standard limit for non-reasoning models
+      ? 4000 // Lower limit OK since we use reasoning_effort: "low"
+      : 2500; // Higher limit for planning even on non-reasoning models
 
-    const completion = await client.chat.completions.create({
+    const completionParams: any = {
       model,
       temperature: 0.7,
       max_tokens: completionMaxTokens,
@@ -208,7 +208,14 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
         { role: "system", content: enhancedSystemPrompt },
         { role: "user", content: userPrompt },
       ],
-    });
+    };
+
+    // Use low reasoning effort for gpt-oss models (planning is straightforward)
+    if (model.includes('gpt-oss')) {
+      completionParams.reasoning_effort = "low";
+    }
+
+    const completion = await client.chat.completions.create(completionParams);
 
     const message = completion?.choices?.[0]?.message;
     const content = message?.content;
