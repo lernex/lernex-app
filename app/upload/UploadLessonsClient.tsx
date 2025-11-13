@@ -41,7 +41,7 @@ import {
 import { processDocument } from "@/lib/upload-router";
 import type { PipelineConfig } from "@/lib/pipeline-types";
 import { startBackgroundPreload, subscribeToLibraryStatus, getLibraryStatus } from "@/lib/library-preloader";
-import { fixLatexEscaping } from "@/lib/latex-utils";
+import { tryParseJsonWithLatex } from "@/lib/latex-utils";
 
 type UploadLessonsClientProps = {
   initialProfile?: ProfileBasics | null;
@@ -1102,8 +1102,12 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
           // Parse and validate lesson
           let payload: Lesson;
           try {
-            const fixedJson = fixLatexEscaping(jsonText);
-            payload = JSON.parse(fixedJson) as Lesson;
+            const parsed = tryParseJsonWithLatex(jsonText);
+            if (!parsed) {
+              console.error(`[incremental] Failed to parse lesson ${lessonIdx + 1}`);
+              continue;
+            }
+            payload = parsed as Lesson;
           } catch (parseError) {
             console.error(`[incremental] JSON parse error for lesson ${lessonIdx + 1}:`, parseError);
             continue;

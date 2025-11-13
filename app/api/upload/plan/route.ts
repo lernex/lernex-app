@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       model
     });
 
-    const systemPrompt = `You are an expert educational content planner. Your task is to analyze educational content and create a structured lesson plan.
+    const systemPrompt = `You are an expert educational content planner. Your task is to analyze educational content and create a structured lesson plan. Work efficiently and provide quick, accurate estimates.
 
 Guidelines:
 - Create 2-12 mini-lessons depending on content length and complexity
@@ -105,7 +105,7 @@ Guidelines:
 ${returnSections ? `- For each lesson, identify the most relevant section of the source text by specifying start and end character indices (0-based, end exclusive)
 - Text sections should be 300-800 characters long and contain the core content needed for that lesson
 - Sections can overlap if concepts are interconnected, but aim for distinct focus areas
-- IMPORTANT: You can ESTIMATE/APPROXIMATE the character indices - no need to count every character precisely. Use rough estimates based on content structure (e.g., "paragraph 2 starts around char 200")` : ''}
+- IMPORTANT: ESTIMATE/APPROXIMATE the indices quickly. Look at content structure (headers, paragraphs) and make quick estimates. DO NOT count characters manually.` : ''}
 
 Content length guidelines:
 - Short content (< 1000 chars): 2-3 lessons
@@ -134,12 +134,11 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
 }`;
 
     // gpt-oss models use reasoning tokens (like o1), so they need higher limits
-    // Planning is a simpler task - use low reasoning effort to save tokens
     const completionMaxTokens = model.includes('gpt-oss')
-      ? 4000 // Lower limit OK since we use reasoning_effort: "low"
-      : 2500; // Higher limit for planning even on non-reasoning models
+      ? 8000 // High limit for reasoning models
+      : 2500;
 
-    const baseParams = {
+    const completion = await client.chat.completions.create({
       model,
       temperature: 0.7,
       max_tokens: completionMaxTokens,
@@ -147,14 +146,7 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
         { role: "system" as const, content: enhancedSystemPrompt },
         { role: "user" as const, content: userPrompt },
       ],
-    };
-
-    // Use low reasoning effort for gpt-oss models (planning is straightforward)
-    const completionParams = model.includes('gpt-oss')
-      ? { ...baseParams, reasoning_effort: "low" as const }
-      : baseParams;
-
-    const completion = await client.chat.completions.create(completionParams);
+    });
 
     const message = completion?.choices?.[0]?.message;
     const content = message?.content;
