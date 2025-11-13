@@ -653,7 +653,7 @@ export async function POST(req: NextRequest) {
     console.error('[generate] Error in POST handler:', err);
     console.error('[generate] Error stack:', err instanceof Error ? err.stack : 'No stack');
     const msg = err instanceof Error ? err.message : "Server error";
-    // Log error usage if we have user context
+    // Log error usage for cost tracking (even for anonymous users)
     try {
       const sb = await supabaseServer();
       let uid: string | null = null;
@@ -664,7 +664,7 @@ export async function POST(req: NextRequest) {
         uid = null;
       }
       const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
-      if (uid) {
+      if (uid || ip) {
         await logUsage(sb, uid, ip, modelIdentifier, { input_tokens: null, output_tokens: null }, {
           metadata: {
             route: "lesson-stream",
@@ -674,6 +674,7 @@ export async function POST(req: NextRequest) {
             tier: userTier,
           }
         });
+        console.log('[generate] Error usage logged');
       }
     } catch (logError) {
       console.error('[generate] Error logging usage:', logError);

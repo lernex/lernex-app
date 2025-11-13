@@ -121,7 +121,7 @@ export default function AddInterestModal({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              className="relative w-full max-w-md rounded-3xl border border-slate-200/80 bg-surface-card p-6 shadow-3xl backdrop-blur-xl dark:border-white/10 dark:shadow-2xl"
+              className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl border border-slate-200/80 bg-surface-card p-6 shadow-3xl backdrop-blur-xl dark:border-white/10 dark:shadow-2xl"
             >
               {/* Close Button */}
               <button
@@ -158,7 +158,7 @@ export default function AddInterestModal({
 
               {/* Domain Selection */}
               {step === "domain" && (
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-[60vh] sm:max-h-[400px] overflow-y-auto pr-1">
                   {availableDomains.map((domain) => (
                     <motion.button
                       key={domain}
@@ -185,7 +185,7 @@ export default function AddInterestModal({
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-[60vh] sm:max-h-[400px] overflow-y-auto pr-1">
                     {availableCourses.map((course) => (
                       <motion.button
                         key={course}

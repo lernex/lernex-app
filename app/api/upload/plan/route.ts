@@ -211,6 +211,28 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
   } catch (err) {
     console.error('[plan] Error:', err);
     const msg = err instanceof Error ? err.message : "Planning failed";
+
+    // Log failed attempt for cost tracking
+    if (uid || ip) {
+      try {
+        await logUsage(sb, uid, ip, modelIdentifier, {
+          input_tokens: null,
+          output_tokens: null,
+        }, {
+          metadata: {
+            route: "upload-plan",
+            error: msg,
+            errorType: err instanceof Error ? err.name : typeof err,
+            provider,
+            tier: userTier
+          },
+        });
+        console.log('[plan] Error usage logged');
+      } catch (logError) {
+        console.error('[plan] Failed to log error usage:', logError);
+      }
+    }
+
     return new Response(JSON.stringify({ error: msg }), { status: 500 });
   }
 }

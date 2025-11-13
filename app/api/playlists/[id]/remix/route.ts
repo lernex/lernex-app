@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
+import { logUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -193,6 +194,11 @@ export async function GET(
 
   console.log("[remix] Starting remix generation", { playlistId, count, userId: user.id });
 
+  // Declare these outside try block for error logging
+  let modelIdentifier = 'unknown';
+  let provider: 'groq' | 'deepinfra' | 'cerebras' | 'lightningai' | 'fireworksai' = 'groq';
+  let userTier: 'free' | 'plus' | 'premium' = 'free';
+
   try {
     // 1. Get playlist and verify access
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -276,10 +282,14 @@ export async function GET(
     console.log("[remix] Analyzed patterns", patterns);
 
     // 5. Get user tier for model selection
-    const userTier = await fetchUserTier(sb, user.id);
+    userTier = await fetchUserTier(sb, user.id);
 
     // 6. Generate remix lessons using OpenAI with token-optimized prompt
-    const { client: openai, model: modelName } = createModelClient(userTier, "fast"); // Use fast for reliable generation
+    const modelClient = createModelClient(userTier, "fast"); // Use fast for reliable generation
+    const openai = modelClient.client;
+    const modelName = modelClient.model;
+    modelIdentifier = modelClient.modelIdentifier;
+    provider = modelClient.provider;
 
     const systemPrompt = `You are an expert educational content generator. Your task is to create ${count} new lessons that follow similar patterns to an existing playlist, but with fresh content and variations.
 
@@ -371,6 +381,29 @@ FORMAT:
 
     console.log("[remix] Successfully generated lessons", { count: lessons.length });
 
+    // Log API usage for cost tracking
+    const usage = completion?.usage;
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+    if (usage && (user.id || ip)) {
+      try {
+        await logUsage(sb, user.id, ip, modelIdentifier, {
+          input_tokens: typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : null,
+          output_tokens: typeof usage.completion_tokens === "number" ? usage.completion_tokens : null,
+        }, {
+          metadata: {
+            route: "playlist-remix",
+            playlistId,
+            lessonsGenerated: lessons.length,
+            provider,
+            tier: userTier
+          },
+        });
+        console.log('[remix] Usage logged successfully');
+      } catch (logError) {
+        console.error('[remix] Failed to log usage:', logError);
+      }
+    }
+
     return new Response(JSON.stringify({
       ok: true,
       lessons,
@@ -384,6 +417,29 @@ FORMAT:
   } catch (error) {
     console.error("[remix] Failed", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    // Log failed attempt for cost tracking
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+    if (user.id || ip) {
+      try {
+        await logUsage(sb, user.id, ip, modelIdentifier, {
+          input_tokens: null,
+          output_tokens: null,
+        }, {
+          metadata: {
+            route: "playlist-remix",
+            error: errorMessage,
+            errorType: error instanceof Error ? error.name : typeof error,
+            provider,
+            tier: userTier
+          },
+        });
+        console.log('[remix] Error usage logged');
+      } catch (logError) {
+        console.error('[remix] Failed to log error usage:', logError);
+      }
+    }
+
     return new Response(JSON.stringify({
       error: "Failed to generate remix lessons",
       details: errorMessage
