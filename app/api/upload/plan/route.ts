@@ -27,67 +27,6 @@ type PlanResponse = {
   subject: string;
 };
 
-const PLANNING_TOOL = {
-  type: "function" as const,
-  function: {
-    name: "create_lesson_plan",
-    description: "Create a structured lesson plan from educational content",
-    parameters: {
-      type: "object",
-      properties: {
-        subject: {
-          type: "string",
-          description: "The primary subject area (e.g., 'Algebra 1', 'Biology', 'World History')",
-        },
-        lessons: {
-          type: "array",
-          description: "Array of planned lessons, each covering a distinct topic or concept",
-          items: {
-            type: "object",
-            properties: {
-              id: {
-                type: "string",
-                description: "Short slug identifier (letters, numbers, dashes only)",
-              },
-              title: {
-                type: "string",
-                description: "Clear, concise title for the lesson (3-8 words)",
-              },
-              description: {
-                type: "string",
-                description: "Brief description of what this lesson will cover (15-30 words)",
-              },
-              estimatedLength: {
-                type: "number",
-                description: "Estimated character length of source content for this lesson (400-900)",
-              },
-              textSection: {
-                type: "object",
-                description: "Character indices in the original text that are most relevant to this lesson (only included if returnSections is true)",
-                properties: {
-                  start: {
-                    type: "number",
-                    description: "Starting character index in the original text (0-based)",
-                  },
-                  end: {
-                    type: "number",
-                    description: "Ending character index in the original text (exclusive)",
-                  },
-                },
-                required: ["start", "end"],
-              },
-            },
-            required: ["id", "title", "description", "estimatedLength"],
-          },
-          minItems: 2,
-          maxItems: 12,
-        },
-      },
-      required: ["subject", "lessons"],
-    },
-  },
-};
-
 export async function POST(req: NextRequest) {
   console.log('[plan] POST request received');
 
@@ -200,7 +139,13 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
       ? 4000 // Lower limit OK since we use reasoning_effort: "low"
       : 2500; // Higher limit for planning even on non-reasoning models
 
-    const completionParams: any = {
+    const completionParams: {
+      model: string;
+      temperature: number;
+      max_tokens: number;
+      messages: Array<{ role: string; content: string }>;
+      reasoning_effort?: "low" | "medium" | "high";
+    } = {
       model,
       temperature: 0.7,
       max_tokens: completionMaxTokens,
