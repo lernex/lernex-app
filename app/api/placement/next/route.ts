@@ -78,7 +78,7 @@ async function makeQuestion(
   if (state.done) return null;
 // Keep two variants: a normal template and a tighter one for retries
 const systemNormal = `
-Return ONLY a valid JSON object (no prose) matching exactly:
+Return ONLY valid JSON (no prose):
 {
   "subject": string,
   "course": string,
@@ -89,14 +89,14 @@ Return ONLY a valid JSON object (no prose) matching exactly:
   "difficulty": "intro"|"easy"|"medium"|"hard"
 }
 Rules:
-- For intro/easy use 2–3 choices; for medium/hard use 3–4 choices.
-- Keep choices concise (<= 8 words each). Keep explanation concise (<= 25 words).
-- Only standard curriculum content for the course; avoid more advanced classes.
-- Use inline LaTeX like \\( ... \\) when needed. Avoid HTML. Ensure braces { } are balanced and backslashes escaped so the JSON remains valid.
+- intro/easy: 2-3 choices; medium/hard: 3-4 choices
+- Choices: <=8w each. Explanation: <=25w
+- Standard curriculum only (no advanced topics)
+- Math: Use LaTeX with escaped backslashes in JSON. Example: "\\\\(x^2\\\\)" or "\\\\[\\\\frac{a}{b}\\\\]" renders as \\(x^2\\) and \\[\\frac{a}{b}\\]
 `.trim();
 
 const systemTight = `
-Return ONLY a valid JSON object (no prose) matching exactly:
+Return ONLY valid JSON (no prose):
 {
   "subject": string,
   "course": string,
@@ -107,10 +107,9 @@ Return ONLY a valid JSON object (no prose) matching exactly:
   "difficulty": "intro"|"easy"|"medium"|"hard"
 }
 Rules:
-- Produce a very short prompt and choices.
-- EXACTLY 2 choices for intro/easy; EXACTLY 3 choices for medium/hard.
-- Explanation must be <= 15 words.
-- No HTML; inline LaTeX (\\( ... \\)) allowed if needed. JSON must be valid.
+- EXACTLY 2 choices (intro/easy), 3 choices (medium/hard)
+- Explanation: <=15w
+- Math: Escaped LaTeX only. Example: "\\\\(x\\\\)" → \\(x\\)
 `.trim();
 
   // Limit avoid list to keep token budget small
@@ -128,10 +127,10 @@ Rules:
   const user = `
 Subject: ${state.subject}
 Course: ${state.course}
-Difficulty: ${state.difficulty}. Adjust complexity accordingly.
-Step: ${state.step} of ${state.maxSteps}
+Difficulty: ${state.difficulty}
+Step: ${state.step}/${state.maxSteps}
 ${avoidText}
-Create exactly one discriminative multiple-choice question from the course's appropriate units. Include a short explanation. The question should address a key topic within the course's own syllabus.
+Create 1 multiple-choice question from course syllabus. Include brief explanation.
 `.trim();
 
   const TEMP = 0.4; // lower temp for more stable JSON
@@ -363,13 +362,25 @@ export async function POST(req: Request) {
       const levelMap = (profile?.level_map || {}) as Record<string, string>;
 
       // Get existing subject states to filter out already-completed courses
-      const { data: existingStates } = await sb
+      const { data: existingStates, error: statesError } = await sb
         .from("user_subject_state")
         .select("course")
         .eq("user_id", user.id);
+
+      if (statesError) {
+        console.error("[placement/next] Failed to fetch user_subject_state:", statesError);
+      }
+
       const completedCourses = new Set(
         Array.isArray(existingStates) ? existingStates.map((s: { course: string }) => s.course) : []
       );
+
+      console.log("[placement/next] Bootstrap state:", {
+        userId: user.id.slice(0, 8),
+        interests,
+        levelMap,
+        completedCourses: Array.from(completedCourses),
+      });
 
       const courses = interests
         .filter((s) => levelMap[s])
@@ -383,7 +394,14 @@ export async function POST(req: Request) {
           return { subject: domain || s, course };
         })
         // Filter out courses that already have subject states
-        .filter(({ course }) => !completedCourses.has(course));
+        .filter(({ course }) => {
+          const shouldInclude = !completedCourses.has(course);
+          console.log(`[placement/next] Course "${course}": ${shouldInclude ? "INCLUDE (needs placement)" : "SKIP (already completed)"}`);
+          return shouldInclude;
+        });
+
+      console.log("[placement/next] Courses needing placement:", courses.map(c => c.course));
+
       if (!courses.length) return new Response(JSON.stringify({ error: "No course selected for any interest" }), { status: 400 });
 
       const [first, ...rest] = courses;
