@@ -388,6 +388,15 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
             </button>
           ))}
         </div>
+
+        {/* Explanation */}
+        {selected !== null && q.explanation && (
+          <div className="mt-4 text-sm text-neutral-600 dark:text-neutral-300 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 animate-slide-up">
+            <div className="font-semibold text-blue-600 dark:text-blue-400 mb-1">Explanation:</div>
+            <FormattedText text={q.explanation} />
+          </div>
+        )}
+
         {/* Question progress indicators */}
         <div className="mt-4 flex items-center justify-center gap-1.5">
           {questions.map((_, idx) => {
