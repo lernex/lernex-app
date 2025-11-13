@@ -37,64 +37,34 @@ export async function POST(req: Request) {
   const currentInterests = profileData?.interests || [];
   const currentLevelMap = (profileData?.level_map as Record<string, string>) || {};
 
-  // Determine the domain and course to add
-  let domainToAdd: string;
-  let courseToAdd: string;
-
-  if (isValidDomain) {
-    // Adding a domain directly - will need to pick course later in /onboarding/levels
-    domainToAdd = interest;
-    courseToAdd = ""; // Will be filled in by /onboarding/levels
-  } else {
-    // Adding a specific course - find which domain it belongs to
-    courseToAdd = interest;
-    const foundDomain = Object.entries(LEVELS_BY_DOMAIN).find(([, courses]) =>
-      courses.includes(interest)
-    )?.[0];
-
-    if (!foundDomain) {
-      return NextResponse.json({ error: "Could not determine subject domain" }, { status: 400 });
-    }
-    domainToAdd = foundDomain;
+  // Validate: can only add courses, not domains
+  if (isValidDomain && !isValidCourse) {
+    return NextResponse.json({ error: "Cannot add a domain directly. Please select a specific course." }, { status: 400 });
   }
 
-  // Check if domain already exists in interests
-  if (currentInterests.includes(domainToAdd)) {
-    // Domain exists - check if they're trying to add a different course for same domain
-    if (courseToAdd && currentLevelMap[domainToAdd] !== courseToAdd) {
-      // Update the course for existing domain
-      const updatedLevelMap = { ...currentLevelMap, [domainToAdd]: courseToAdd };
+  // At this point, interest is a valid course
+  const courseToAdd = interest;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: updateError } = await (sb as any)
-        .from("profiles")
-        .update({
-          level_map: updatedLevelMap,
-          updated_at: new Date().toISOString(),
-          placement_ready: true
-        })
-        .eq("id", user.id);
+  // Find which domain this course belongs to
+  const foundDomain = Object.entries(LEVELS_BY_DOMAIN).find(([, courses]) =>
+    courses.includes(courseToAdd)
+  )?.[0];
 
-      if (updateError) {
-        return NextResponse.json({ error: updateError.message }, { status: 500 });
-      }
-
-      return NextResponse.json({
-        ok: true,
-        interests: currentInterests,
-        message: `${interest} updated successfully. Run placement to set your level.`
-      });
-    }
-    return NextResponse.json({ error: "Subject already added" }, { status: 400 });
+  if (!foundDomain) {
+    return NextResponse.json({ error: "Could not determine subject domain" }, { status: 400 });
   }
 
-  // Add the new domain to interests
-  const updatedInterests = [...currentInterests, domainToAdd];
+  // Check if this exact course already exists in interests
+  if (currentInterests.includes(courseToAdd)) {
+    return NextResponse.json({ error: "This class is already added" }, { status: 400 });
+  }
 
-  // Update level_map if we have a specific course
-  const updatedLevelMap = courseToAdd
-    ? { ...currentLevelMap, [domainToAdd]: courseToAdd }
-    : currentLevelMap;
+  // New data model: interests now contains courses directly (e.g., ["Calculus 2", "AP Chemistry", "Algebra 2"])
+  // This allows multiple courses from the same domain
+  const updatedInterests = [...currentInterests, courseToAdd];
+
+  // Update level_map for backward compatibility (map domain to latest course)
+  const updatedLevelMap = { ...currentLevelMap, [foundDomain]: courseToAdd };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: updateError } = await (sb as any)

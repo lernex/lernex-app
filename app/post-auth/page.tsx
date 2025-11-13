@@ -2,6 +2,7 @@
 "use client";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { DOMAINS, LEVELS_BY_DOMAIN } from "@/data/domains";
 
 export default function PostAuth() {
   const router = useRouter();
@@ -15,8 +16,16 @@ export default function PostAuth() {
       if (!me?.username || !me?.dob) { router.replace("/welcome"); return; }
       if (!me?.interests?.length) { router.replace("/onboarding"); return; }
 
-      const needsLevel = me.interests.some((d: string) => !(me.level_map && me.level_map[d]));
-      if (needsLevel) { router.replace("/onboarding/levels"); return; }
+      // Check if interests contains domains (old model) or courses (new model)
+      const allValidCourses = Object.values(LEVELS_BY_DOMAIN).flat();
+      const hasOldModel = me.interests.some((item: string) => DOMAINS.includes(item));
+      const hasNewModel = me.interests.some((item: string) => allValidCourses.includes(item));
+
+      // If user has domains in interests, check if they need to pick courses
+      if (hasOldModel && !hasNewModel) {
+        const needsLevel = me.interests.some((d: string) => !(me.level_map && me.level_map[d]));
+        if (needsLevel) { router.replace("/onboarding/levels"); return; }
+      }
 
       // Check if user actually needs placement by verifying they don't have existing placement data
       if (me?.placement_ready) {
@@ -25,9 +34,17 @@ export default function PostAuth() {
         if (stateRes.ok) {
           const states = await stateRes.json();
 
-          // Check if all courses in level_map have corresponding subject states
-          const level_map = me.level_map || {};
-          const courses = Object.values(level_map) as string[];
+          // Get courses from interests (new model) or level_map (old model)
+          let courses: string[];
+          if (hasNewModel) {
+            // New model: interests contains courses directly
+            courses = me.interests.filter((item: string) => allValidCourses.includes(item));
+          } else {
+            // Old model: get courses from level_map
+            const level_map = me.level_map || {};
+            courses = Object.values(level_map) as string[];
+          }
+
           const completedCourses = Array.isArray(states) ? states.map((s: { course: string }) => s.course) : [];
 
           // If all courses have states, placement is done - clear the flag

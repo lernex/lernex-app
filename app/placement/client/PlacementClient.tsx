@@ -95,7 +95,9 @@ export default function PlacementClient() {
       if (typeof window !== "undefined") {
         window.sessionStorage.setItem("lernex:show-welcome-tour", "1");
       }
-      router.replace("/fyp?welcome=1");
+      // Pass the completed course subject to FYP so it can auto-select it
+      const subjectParam = finalState?.subject ? `&subject=${encodeURIComponent(finalState.subject)}` : "";
+      router.replace(`/fyp?welcome=1${subjectParam}`);
     }
   }, [router, dlog, refresh, setStats, stats]);
 

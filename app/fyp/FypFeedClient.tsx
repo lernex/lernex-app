@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import WelcomeTourOverlay from "@/components/WelcomeTourOverlay";
 import ClassPicker from "@/components/ClassPicker";
@@ -8,12 +9,23 @@ import { ProfileBasicsProvider } from "@/app/providers/ProfileBasicsProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import type { ProfileBasics } from "@/lib/profile-basics";
 import LearningPathProgress from "./LearningPathProgress";
+import { useLernexStore } from "@/lib/store";
 
 type FypFeedClientProps = {
   initialProfile?: ProfileBasics | null;
+  autoSelectSubject?: string | null;
 };
 
-export default function FypFeedClient({ initialProfile }: FypFeedClientProps) {
+export default function FypFeedClient({ initialProfile, autoSelectSubject }: FypFeedClientProps) {
+  const { setSelectedSubjects } = useLernexStore();
+
+  // Auto-select the newly added class after placement
+  useEffect(() => {
+    if (autoSelectSubject) {
+      console.log("[FYP] Auto-selecting subject after placement:", autoSelectSubject);
+      setSelectedSubjects([autoSelectSubject]);
+    }
+  }, [autoSelectSubject, setSelectedSubjects]);
 
   return (
     <ErrorBoundary>

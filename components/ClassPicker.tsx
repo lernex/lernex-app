@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { ChevronDown } from "lucide-react";
 import { useLernexStore } from "@/lib/store";
 import { useProfileBasics } from "@/app/providers/ProfileBasicsProvider";
+import { LEVELS_BY_DOMAIN } from "@/data/domains";
 
 type Pair = { subject: string; course?: string };
 
@@ -12,7 +13,28 @@ export default function ClassPicker() {
 
   const pairs = useMemo<Pair[]>(() => {
     const levelMap = profileBasics.levelMap;
-    return profileBasics.interests.map((subject) => ({ subject, course: levelMap[subject] }));
+    const allValidCourses = Object.values(LEVELS_BY_DOMAIN).flat();
+
+    // Detect if interests contains courses (new model) or domains (old model)
+    const interestIsCourse = (item: string) => allValidCourses.includes(item);
+    const hasNewModel = profileBasics.interests.some(interestIsCourse);
+
+    if (hasNewModel) {
+      // New model: interests contains courses directly (e.g., ["Calculus 2", "AP Chemistry", "Algebra 2"])
+      // For each course, create a pair with its domain and course name
+      return profileBasics.interests
+        .filter(interestIsCourse)
+        .map((course) => {
+          // Find which domain this course belongs to
+          const domain = Object.entries(LEVELS_BY_DOMAIN).find(([, coursesArray]) =>
+            coursesArray.includes(course)
+          )?.[0];
+          return { subject: domain || "General", course };
+        });
+    } else {
+      // Old model: interests contains domains, use level_map to get courses
+      return profileBasics.interests.map((subject) => ({ subject, course: levelMap[subject] }));
+    }
   }, [profileBasics]);
 
   const normalizedSelection = useMemo(() => {

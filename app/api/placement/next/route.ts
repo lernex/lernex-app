@@ -375,30 +375,52 @@ export async function POST(req: Request) {
         Array.isArray(existingStates) ? existingStates.map((s: { course: string }) => s.course) : []
       );
 
+      // Detect if using new model (interests = courses) or old model (interests = domains)
+      const allValidCourses = Object.values(LEVELS_BY_DOMAIN).flat();
+      const interestIsCourse = (item: string) => allValidCourses.includes(item);
+
       console.log("[placement/next] Bootstrap state:", {
         userId: user.id.slice(0, 8),
         interests,
         levelMap,
         completedCourses: Array.from(completedCourses),
+        usingNewModel: interests.some(interestIsCourse)
       });
 
-      const courses = interests
-        .filter((s) => levelMap[s])
-        .map((s) => {
-          const course = levelMap[s]!;
-          // Find the domain for this course
-          const domain = Object.entries(LEVELS_BY_DOMAIN).find(([_, coursesArray]) =>
-            coursesArray.includes(course)
-          )?.[0];
-          // Use the domain if found, otherwise use the subject as-is (for backward compat)
-          return { subject: domain || s, course };
-        })
-        // Filter out courses that already have subject states
-        .filter(({ course }) => {
-          const shouldInclude = !completedCourses.has(course);
-          console.log(`[placement/next] Course "${course}": ${shouldInclude ? "INCLUDE (needs placement)" : "SKIP (already completed)"}`);
-          return shouldInclude;
-        });
+      // Extract courses based on data model
+      let courses: Array<{ subject: string; course: string }>;
+
+      if (interests.some(interestIsCourse)) {
+        // New model: interests contains courses directly (e.g., ["Calculus 2", "AP Chemistry"])
+        courses = interests
+          .filter(interestIsCourse)
+          .map((course) => {
+            // Find the domain for this course
+            const domain = Object.entries(LEVELS_BY_DOMAIN).find(([, coursesArray]) =>
+              coursesArray.includes(course)
+            )?.[0];
+            return { subject: domain || "General", course };
+          });
+      } else {
+        // Old model: interests contains domains, get courses from level_map
+        courses = interests
+          .filter((s) => levelMap[s])
+          .map((s) => {
+            const course = levelMap[s]!;
+            // Find the domain for this course
+            const domain = Object.entries(LEVELS_BY_DOMAIN).find(([, coursesArray]) =>
+              coursesArray.includes(course)
+            )?.[0];
+            return { subject: domain || s, course };
+          });
+      }
+
+      // Filter out courses that already have subject states
+      courses = courses.filter(({ course }) => {
+        const shouldInclude = !completedCourses.has(course);
+        console.log(`[placement/next] Course "${course}": ${shouldInclude ? "INCLUDE (needs placement)" : "SKIP (already completed)"}`);
+        return shouldInclude;
+      });
 
       console.log("[placement/next] Courses needing placement:", courses.map(c => c.course));
 

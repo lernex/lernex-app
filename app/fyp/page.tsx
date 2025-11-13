@@ -3,7 +3,9 @@ import { supabaseServer } from "@/lib/supabase-server";
 import FypFeedClient from "./FypFeedClient";
 import { normalizeProfileBasics } from "@/lib/profile-basics";
 
-export default async function FypHome() {
+type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
+
+export default async function FypHome({ searchParams }: { searchParams: SearchParams }) {
   const sb = await supabaseServer();
   const {
     data: { user },
@@ -19,5 +21,9 @@ export default async function FypHome() {
 
   const initialProfile = normalizeProfileBasics(profileRow ?? null);
 
-  return <FypFeedClient initialProfile={initialProfile} />;
+  // Get the subject parameter if present (from placement completion)
+  const params = await searchParams;
+  const autoSelectSubject = typeof params.subject === "string" ? params.subject : null;
+
+  return <FypFeedClient initialProfile={initialProfile} autoSelectSubject={autoSelectSubject} />;
 }
