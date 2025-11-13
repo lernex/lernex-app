@@ -2348,7 +2348,7 @@ export default function UploadLessonsClient({ initialProfile }: UploadLessonsCli
                         damping: 15,
                       }}
                       whileHover={{ scale: 1.01, y: -4 }}
-                      className="group relative overflow-hidden rounded-[32px] border border-white/60 bg-white/90 p-6 shadow-[0_20px_70px_-30px_rgba(47,128,237,0.4)] backdrop-blur-xl transition-all dark:border-white/10 dark:bg-white/5 dark:shadow-[0_20px_70px_-30px_rgba(47,128,237,0.6)]"
+                      className="group relative overflow-visible rounded-[32px] border border-white/60 bg-white/90 p-6 shadow-[0_20px_70px_-30px_rgba(47,128,237,0.4)] backdrop-blur-xl transition-all dark:border-white/10 dark:bg-white/5 dark:shadow-[0_20px_70px_-30px_rgba(47,128,237,0.6)]"
                     >
                       {/* Gradient overlay */}
                       <div className="pointer-events-none absolute inset-0 -z-10 rounded-[32px] bg-[linear-gradient(135deg,rgba(59,130,246,0.08),rgba(129,140,248,0.05),transparent)] opacity-0 transition-opacity group-hover:opacity-100 dark:bg-[linear-gradient(135deg,rgba(47,128,237,0.2),rgba(129,140,248,0.1),transparent)]" />

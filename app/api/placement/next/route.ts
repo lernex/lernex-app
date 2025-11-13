@@ -361,6 +361,16 @@ export async function POST(req: Request) {
       if (!interests.length) return new Response(JSON.stringify({ error: "No interests" }), { status: 400 });
 
       const levelMap = (profile?.level_map || {}) as Record<string, string>;
+
+      // Get existing subject states to filter out already-completed courses
+      const { data: existingStates } = await sb
+        .from("user_subject_state")
+        .select("course")
+        .eq("user_id", user.id);
+      const completedCourses = new Set(
+        Array.isArray(existingStates) ? existingStates.map((s: { course: string }) => s.course) : []
+      );
+
       const courses = interests
         .filter((s) => levelMap[s])
         .map((s) => {
@@ -371,7 +381,9 @@ export async function POST(req: Request) {
           )?.[0];
           // Use the domain if found, otherwise use the subject as-is (for backward compat)
           return { subject: domain || s, course };
-        });
+        })
+        // Filter out courses that already have subject states
+        .filter(({ course }) => !completedCourses.has(course));
       if (!courses.length) return new Response(JSON.stringify({ error: "No course selected for any interest" }), { status: 400 });
 
       const [first, ...rest] = courses;

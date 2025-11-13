@@ -146,13 +146,13 @@ export default function AddInterestModal({
                     <Plus className="h-5 w-5 text-white" />
                   </div>
                   <h2 className="text-2xl font-bold">
-                    {step === "domain" ? "Add a Subject" : `Select ${selectedDomain} Class`}
+                    {step === "domain" ? "Add a Class" : `Select ${selectedDomain} Class`}
                   </h2>
                 </div>
                 <p className="text-sm text-neutral-600 dark:text-neutral-400">
                   {step === "domain"
                     ? "Choose a subject area to get started"
-                    : "Pick the specific class you want to take. You'll run a placement test to determine your starting level."}
+                    : "Pick the specific class you want to take. You'll run a placement quiz to determine your starting level."}
                 </p>
               </div>
 

@@ -35,22 +35,66 @@ export async function POST(req: Request) {
 
   const profileData = profile as { interests?: string[]; level_map?: unknown } | null;
   const currentInterests = profileData?.interests || [];
+  const currentLevelMap = (profileData?.level_map as Record<string, string>) || {};
 
-  // Check if interest already exists
-  if (currentInterests.includes(interest)) {
+  // Determine the domain and course to add
+  let domainToAdd: string;
+  let courseToAdd: string;
+
+  if (isValidDomain) {
+    // Adding a domain directly - will need to pick course later in /onboarding/levels
+    domainToAdd = interest;
+    courseToAdd = ""; // Will be filled in by /onboarding/levels
+  } else {
+    // Adding a specific course - find which domain it belongs to
+    courseToAdd = interest;
+    const foundDomain = Object.entries(LEVELS_BY_DOMAIN).find(([, courses]) =>
+      courses.includes(interest)
+    )?.[0];
+
+    if (!foundDomain) {
+      return NextResponse.json({ error: "Could not determine subject domain" }, { status: 400 });
+    }
+    domainToAdd = foundDomain;
+  }
+
+  // Check if domain already exists in interests
+  if (currentInterests.includes(domainToAdd)) {
+    // Domain exists - check if they're trying to add a different course for same domain
+    if (courseToAdd && currentLevelMap[domainToAdd] !== courseToAdd) {
+      // Update the course for existing domain
+      const updatedLevelMap = { ...currentLevelMap, [domainToAdd]: courseToAdd };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: updateError } = await (sb as any)
+        .from("profiles")
+        .update({
+          level_map: updatedLevelMap,
+          updated_at: new Date().toISOString(),
+          placement_ready: true
+        })
+        .eq("id", user.id);
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        interests: currentInterests,
+        message: `${interest} updated successfully. Run placement to set your level.`
+      });
+    }
     return NextResponse.json({ error: "Subject already added" }, { status: 400 });
   }
 
-  // Add the new interest
-  const updatedInterests = [...currentInterests, interest];
+  // Add the new domain to interests
+  const updatedInterests = [...currentInterests, domainToAdd];
 
-  // Get current level_map
-  const currentLevelMap = (profileData?.level_map as Record<string, string>) || {};
-
-  // Update level_map based on what was added
-  const updatedLevelMap = isValidCourse && !isValidDomain
-    ? { ...currentLevelMap, [interest]: interest } // Adding specific course, map to itself
-    : currentLevelMap; // Adding domain, level_map will be filled in by /onboarding/levels
+  // Update level_map if we have a specific course
+  const updatedLevelMap = courseToAdd
+    ? { ...currentLevelMap, [domainToAdd]: courseToAdd }
+    : currentLevelMap;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: updateError } = await (sb as any)

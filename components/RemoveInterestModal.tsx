@@ -112,12 +112,12 @@ export default function RemoveInterestModal({
                   <div className="rounded-full bg-gradient-to-br from-rose-500 to-red-600 p-2">
                     <Trash2 className="h-5 w-5 text-white" />
                   </div>
-                  <h2 className="text-2xl font-bold">Remove a Subject</h2>
+                  <h2 className="text-2xl font-bold">Remove a Class</h2>
                 </div>
                 <p className="text-sm text-neutral-600 dark:text-neutral-400">
                   {!confirmStep
-                    ? "Select a subject to remove from your learning path."
-                    : "This action will delete all progress for this subject."}
+                    ? "Select a class to remove from your learning path."
+                    : "This action will delete all progress for this class."}
                 </p>
               </div>
 

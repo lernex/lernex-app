@@ -918,7 +918,7 @@ function SettingsPageContent() {
               >
                 <span className="relative z-10 flex items-center justify-center gap-2">
                   <Plus className="h-4 w-4" />
-                  Add Subject
+                  Add Class
                 </span>
                 <motion.div
                   className="absolute inset-0 bg-gradient-to-r from-sky-500 to-lernex-blue opacity-0 transition-opacity group-hover:opacity-100"
@@ -934,7 +934,7 @@ function SettingsPageContent() {
               >
                 <span className="relative z-10 flex items-center justify-center gap-2">
                   <Trash2 className="h-4 w-4" />
-                  Remove Subject
+                  Remove Class
                 </span>
                 <motion.div
                   className="absolute inset-0 bg-gradient-to-r from-red-600 to-rose-500 opacity-0 transition-opacity group-hover:opacity-100"

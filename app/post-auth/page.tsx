@@ -20,19 +20,27 @@ export default function PostAuth() {
 
       // Check if user actually needs placement by verifying they don't have existing placement data
       if (me?.placement_ready) {
-        // Verify user hasn't already completed placement
+        // Verify user hasn't already completed placement for ALL their courses
         const stateRes = await fetch("/api/profile/subject-states", { cache: "no-store" });
         if (stateRes.ok) {
           const states = await stateRes.json();
-          // If user has subject states, they've already done placement - clear the stale flag
-          if (Array.isArray(states) && states.length > 0) {
+
+          // Check if all courses in level_map have corresponding subject states
+          const level_map = me.level_map || {};
+          const courses = Object.values(level_map) as string[];
+          const completedCourses = Array.isArray(states) ? states.map((s: { course: string }) => s.course) : [];
+
+          // If all courses have states, placement is done - clear the flag
+          const allCoursesHaveStates = courses.length > 0 && courses.every((course: string) => completedCourses.includes(course));
+
+          if (allCoursesHaveStates) {
             // Clear the stale placement_ready flag
             await fetch("/api/profile/clear-placement-flag", { method: "POST" });
             router.replace("/fyp");
             return;
           }
         }
-        // User actually needs placement
+        // User actually needs placement for at least one course
         router.replace("/placement");
         return;
       }

@@ -88,7 +88,7 @@ export default function ClassPicker() {
           <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-neutral-400 dark:text-neutral-500">
             Your classes
           </div>
-          <div className="max-h-72 space-y-1 overflow-auto pr-1">
+          <div className="max-h-72 space-y-1 overflow-y-auto overflow-x-visible px-1 pr-2">
             {pairs.map((p) => {
               const on = normalizedSelection.length === 1 && normalizedSelection[0] === p.subject;
               return (
