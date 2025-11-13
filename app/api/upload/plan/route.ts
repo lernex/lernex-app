@@ -139,26 +139,20 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
       ? 4000 // Lower limit OK since we use reasoning_effort: "low"
       : 2500; // Higher limit for planning even on non-reasoning models
 
-    const completionParams: {
-      model: string;
-      temperature: number;
-      max_tokens: number;
-      messages: Array<{ role: string; content: string }>;
-      reasoning_effort?: "low" | "medium" | "high";
-    } = {
+    const baseParams = {
       model,
       temperature: 0.7,
       max_tokens: completionMaxTokens,
       messages: [
-        { role: "system", content: enhancedSystemPrompt },
-        { role: "user", content: userPrompt },
+        { role: "system" as const, content: enhancedSystemPrompt },
+        { role: "user" as const, content: userPrompt },
       ],
     };
 
     // Use low reasoning effort for gpt-oss models (planning is straightforward)
-    if (model.includes('gpt-oss')) {
-      completionParams.reasoning_effort = "low";
-    }
+    const completionParams = model.includes('gpt-oss')
+      ? { ...baseParams, reasoning_effort: "low" as const }
+      : baseParams;
 
     const completion = await client.chat.completions.create(completionParams);
 
