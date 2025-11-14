@@ -365,7 +365,8 @@ FORMAT:
       ],
       temperature: 0.8, // Higher temperature for creative variations
       max_tokens: maxTokens,
-      response_format: { type: "json_object" },
+      // IMPORTANT: Removed response_format to allow code_interpreter tool usage
+      // The system prompt enforces JSON output without needing json_object mode
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ...(codeInterpreterParams as any), // Add code_interpreter tool
     });

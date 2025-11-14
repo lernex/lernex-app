@@ -159,7 +159,9 @@ Create 1 multiple-choice question from course syllabus. Include brief explanatio
         temperature: TEMP,
         max_tokens: maxTokens,
         reasoning_effort: "medium",
-        ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+        // IMPORTANT: Removed response_format to allow code_interpreter tool usage
+        // The system prompt enforces JSON output without needing json_object mode
+        // ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },

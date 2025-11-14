@@ -256,7 +256,8 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
             model,
             temperature: 0.4,
             max_tokens: maxTokens,
-            response_format: { type: "json_object" },
+            // IMPORTANT: Removed response_format to allow code_interpreter tool usage
+            // The system prompt enforces JSON output without needing json_object mode
             stream: true,
             messages: [
               { role: "system", content: system },
@@ -319,7 +320,7 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
               model,
               temperature: 0.4,
               max_tokens: maxTokens,
-              response_format: { type: "json_object" },
+              // IMPORTANT: Removed response_format to allow code_interpreter tool usage
               messages: [
                 { role: "system", content: system },
                 { role: "user", content: userPrompt },
