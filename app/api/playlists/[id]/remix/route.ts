@@ -366,7 +366,8 @@ FORMAT:
       temperature: 0.8, // Higher temperature for creative variations
       max_tokens: maxTokens,
       response_format: { type: "json_object" },
-      ...codeInterpreterParams, // Add code_interpreter tool
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(codeInterpreterParams as any), // Add code_interpreter tool
     });
 
     const responseText = completion.choices[0]?.message?.content || "";

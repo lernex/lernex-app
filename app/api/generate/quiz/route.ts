@@ -2,6 +2,8 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+import type { Stream } from "openai/streaming";
+import type { ChatCompletionChunk } from "openai/resources/chat/completions";
 import { supabaseServer } from "@/lib/supabase-server";
 import { canUserGenerate, logUsage } from "@/lib/usage";
 import { normalizeLatex, scanLatex, hasLatexIssues } from "@/lib/latex";
@@ -249,7 +251,8 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
 
         try {
           // Start streaming completion
-          const stream = await client.chat.completions.create({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const stream = (await client.chat.completions.create({
             model,
             temperature: 0.4,
             max_tokens: maxTokens,
@@ -259,8 +262,9 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
               { role: "system", content: system },
               { role: "user", content: userPrompt },
             ],
-            ...codeInterpreterParams, // Add code_interpreter tool
-          });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ...(codeInterpreterParams as any), // Add code_interpreter tool (Groq-specific format)
+          }) as unknown) as Stream<ChatCompletionChunk>;
 
           // Process stream chunks
           for await (const chunk of stream) {
@@ -320,7 +324,8 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
                 { role: "system", content: system },
                 { role: "user", content: userPrompt },
               ],
-              ...codeInterpreterParams, // Add code_interpreter tool to fallback
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              ...(codeInterpreterParams as any), // Add code_interpreter tool to fallback
             });
 
             const raw = (fallbackCompletion.choices?.[0]?.message?.content as string | undefined) ?? "{}";

@@ -2,7 +2,8 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import type { ChatCompletionCreateParams } from "openai/resources/chat/completions";
+import type { ChatCompletionCreateParams, ChatCompletionChunk } from "openai/resources/chat/completions";
+import type { Stream } from "openai/streaming";
 import { supabaseServer } from "@/lib/supabase-server";
 import { canUserGenerate, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
@@ -151,14 +152,16 @@ export async function POST(req: Request) {
       tokenOverhead: 300, // Already accounted for in maxTokens
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const streamPromise = client.chat.completions.create({
       model,
       temperature: 0.8,
       max_tokens: maxTokens,
       stream: true,
       messages: baseMessages,
-      ...codeInterpreterParams, // Add code_interpreter for math accuracy
-    });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(codeInterpreterParams as any), // Add code_interpreter for math accuracy
+    }) as unknown as Promise<Stream<ChatCompletionChunk>>;
 
     const bodyStream = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -243,7 +246,8 @@ export async function POST(req: Request) {
                 temperature: 0.8,
                 max_tokens: maxTokens,
                 messages: baseMessages,
-                ...codeInterpreterParams, // Add code_interpreter for fallback
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                ...(codeInterpreterParams as any), // Add code_interpreter for fallback
               });
               const full = (nonStream?.choices?.[0]?.message?.content as string | undefined) ?? "";
               if (full) {

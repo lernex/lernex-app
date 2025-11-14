@@ -11,13 +11,17 @@ import { canUserGenerate, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { shuffleQuestionChoices } from "@/lib/quiz-shuffle";
 import { LEVELS_BY_DOMAIN } from "@/data/domains";
-const MAX_TOKENS = Math.min(
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
+const BASE_MAX_TOKENS = Math.min(
   1800,
   Math.max(
     800,
     Number(process.env.CEREBRAS_PLACEMENT_MAX_TOKENS ?? process.env.GROQ_PLACEMENT_MAX_TOKENS ?? "1300") || 1300,
   ),
 );
+
+// Adjust for code_interpreter tool overhead (+300 tokens for math accuracy)
+const MAX_TOKENS = adjustTokenLimitForCodeInterpreter(BASE_MAX_TOKENS);
 
 // Safety
 const BLOCKLIST = [/suicide|self[-\s]?harm/i, /explicit|porn|sexual/i, /hate\s*speech|racial\s*slur/i, /bomb|weapon|make\s+drugs/i];
@@ -142,6 +146,14 @@ Create 1 multiple-choice question from course syllabus. Include brief explanatio
     maxTokens: number
   ): Promise<{ raw: string; completion: ChatCompletion | null }> {
     try {
+      // Get code interpreter params for placement test (critical for math accuracy)
+      const codeInterpreterParams = getCodeInterpreterParams({
+        enabled: true,
+        toolChoice: "auto", // Let model decide when to use Python for math problems
+        maxExecutionTime: 8000,
+        tokenOverhead: 300, // Already accounted for in maxTokens
+      });
+
       const completion = await aiClient.chat.completions.create({
         model,
         temperature: TEMP,
@@ -152,6 +164,9 @@ Create 1 multiple-choice question from course syllabus. Include brief explanatio
           { role: "system", content: system },
           { role: "user", content: user },
         ],
+        // Spread code_interpreter params (tools and tool_choice) - cast as any for Groq compatibility
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(codeInterpreterParams as any),
       });
       const content = completion.choices?.[0]?.message?.content as string | undefined;
       return { raw: content ?? "", completion };

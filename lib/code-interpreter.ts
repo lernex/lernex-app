@@ -67,16 +67,18 @@ export const DEFAULT_CODE_INTERPRETER_CONFIG: Required<CodeInterpreterConfig> = 
  * Groq supports code_interpreter for gpt-oss-20b and gpt-oss-120b models.
  * This enables Python code execution for accurate mathematical calculations.
  *
- * Note: Returns Record<string, never> when disabled, otherwise returns an object
- * that should be spread into chat.completions.create() with type assertion.
- * Groq's code_interpreter format differs from OpenAI SDK types.
+ * Note: Returns Record<string, never> when disabled. When enabled, returns an object
+ * that should be spread with `as any` to bypass OpenAI SDK type checking.
+ * Groq's code_interpreter format differs from OpenAI SDK types but works at runtime.
+ *
+ * Usage: `...getCodeInterpreterParams() as any`
  *
  * @param config - Optional configuration overrides
  * @returns Object with tools and tool_choice parameters, or empty if disabled
  */
 export function getCodeInterpreterParams(
   config: CodeInterpreterConfig = {}
-): { tools: Array<{ type: string }>; tool_choice: string } | Record<string, never> {
+): Record<string, unknown> {
   const mergedConfig = { ...DEFAULT_CODE_INTERPRETER_CONFIG, ...config };
 
   if (!mergedConfig.enabled || mergedConfig.toolChoice === "none") {

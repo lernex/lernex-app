@@ -9,6 +9,7 @@ import { getCachedSampleQuestions } from "@/lib/sat-sample-cache";
 import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
 import { normalizeLatex } from "@/lib/latex";
 import { getSATTokenLimit } from "@/lib/dynamic-token-limits";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
 
 // OPTIMIZATION: Function calling tool schema for SAT quiz generation (42% output token reduction)
 // Function calling eliminates JSON wrapper overhead compared to JSON mode
@@ -155,7 +156,10 @@ export async function POST(req: Request) {
 
     // OPTIMIZED: Dynamic token limit (44% reduction from 3200 to ~1800)
     const dynamicLimit = getSATTokenLimit(section as "math" | "reading" | "writing", topic);
-    const maxTokens = Math.max(1200, Math.min(3200, Number(process.env.SAT_QUIZ_MAX_TOKENS) || dynamicLimit));
+    const baseMaxTokens = Math.max(1200, Math.min(3200, Number(process.env.SAT_QUIZ_MAX_TOKENS) || dynamicLimit));
+
+    // Adjust token limit for code_interpreter tool overhead (+300 tokens for math accuracy)
+    const maxTokens = adjustTokenLimitForCodeInterpreter(baseMaxTokens);
 
     console.log('[sat-prep/quiz] Dynamic token limit:', {
       calculated: dynamicLimit,
@@ -168,6 +172,14 @@ export async function POST(req: Request) {
     // Groq's gpt-oss models have known issues with forced tool_choice and json validation
     const enhancedSystemPrompt = systemPrompt + `\n\nIMPORTANT: Respond with ONLY a valid JSON object (no markdown, no code fences). Output must be parseable with JSON.parse().`;
 
+    // Get code interpreter params for SAT quiz generation (critical for math accuracy)
+    const codeInterpreterParams = getCodeInterpreterParams({
+      enabled: true,
+      toolChoice: "auto", // Let model decide when to use Python for math problems
+      maxExecutionTime: 8000,
+      tokenOverhead: 300, // Already accounted for in maxTokens
+    });
+
     const completion = await client.chat.completions.create({
       model,
       temperature: 0.9,
@@ -176,6 +188,9 @@ export async function POST(req: Request) {
         { role: "system", content: enhancedSystemPrompt },
         { role: "user", content: userPrompt },
       ],
+      // Spread code_interpreter params (tools and tool_choice) - cast as any for Groq compatibility
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(codeInterpreterParams as any),
     });
 
     // OPTIMIZED: Extract from content (JSON mode response)

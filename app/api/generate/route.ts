@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import OpenAI from "openai";
+import type { Stream } from "openai/streaming";
+import type { ChatCompletionChunk } from "openai/resources/chat/completions";
 import { LessonSchema, type Lesson } from "@/lib/schema";
 import { take } from "@/lib/rate";
 import { cookies } from "next/headers";
@@ -443,7 +445,8 @@ export async function POST(req: NextRequest) {
 
       // gpt-oss models use reasoning tokens (like o1), which improves output quality
       // Token limits have been increased 3x for these models to accommodate reasoning
-      stream = await client.chat.completions.create({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      stream = (await client.chat.completions.create({
         model,
         temperature,
         max_tokens: completionMaxTokens,
@@ -452,8 +455,9 @@ export async function POST(req: NextRequest) {
           { role: "system", content: enhancedSystem },
           { role: "user", content: userPrompt },
         ],
-        ...codeInterpreterParams, // Add code_interpreter tool
-      });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(codeInterpreterParams as any), // Add code_interpreter tool
+      }) as unknown) as Stream<ChatCompletionChunk>;
       console.log('[generate] Stream created successfully');
     } catch (streamCreationError) {
       console.error('[generate] Failed to create stream:', streamCreationError);
@@ -548,7 +552,8 @@ export async function POST(req: NextRequest) {
                     { role: "system", content: enhancedSystem },
                     { role: "user", content: userPrompt },
                   ],
-                  ...codeInterpreterParams, // Add code_interpreter tool to fallback
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  ...(codeInterpreterParams as any), // Add code_interpreter tool to fallback
                 });
 
                 // Extract from content

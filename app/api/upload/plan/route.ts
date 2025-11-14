@@ -158,7 +158,8 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
         { role: "system" as const, content: enhancedSystemPrompt },
         { role: "user" as const, content: userPrompt },
       ],
-      ...codeInterpreterParams, // Add code_interpreter tool
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(codeInterpreterParams as any), // Add code_interpreter tool
     });
 
     const message = completion?.choices?.[0]?.message;

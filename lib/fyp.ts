@@ -1378,7 +1378,8 @@ export async function generateLessonForTopic(
           messages,
           ...(variant.useFunctionCall
             ? {
-                tools: [CREATE_LESSON_TOOL, ...(codeInterpreterParams.tools || [])],
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                tools: [CREATE_LESSON_TOOL, ...((codeInterpreterParams.tools as any[]) || [])],
                 tool_choice: { type: "function" as const, function: { name: "create_lesson" } }
               }
             : variant.usePlainResponse
@@ -1628,12 +1629,15 @@ export async function generateLessonForTopic(
             messages: messagesWithContext,
             ...(functionCallingSupported
               ? {
-                  tools: [CREATE_LESSON_TOOL, ...(retryCodeInterpreterParams.tools || [])],
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  tools: [CREATE_LESSON_TOOL, ...((retryCodeInterpreterParams.tools as any[]) || [])],
                   tool_choice: { type: "function" as const, function: { name: "create_lesson" } }
                 }
               : jsonResponseSupported
-                ? { response_format: { type: "json_object" as const }, ...retryCodeInterpreterParams }
-                : { ...retryCodeInterpreterParams }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                ? { response_format: { type: "json_object" as const }, ...(retryCodeInterpreterParams as any) }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                : { ...(retryCodeInterpreterParams as any) }
             ),
           });
 
