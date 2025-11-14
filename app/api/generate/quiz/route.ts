@@ -7,6 +7,7 @@ import { canUserGenerate, logUsage } from "@/lib/usage";
 import { normalizeLatex, scanLatex, hasLatexIssues } from "@/lib/latex";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
 
 const MAX_CHARS = 4300;
 
@@ -77,34 +78,37 @@ export async function POST(req: Request) {
 Rules: ${countRule} ${contextRule} Stay within subject boundaries. Choices≤8w. Explanations≤25w.
 LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\\\frac). Use {...} for multi-char sub/super (x_{10} not x_10).`.trim();
 
-    // Token limits - higher for quiz-only mode
-    let maxTokens: number;
+    // Token limits - higher for quiz-only mode (base limits before code_interpreter overhead)
+    let baseMaxTokens: number;
     if (quizOnly) {
       // Quiz-only mode token limits - increased to prevent truncation
       if (mode === "short") {
-        maxTokens = Math.min(1800, Math.max(800, Number(process.env.GROQ_QUIZ_MAX_TOKENS_SHORT ?? "1600") || 1600));
+        baseMaxTokens = Math.min(1800, Math.max(800, Number(process.env.GROQ_QUIZ_MAX_TOKENS_SHORT ?? "1600") || 1600));
       } else if (mode === "comprehensive") {
-        maxTokens = Math.min(5000, Math.max(2400, Number(process.env.GROQ_QUIZ_MAX_TOKENS_COMPREHENSIVE ?? "4200") || 4200));
+        baseMaxTokens = Math.min(5000, Math.max(2400, Number(process.env.GROQ_QUIZ_MAX_TOKENS_COMPREHENSIVE ?? "4200") || 4200));
       } else {
         // standard
-        maxTokens = Math.min(3200, Math.max(1600, Number(process.env.GROQ_QUIZ_MAX_TOKENS_STANDARD ?? "2900") || 2900));
+        baseMaxTokens = Math.min(3200, Math.max(1600, Number(process.env.GROQ_QUIZ_MAX_TOKENS_STANDARD ?? "2900") || 2900));
       }
     } else {
       // Lesson + quiz mode token limits (original)
-      const quickMaxTokens = Math.min(
+      const quickMaxTokensBase = Math.min(
         900,
         Math.max(320, Number(process.env.GROQ_QUIZ_MAX_TOKENS_QUICK ?? "600") || 600),
       );
-      const miniMaxTokens = Math.min(
+      const miniMaxTokensBase = Math.min(
         1800,
         Math.max(600, Number(process.env.GROQ_QUIZ_MAX_TOKENS_MINI ?? "1200") || 1200),
       );
-      const fullMaxTokens = Math.min(
+      const fullMaxTokensBase = Math.min(
         2600,
         Math.max(900, Number(process.env.GROQ_QUIZ_MAX_TOKENS_FULL ?? "1800") || 1800),
       );
-      maxTokens = mode === "quick" ? quickMaxTokens : mode === "full" ? fullMaxTokens : miniMaxTokens;
+      baseMaxTokens = mode === "quick" ? quickMaxTokensBase : mode === "full" ? fullMaxTokensBase : miniMaxTokensBase;
     }
+
+    // Adjust token limits for code_interpreter tool overhead (+300 tokens for quiz calculations)
+    const maxTokens = adjustTokenLimitForCodeInterpreter(baseMaxTokens);
 
     // Helper functions for streaming quiz generation
     const coerceStr = (v: unknown) => {
@@ -235,6 +239,14 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
           }
         };
 
+        // Get code interpreter params for quiz generation (outside try block for fallback access)
+        const codeInterpreterParams = getCodeInterpreterParams({
+          enabled: true,
+          toolChoice: "auto", // Helps with math problem accuracy
+          maxExecutionTime: 8000,
+          tokenOverhead: 300, // Already accounted for in maxTokens
+        });
+
         try {
           // Start streaming completion
           const stream = await client.chat.completions.create({
@@ -247,6 +259,7 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
               { role: "system", content: system },
               { role: "user", content: userPrompt },
             ],
+            ...codeInterpreterParams, // Add code_interpreter tool
           });
 
           // Process stream chunks
@@ -307,6 +320,7 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
                 { role: "system", content: system },
                 { role: "user", content: userPrompt },
               ],
+              ...codeInterpreterParams, // Add code_interpreter tool to fallback
             });
 
             const raw = (fallbackCompletion.choices?.[0]?.message?.content as string | undefined) ?? "{}";

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { logUsage } from "@/lib/usage";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -338,6 +339,18 @@ FORMAT:
 
     console.log("[remix] Calling OpenAI API...");
 
+    // Adjust token limits for code_interpreter tool overhead (+300 tokens)
+    const baseMaxTokens = 16000;
+    const maxTokens = adjustTokenLimitForCodeInterpreter(baseMaxTokens);
+
+    // Get code interpreter params for accurate content generation
+    const codeInterpreterParams = getCodeInterpreterParams({
+      enabled: true,
+      toolChoice: "auto", // May help with math/science content accuracy
+      maxExecutionTime: 8000,
+      tokenOverhead: 300, // Already accounted for in maxTokens
+    });
+
     const completion = await openai.chat.completions.create({
       model: modelName,
       messages: [
@@ -351,8 +364,9 @@ FORMAT:
         }
       ],
       temperature: 0.8, // Higher temperature for creative variations
-      max_tokens: 16000,
-      response_format: { type: "json_object" }
+      max_tokens: maxTokens,
+      response_format: { type: "json_object" },
+      ...codeInterpreterParams, // Add code_interpreter tool
     });
 
     const responseText = completion.choices[0]?.message?.content || "";

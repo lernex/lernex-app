@@ -14,6 +14,7 @@ import { compressContext } from "@/lib/semantic-compression";
 import { calculateDynamicTokenLimit } from "@/lib/dynamic-token-limits";
 import { fixLatexEscaping, tryParseJsonWithLatex } from "@/lib/latex-utils";
 import type { PipelineConfig } from "@/lib/pipeline-types";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
 
 // Function calling tool schema for lesson generation (saves ~80-120 tokens per lesson)
 const CREATE_LESSON_TOOL = {
@@ -338,12 +339,16 @@ export async function POST(req: NextRequest) {
 
     // gpt-oss models need 3-4x more tokens due to reasoning token consumption
     const baseLimit = Number(process.env.CEREBRAS_LESSON_MAX_TOKENS) || tokenLimitResult.maxTokens;
-    const completionMaxTokens = model.includes('gpt-oss')
+    const baseCompletionMaxTokens = model.includes('gpt-oss')
       ? Math.min(6400, Math.max(2400, baseLimit * 3)) // 3x for reasoning models
       : Math.min(3200, Math.max(900, baseLimit));
 
+    // Adjust token limits for code_interpreter tool overhead (+300 tokens)
+    const completionMaxTokens = adjustTokenLimitForCodeInterpreter(baseCompletionMaxTokens);
+
     console.log('[generate] Dynamic token limit:', {
       calculated: tokenLimitResult.maxTokens,
+      base: baseCompletionMaxTokens,
       final: completionMaxTokens,
       reasoning: tokenLimitResult.reasoning,
     });
@@ -422,6 +427,14 @@ export async function POST(req: NextRequest) {
   ] (exactly 3 questions)
 }`;
 
+    // Get code interpreter params for math accuracy (outside try block for fallback access)
+    const codeInterpreterParams = getCodeInterpreterParams({
+      enabled: true,
+      toolChoice: "auto", // Let model decide when to use Python
+      maxExecutionTime: 8000,
+      tokenOverhead: 300, // Already accounted for in completionMaxTokens
+    });
+
     let stream;
     try {
       // OPTIMIZED: Use prompt-based JSON generation (Groq's gpt-oss models have json_schema bug)
@@ -439,6 +452,7 @@ export async function POST(req: NextRequest) {
           { role: "system", content: enhancedSystem },
           { role: "user", content: userPrompt },
         ],
+        ...codeInterpreterParams, // Add code_interpreter tool
       });
       console.log('[generate] Stream created successfully');
     } catch (streamCreationError) {
@@ -534,6 +548,7 @@ export async function POST(req: NextRequest) {
                     { role: "system", content: enhancedSystem },
                     { role: "user", content: userPrompt },
                   ],
+                  ...codeInterpreterParams, // Add code_interpreter tool to fallback
                 });
 
                 // Extract from content

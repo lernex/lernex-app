@@ -34,6 +34,9 @@ function GenerateContent() {
   const [followUpStreaming, setFollowUpStreaming] = useState("");
   const [followUpLoading, setFollowUpLoading] = useState(false);
 
+  // separate quiz for follow-up questions
+  const [followUpQuiz, setFollowUpQuiz] = useState<Lesson | null>(null);
+
   // history modal state
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
@@ -76,7 +79,10 @@ function GenerateContent() {
   }, []);
 
   // Helper function to consume streaming quiz responses
-  const consumeQuizStream = async (response: Response): Promise<Array<{ prompt: string; choices: string[]; correctIndex: number; explanation: string }>> => {
+  const consumeQuizStream = async (
+    response: Response,
+    target: 'lesson' | 'followUp' = 'lesson'
+  ): Promise<Array<{ prompt: string; choices: string[]; correctIndex: number; explanation: string }>> => {
     if (!response.body) {
       throw new Error("No response body");
     }
@@ -103,10 +109,33 @@ function GenerateContent() {
             // Add question to lesson immediately for progressive display
             if (question.prompt && question.choices) {
               questions.push(question);
-              setLesson((prev) => prev ? {
-                ...prev,
-                questions: [...(prev.questions || []), question],
-              } : prev);
+
+              // Add to appropriate quiz based on target
+              if (target === 'followUp') {
+                setFollowUpQuiz((prev) => {
+                  if (!prev) {
+                    // Initialize follow-up quiz with first question
+                    return {
+                      id: crypto.randomUUID(),
+                      subject: lesson?.subject || '',
+                      topic: "Follow-Up Quiz",
+                      title: "Additional Practice",
+                      content: "",
+                      difficulty: "easy",
+                      questions: [question],
+                    };
+                  }
+                  return {
+                    ...prev,
+                    questions: [...(prev.questions || []), question],
+                  };
+                });
+              } else {
+                setLesson((prev) => prev ? {
+                  ...prev,
+                  questions: [...(prev.questions || []), question],
+                } : prev);
+              }
             }
           } catch (e) {
             console.warn("[client] Failed to parse quiz question line:", line, e);
@@ -154,8 +183,8 @@ function GenerateContent() {
           throw new Error("Quiz generation failed");
         }
 
-        // Consume streaming quiz response
-        const questions = await consumeQuizStream(quizRes);
+        // Consume streaming quiz response and add to follow-up quiz
+        const questions = await consumeQuizStream(quizRes, 'followUp');
 
         // Confirm completion to user
         if (questions.length > 0) {
@@ -232,6 +261,7 @@ Current Question: ${followUpQuestion}
     setStreamed("");
     setFollowUpHistory([]);
     setFollowUpQuestion("");
+    setFollowUpQuiz(null); // Reset follow-up quiz for new generation
     startProgress();
 
     try {
@@ -768,6 +798,26 @@ Current Question: ${followUpQuestion}
                     </div>
                   </div>
                 </div>
+
+                {/* Follow-Up Quiz Block - Displayed Below */}
+                {followUpQuiz && Array.isArray(followUpQuiz.questions) && followUpQuiz.questions.length > 0 && (
+                  <div className="mt-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="mb-3">
+                      <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-lernex-purple to-pink-500 flex items-center justify-center shadow-md">
+                          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                          </svg>
+                        </div>
+                        <span>Additional Practice Quiz</span>
+                      </h3>
+                      <p className="text-xs text-neutral-600 dark:text-neutral-400 ml-10">
+                        {followUpQuiz.questions.length} {followUpQuiz.questions.length === 1 ? 'question' : 'questions'} generated from your follow-up request
+                      </p>
+                    </div>
+                    <QuizBlock lesson={followUpQuiz} onDone={() => {}} />
+                  </div>
+                )}
               </div>
             )}
           </div>

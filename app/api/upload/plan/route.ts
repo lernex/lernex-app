@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { canUserGenerate, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -134,9 +135,20 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
 }`;
 
     // gpt-oss models use reasoning tokens (like o1), so they need higher limits
-    const completionMaxTokens = model.includes('gpt-oss')
+    const baseCompletionMaxTokens = model.includes('gpt-oss')
       ? 8000 // High limit for reasoning models
       : 2500;
+
+    // Adjust token limits for code_interpreter tool overhead (+300 tokens)
+    const completionMaxTokens = adjustTokenLimitForCodeInterpreter(baseCompletionMaxTokens);
+
+    // Get code interpreter params for accurate content analysis
+    const codeInterpreterParams = getCodeInterpreterParams({
+      enabled: true,
+      toolChoice: "auto", // May help with content length calculations
+      maxExecutionTime: 8000,
+      tokenOverhead: 300, // Already accounted for in completionMaxTokens
+    });
 
     const completion = await client.chat.completions.create({
       model,
@@ -146,6 +158,7 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
         { role: "system" as const, content: enhancedSystemPrompt },
         { role: "user" as const, content: userPrompt },
       ],
+      ...codeInterpreterParams, // Add code_interpreter tool
     });
 
     const message = completion?.choices?.[0]?.message;

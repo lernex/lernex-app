@@ -11,6 +11,7 @@ import { compressContext } from "./semantic-compression";
 import { shuffleQuizQuestions } from "./quiz-shuffle";
 import { normalizeLatex } from "./latex";
 import { calculateDynamicTokenLimit, shouldRetryLesson } from "./dynamic-token-limits";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "./code-interpreter";
 
 type Pace = "slow" | "normal" | "fast";
 
@@ -979,13 +980,17 @@ export async function generateLessonForTopic(
     questionCount: 3,
   });
 
-  const completionMaxTokens = Math.min(
+  const baseCompletionMaxTokens = Math.min(
     4096,
     Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS) || tokenLimitResult.maxTokens),
   );
 
+  // Adjust token limits for code_interpreter tool overhead (+300 tokens for math accuracy)
+  const completionMaxTokens = adjustTokenLimitForCodeInterpreter(baseCompletionMaxTokens);
+
   console.log('[fyp] Dynamic token limit:', {
     calculated: tokenLimitResult.maxTokens,
+    base: baseCompletionMaxTokens,
     final: completionMaxTokens,
     reasoning: tokenLimitResult.reasoning,
   });
@@ -1358,6 +1363,14 @@ export async function generateLessonForTopic(
           responseFormatMode,
           messageCount: messages.length,
         };
+        // Get code interpreter params for FYP lesson generation
+        const codeInterpreterParams = getCodeInterpreterParams({
+          enabled: true,
+          toolChoice: "auto", // Critical for math/science accuracy in FYP
+          maxExecutionTime: 8000,
+          tokenOverhead: 300, // Already accounted for in completionMaxTokens
+        });
+
         const payload = {
           model,
           temperature,
@@ -1365,12 +1378,12 @@ export async function generateLessonForTopic(
           messages,
           ...(variant.useFunctionCall
             ? {
-                tools: [CREATE_LESSON_TOOL],
+                tools: [CREATE_LESSON_TOOL, ...(codeInterpreterParams.tools || [])],
                 tool_choice: { type: "function" as const, function: { name: "create_lesson" } }
               }
             : variant.usePlainResponse
-              ? {}
-              : { response_format: { type: "json_object" as const } }
+              ? { ...codeInterpreterParams } // Add code_interpreter for plain response
+              : { response_format: { type: "json_object" as const }, ...codeInterpreterParams }
           ),
         };
 
@@ -1597,19 +1610,30 @@ export async function generateLessonForTopic(
 
         // Retry once with higher limit
         try {
+          // Adjust retry token limit for code_interpreter overhead
+          const retryMaxTokens = adjustTokenLimitForCodeInterpreter(retryCheck.newLimit);
+
+          // Get code interpreter params for retry
+          const retryCodeInterpreterParams = getCodeInterpreterParams({
+            enabled: true,
+            toolChoice: "auto",
+            maxExecutionTime: 8000,
+            tokenOverhead: 300,
+          });
+
           const retryCompletion = await client.chat.completions.create({
             model,
             temperature,
-            max_tokens: retryCheck.newLimit,
+            max_tokens: retryMaxTokens,
             messages: messagesWithContext,
             ...(functionCallingSupported
               ? {
-                  tools: [CREATE_LESSON_TOOL],
+                  tools: [CREATE_LESSON_TOOL, ...(retryCodeInterpreterParams.tools || [])],
                   tool_choice: { type: "function" as const, function: { name: "create_lesson" } }
                 }
               : jsonResponseSupported
-                ? { response_format: { type: "json_object" as const } }
-                : {}
+                ? { response_format: { type: "json_object" as const }, ...retryCodeInterpreterParams }
+                : { ...retryCodeInterpreterParams }
             ),
           });
 

@@ -9,6 +9,7 @@ import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { getCachedSampleQuestions } from "@/lib/sat-sample-cache";
 import { compressContext } from "@/lib/semantic-compression";
 import { getSATTokenLimit } from "@/lib/dynamic-token-limits";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "@/lib/code-interpreter";
 
 export async function POST(req: Request) {
   const t0 = Date.now();
@@ -125,7 +126,10 @@ export async function POST(req: Request) {
 
     // OPTIMIZED: Dynamic token limit (43% reduction from 2800 to ~1600)
     const dynamicLimit = getSATTokenLimit(section as "math" | "reading" | "writing", topic);
-    const maxTokens = Math.max(1200, Math.min(3200, Number(process.env.SAT_LESSON_MAX_TOKENS) || dynamicLimit));
+    const baseMaxTokens = Math.max(1200, Math.min(3200, Number(process.env.SAT_LESSON_MAX_TOKENS) || dynamicLimit));
+
+    // Adjust token limits for code_interpreter tool overhead (+300 tokens for math accuracy)
+    const maxTokens = adjustTokenLimitForCodeInterpreter(baseMaxTokens);
 
     console.log('[sat-prep/stream] Dynamic token limit:', {
       calculated: dynamicLimit,
@@ -139,12 +143,21 @@ export async function POST(req: Request) {
       { role: "user", content: userPrompt },
     ];
 
+    // Get code interpreter params for SAT math accuracy
+    const codeInterpreterParams = getCodeInterpreterParams({
+      enabled: true,
+      toolChoice: "auto", // Critical for SAT math problems
+      maxExecutionTime: 8000, // 8 second timeout
+      tokenOverhead: 300, // Already accounted for in maxTokens
+    });
+
     const streamPromise = client.chat.completions.create({
       model,
       temperature: 0.8,
       max_tokens: maxTokens,
       stream: true,
       messages: baseMessages,
+      ...codeInterpreterParams, // Add code_interpreter for math accuracy
     });
 
     const bodyStream = new ReadableStream<Uint8Array>({
@@ -230,6 +243,7 @@ export async function POST(req: Request) {
                 temperature: 0.8,
                 max_tokens: maxTokens,
                 messages: baseMessages,
+                ...codeInterpreterParams, // Add code_interpreter for fallback
               });
               const full = (nonStream?.choices?.[0]?.message?.content as string | undefined) ?? "";
               if (full) {

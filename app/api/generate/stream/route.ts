@@ -7,6 +7,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { canUserGenerate, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { compressContext } from "@/lib/semantic-compression";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
 
 // Raised limits per request
 const MAX_CHARS = 6000; // allow longer input passages
@@ -157,24 +158,36 @@ export async function POST(req: Request) {
     }
 
     // Token budgets per mode (clamped to keep responses compact)
-    const quickMaxTokens = Math.min(
+    // Base limits before code_interpreter overhead
+    const quickMaxTokensBase = Math.min(
       2200,
       Math.max(600, Number(process.env.GROQ_STREAM_MAX_TOKENS_QUICK ?? "1400") || 1400),
     );
-    const miniMaxTokens = Math.min(
+    const miniMaxTokensBase = Math.min(
       3600,
       Math.max(1200, Number(process.env.GROQ_STREAM_MAX_TOKENS_MINI ?? "2400") || 2400),
     );
-    const fullMaxTokens = Math.min(
+    const fullMaxTokensBase = Math.min(
       5200,
       Math.max(2000, Number(process.env.GROQ_STREAM_MAX_TOKENS_FULL ?? "3600") || 3600),
     );
-    const maxTokens = mode === "quick" ? quickMaxTokens : mode === "full" ? fullMaxTokens : miniMaxTokens;
+    const baseMaxTokens = mode === "quick" ? quickMaxTokensBase : mode === "full" ? fullMaxTokensBase : miniMaxTokensBase;
+
+    // Adjust token limits for code_interpreter tool overhead (+300 tokens)
+    const maxTokens = adjustTokenLimitForCodeInterpreter(baseMaxTokens);
     // Explicitly type messages so literal roles don't widen to `string`.
     const baseMessages: ChatCompletionCreateParams["messages"] = [
       { role: "system", content: system },
       { role: "user", content: `Subject: ${subject}\nMode: ${mode}\nSource Text:\n${compressedSrc}\nWrite the lesson as instructed.` },
     ];
+
+    // Get code interpreter params for math accuracy
+    const codeInterpreterParams = getCodeInterpreterParams({
+      enabled: true,
+      toolChoice: "auto", // Let model decide when to use Python for calculations
+      maxExecutionTime: 8000, // 8 second timeout for code execution
+      tokenOverhead: 300, // Already accounted for in maxTokens
+    });
 
     const streamPromise = client.chat.completions.create({
       model,
@@ -182,6 +195,7 @@ export async function POST(req: Request) {
       max_tokens: maxTokens,
       stream: true,
       messages: baseMessages,
+      ...codeInterpreterParams, // Add code_interpreter tool
     });
 
     const bodyStream = new ReadableStream<Uint8Array>({
@@ -298,6 +312,7 @@ export async function POST(req: Request) {
                 temperature: 1,
                 max_tokens: maxTokens,
                 messages: baseMessages,
+                ...codeInterpreterParams, // Add code_interpreter tool to fallback
               });
               const full = (nonStream?.choices?.[0]?.message?.content as string | undefined) ?? "";
               if (full) {

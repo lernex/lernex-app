@@ -457,27 +457,27 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
         };
 
         const getGradient = () => {
-          if (isPerfect) return "from-yellow-500/20 via-orange-500/20 to-pink-500/20";
-          if (isExcellent) return "from-green-500/20 via-emerald-500/20 to-teal-500/20";
-          if (isGood) return "from-blue-500/20 via-cyan-500/20 to-sky-500/20";
-          if (isOkay) return "from-purple-500/20 via-violet-500/20 to-indigo-500/20";
-          return "from-neutral-500/20 via-slate-500/20 to-gray-500/20";
+          if (isPerfect) return "from-green-500/20 via-emerald-500/20 to-teal-500/20";
+          if (isExcellent) return "from-teal-500/20 via-cyan-500/20 to-sky-500/20";
+          if (isGood) return "from-yellow-500/20 via-amber-500/20 to-orange-400/20";
+          if (isOkay) return "from-orange-500/20 via-orange-600/20 to-amber-600/20";
+          return "from-red-500/20 via-red-600/20 to-rose-600/20";
         };
 
         const getAccentColor = () => {
-          if (isPerfect) return "text-yellow-500";
-          if (isExcellent) return "text-green-500";
-          if (isGood) return "text-blue-500";
-          if (isOkay) return "text-purple-500";
-          return "text-neutral-500";
+          if (isPerfect) return "text-green-500";
+          if (isExcellent) return "text-teal-500";
+          if (isGood) return "text-yellow-500";
+          if (isOkay) return "text-orange-500";
+          return "text-red-500";
         };
 
         const getProgressColor = () => {
-          if (isPerfect) return "#eab308"; // yellow-500
-          if (isExcellent) return "#10b981"; // green-500
-          if (isGood) return "#3b82f6"; // blue-500
-          if (isOkay) return "#a855f7"; // purple-500
-          return "#737373"; // neutral-500
+          if (isPerfect) return "#10b981"; // green-500
+          if (isExcellent) return "#14b8a6"; // teal-500
+          if (isGood) return "#eab308"; // yellow-500
+          if (isOkay) return "#f97316"; // orange-500
+          return "#ef4444"; // red-500
         };
 
         // Circular progress SVG
@@ -655,7 +655,7 @@ export default function QuizBlock({ lesson, onDone, showSummary = true }: QuizBl
               {/* Perfect score confetti indicator */}
               {isPerfect && (
                 <div className="mt-4 text-center">
-                  <div className="inline-flex items-center gap-2 text-sm text-yellow-600 dark:text-yellow-400">
+                  <div className="inline-flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
                     <span>🎉</span>
                     <span className="font-medium">You&apos;re on fire!</span>
                     <span>🎉</span>
