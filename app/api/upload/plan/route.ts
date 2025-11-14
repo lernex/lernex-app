@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { canUserGenerate, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
-import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "@/lib/code-interpreter";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -197,6 +197,9 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
     const usage = completion?.usage;
     if (usage && (uid || ip)) {
       try {
+        // Check if code interpreter was used
+        const codeInterpreterUsed = usedCodeInterpreter(completion?.choices?.[0]?.message);
+
         await logUsage(sb, uid, ip, modelIdentifier, {
           input_tokens: typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : null,
           output_tokens: typeof usage.completion_tokens === "number" ? usage.completion_tokens : null,
@@ -206,7 +209,8 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
             subject: plan.subject,
             lessonCount: plan.lessons.length,
             provider,
-            tier: userTier
+            tier: userTier,
+            codeInterpreterUsed,
           },
         });
         console.log('[plan] Usage logged successfully');
@@ -238,7 +242,8 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
             error: msg,
             errorType: err instanceof Error ? err.name : typeof err,
             provider,
-            tier: userTier
+            tier: userTier,
+            codeInterpreterUsed: false, // Error occurred, so no code interpreter was used
           },
         });
         console.log('[plan] Error usage logged');

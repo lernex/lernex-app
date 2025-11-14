@@ -8,7 +8,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { canUserGenerate, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { compressContext } from "@/lib/semantic-compression";
-import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "@/lib/code-interpreter";
 
 // Raised limits per request
 const MAX_CHARS = 6000; // allow longer input passages
@@ -211,6 +211,7 @@ export async function POST(req: Request) {
         let fallbackReason: string | null = null;
         const startedAt = Date.now();
         let usageSummary: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
+        let codeInterpreterUsed = false; // Track if code interpreter was used
 
         // Buffer for incremental JSON parsing
         let buffer = "";
@@ -254,6 +255,13 @@ export async function POST(req: Request) {
                 output_tokens: chunkUsage.completion_tokens ?? null,
               };
             }
+
+            // Check if this chunk indicates code interpreter usage
+            const message = choice?.message;
+            if (message && !codeInterpreterUsed) {
+              codeInterpreterUsed = usedCodeInterpreter(message);
+            }
+
             if (!sawActivity && (content || reasoning)) {
               console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
               clearTimeout(firstTokenTimer);
@@ -333,6 +341,8 @@ export async function POST(req: Request) {
               } else {
                 console.warn("[gen/stream] fallback-empty");
               }
+              // Check if code interpreter was used in fallback
+              codeInterpreterUsed = usedCodeInterpreter(nonStream?.choices?.[0]?.message);
               const u = nonStream?.usage;
               if (u) {
                 usageSummary = {
@@ -347,7 +357,7 @@ export async function POST(req: Request) {
           if (usageSummary && (uid || ip)) {
             try {
               await logUsage(sb, uid, ip, modelIdentifier, usageSummary, {
-                metadata: { route: "lesson-text", mode, subject, provider, tier: userTier },
+                metadata: { route: "lesson-text", mode, subject, provider, tier: userTier, codeInterpreterUsed },
               });
             } catch (logErr) {
               console.warn("[gen/stream] usage-log-error", logErr);

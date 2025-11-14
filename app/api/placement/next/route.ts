@@ -11,7 +11,7 @@ import { canUserGenerate, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { shuffleQuestionChoices } from "@/lib/quiz-shuffle";
 import { LEVELS_BY_DOMAIN } from "@/data/domains";
-import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "@/lib/code-interpreter";
 const BASE_MAX_TOKENS = Math.min(
   1800,
   Math.max(
@@ -268,6 +268,9 @@ Create 1 multiple-choice question from course syllabus. Include brief explanatio
     }
     if (mapped) {
       try {
+        // Check if code interpreter was used
+        const codeInterpreterUsed = usedCodeInterpreter(completion?.choices?.[0]?.message);
+
         await logUsage(sb, uid, ip, modelIdentifier, mapped, {
           metadata: {
             route: "placement-test",
@@ -280,6 +283,7 @@ Create 1 multiple-choice question from course syllabus. Include brief explanatio
             correctStreak: state.correctStreak,
             provider,
             tier: userTier,
+            codeInterpreterUsed,
           }
         });
       } catch {
@@ -537,6 +541,7 @@ export async function POST(req: Request) {
             errorType: e instanceof Error ? e.name : typeof e,
             provider,
             tier: userTier,
+            codeInterpreterUsed: false, // Error occurred, so no code interpreter was used
           }
         });
       }

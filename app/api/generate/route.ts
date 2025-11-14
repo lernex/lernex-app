@@ -16,7 +16,7 @@ import { compressContext } from "@/lib/semantic-compression";
 import { calculateDynamicTokenLimit } from "@/lib/dynamic-token-limits";
 import { fixLatexEscaping, tryParseJsonWithLatex } from "@/lib/latex-utils";
 import type { PipelineConfig } from "@/lib/pipeline-types";
-import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "@/lib/code-interpreter";
 
 // Function calling tool schema for lesson generation (saves ~80-120 tokens per lesson)
 const CREATE_LESSON_TOOL = {
@@ -481,6 +481,7 @@ export async function POST(req: NextRequest) {
           let chunkCount = 0;
           let finishReason: string | null = null;
           let usageSummary: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
+          let codeInterpreterUsed = false; // Track if code interpreter was used
           try {
             console.log('[generate] Beginning to process chunks...');
             for await (const chunk of stream) {
@@ -530,6 +531,12 @@ export async function POST(req: NextRequest) {
                   output_tokens: typeof chunkUsage.completion_tokens === "number" ? chunkUsage.completion_tokens : null,
                 };
               }
+
+              // Check if this chunk indicates code interpreter usage
+              const message = choice?.message;
+              if (message && !codeInterpreterUsed) {
+                codeInterpreterUsed = usedCodeInterpreter(message);
+              }
             }
 
             console.log('[generate] Stream processing complete:', {
@@ -575,6 +582,8 @@ export async function POST(req: NextRequest) {
                   console.warn("[gen/lesson] fallback-empty - no content in message");
                   console.warn("[gen/lesson] Full fallback response:", JSON.stringify(fallback, null, 2));
                 }
+                // Check if code interpreter was used in fallback
+                codeInterpreterUsed = usedCodeInterpreter(message);
                 const u = fallback?.usage;
                 if (u) {
                   usageSummary = {
@@ -652,7 +661,7 @@ export async function POST(req: NextRequest) {
             if (usageSummary && (uid || ip)) {
               try {
                 await logUsage(sb, uid, ip, modelIdentifier, usageSummary, {
-                  metadata: { route: "lesson-stream", subject, difficulty, provider, tier: userTier },
+                  metadata: { route: "lesson-stream", subject, difficulty, provider, tier: userTier, codeInterpreterUsed },
                 });
                 console.log('[generate] Usage logged successfully');
               } catch (logErr) {
@@ -692,6 +701,7 @@ export async function POST(req: NextRequest) {
             errorType: err instanceof Error ? err.name : typeof err,
             provider,
             tier: userTier,
+            codeInterpreterUsed: false, // Error occurred, so no code interpreter was used
           }
         });
         console.log('[generate] Error usage logged');

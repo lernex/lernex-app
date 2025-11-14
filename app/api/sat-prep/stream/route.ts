@@ -173,6 +173,7 @@ export async function POST(req: Request) {
         let fallbackReason: string | null = null;
         const startedAt = Date.now();
         let usageSummary: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
+        let codeInterpreterUsed = false; // Track if code interpreter was used
 
         const safeEnqueue = (s: string) => {
           if (!closed && s) controller.enqueue(enc.encode(s));
@@ -209,6 +210,13 @@ export async function POST(req: Request) {
                 input_tokens: chunkUsage.prompt_tokens ?? null,
                 output_tokens: chunkUsage.completion_tokens ?? null,
               };
+            }
+
+            // Check if this chunk indicates code interpreter usage
+            // In streaming mode, executed_tools may appear in the final message
+            const message = choice?.message;
+            if (message && !codeInterpreterUsed) {
+              codeInterpreterUsed = usedCodeInterpreter(message);
             }
             if (!sawActivity && (content || reasoning)) {
               console.log("[sat-prep/stream] first-token", { dt: Date.now() - t0 });
@@ -256,6 +264,8 @@ export async function POST(req: Request) {
               } else {
                 console.warn("[sat-prep/stream] fallback-empty");
               }
+              // Check if code interpreter was used in fallback
+              codeInterpreterUsed = usedCodeInterpreter(nonStream?.choices?.[0]?.message);
               const u = nonStream?.usage;
               if (u) {
                 usageSummary = {
@@ -270,7 +280,7 @@ export async function POST(req: Request) {
           if (usageSummary && (uid || ip)) {
             try {
               await logUsage(sb, uid, ip, modelIdentifier, usageSummary, {
-                metadata: { route: "sat-prep-lesson", section, topic, provider, tier: userTier },
+                metadata: { route: "sat-prep-lesson", section, topic, provider, tier: userTier, codeInterpreterUsed },
               });
             } catch (logErr) {
               console.warn("[sat-prep/stream] usage-log-error", logErr);

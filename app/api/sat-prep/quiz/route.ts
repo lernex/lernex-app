@@ -9,7 +9,7 @@ import { getCachedSampleQuestions } from "@/lib/sat-sample-cache";
 import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
 import { normalizeLatex } from "@/lib/latex";
 import { getSATTokenLimit } from "@/lib/dynamic-token-limits";
-import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "@/lib/code-interpreter";
 
 // OPTIMIZATION: Function calling tool schema for SAT quiz generation (42% output token reduction)
 // Function calling eliminates JSON wrapper overhead compared to JSON mode
@@ -235,11 +235,14 @@ export async function POST(req: Request) {
     const usage = completion?.usage;
     if (usage && (uid || ip)) {
       try {
+        // Check if code interpreter was used
+        const codeInterpreterUsed = usedCodeInterpreter(completion?.choices?.[0]?.message);
+
         await logUsage(sb, uid, ip, modelIdentifier, {
           input_tokens: usage.prompt_tokens ?? null,
           output_tokens: usage.completion_tokens ?? null,
         }, {
-          metadata: { route: "sat-prep-quiz", section, topic, provider, tier: userTier },
+          metadata: { route: "sat-prep-quiz", section, topic, provider, tier: userTier, codeInterpreterUsed },
         });
       } catch (logErr) {
         console.warn("[sat-prep/quiz] usage-log-error", logErr);

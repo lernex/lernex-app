@@ -9,7 +9,7 @@ import { canUserGenerate, logUsage } from "@/lib/usage";
 import { normalizeLatex, scanLatex, hasLatexIssues } from "@/lib/latex";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
-import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "@/lib/code-interpreter";
 
 const MAX_CHARS = 4300;
 
@@ -224,6 +224,7 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
         let usedFallback = false;
         let completion: { usage?: { prompt_tokens?: number; completion_tokens?: number } } | null = null;
         let sentQuestionCount = 0;
+        let codeInterpreterUsed = false; // Track if code interpreter was used
 
         const safeEnqueue = (data: string) => {
           try {
@@ -276,6 +277,13 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
             const chunkUsage = (chunk as { usage?: { prompt_tokens?: number; completion_tokens?: number } })?.usage;
             if (chunkUsage) {
               completion = { usage: chunkUsage };
+            }
+
+            // Check if this chunk indicates code interpreter usage
+            const choice = chunk?.choices?.[0];
+            const message = choice?.message;
+            if (message && !codeInterpreterUsed) {
+              codeInterpreterUsed = usedCodeInterpreter(message);
             }
 
             if (content) {
@@ -331,6 +339,8 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
 
             const raw = (fallbackCompletion.choices?.[0]?.message?.content as string | undefined) ?? "{}";
             completion = fallbackCompletion;
+            // Check if code interpreter was used in fallback
+            codeInterpreterUsed = usedCodeInterpreter(fallbackCompletion?.choices?.[0]?.message);
 
             // Parse and send all questions
             const parsed = tryParseQuestions(raw);
@@ -368,6 +378,7 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
                 provider,
                 tier: userTier,
                 questionCount: sentQuestionCount,
+                codeInterpreterUsed,
               }
             });
           } catch (logErr) {
