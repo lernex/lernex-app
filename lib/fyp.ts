@@ -1129,6 +1129,9 @@ export async function generateLessonForTopic(
   let codeInterpreterUsed = false;
   const variantHistory: Array<Record<string, unknown>> = [];
 
+  // Check if subject is math-related for code interpreter requirements
+  const subjectIsMath = isMathSubject(subject);
+
   const sourceTextBytes = measureBytes(sourceText);
   const structuredContextBytes = structuredContextJson ? measureBytes(structuredContextJson) : 0;
   const structuredContextKeys = opts.structuredContext
@@ -1368,7 +1371,6 @@ export async function generateLessonForTopic(
         };
         // Get code interpreter params for FYP lesson generation
         // REQUIRE code interpreter for math subjects to ensure calculation accuracy
-        const subjectIsMath = isMathSubject(subject);
         const codeInterpreterParams = getCodeInterpreterParams({
           enabled: true,
           toolChoice: subjectIsMath ? "required" : "auto", // Force for math, optional for others
