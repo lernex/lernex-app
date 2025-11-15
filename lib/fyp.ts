@@ -12,6 +12,7 @@ import { shuffleQuizQuestions } from "./quiz-shuffle";
 import { normalizeLatex } from "./latex";
 import { calculateDynamicTokenLimit, shouldRetryLesson } from "./dynamic-token-limits";
 import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "./code-interpreter";
+import { isMathSubject } from "./math-detection";
 
 type Pace = "slow" | "normal" | "fast";
 
@@ -1367,10 +1368,10 @@ export async function generateLessonForTopic(
         };
         // Get code interpreter params for FYP lesson generation
         // REQUIRE code interpreter for math subjects to ensure calculation accuracy
-        const isMathSubject = /math|algebra|geometry|calculus|trigonometry|statistics|physics|chemistry/i.test(subject);
+        const subjectIsMath = isMathSubject(subject);
         const codeInterpreterParams = getCodeInterpreterParams({
           enabled: true,
-          toolChoice: isMathSubject ? "required" : "auto", // Force for math, optional for others
+          toolChoice: subjectIsMath ? "required" : "auto", // Force for math, optional for others
           maxExecutionTime: 8000,
           tokenOverhead: 500, // Already accounted for in completionMaxTokens
         });
@@ -1629,7 +1630,7 @@ export async function generateLessonForTopic(
           // REQUIRE code interpreter for math subjects in retry
           const retryCodeInterpreterParams = getCodeInterpreterParams({
             enabled: true,
-            toolChoice: isMathSubject ? "required" : "auto", // Use same logic as main attempt
+            toolChoice: subjectIsMath ? "required" : "auto", // Use same logic as main attempt
             maxExecutionTime: 8000,
             tokenOverhead: 500,
           });
