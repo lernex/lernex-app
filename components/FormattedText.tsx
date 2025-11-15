@@ -783,11 +783,11 @@ function formatNonMath(s: string, existingReplacements?: Map<string, string>, pl
   const counter = placeholderCounter || { value: 0 };
 
   // PROTECTION PHASE: Protect content from processing in order of priority
-  let protected = s;
+  let protectedText = s;
 
   // 1. Protect URLs first (highest priority - don't format these at all)
   if (!existingReplacements) {
-    protected = protected.replace(RE_URL, (match) => {
+    protectedText = protectedText.replace(RE_URL, (match) => {
       const key = `\u{FFFC}PLACEHOLDER${counter.value++}\u{FFFC}`;
       replacements.set(key, `<a href="${escapeHtml(match)}" target="_blank" rel="noopener noreferrer" class="text-lernex-blue hover:underline">${escapeHtml(match)}</a>`);
       return key;
@@ -796,8 +796,8 @@ function formatNonMath(s: string, existingReplacements?: Map<string, string>, pl
 
   // 2. Protect markdown tables from all processing (skip if already extracted)
   const withMarkdownTablePlaceholders = existingReplacements
-    ? protected
-    : protected.replace(RE_MARKDOWN_TABLE, (match) => {
+    ? protectedText
+    : protectedText.replace(RE_MARKDOWN_TABLE, (match) => {
         const key = `\u{FFFC}PLACEHOLDER${counter.value++}\u{FFFC}`;
         try {
           replacements.set(key, parseMarkdownTable(match));
