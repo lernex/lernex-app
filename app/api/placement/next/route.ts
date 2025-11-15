@@ -20,7 +20,7 @@ const BASE_MAX_TOKENS = Math.min(
   ),
 );
 
-// Adjust for code_interpreter tool overhead (+300 tokens for math accuracy)
+// Adjust for code_interpreter tool overhead (+500 tokens for math accuracy)
 const MAX_TOKENS = adjustTokenLimitForCodeInterpreter(BASE_MAX_TOKENS);
 
 // Safety
@@ -151,7 +151,7 @@ Create 1 multiple-choice question from course syllabus. Include brief explanatio
         enabled: true,
         toolChoice: "auto", // Let model decide when to use Python for math problems
         maxExecutionTime: 8000,
-        tokenOverhead: 300, // Already accounted for in maxTokens
+        tokenOverhead: 500, // Already accounted for in maxTokens
       });
 
       const completion = await aiClient.chat.completions.create({

@@ -46,7 +46,7 @@ export interface CodeInterpreterConfig {
   /**
    * Additional token allowance for tool calling overhead
    * This is added to the base max_tokens to account for tool use
-   * @default 300
+   * @default 500
    */
   tokenOverhead?: number;
 }
@@ -58,7 +58,7 @@ export const DEFAULT_CODE_INTERPRETER_CONFIG: Required<CodeInterpreterConfig> = 
   enabled: true,
   toolChoice: "auto",
   maxExecutionTime: 8000, // 8 seconds
-  tokenOverhead: 300, // 300 extra tokens for tool calling
+  tokenOverhead: 500, // 500 extra tokens for tool calling
 };
 
 /**

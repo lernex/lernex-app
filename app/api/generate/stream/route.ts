@@ -8,7 +8,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { canUserGenerate, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { compressContext } from "@/lib/semantic-compression";
-import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "@/lib/code-interpreter";
 
 // Raised limits per request
 const MAX_CHARS = 6000; // allow longer input passages
@@ -174,7 +174,7 @@ export async function POST(req: Request) {
     );
     const baseMaxTokens = mode === "quick" ? quickMaxTokensBase : mode === "full" ? fullMaxTokensBase : miniMaxTokensBase;
 
-    // Adjust token limits for code_interpreter tool overhead (+300 tokens)
+    // Adjust token limits for code_interpreter tool overhead (+500 tokens)
     const maxTokens = adjustTokenLimitForCodeInterpreter(baseMaxTokens);
     // Explicitly type messages so literal roles don't widen to `string`.
     const baseMessages: ChatCompletionCreateParams["messages"] = [
@@ -187,7 +187,7 @@ export async function POST(req: Request) {
       enabled: true,
       toolChoice: "auto", // Let model decide when to use Python for calculations
       maxExecutionTime: 8000, // 8 second timeout for code execution
-      tokenOverhead: 300, // Already accounted for in maxTokens
+      tokenOverhead: 500, // Already accounted for in maxTokens
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -211,6 +211,7 @@ export async function POST(req: Request) {
         let fallbackReason: string | null = null;
         const startedAt = Date.now();
         let usageSummary: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
+        let codeInterpreterUsed = false;
 
         // Buffer for incremental JSON parsing
         let buffer = "";
@@ -254,6 +255,13 @@ export async function POST(req: Request) {
                 output_tokens: chunkUsage.completion_tokens ?? null,
               };
             }
+
+            // Check if code interpreter was used in this chunk
+            const chunkMessage = (chunk as unknown as { choices?: Array<{ message?: { executed_tools?: Array<{ type: string }> } }> })?.choices?.[0]?.message;
+            if (chunkMessage && !codeInterpreterUsed) {
+              codeInterpreterUsed = usedCodeInterpreter(chunkMessage);
+            }
+
             if (!sawActivity && (content || reasoning)) {
               console.log("[gen/stream] first-token", { dt: Date.now() - t0 });
               clearTimeout(firstTokenTimer);
@@ -333,6 +341,13 @@ export async function POST(req: Request) {
               } else {
                 console.warn("[gen/stream] fallback-empty");
               }
+
+              // Check if code interpreter was used in fallback
+              const fallbackMessage = nonStream?.choices?.[0]?.message;
+              if (fallbackMessage && !codeInterpreterUsed) {
+                codeInterpreterUsed = usedCodeInterpreter(fallbackMessage as { executed_tools?: Array<{ type: string }> });
+              }
+
               const u = nonStream?.usage;
               if (u) {
                 usageSummary = {
@@ -347,7 +362,7 @@ export async function POST(req: Request) {
           if (usageSummary && (uid || ip)) {
             try {
               await logUsage(sb, uid, ip, modelIdentifier, usageSummary, {
-                metadata: { route: "lesson-text", mode, subject, provider, tier: userTier },
+                metadata: { route: "lesson-text", mode, subject, provider, tier: userTier, codeInterpreterUsed },
               });
             } catch (logErr) {
               console.warn("[gen/stream] usage-log-error", logErr);

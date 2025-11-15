@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { canUserGenerate, logUsage } from "@/lib/usage";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
-import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "@/lib/code-interpreter";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -139,7 +139,7 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
       ? 8000 // High limit for reasoning models
       : 2500;
 
-    // Adjust token limits for code_interpreter tool overhead (+300 tokens)
+    // Adjust token limits for code_interpreter tool overhead (+500 tokens)
     const completionMaxTokens = adjustTokenLimitForCodeInterpreter(baseCompletionMaxTokens);
 
     // Get code interpreter params for accurate content analysis
@@ -147,7 +147,7 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
       enabled: true,
       toolChoice: "auto", // May help with content length calculations
       maxExecutionTime: 8000,
-      tokenOverhead: 300, // Already accounted for in completionMaxTokens
+      tokenOverhead: 500, // Already accounted for in completionMaxTokens
     });
 
     const completion = await client.chat.completions.create({
@@ -164,6 +164,9 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
 
     const message = completion?.choices?.[0]?.message;
     const content = message?.content;
+
+    // Check if code interpreter was used
+    const codeInterpreterUsed = usedCodeInterpreter(message as { executed_tools?: Array<{ type: string }> });
 
     console.log('[plan] Response analysis:', {
       hasCompletion: !!completion,
@@ -206,7 +209,8 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
             subject: plan.subject,
             lessonCount: plan.lessons.length,
             provider,
-            tier: userTier
+            tier: userTier,
+            codeInterpreterUsed
           },
         });
         console.log('[plan] Usage logged successfully');

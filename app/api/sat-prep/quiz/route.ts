@@ -9,7 +9,7 @@ import { getCachedSampleQuestions } from "@/lib/sat-sample-cache";
 import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
 import { normalizeLatex } from "@/lib/latex";
 import { getSATTokenLimit } from "@/lib/dynamic-token-limits";
-import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "@/lib/code-interpreter";
 
 // OPTIMIZATION: Function calling tool schema for SAT quiz generation (42% output token reduction)
 // Function calling eliminates JSON wrapper overhead compared to JSON mode
@@ -158,7 +158,7 @@ export async function POST(req: Request) {
     const dynamicLimit = getSATTokenLimit(section as "math" | "reading" | "writing", topic);
     const baseMaxTokens = Math.max(1200, Math.min(3200, Number(process.env.SAT_QUIZ_MAX_TOKENS) || dynamicLimit));
 
-    // Adjust token limit for code_interpreter tool overhead (+300 tokens for math accuracy)
+    // Adjust token limit for code_interpreter tool overhead (+500 tokens for math accuracy)
     const maxTokens = adjustTokenLimitForCodeInterpreter(baseMaxTokens);
 
     console.log('[sat-prep/quiz] Dynamic token limit:', {
@@ -177,7 +177,7 @@ export async function POST(req: Request) {
       enabled: true,
       toolChoice: "auto", // Let model decide when to use Python for math problems
       maxExecutionTime: 8000,
-      tokenOverhead: 300, // Already accounted for in maxTokens
+      tokenOverhead: 500, // Already accounted for in maxTokens
     });
 
     const completion = await client.chat.completions.create({
@@ -199,6 +199,10 @@ export async function POST(req: Request) {
       console.error("[sat-prep/quiz] no-content", { completion });
       throw new Error("No content in AI response");
     }
+
+    // Check if code interpreter was used
+    const message = completion?.choices?.[0]?.message;
+    const codeInterpreterUsed = usedCodeInterpreter(message as { executed_tools?: Array<{ type: string }> });
 
     console.log("[sat-prep/quiz] content-length", content.length);
 
@@ -239,7 +243,7 @@ export async function POST(req: Request) {
           input_tokens: usage.prompt_tokens ?? null,
           output_tokens: usage.completion_tokens ?? null,
         }, {
-          metadata: { route: "sat-prep-quiz", section, topic, provider, tier: userTier },
+          metadata: { route: "sat-prep-quiz", section, topic, provider, tier: userTier, codeInterpreterUsed },
         });
       } catch (logErr) {
         console.warn("[sat-prep/quiz] usage-log-error", logErr);

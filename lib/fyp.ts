@@ -11,7 +11,7 @@ import { compressContext } from "./semantic-compression";
 import { shuffleQuizQuestions } from "./quiz-shuffle";
 import { normalizeLatex } from "./latex";
 import { calculateDynamicTokenLimit, shouldRetryLesson } from "./dynamic-token-limits";
-import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "./code-interpreter";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "./code-interpreter";
 
 type Pace = "slow" | "normal" | "fast";
 
@@ -985,7 +985,7 @@ export async function generateLessonForTopic(
     Math.max(900, Number(process.env.CEREBRAS_LESSON_MAX_TOKENS) || tokenLimitResult.maxTokens),
   );
 
-  // Adjust token limits for code_interpreter tool overhead (+300 tokens for math accuracy)
+  // Adjust token limits for code_interpreter tool overhead (+500 tokens for math accuracy)
   const completionMaxTokens = adjustTokenLimitForCodeInterpreter(baseCompletionMaxTokens);
 
   console.log('[fyp] Dynamic token limit:', {
@@ -1125,6 +1125,7 @@ export async function generateLessonForTopic(
   let usedPlainResponseMode = false;
   let usedFunctionCall = false;
   let trimmedStructuredContext = false;
+  let codeInterpreterUsed = false;
   const variantHistory: Array<Record<string, unknown>> = [];
 
   const sourceTextBytes = measureBytes(sourceText);
@@ -1295,6 +1296,7 @@ export async function generateLessonForTopic(
       metadata.provider = provider;
       metadata.tier = userTier;
       metadata.modelSpeed = modelSpeed;
+      metadata.codeInterpreterUsed = codeInterpreterUsed;
       await logUsage(sb, uid, ip, modelIdentifier, usagePayload, { metadata });
     } catch (usageErr) {
       console.warn("[fyp] usage log failed", usageErr);
@@ -1368,7 +1370,7 @@ export async function generateLessonForTopic(
           enabled: true,
           toolChoice: "auto", // Critical for math/science accuracy in FYP
           maxExecutionTime: 8000,
-          tokenOverhead: 300, // Already accounted for in completionMaxTokens
+          tokenOverhead: 500, // Already accounted for in completionMaxTokens
         });
 
         const payload = {
@@ -1390,6 +1392,13 @@ export async function generateLessonForTopic(
 
         try {
           completion = await client.chat.completions.create(payload);
+
+          // Check if code interpreter was used
+          const message = completion?.choices?.[0]?.message;
+          if (message && !codeInterpreterUsed) {
+            codeInterpreterUsed = usedCodeInterpreter(message as { executed_tools?: Array<{ type: string }> });
+          }
+
           const completionUsage = completion.usage;
           recordUsageEvent({
             source: "lesson",
@@ -1619,7 +1628,7 @@ export async function generateLessonForTopic(
             enabled: true,
             toolChoice: "auto",
             maxExecutionTime: 8000,
-            tokenOverhead: 300,
+            tokenOverhead: 500,
           });
 
           const retryCompletion = await client.chat.completions.create({
@@ -1642,6 +1651,12 @@ export async function generateLessonForTopic(
           });
 
           const retryChoice = retryCompletion.choices?.[0];
+
+          // Check if code interpreter was used in retry
+          if (retryChoice?.message && !codeInterpreterUsed) {
+            codeInterpreterUsed = usedCodeInterpreter(retryChoice.message as { executed_tools?: Array<{ type: string }> });
+          }
+
           const retryRaw = typeof retryChoice?.message?.content === "string" && retryChoice.message.content.trim().length > 0
             ? retryChoice.message.content.trim()
             : extractAssistantJson(retryChoice);

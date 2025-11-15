@@ -345,7 +345,7 @@ export async function POST(req: NextRequest) {
       ? Math.min(6400, Math.max(2400, baseLimit * 3)) // 3x for reasoning models
       : Math.min(3200, Math.max(900, baseLimit));
 
-    // Adjust token limits for code_interpreter tool overhead (+300 tokens)
+    // Adjust token limits for code_interpreter tool overhead (+500 tokens)
     const completionMaxTokens = adjustTokenLimitForCodeInterpreter(baseCompletionMaxTokens);
 
     console.log('[generate] Dynamic token limit:', {
@@ -434,7 +434,7 @@ export async function POST(req: NextRequest) {
       enabled: true,
       toolChoice: "auto", // Let model decide when to use Python
       maxExecutionTime: 8000,
-      tokenOverhead: 300, // Already accounted for in completionMaxTokens
+      tokenOverhead: 500, // Already accounted for in completionMaxTokens
     });
 
     let stream;

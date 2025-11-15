@@ -129,7 +129,7 @@ export async function POST(req: Request) {
     const dynamicLimit = getSATTokenLimit(section as "math" | "reading" | "writing", topic);
     const baseMaxTokens = Math.max(1200, Math.min(3200, Number(process.env.SAT_LESSON_MAX_TOKENS) || dynamicLimit));
 
-    // Adjust token limits for code_interpreter tool overhead (+300 tokens for math accuracy)
+    // Adjust token limits for code_interpreter tool overhead (+500 tokens for math accuracy)
     const maxTokens = adjustTokenLimitForCodeInterpreter(baseMaxTokens);
 
     console.log('[sat-prep/stream] Dynamic token limit:', {
@@ -149,7 +149,7 @@ export async function POST(req: Request) {
       enabled: true,
       toolChoice: "auto", // Critical for SAT math problems
       maxExecutionTime: 8000, // 8 second timeout
-      tokenOverhead: 300, // Already accounted for in maxTokens
+      tokenOverhead: 500, // Already accounted for in maxTokens
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -173,6 +173,7 @@ export async function POST(req: Request) {
         let fallbackReason: string | null = null;
         const startedAt = Date.now();
         let usageSummary: { input_tokens?: number | null; output_tokens?: number | null } | null = null;
+        let codeInterpreterUsed = false;
 
         const safeEnqueue = (s: string) => {
           if (!closed && s) controller.enqueue(enc.encode(s));
@@ -209,6 +210,12 @@ export async function POST(req: Request) {
                 input_tokens: chunkUsage.prompt_tokens ?? null,
                 output_tokens: chunkUsage.completion_tokens ?? null,
               };
+            }
+
+            // Check if code interpreter was used in this chunk
+            const chunkMessage = (chunk as unknown as { choices?: Array<{ message?: { executed_tools?: Array<{ type: string }> } }> })?.choices?.[0]?.message;
+            if (chunkMessage && !codeInterpreterUsed) {
+              codeInterpreterUsed = usedCodeInterpreter(chunkMessage);
             }
             if (!sawActivity && (content || reasoning)) {
               console.log("[sat-prep/stream] first-token", { dt: Date.now() - t0 });
@@ -256,6 +263,13 @@ export async function POST(req: Request) {
               } else {
                 console.warn("[sat-prep/stream] fallback-empty");
               }
+
+              // Check if code interpreter was used in fallback
+              const fallbackMessage = nonStream?.choices?.[0]?.message;
+              if (fallbackMessage && !codeInterpreterUsed) {
+                codeInterpreterUsed = usedCodeInterpreter(fallbackMessage as { executed_tools?: Array<{ type: string }> });
+              }
+
               const u = nonStream?.usage;
               if (u) {
                 usageSummary = {
@@ -270,7 +284,7 @@ export async function POST(req: Request) {
           if (usageSummary && (uid || ip)) {
             try {
               await logUsage(sb, uid, ip, modelIdentifier, usageSummary, {
-                metadata: { route: "sat-prep-lesson", section, topic, provider, tier: userTier },
+                metadata: { route: "sat-prep-lesson", section, topic, provider, tier: userTier, codeInterpreterUsed },
               });
             } catch (logErr) {
               console.warn("[sat-prep/stream] usage-log-error", logErr);

@@ -46,6 +46,12 @@ const nextConfig: NextConfig = {
   experimental: {
     // Optimize package imports for smaller bundles
     optimizePackageImports: ["lucide-react", "framer-motion"],
+
+    // Increase body size limit for audio file uploads (up to 250MB)
+    // This applies to Server Actions and helps with route handlers
+    serverActions: {
+      bodySizeLimit: '250mb',
+    },
   },
 
   // Webpack config for better code splitting

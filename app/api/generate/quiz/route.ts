@@ -9,7 +9,7 @@ import { canUserGenerate, logUsage } from "@/lib/usage";
 import { normalizeLatex, scanLatex, hasLatexIssues } from "@/lib/latex";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
-import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "@/lib/code-interpreter";
 
 const MAX_CHARS = 4300;
 
@@ -109,7 +109,7 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
       baseMaxTokens = mode === "quick" ? quickMaxTokensBase : mode === "full" ? fullMaxTokensBase : miniMaxTokensBase;
     }
 
-    // Adjust token limits for code_interpreter tool overhead (+300 tokens for quiz calculations)
+    // Adjust token limits for code_interpreter tool overhead (+500 tokens for quiz calculations)
     const maxTokens = adjustTokenLimitForCodeInterpreter(baseMaxTokens);
 
     // Helper functions for streaming quiz generation
@@ -224,6 +224,7 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
         let usedFallback = false;
         let completion: { usage?: { prompt_tokens?: number; completion_tokens?: number } } | null = null;
         let sentQuestionCount = 0;
+        let codeInterpreterUsed = false;
 
         const safeEnqueue = (data: string) => {
           try {
@@ -246,7 +247,7 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
           enabled: true,
           toolChoice: "auto", // Helps with math problem accuracy
           maxExecutionTime: 8000,
-          tokenOverhead: 300, // Already accounted for in maxTokens
+          tokenOverhead: 500, // Already accounted for in maxTokens
         });
 
         try {
@@ -272,10 +273,16 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
             const delta = chunk?.choices?.[0]?.delta;
             const content = delta?.content || "";
 
-            // Capture usage from final chunk
+            // Capture usage and tool usage from chunks
             const chunkUsage = (chunk as { usage?: { prompt_tokens?: number; completion_tokens?: number } })?.usage;
             if (chunkUsage) {
               completion = { usage: chunkUsage };
+            }
+
+            // Check if code interpreter was used (available in chunk metadata)
+            const chunkMessage = (chunk as unknown as { choices?: Array<{ message?: { executed_tools?: Array<{ type: string }> } }> })?.choices?.[0]?.message;
+            if (chunkMessage && !codeInterpreterUsed) {
+              codeInterpreterUsed = usedCodeInterpreter(chunkMessage);
             }
 
             if (content) {
@@ -332,6 +339,12 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
             const raw = (fallbackCompletion.choices?.[0]?.message?.content as string | undefined) ?? "{}";
             completion = fallbackCompletion;
 
+            // Check if code interpreter was used in fallback
+            const fallbackMessage = fallbackCompletion.choices?.[0]?.message;
+            if (fallbackMessage && !codeInterpreterUsed) {
+              codeInterpreterUsed = usedCodeInterpreter(fallbackMessage as { executed_tools?: Array<{ type: string }> });
+            }
+
             // Parse and send all questions
             const parsed = tryParseQuestions(raw);
             if (parsed.questions) {
@@ -368,6 +381,7 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
                 provider,
                 tier: userTier,
                 questionCount: sentQuestionCount,
+                codeInterpreterUsed,
               }
             });
           } catch (logErr) {

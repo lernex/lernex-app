@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { logUsage } from "@/lib/usage";
-import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter } from "@/lib/code-interpreter";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "@/lib/code-interpreter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -339,7 +339,7 @@ FORMAT:
 
     console.log("[remix] Calling OpenAI API...");
 
-    // Adjust token limits for code_interpreter tool overhead (+300 tokens)
+    // Adjust token limits for code_interpreter tool overhead (+500 tokens)
     const baseMaxTokens = 16000;
     const maxTokens = adjustTokenLimitForCodeInterpreter(baseMaxTokens);
 
@@ -348,7 +348,7 @@ FORMAT:
       enabled: true,
       toolChoice: "auto", // May help with math/science content accuracy
       maxExecutionTime: 8000,
-      tokenOverhead: 300, // Already accounted for in maxTokens
+      tokenOverhead: 500, // Already accounted for in maxTokens
     });
 
     const completion = await openai.chat.completions.create({
@@ -372,6 +372,10 @@ FORMAT:
     });
 
     const responseText = completion.choices[0]?.message?.content || "";
+
+    // Check if code interpreter was used
+    const message = completion.choices[0]?.message;
+    const codeInterpreterUsed = usedCodeInterpreter(message as { executed_tools?: Array<{ type: string }> });
 
     console.log("[remix] Received response from API");
 
@@ -411,7 +415,8 @@ FORMAT:
             playlistId,
             lessonsGenerated: lessons.length,
             provider,
-            tier: userTier
+            tier: userTier,
+            codeInterpreterUsed
           },
         });
         console.log('[remix] Usage logged successfully');
