@@ -9,7 +9,8 @@ import { canUserGenerate, logUsage } from "@/lib/usage";
 import { normalizeLatex, scanLatex, hasLatexIssues } from "@/lib/latex";
 import { createModelClient, fetchUserTier } from "@/lib/model-config";
 import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
-import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "@/lib/code-interpreter";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter, getCodeInterpreterMetadata } from "@/lib/code-interpreter";
+import { analyzeMathComplexity, isMathSubject } from "@/lib/math-detection";
 
 const MAX_CHARS = 4300;
 
@@ -76,13 +77,24 @@ export async function POST(req: Request) {
       contextRule = "Test concepts with NEW examples. If lesson shows y=3x+5, use y=2x+7. Never reuse lesson's numbers/scenarios. Test understanding, not memorization.";
     }
 
-    // Detect if subject is math-related to require code interpreter
-    const isMathSubject = /math|algebra|geometry|calculus|trigonometry|statistics|physics|chemistry/i.test(subject);
+    // Analyze content for math complexity
+    const mathAnalysis = analyzeMathComplexity(src);
+    const subjectIsMath = isMathSubject(subject);
+    const requiresCodeInterpreter = mathAnalysis.requiresCodeInterpreter || subjectIsMath;
+
+    console.log('[generate/quiz] Math analysis:', {
+      subject,
+      subjectIsMath,
+      mathComplexity: mathAnalysis.complexity,
+      mathScore: mathAnalysis.mathScore,
+      detectedPatterns: mathAnalysis.detectedPatterns,
+      requiresCodeInterpreter,
+    });
 
     const system = `JSON quiz. Schema: {id, subject, title, difficulty:"intro"|"easy"|"medium"|"hard", questions:[{prompt, choices[], correctIndex, explanation}]}
 Rules: ${countRule} ${contextRule} Stay within subject boundaries. Choices≤8w. Explanations≤25w.
 LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\\\frac). Use {...} for multi-char sub/super (x_{10} not x_10).
-${isMathSubject ? 'CRITICAL: Use code_interpreter tool (Python) to verify ALL calculations and validate answer correctness. This ensures 100% accuracy.' : ''}`.trim();
+${requiresCodeInterpreter ? 'CRITICAL: Use code_interpreter tool (Python) to verify ALL calculations and validate answer correctness. This ensures 100% accuracy.' : ''}`.trim();
 
     // Token limits - higher for quiz-only mode (base limits before code_interpreter overhead)
     let baseMaxTokens: number;
@@ -229,6 +241,7 @@ ${isMathSubject ? 'CRITICAL: Use code_interpreter tool (Python) to verify ALL ca
         let completion: { usage?: { prompt_tokens?: number; completion_tokens?: number } } | null = null;
         let sentQuestionCount = 0;
         let codeInterpreterUsed = false;
+        let lastMessage: { executed_tools?: Array<{ type: string; code?: string; result?: string; error?: string }> } | undefined;
 
         const safeEnqueue = (data: string) => {
           try {
@@ -250,7 +263,7 @@ ${isMathSubject ? 'CRITICAL: Use code_interpreter tool (Python) to verify ALL ca
         // REQUIRE code interpreter for math subjects to ensure calculation accuracy
         const codeInterpreterParams = getCodeInterpreterParams({
           enabled: true,
-          toolChoice: isMathSubject ? "required" : "auto", // Force for math, optional for others
+          toolChoice: requiresCodeInterpreter ? "required" : "auto", // Force for math, optional for others
           maxExecutionTime: 8000,
           tokenOverhead: 500, // Already accounted for in maxTokens
         });
@@ -285,9 +298,12 @@ ${isMathSubject ? 'CRITICAL: Use code_interpreter tool (Python) to verify ALL ca
             }
 
             // Check if code interpreter was used (available in chunk metadata)
-            const chunkMessage = (chunk as unknown as { choices?: Array<{ message?: { executed_tools?: Array<{ type: string }> } }> })?.choices?.[0]?.message;
-            if (chunkMessage && !codeInterpreterUsed) {
-              codeInterpreterUsed = usedCodeInterpreter(chunkMessage);
+            const chunkMessage = (chunk as unknown as { choices?: Array<{ message?: { executed_tools?: Array<{ type: string; code?: string; result?: string; error?: string }> } }> })?.choices?.[0]?.message;
+            if (chunkMessage) {
+              lastMessage = chunkMessage;
+              if (!codeInterpreterUsed) {
+                codeInterpreterUsed = usedCodeInterpreter(chunkMessage as { executed_tools?: Array<{ type: string }> });
+              }
             }
 
             if (content) {
@@ -346,8 +362,11 @@ ${isMathSubject ? 'CRITICAL: Use code_interpreter tool (Python) to verify ALL ca
 
             // Check if code interpreter was used in fallback
             const fallbackMessage = fallbackCompletion.choices?.[0]?.message;
-            if (fallbackMessage && !codeInterpreterUsed) {
-              codeInterpreterUsed = usedCodeInterpreter(fallbackMessage as { executed_tools?: Array<{ type: string }> });
+            if (fallbackMessage) {
+              lastMessage = fallbackMessage as { executed_tools?: Array<{ type: string; code?: string; result?: string; error?: string }> };
+              if (!codeInterpreterUsed) {
+                codeInterpreterUsed = usedCodeInterpreter(fallbackMessage as { executed_tools?: Array<{ type: string }> });
+              }
             }
 
             // Parse and send all questions
@@ -375,6 +394,9 @@ ${isMathSubject ? 'CRITICAL: Use code_interpreter tool (Python) to verify ALL ca
           };
 
           try {
+            // Extract enhanced metadata
+            const codeInterpreterMetadata = getCodeInterpreterMetadata(lastMessage, requiresCodeInterpreter);
+
             await logUsage(sb, user.id, ip, modelIdentifier, mapped, {
               metadata: {
                 route: "generate-quiz",
@@ -387,6 +409,14 @@ ${isMathSubject ? 'CRITICAL: Use code_interpreter tool (Python) to verify ALL ca
                 tier: userTier,
                 questionCount: sentQuestionCount,
                 codeInterpreterUsed,
+                // Enhanced metadata
+                codeInterpreterDetails: codeInterpreterMetadata,
+                mathAnalysis: {
+                  complexity: mathAnalysis.complexity,
+                  mathScore: mathAnalysis.mathScore,
+                  detectedPatterns: mathAnalysis.detectedPatterns,
+                  subjectIsMath,
+                },
               }
             });
           } catch (logErr) {

@@ -9,7 +9,8 @@ import { getCachedSampleQuestions } from "@/lib/sat-sample-cache";
 import { shuffleQuizQuestions } from "@/lib/quiz-shuffle";
 import { normalizeLatex } from "@/lib/latex";
 import { getSATTokenLimit } from "@/lib/dynamic-token-limits";
-import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter } from "@/lib/code-interpreter";
+import { getCodeInterpreterParams, adjustTokenLimitForCodeInterpreter, usedCodeInterpreter, getCodeInterpreterMetadata } from "@/lib/code-interpreter";
+import { getSATTopicComplexity } from "@/lib/sat-topic-complexity";
 
 // OPTIMIZATION: Function calling tool schema for SAT quiz generation (42% output token reduction)
 // Function calling eliminates JSON wrapper overhead compared to JSON mode
@@ -174,10 +175,19 @@ export async function POST(req: Request) {
     const enhancedSystemPrompt = systemPrompt + `\n\nIMPORTANT: Respond with ONLY a valid JSON object (no markdown, no code fences). Output must be parseable with JSON.parse().`;
 
     // Get code interpreter params for SAT quiz generation (critical for math accuracy)
-    // For SAT Math, REQUIRE code interpreter to ensure accurate calculations
+    // Use topic-level complexity to determine tool choice
+    const topicComplexity = getSATTopicComplexity(section as "math" | "reading" | "writing", topic);
+    const toolChoice = topicComplexity.toolChoice === 'none' ? 'auto' : topicComplexity.toolChoice;
+
+    console.log('[sat-prep/quiz] Topic complexity:', {
+      topic,
+      toolChoice,
+      reason: topicComplexity.reason,
+    });
+
     const codeInterpreterParams = getCodeInterpreterParams({
-      enabled: true,
-      toolChoice: section === "math" ? "required" : "auto", // Force code interpreter for math sections
+      enabled: topicComplexity.toolChoice !== 'none',
+      toolChoice: toolChoice,
       maxExecutionTime: 8000,
       tokenOverhead: 500, // Already accounted for in maxTokens
     });
@@ -202,9 +212,13 @@ export async function POST(req: Request) {
       throw new Error("No content in AI response");
     }
 
-    // Check if code interpreter was used
+    // Extract enhanced code interpreter metadata
     const message = completion?.choices?.[0]?.message;
     const codeInterpreterUsed = usedCodeInterpreter(message as { executed_tools?: Array<{ type: string }> });
+    const codeInterpreterMetadata = getCodeInterpreterMetadata(
+      message as { executed_tools?: Array<{ type: string; code?: string; result?: string; error?: string }> },
+      toolChoice === 'required'
+    );
 
     console.log("[sat-prep/quiz] content-length", content.length);
 
@@ -245,7 +259,18 @@ export async function POST(req: Request) {
           input_tokens: usage.prompt_tokens ?? null,
           output_tokens: usage.completion_tokens ?? null,
         }, {
-          metadata: { route: "sat-prep-quiz", section, topic, provider, tier: userTier, codeInterpreterUsed },
+          metadata: {
+            route: "sat-prep-quiz",
+            section,
+            topic,
+            provider,
+            tier: userTier,
+            codeInterpreterUsed,
+            // Enhanced metadata
+            codeInterpreterDetails: codeInterpreterMetadata,
+            topicComplexity: topicComplexity.toolChoice,
+            topicComplexityReason: topicComplexity.reason,
+          },
         });
       } catch (logErr) {
         console.warn("[sat-prep/quiz] usage-log-error", logErr);

@@ -182,3 +182,86 @@ export function getCodeInterpreterDetails(
     executedCode: extractCodeExecutionResults(message?.executed_tools),
   };
 }
+
+/**
+ * Enhanced metadata for code interpreter usage tracking
+ */
+export interface CodeInterpreterMetadata {
+  /** Whether code interpreter was actually used */
+  used: boolean;
+  /** Number of code executions performed */
+  executionCount: number;
+  /** Whether tool choice was 'required' vs 'auto' */
+  wasRequired: boolean;
+  /** Brief snippets of executed code (first 100 chars each) */
+  codeSnippets?: string[];
+  /** Whether any executions had errors */
+  hadErrors: boolean;
+  /** Complexity indicator based on code patterns */
+  complexity?: 'basic' | 'intermediate' | 'advanced';
+}
+
+/**
+ * Extract enhanced metadata about code interpreter usage
+ * Perfect for detailed analytics and usage tracking
+ *
+ * @param message - Completion message with potential executed_tools
+ * @param wasRequired - Whether toolChoice was set to 'required'
+ * @returns Detailed metadata object
+ */
+export function getCodeInterpreterMetadata(
+  message: {
+    executed_tools?: Array<{
+      type: string;
+      code?: string;
+      result?: string;
+      error?: string;
+    }>;
+  } | undefined,
+  wasRequired = false
+): CodeInterpreterMetadata {
+  const executedTools = message?.executed_tools?.filter(
+    (tool) => tool.type === "code_interpreter"
+  ) || [];
+
+  const used = executedTools.length > 0;
+  const executionCount = executedTools.length;
+
+  // Extract code snippets (first 100 chars)
+  const codeSnippets = executedTools
+    .map((tool) => tool.code?.substring(0, 100) || "")
+    .filter(Boolean);
+
+  // Check for errors
+  const hadErrors = executedTools.some((tool) => tool.error);
+
+  // Determine complexity based on code patterns
+  let complexity: 'basic' | 'intermediate' | 'advanced' | undefined;
+  if (used) {
+    const allCode = executedTools.map((t) => t.code || "").join(" ");
+
+    // Advanced: loops, functions, imports, numpy/scipy
+    if (
+      /\bfor\b|\bwhile\b|\bdef\b|\bimport\b|numpy|scipy|sympy/i.test(allCode)
+    ) {
+      complexity = 'advanced';
+    }
+    // Intermediate: multiple operations, variables
+    else if (/[=;]\s*\w+\s*=|sqrt|pow|abs|math\./i.test(allCode)) {
+      complexity = 'intermediate';
+    }
+    // Basic: simple arithmetic
+    else {
+      complexity = 'basic';
+    }
+  }
+
+  return {
+    used,
+    executionCount,
+    wasRequired,
+    codeSnippets: codeSnippets.length > 0 ? codeSnippets : undefined,
+    hadErrors,
+    complexity,
+  };
+}
