@@ -244,19 +244,93 @@ export function collapseMacroEscapes(value: string): string {
   return value.replace(RE_DOUBLE_BEFORE_MACRO, "\\");
 }
 
+/**
+ * Clean invisible and problematic characters from text
+ */
+export function cleanInvisibleCharacters(value: string): string {
+  if (!value) return "";
+
+  // Remove zero-width characters and other invisible Unicode
+  let cleaned = value
+    .replace(/[\u200B-\u200D\uFEFF]/g, "") // Zero-width spaces, joiners, BOM
+    .replace(/[\u00AD]/g, "") // Soft hyphen
+    .replace(/[\u2060]/g, "") // Word joiner
+    .replace(/[\u180E]/g, ""); // Mongolian vowel separator
+
+  // Remove control characters except newlines and tabs (which we'll handle separately)
+  cleaned = cleaned.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, "");
+
+  return cleaned;
+}
+
+/**
+ * Normalize all types of whitespace consistently
+ */
+export function normalizeWhitespace(value: string): string {
+  if (!value) return "";
+
+  let normalized = value;
+
+  // Clean up literal escape sequences (as text, not actual characters)
+  // Remove \t, \n, \r, \v, \f escape sequences that appear as literal text
+  normalized = normalized
+    .replace(/\\t/g, " ")
+    .replace(/\\n/g, " ")
+    .replace(/\\r/g, "")
+    .replace(/\\v/g, " ")
+    .replace(/\\f/g, " ");
+
+  // Replace all actual tab characters with spaces
+  normalized = normalized.replace(/\t/g, " ");
+
+  // Replace various Unicode spaces with regular space
+  normalized = normalized.replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, " ");
+
+  // Normalize line endings to \n
+  normalized = normalized.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  // Collapse multiple spaces to single space (but preserve newlines)
+  normalized = normalized.replace(/ {2,}/g, " ");
+
+  // Clean up spaces around newlines
+  normalized = normalized.replace(/ *\n */g, "\n");
+
+  // Collapse multiple consecutive newlines (max 2)
+  normalized = normalized.replace(/\n{3,}/g, "\n\n");
+
+  return normalized;
+}
+
 export function normalizeLatex(value: string, options: LatexNormalizeOptions = {}): string {
   const { convertInlineMath = true, collapseDelimiters = true, collapseMacroEscapes: collapseMacros = true } = options;
   if (!value) return "";
+
   let out = value;
+
+  // Step 1: Clean invisible characters first
+  out = cleanInvisibleCharacters(out);
+
+  // Step 2: Normalize whitespace
+  out = normalizeWhitespace(out);
+
+  // Step 3: Trim leading/trailing whitespace from the entire string
+  out = out.trim();
+
+  // Step 4: Convert inline math delimiters
   if (convertInlineMath) {
     out = out.replace(RE_INLINE_DOLLARS, (_match, inner: string) => `\\(${inner}\\)`);
   }
+
+  // Step 5: Collapse delimiter escapes
   if (collapseDelimiters) {
     out = normalizeLatexDelimiters(out);
   }
+
+  // Step 6: Collapse macro escapes
   if (collapseMacros) {
     out = collapseMacroEscapes(out);
   }
+
   return out;
 }
 

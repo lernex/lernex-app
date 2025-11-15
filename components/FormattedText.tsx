@@ -29,6 +29,10 @@ function devWarn(...args: unknown[]) {
 }
 
 // Precompiled regexes to reduce repeated work
+// URL/Path protection - match before other formatting to preserve them
+const RE_URL = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
+const RE_FILE_PATH = /(?:[a-zA-Z]:\\(?:[^\\\/:*?"<>|\r\n]+\\)*[^\\\/:*?"<>|\r\n]*)|(?:\/(?:[^\/\0]+\/)*[^\/\0]+)/g;
+
 // Bold patterns - improved to handle word boundaries and prevent false matches
 const RE_BOLD_DOUBLE_ASTERISK = /\*\*(?=\S)((?:(?!\*\*).)+?)(?<=\S)\*\*/g;
 const RE_BOLD_DOUBLE_UNDERSCORE = /__(?=\S)((?:(?!__).)+?)(?<=\S)__/g;
@@ -403,21 +407,25 @@ function splitMathSegments(src: string): Seg[] {
 }
 
 function parseLatexTable(match: string, content: string): string {
-  // Extract column spec from \begin{tabular}{...}
-  const colSpecMatch = match.match(/\\begin\{tabular\}\{([^}]*)\}/);
-  const colSpec = colSpecMatch?.[1] || '';
+  try {
+    // Extract column spec from \begin{tabular}{...}
+    const colSpecMatch = match.match(/\\begin\{tabular\}\{([^}]*)\}/);
+    const colSpec = colSpecMatch?.[1] || '';
 
-  // Parse alignment from column spec (l=left, c=center, r=right)
-  const alignments = colSpec.split('').filter(c => ['l', 'c', 'r'].includes(c)).map(c => {
-    if (c === 'c') return 'center';
-    if (c === 'r') return 'right';
-    return 'left';
-  });
+    // Parse alignment from column spec (l=left, c=center, r=right)
+    const alignments = colSpec.split('').filter(c => ['l', 'c', 'r'].includes(c)).map(c => {
+      if (c === 'c') return 'center';
+      if (c === 'r') return 'right';
+      return 'left';
+    });
 
-  // Split into rows by \\ (but not \\\\ which might be escaped)
-  const rows = content.split('\\\\').map(r => r.trim()).filter(r => r && r !== '\\hline');
+    // Split into rows by \\ (but not \\\\ which might be escaped)
+    const rows = content.split('\\\\').map(r => r.trim()).filter(r => r && r !== '\\hline');
 
-  if (rows.length === 0) return match; // Return original if parsing fails
+    if (rows.length === 0) {
+      devWarn("latex-table-no-rows");
+      return escapeHtml(match); // Return escaped original if parsing fails
+    }
 
   // Helper to process cell content (wrap in math mode for LaTeX rendering)
   const processCell = (cell: string): string => {
@@ -484,7 +492,11 @@ function parseLatexTable(match: string, content: string): string {
   });
   html += '</tbody></table>';
 
-  return html;
+    return html;
+  } catch (err) {
+    devWarn("latex-table-parse-error", err);
+    return escapeHtml(match);
+  }
 }
 
 // Helper to split table row by pipes while respecting math delimiters
@@ -583,8 +595,12 @@ function splitTableRow(row: string): string[] {
 }
 
 function parseMarkdownTable(match: string): string {
-  const lines = match.trim().split('\n').map(l => l.trim());
-  if (lines.length < 3) return match; // Need at least header, separator, and one data row
+  try {
+    const lines = match.trim().split('\n').map(l => l.trim());
+    if (lines.length < 3) {
+      devLog("markdown-table-insufficient-rows", { lineCount: lines.length });
+      return escapeHtml(match); // Need at least header, separator, and one data row
+    }
 
   // Parse header row using smart split
   const headerCells = splitTableRow(lines[0]!);
@@ -672,7 +688,11 @@ function parseMarkdownTable(match: string): string {
   }
   html += '</tbody></table>';
 
-  return html;
+    return html;
+  } catch (err) {
+    devWarn("markdown-table-parse-error", err);
+    return escapeHtml(match);
+  }
 }
 
 // Helper function to render math expressions within text
@@ -751,8 +771,10 @@ function renderMathInText(text: string): string {
 function formatNonMath(s: string, existingReplacements?: Map<string, string>, placeholderCounter?: { value: number }) {
   const wrap = (tex: string) => {
     try {
-      return katex.renderToString(tex, { displayMode: false, throwOnError: false });
-    } catch {
+      return katex.renderToString(tex, { displayMode: false, throwOnError: false, strict: false });
+    } catch (err) {
+      // Fallback: if KaTeX fails, return escaped HTML
+      devWarn("katex-wrap-error", { tex: tex.slice(0, 50), err });
       return escapeHtml(tex);
     }
   };
@@ -760,32 +782,55 @@ function formatNonMath(s: string, existingReplacements?: Map<string, string>, pl
   const replacements = existingReplacements || new Map<string, string>();
   const counter = placeholderCounter || { value: 0 };
 
-  // First, protect markdown tables from all processing (skip if already extracted)
+  // PROTECTION PHASE: Protect content from processing in order of priority
+  let protected = s;
+
+  // 1. Protect URLs first (highest priority - don't format these at all)
+  if (!existingReplacements) {
+    protected = protected.replace(RE_URL, (match) => {
+      const key = `\u{FFFC}PLACEHOLDER${counter.value++}\u{FFFC}`;
+      replacements.set(key, `<a href="${escapeHtml(match)}" target="_blank" rel="noopener noreferrer" class="text-lernex-blue hover:underline">${escapeHtml(match)}</a>`);
+      return key;
+    });
+  }
+
+  // 2. Protect markdown tables from all processing (skip if already extracted)
   const withMarkdownTablePlaceholders = existingReplacements
-    ? s
-    : s.replace(RE_MARKDOWN_TABLE, (match) => {
+    ? protected
+    : protected.replace(RE_MARKDOWN_TABLE, (match) => {
         const key = `\u{FFFC}PLACEHOLDER${counter.value++}\u{FFFC}`;
-        replacements.set(key, parseMarkdownTable(match));
+        try {
+          replacements.set(key, parseMarkdownTable(match));
+        } catch (err) {
+          devWarn("markdown-table-parse-error", err);
+          replacements.set(key, escapeHtml(match));
+        }
         return key;
       });
 
-  // Second, protect LaTeX tables from all processing (skip if already extracted)
+  // 3. Protect LaTeX tables from all processing (skip if already extracted)
   const withTablePlaceholders = existingReplacements
     ? withMarkdownTablePlaceholders
     : withMarkdownTablePlaceholders.replace(RE_LATEX_TABLE, (match, content) => {
         const key = `\u{FFFC}PLACEHOLDER${counter.value++}\u{FFFC}`;
-        replacements.set(key, parseLatexTable(match, content));
+        try {
+          replacements.set(key, parseLatexTable(match, content));
+        } catch (err) {
+          devWarn("latex-table-parse-error", err);
+          replacements.set(key, escapeHtml(match));
+        }
         return key;
       });
 
-  // Then protect code blocks from all processing
+  // 4. Protect code blocks from all processing
   const withCodeBlockPlaceholders = withTablePlaceholders.replace(RE_CODE_BLOCK, (match) => {
     const key = `\u{FFFC}PLACEHOLDER${counter.value++}\u{FFFC}`;
-    replacements.set(key, `<pre><code>${escapeHtml(match.slice(3, -3))}</code></pre>`);
+    const code = match.slice(3, -3);
+    replacements.set(key, `<pre><code>${escapeHtml(code)}</code></pre>`);
     return key;
   });
 
-  // Then protect inline code spans
+  // 5. Protect inline code spans
   const withPlaceholders = withCodeBlockPlaceholders.replace(RE_CODE, (_match, inner: string) => {
     const key = `\u{FFFC}PLACEHOLDER${counter.value++}\u{FFFC}`;
     replacements.set(key, `<code>${escapeHtml(inner)}</code>`);
@@ -867,51 +912,78 @@ function formatNonMath(s: string, existingReplacements?: Map<string, string>, pl
 
   // Improved subscript matching - check context to avoid variable names
   out = out.replace(RE_SUBSCRIPT, (match, base: string, subscript: string, offset: number) => {
-    // Get surrounding context
-    const before = out.slice(Math.max(0, offset - 3), offset);
-    const after = out.slice(offset + match.length, offset + match.length + 3);
+    try {
+      // Get surrounding context
+      const before = out.slice(Math.max(0, offset - 3), offset);
+      const after = out.slice(offset + match.length, offset + match.length + 3);
 
-    // Skip if preceded by letter or underscore (part of longer variable name)
-    // This prevents matching "y_v" within "my_variable"
-    if (/[a-z_]/i.test(before.slice(-1))) return match;
+      // Skip if preceded by letter or underscore (part of longer variable name)
+      // This prevents matching "y_v" within "my_variable"
+      if (/[a-z_]/i.test(before.slice(-1))) return match;
 
-    // Skip if followed by underscore or letter (middle of variable name)
-    if (/^[a-z_]/i.test(after)) return match;
+      // Skip if followed by underscore or letter (middle of variable name)
+      if (/^[a-z_]/i.test(after)) return match;
 
-    // Skip if subscript is a common programming word (like max, min, etc.)
-    if (AMBIGUOUS_WORDS.has(subscript.toLowerCase())) return match;
+      // Skip if subscript is a common programming word (like max, min, etc.)
+      const subscriptClean = subscript.replace(/[{}]/g, "");
+      if (AMBIGUOUS_WORDS.has(subscriptClean.toLowerCase())) return match;
 
-    // Skip if the base letter is uppercase and subscript is lowercase multi-letter
-    // (likely acronym like API_key rather than math like T_max)
-    if (base === base.toUpperCase() && subscript.length > 1 && subscript === subscript.toLowerCase()) {
+      // Skip if the base letter is uppercase and subscript is lowercase multi-letter
+      // (likely acronym like API_key rather than math like T_max)
+      if (base === base.toUpperCase() && subscriptClean.length > 1 && subscriptClean === subscriptClean.toLowerCase()) {
+        return match;
+      }
+
+      return wrap(`${base}_${subscript}`);
+    } catch (err) {
+      devWarn("subscript-error", { match, err });
       return match;
     }
-
-    return wrap(`${base}_${subscript}`);
   });
 
   // Improved superscript matching - avoid ordinals and programming contexts
   out = out.replace(RE_SUPERSCRIPT, (match, base: string, exponent: string, offset: number) => {
-    // Get surrounding context
-    const before = out.slice(Math.max(0, offset - 2), offset);
-    const after = out.slice(offset + match.length, offset + match.length + 3);
+    try {
+      // Get surrounding context
+      const before = out.slice(Math.max(0, offset - 2), offset);
+      const after = out.slice(offset + match.length, offset + match.length + 3);
 
-    // Skip ordinals: 1st, 2nd, 3rd, 21st, etc.
-    if (/\d+$/.test(base) && /^(st|nd|rd|th)/.test(after)) {
+      // Skip ordinals: 1st, 2nd, 3rd, 21st, etc.
+      if (/\d+$/.test(base) && /^(st|nd|rd|th)/.test(after)) {
+        return match;
+      }
+
+      // Skip XOR operator in programming (e.g., a^b in some languages)
+      // If surrounded by spaces or operators, likely programming
+      if (/[\s=+\-*/(]$/.test(before) && /^[\s=+\-*/);\]]/.test(after)) {
+        return match;
+      }
+
+      return wrap(`${base}^${exponent}`);
+    } catch (err) {
+      devWarn("superscript-error", { match, err });
       return match;
     }
-
-    // Skip XOR operator in programming (e.g., a^b in some languages)
-    // If surrounded by spaces or operators, likely programming
-    if (/[\s=+\-*/(]$/.test(before) && /^[\s=+\-*/);\]]/.test(after)) {
-      return match;
-    }
-
-    return wrap(`${base}^${exponent}`);
   });
-  out = out.replace(RE_DOUBLE_BAR, (_m, inner) => wrap(`\\| ${inner.trim()} \\|`));
-  out = out.replace(RE_ANGLE, (_m, inner) => wrap(`\\langle ${inner.trim()} \\rangle`));
-  out = out.replace(RE_SQRT, (_m, inner) => wrap(`\\sqrt{${inner.trim()}}`));
+
+  // Special math notation with error handling
+  try {
+    out = out.replace(RE_DOUBLE_BAR, (_m, inner) => wrap(`\\| ${inner.trim()} \\|`));
+  } catch (err) {
+    devWarn("double-bar-error", err);
+  }
+
+  try {
+    out = out.replace(RE_ANGLE, (_m, inner) => wrap(`\\langle ${inner.trim()} \\rangle`));
+  } catch (err) {
+    devWarn("angle-bracket-error", err);
+  }
+
+  try {
+    out = out.replace(RE_SQRT, (_m, inner) => wrap(`\\sqrt{${inner.trim()}}`));
+  } catch (err) {
+    devWarn("sqrt-error", err);
+  }
 
   // Restore all placeholders in one pass
   for (const [key, value] of replacements) {
@@ -945,66 +1017,127 @@ function FormattedText({
   className,
   as = 'span',
 }: FormattedTextProps) {
-  // Compute the HTML once per `text` value.
+  // Compute the HTML once per `text` value with comprehensive error handling
   const html = useMemo(() => {
-    let src = text ?? "";
-    src = normalizeBackslashes(src);
-    devLog("html-build", { len: src.length, preview: src.slice(0, 60) });
-    src = balanceDelimiters(src);
-
-    // IMPORTANT: Extract tables BEFORE splitting math segments to prevent
-    // LaTeX delimiters inside table cells from breaking the table structure
-    const tableReplacements = new Map<string, string>();
-    const placeholderCounter = { value: 0 }; // Use object for mutable reference
-
-    // Extract markdown tables
-    src = src.replace(RE_MARKDOWN_TABLE, (match) => {
-      const key = `\u{FFFC}PLACEHOLDER${placeholderCounter.value++}\u{FFFC}`;
-      tableReplacements.set(key, parseMarkdownTable(match));
-      return key;
-    });
-
-    // Extract LaTeX tables
-    src = src.replace(RE_LATEX_TABLE, (match, content) => {
-      const key = `\u{FFFC}PLACEHOLDER${placeholderCounter.value++}\u{FFFC}`;
-      tableReplacements.set(key, parseLatexTable(match, content));
-      return key;
-    });
-
-    // Now split math segments (tables are protected as placeholders)
-    const segs = splitMathSegments(src);
-    const out = segs.map(({ math, t, displayMode }) => {
-      if (math) {
-        // Extract just the math content (remove delimiters)
-        let mathContent = t;
-        if (t.startsWith('\\(') && t.endsWith('\\)')) {
-          mathContent = t.slice(2, -2);
-        } else if (t.startsWith('\\[') && t.endsWith('\\]')) {
-          mathContent = t.slice(2, -2);
-        } else if (t.startsWith('$$') && t.endsWith('$$')) {
-          mathContent = t.slice(2, -2);
-        } else if (t.startsWith('$') && t.endsWith('$')) {
-          mathContent = t.slice(1, -1);
-        }
-
-        mathContent = fixMacrosInMath(mathContent);
-
-        try {
-          return katex.renderToString(mathContent, {
-            displayMode: displayMode ?? false,
-            throwOnError: false,
-            strict: false
-          });
-        } catch (e) {
-          devWarn("katex-error", e);
-          return escapeHtml(t);
-        }
-      } else {
-        return formatNonMath(t, tableReplacements, placeholderCounter);
+    try {
+      // Input validation
+      if (!text || typeof text !== 'string') {
+        devLog("empty-or-invalid-text");
+        return "";
       }
-    }).join("");
-    devLog("html-ready", { len: out.length });
-    return out;
+
+      let src = text;
+
+      // Step 1: Normalize backslashes
+      try {
+        src = normalizeBackslashes(src);
+      } catch (err) {
+        devWarn("backslash-normalization-error", err);
+      }
+
+      devLog("html-build", { len: src.length, preview: src.slice(0, 60) });
+
+      // Step 2: Balance delimiters
+      try {
+        src = balanceDelimiters(src);
+      } catch (err) {
+        devWarn("delimiter-balancing-error", err);
+      }
+
+      // IMPORTANT: Extract tables BEFORE splitting math segments to prevent
+      // LaTeX delimiters inside table cells from breaking the table structure
+      const tableReplacements = new Map<string, string>();
+      const placeholderCounter = { value: 0 }; // Use object for mutable reference
+
+      // Step 3: Extract markdown tables with error handling
+      try {
+        src = src.replace(RE_MARKDOWN_TABLE, (match) => {
+          const key = `\u{FFFC}PLACEHOLDER${placeholderCounter.value++}\u{FFFC}`;
+          try {
+            tableReplacements.set(key, parseMarkdownTable(match));
+          } catch (err) {
+            devWarn("markdown-table-extraction-error", err);
+            tableReplacements.set(key, escapeHtml(match));
+          }
+          return key;
+        });
+      } catch (err) {
+        devWarn("markdown-table-replace-error", err);
+      }
+
+      // Step 4: Extract LaTeX tables with error handling
+      try {
+        src = src.replace(RE_LATEX_TABLE, (match, content) => {
+          const key = `\u{FFFC}PLACEHOLDER${placeholderCounter.value++}\u{FFFC}`;
+          try {
+            tableReplacements.set(key, parseLatexTable(match, content));
+          } catch (err) {
+            devWarn("latex-table-extraction-error", err);
+            tableReplacements.set(key, escapeHtml(match));
+          }
+          return key;
+        });
+      } catch (err) {
+        devWarn("latex-table-replace-error", err);
+      }
+
+      // Step 5: Split math segments (tables are protected as placeholders)
+      let segs: Seg[];
+      try {
+        segs = splitMathSegments(src);
+      } catch (err) {
+        devWarn("math-segment-split-error", err);
+        // Fallback: treat entire text as non-math
+        segs = [{ math: false, t: src }];
+      }
+
+      // Step 6: Process each segment
+      const out = segs.map(({ math, t, displayMode }) => {
+        if (math) {
+          // Extract just the math content (remove delimiters)
+          let mathContent = t;
+          try {
+            if (t.startsWith('\\(') && t.endsWith('\\)')) {
+              mathContent = t.slice(2, -2);
+            } else if (t.startsWith('\\[') && t.endsWith('\\]')) {
+              mathContent = t.slice(2, -2);
+            } else if (t.startsWith('$$') && t.endsWith('$$')) {
+              mathContent = t.slice(2, -2);
+            } else if (t.startsWith('$') && t.endsWith('$')) {
+              mathContent = t.slice(1, -1);
+            }
+
+            mathContent = fixMacrosInMath(mathContent);
+
+            return katex.renderToString(mathContent, {
+              displayMode: displayMode ?? false,
+              throwOnError: false,
+              strict: false,
+              trust: false, // Security: don't trust user input
+              maxSize: 500, // Prevent extremely large expressions
+              maxExpand: 1000, // Prevent macro expansion attacks
+            });
+          } catch (e) {
+            devWarn("katex-render-error", { preview: mathContent.slice(0, 50), err: e });
+            return escapeHtml(t);
+          }
+        } else {
+          try {
+            return formatNonMath(t, tableReplacements, placeholderCounter);
+          } catch (err) {
+            devWarn("format-non-math-error", err);
+            return escapeHtml(t);
+          }
+        }
+      }).join("");
+
+      devLog("html-ready", { len: out.length });
+      return out;
+    } catch (err) {
+      // Top-level error handler - last resort
+      devWarn("formatted-text-critical-error", err);
+      return escapeHtml(text || "");
+    }
   }, [text]);
 
   const Tag: React.ElementType = as;
