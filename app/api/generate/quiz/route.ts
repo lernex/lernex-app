@@ -268,6 +268,9 @@ ${requiresCodeInterpreter ? 'CRITICAL: Use code_interpreter tool (Python) to ver
           tokenOverhead: 500, // Already accounted for in maxTokens
         });
 
+        // DEBUG: Log code interpreter params being sent
+        console.log('[generate/quiz] Code interpreter params:', JSON.stringify(codeInterpreterParams, null, 2));
+
         try {
           // Start streaming completion
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -287,9 +290,23 @@ ${requiresCodeInterpreter ? 'CRITICAL: Use code_interpreter tool (Python) to ver
           }) as unknown) as Stream<ChatCompletionChunk>;
 
           // Process stream chunks
+          let chunkCount = 0;
           for await (const chunk of stream) {
+            chunkCount++;
             const delta = chunk?.choices?.[0]?.delta;
             const content = delta?.content || "";
+
+            // DEBUG: Log first few chunks and last chunk to see structure
+            if (requiresCodeInterpreter && (chunkCount <= 2 || chunk?.choices?.[0]?.finish_reason)) {
+              console.log(`[generate/quiz] Chunk #${chunkCount}:`, JSON.stringify({
+                hasMessage: !!(chunk as { choices?: Array<{ message?: unknown }> })?.choices?.[0]?.message,
+                hasDelta: !!delta,
+                hasContent: !!content,
+                finishReason: chunk?.choices?.[0]?.finish_reason,
+                chunkKeys: Object.keys(chunk),
+                choiceKeys: chunk?.choices?.[0] ? Object.keys(chunk.choices[0]) : []
+              }, null, 2));
+            }
 
             // Capture usage and tool usage from chunks
             const chunkUsage = (chunk as { usage?: { prompt_tokens?: number; completion_tokens?: number } })?.usage;
@@ -301,6 +318,13 @@ ${requiresCodeInterpreter ? 'CRITICAL: Use code_interpreter tool (Python) to ver
             const chunkMessage = (chunk as unknown as { choices?: Array<{ message?: { executed_tools?: Array<{ type: string; code?: string; result?: string; error?: string }> } }> })?.choices?.[0]?.message;
             if (chunkMessage) {
               lastMessage = chunkMessage;
+              // DEBUG: Log when we find a message with executed_tools
+              if (chunkMessage.executed_tools && chunkMessage.executed_tools.length > 0) {
+                console.log('[generate/quiz] Found executed_tools in chunk:', JSON.stringify({
+                  count: chunkMessage.executed_tools.length,
+                  tools: chunkMessage.executed_tools.map(t => ({ type: t.type, hasCode: !!t.code }))
+                }));
+              }
               if (!codeInterpreterUsed) {
                 codeInterpreterUsed = usedCodeInterpreter(chunkMessage as { executed_tools?: Array<{ type: string }> });
               }
@@ -394,6 +418,15 @@ ${requiresCodeInterpreter ? 'CRITICAL: Use code_interpreter tool (Python) to ver
           };
 
           try {
+            // DEBUG: Log final message state
+            console.log('[generate/quiz] Final message state:', JSON.stringify({
+              hasLastMessage: !!lastMessage,
+              hasExecutedTools: !!lastMessage?.executed_tools,
+              executedToolsCount: lastMessage?.executed_tools?.length || 0,
+              codeInterpreterUsed,
+              requiresCodeInterpreter,
+            }, null, 2));
+
             // Extract enhanced metadata
             const codeInterpreterMetadata = getCodeInterpreterMetadata(lastMessage, requiresCodeInterpreter);
 
