@@ -145,7 +145,8 @@ export async function POST(req: Request) {
       `Generate 3 SAT ${section} MCQs on ${topicLabel} as valid JSON.`,
       `Schema: {id:"sat-${section}-${topic}", subject:"SAT ${section.charAt(0).toUpperCase() + section.slice(1)}", topic:"${topicLabel}", title:"SAT ${topicLabel} Practice", difficulty:"medium", questions:[{prompt, choices[4], correctIndex, explanation}]}`,
       `Rules: Emulate real SAT style${hasExamples ? '. Style reference examples provided (truncated for brevity - match their format/tone/difficulty)' : ''}. ${formatGuidance.replace('- Format: ', '').replace('- NOTE: ', '')} 4 choices, 15-40w explanations. Math: Use LaTeX with single backslash delimiters: \\(inline\\) \\[display\\]. Example: \\(x^2 + 1\\) or \\[\\frac{a}{b}\\]. In JSON strings, escape backslashes: "\\\\(" becomes \\( when parsed. Test understanding, vary difficulty.`,
-    ].join("\n");
+      section === "math" ? `CRITICAL: Use the code_interpreter tool (Python) to verify ALL mathematical calculations, solve equations, and validate answer choices. This ensures 100% accuracy.` : '',
+    ].filter(Boolean).join("\n");
 
     const userPrompt = [
       `SAT Section: ${section}`,
@@ -173,9 +174,10 @@ export async function POST(req: Request) {
     const enhancedSystemPrompt = systemPrompt + `\n\nIMPORTANT: Respond with ONLY a valid JSON object (no markdown, no code fences). Output must be parseable with JSON.parse().`;
 
     // Get code interpreter params for SAT quiz generation (critical for math accuracy)
+    // For SAT Math, REQUIRE code interpreter to ensure accurate calculations
     const codeInterpreterParams = getCodeInterpreterParams({
       enabled: true,
-      toolChoice: "auto", // Let model decide when to use Python for math problems
+      toolChoice: section === "math" ? "required" : "auto", // Force code interpreter for math sections
       maxExecutionTime: 8000,
       tokenOverhead: 500, // Already accounted for in maxTokens
     });

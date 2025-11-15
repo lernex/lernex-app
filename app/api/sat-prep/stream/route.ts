@@ -88,12 +88,13 @@ export async function POST(req: Request) {
         ? "Style reference examples provided below (truncated for brevity). Use them to match the format, tone, difficulty, and complexity of real SAT questions."
         : "Model your content after official SAT question patterns and difficulty levels.",
       "",
+      section === "math" ? "IMPORTANT: Use the code_interpreter tool (Python) to verify ALL mathematical calculations and solve equations in your worked examples. This ensures 100% accuracy." : "",
       "Use ## for sections if needed.",
       "Do not use JSON or code fences; avoid HTML tags.",
       "Math: Use LaTeX with single backslash delimiters: \\(inline\\) \\[display\\]. Example: \\(x^2 + 1\\) or \\[\\frac{a}{b}\\]. Commands: \\frac \\sqrt \\alpha etc.",
       "Tables: Use markdown format | Header 1 | Header 2 | with separator |----|----| and data rows.",
       "Make the content practical and test-focused.",
-    ].join(" ");
+    ].filter(Boolean).join(" ");
 
     // Apply semantic compression to system prompt if enabled (15-25% token reduction)
     const compressedSystemPrompt = process.env.ENABLE_SEMANTIC_COMPRESSION === 'true'
@@ -145,9 +146,10 @@ export async function POST(req: Request) {
     ];
 
     // Get code interpreter params for SAT math accuracy
+    // For SAT Math, REQUIRE code interpreter to ensure accurate calculations
     const codeInterpreterParams = getCodeInterpreterParams({
       enabled: true,
-      toolChoice: "auto", // Critical for SAT math problems
+      toolChoice: section === "math" ? "required" : "auto", // Force code interpreter for math sections
       maxExecutionTime: 8000, // 8 second timeout
       tokenOverhead: 500, // Already accounted for in maxTokens
     });

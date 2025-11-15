@@ -76,9 +76,13 @@ export async function POST(req: Request) {
       contextRule = "Test concepts with NEW examples. If lesson shows y=3x+5, use y=2x+7. Never reuse lesson's numbers/scenarios. Test understanding, not memorization.";
     }
 
+    // Detect if subject is math-related to require code interpreter
+    const isMathSubject = /math|algebra|geometry|calculus|trigonometry|statistics|physics|chemistry/i.test(subject);
+
     const system = `JSON quiz. Schema: {id, subject, title, difficulty:"intro"|"easy"|"medium"|"hard", questions:[{prompt, choices[], correctIndex, explanation}]}
 Rules: ${countRule} ${contextRule} Stay within subject boundaries. Choices≤8w. Explanations≤25w.
-LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\\\frac). Use {...} for multi-char sub/super (x_{10} not x_10).`.trim();
+LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\\\frac). Use {...} for multi-char sub/super (x_{10} not x_10).
+${isMathSubject ? 'CRITICAL: Use code_interpreter tool (Python) to verify ALL calculations and validate answer correctness. This ensures 100% accuracy.' : ''}`.trim();
 
     // Token limits - higher for quiz-only mode (base limits before code_interpreter overhead)
     let baseMaxTokens: number;
@@ -243,9 +247,10 @@ LaTeX: Wrap math in \\(...\\) or \\[...\\]. Single backslash only (\\frac not \\
         };
 
         // Get code interpreter params for quiz generation (outside try block for fallback access)
+        // REQUIRE code interpreter for math subjects to ensure calculation accuracy
         const codeInterpreterParams = getCodeInterpreterParams({
           enabled: true,
-          toolChoice: "auto", // Helps with math problem accuracy
+          toolChoice: isMathSubject ? "required" : "auto", // Force for math, optional for others
           maxExecutionTime: 8000,
           tokenOverhead: 500, // Already accounted for in maxTokens
         });

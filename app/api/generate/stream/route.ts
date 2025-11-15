@@ -129,8 +129,17 @@ export async function POST(req: Request) {
         rules.push(TABLE_FORMATTING_RULE);
       }
 
+      // Add code interpreter instruction for math subjects
+      const isMathSubject = /math|algebra|geometry|calculus|trigonometry|statistics|physics|chemistry/i.test(subject);
+      if (isMathSubject) {
+        rules.push("IMPORTANT: Use code_interpreter tool (Python) to verify ALL calculations, solve equations, and validate mathematical correctness. This ensures 100% accuracy.");
+      }
+
       return rules.join(" ");
     };
+
+    // Detect if subject is math-related to require code interpreter
+    const isMathSubject = /math|algebra|geometry|calculus|trigonometry|statistics|physics|chemistry/i.test(subject);
 
     const system = buildPrompt(mode);
     let compressedSrc = src;
@@ -183,9 +192,10 @@ export async function POST(req: Request) {
     ];
 
     // Get code interpreter params for math accuracy
+    // REQUIRE code interpreter for math subjects to ensure calculation accuracy
     const codeInterpreterParams = getCodeInterpreterParams({
       enabled: true,
-      toolChoice: "auto", // Let model decide when to use Python for calculations
+      toolChoice: isMathSubject ? "required" : "auto", // Force for math, optional for others
       maxExecutionTime: 8000, // 8 second timeout for code execution
       tokenOverhead: 500, // Already accounted for in maxTokens
     });

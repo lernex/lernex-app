@@ -344,9 +344,13 @@ FORMAT:
     const maxTokens = adjustTokenLimitForCodeInterpreter(baseMaxTokens);
 
     // Get code interpreter params for accurate content generation
+    // REQUIRE code interpreter if any lessons are math-related
+    const isMathSubject = patterns.subjects.some(subject =>
+      /math|algebra|geometry|calculus|trigonometry|statistics|physics|chemistry/i.test(subject)
+    );
     const codeInterpreterParams = getCodeInterpreterParams({
       enabled: true,
-      toolChoice: "auto", // May help with math/science content accuracy
+      toolChoice: isMathSubject ? "required" : "auto", // Force for math, optional for others
       maxExecutionTime: 8000,
       tokenOverhead: 500, // Already accounted for in maxTokens
     });

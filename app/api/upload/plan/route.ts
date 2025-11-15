@@ -143,9 +143,11 @@ Create a lesson plan that breaks this content into logical, bite-sized lessons.$
     const completionMaxTokens = adjustTokenLimitForCodeInterpreter(baseCompletionMaxTokens);
 
     // Get code interpreter params for accurate content analysis
+    // REQUIRE code interpreter if subject is math-related
+    const isMathSubject = requestedSubject && /math|algebra|geometry|calculus|trigonometry|statistics|physics|chemistry/i.test(requestedSubject);
     const codeInterpreterParams = getCodeInterpreterParams({
       enabled: true,
-      toolChoice: "auto", // May help with content length calculations
+      toolChoice: isMathSubject ? "required" : "auto", // Force for math, optional for others
       maxExecutionTime: 8000,
       tokenOverhead: 500, // Already accounted for in completionMaxTokens
     });

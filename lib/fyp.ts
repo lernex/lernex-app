@@ -1366,9 +1366,11 @@ export async function generateLessonForTopic(
           messageCount: messages.length,
         };
         // Get code interpreter params for FYP lesson generation
+        // REQUIRE code interpreter for math subjects to ensure calculation accuracy
+        const isMathSubject = /math|algebra|geometry|calculus|trigonometry|statistics|physics|chemistry/i.test(subject);
         const codeInterpreterParams = getCodeInterpreterParams({
           enabled: true,
-          toolChoice: "auto", // Critical for math/science accuracy in FYP
+          toolChoice: isMathSubject ? "required" : "auto", // Force for math, optional for others
           maxExecutionTime: 8000,
           tokenOverhead: 500, // Already accounted for in completionMaxTokens
         });
@@ -1624,9 +1626,10 @@ export async function generateLessonForTopic(
           const retryMaxTokens = adjustTokenLimitForCodeInterpreter(retryCheck.newLimit);
 
           // Get code interpreter params for retry
+          // REQUIRE code interpreter for math subjects in retry
           const retryCodeInterpreterParams = getCodeInterpreterParams({
             enabled: true,
-            toolChoice: "auto",
+            toolChoice: isMathSubject ? "required" : "auto", // Use same logic as main attempt
             maxExecutionTime: 8000,
             tokenOverhead: 500,
           });
